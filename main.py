@@ -150,8 +150,10 @@ async def main():
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
 # --- Повідомлення при запуску ---
-async def post_init(application: ApplicationBuilder):
-    await application.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
+async def post_init(application):
+    if not hasattr(application, "startup_notified"):
+        await application.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
+        application.startup_notified = True
 
 # --- Створення застосунку ---
 app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
