@@ -153,11 +153,8 @@ async def run_bot():
     await bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
     await app.run_polling()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    import asyncio
     print("✅ ВЕРСІЯ: GPT+Binance Telegram Bot запущено")
-    bot.send_message(ADMIN_CHAT_ID, f"🚀 Crypto Bot запущено: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
-        bot.polling(none_stop=True)
+    asyncio.run(run_bot())
 
