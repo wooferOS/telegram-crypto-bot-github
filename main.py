@@ -12,7 +12,6 @@ from telegram.ext import (
 from binance.client import Client
 import openai
 import asyncio
-import nest_asyncio
 
 # --- Логування ---
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -28,7 +27,6 @@ DATA_PATH = "settings.json"
 
 # --- Ініціалізація ---
 bot = Bot(token=TELEGRAM_TOKEN)
-app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 openai.api_key = OPENAI_API_KEY
 binance_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
@@ -136,24 +134,32 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def fallback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🤖 Я вас не зрозумів. Введи /menu для списку команд")
 
-# --- Хендлери ---
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("menu", menu))
-app.add_handler(CommandHandler("set_budget", set_budget))
-app.add_handler(CommandHandler("set_pair", set_pair))
-app.add_handler(CommandHandler("history", show_history))
-app.add_handler(CommandHandler("status", status))
-app.add_handler(CommandHandler("report", report))
-app.add_handler(CommandHandler("buy", buy))
-app.add_handler(CommandHandler("sell", sell))
-app.add_handler(CommandHandler("help", help_command))
-app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
-
-# --- Запуск бота ---
+# --- Головна функція ---
 async def main():
+    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("menu", menu))
+    application.add_handler(CommandHandler("set_budget", set_budget))
+    application.add_handler(CommandHandler("set_pair", set_pair))
+    application.add_handler(CommandHandler("history", show_history))
+    application.add_handler(CommandHandler("status", status))
+    application.add_handler(CommandHandler("report", report))
+    application.add_handler(CommandHandler("buy", buy))
+    application.add_handler(CommandHandler("sell", sell))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
+
     await bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
-    await app.run_polling()
+    await application.run_polling()
 
 if __name__ == "__main__":
-    nest_asyncio.apply()
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except RuntimeError as e:
+        if "Cannot close a running event loop" in str(e):
+            import nest_asyncio
+            nest_asyncio.apply()
+            asyncio.get_event_loop().run_until_complete(main())
+        else:
+            raise
