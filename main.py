@@ -1,5 +1,4 @@
 # ✅ Розширений main.py з підтримкою бюджетів, пар, історії, аналітики, графіків та Binance
-
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -11,6 +10,8 @@ from telegram import Bot, Update, ReplyKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, filters, ApplicationBuilder, ContextTypes
 from binance.client import Client
 import openai
+import asyncio
+import nest_asyncio
 
 # --- Логування ---
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -151,22 +152,13 @@ app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
 # --- Старт бота ---
 async def run_bot():
     await bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
-    await app.run_polling()
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    await app.updater.idle()
+    await app.stop()
+    await app.shutdown()
+
 if __name__ == "__main__":
-    import asyncio
-    import nest_asyncio
-
-    print("✅ ВЕРСІЯ: GPT+Binance Telegram Bot запущено")
-
-    try:
-        asyncio.run(run_bot())
-    except RuntimeError as e:
-        if "already running" in str(e):
-            print("⚠️ Event loop вже працює. Застосовуємо nest_asyncio")
-            nest_asyncio.apply()
-            loop = asyncio.get_event_loop()
-            loop.run_until_complete(run_bot())
-        else:
-            raise
-
-
+    nest_asyncio.apply()
+    asyncio.run(run_bot())
