@@ -140,8 +140,8 @@ async def notify_once(app):
             f.write(str(datetime.now()))
 
 # --- Головна точка входу ---
-def main():
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+if __name__ == "__main__":
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(notify_once).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("menu", menu))
@@ -155,10 +155,4 @@ def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
 
-    # Сповіщення після старту
-    app.post_init = notify_once
-
     app.run_polling()
-
-if __name__ == "__main__":
-    main()
