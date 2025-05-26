@@ -10,9 +10,10 @@ from telegram.ext import (
 )
 from binance.client import Client
 import openai
+import asyncio
 
 # --- Логування ---
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- Змінні середовища ---
 load_dotenv()
@@ -141,24 +142,22 @@ async def notify_once(application):
 
 # --- Запуск бота ---
 if __name__ == "__main__":
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    async def main():
+        app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("menu", menu))
-    app.add_handler(CommandHandler("set_budget", set_budget))
-    app.add_handler(CommandHandler("set_pair", set_pair))
-    app.add_handler(CommandHandler("history", show_history))
-    app.add_handler(CommandHandler("status", status))
-    app.add_handler(CommandHandler("report", report))
-    app.add_handler(CommandHandler("buy", buy))
-    app.add_handler(CommandHandler("sell", sell))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
+        app.add_handler(CommandHandler("start", start))
+        app.add_handler(CommandHandler("menu", menu))
+        app.add_handler(CommandHandler("set_budget", set_budget))
+        app.add_handler(CommandHandler("set_pair", set_pair))
+        app.add_handler(CommandHandler("history", show_history))
+        app.add_handler(CommandHandler("status", status))
+        app.add_handler(CommandHandler("report", report))
+        app.add_handler(CommandHandler("buy", buy))
+        app.add_handler(CommandHandler("sell", sell))
+        app.add_handler(CommandHandler("help", help_command))
+        app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
 
-    # Запускаємо polling з повідомленням 1 раз
-    async def run():
         await notify_once(app)
         await app.run_polling()
 
-    import asyncio
-    asyncio.run(run())
+    asyncio.run(main())
