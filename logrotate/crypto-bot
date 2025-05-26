@@ -1,0 +1,14 @@
+/var/log/crypto-bot.log /var/log/crypto-bot-error.log {
+    su root root
+    daily
+    rotate 7
+    compress
+    missingok
+    notifempty
+    copytruncate
+    create 644 root root
+    sharedscripts
+    postrotate
+        systemctl restart crypto-bot.service > /dev/null 2>&1 || true
+    endscript
+}
