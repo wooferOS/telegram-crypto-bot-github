@@ -1,13 +1,14 @@
-# ✅ Розширений main.py з підтримкою бюджетів, пар, історії, аналітики, графіків та Binance
 import os
-from dotenv import load_dotenv
-load_dotenv()
 import json
 import logging
 import matplotlib.pyplot as plt
 from datetime import datetime
+from dotenv import load_dotenv
 from telegram import Bot, Update, ReplyKeyboardMarkup
-from telegram.ext import CommandHandler, MessageHandler, filters, ApplicationBuilder, ContextTypes
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, MessageHandler,
+    ContextTypes, filters
+)
 from binance.client import Client
 import openai
 import asyncio
@@ -16,7 +17,8 @@ import nest_asyncio
 # --- Логування ---
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- Змінні ---
+# --- Змінні середовища ---
+load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
@@ -82,8 +84,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         account = binance_client.get_account()
         assets = [f"{a['asset']}: {a['free']}" for a in account['balances'] if float(a['free']) > 0.0]
-        text = "💼 Поточний баланс Binance:\n" + "\n".join(assets)
-        await update.message.reply_text(text)
+        await update.message.reply_text("💼 Поточний баланс Binance:\n" + "\n".join(assets))
     except Exception as e:
         await update.message.reply_text(f"❌ Помилка: {e}")
 
@@ -92,7 +93,6 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
         btc = binance_client.get_symbol_ticker(symbol="BTCUSDT")
         eth = binance_client.get_symbol_ticker(symbol="ETHUSDT")
         prompt = f"BTC: {btc['price']}, ETH: {eth['price']}. Що купити або продати?"
-
         response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}]
@@ -149,16 +149,11 @@ app.add_handler(CommandHandler("sell", sell))
 app.add_handler(CommandHandler("help", help_command))
 app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
 
-# --- Старт бота ---
-async def run_bot():
+# --- Запуск бота ---
+async def main():
     await bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
-    await app.initialize()
-    await app.start()
-    await app.updater.start_polling()
-    await app.updater.idle()
-    await app.stop()
-    await app.shutdown()
+    await app.run_polling()
 
 if __name__ == "__main__":
     nest_asyncio.apply()
-    asyncio.run(run_bot())
+    asyncio.run(main())
