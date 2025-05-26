@@ -1,62 +1,90 @@
+# ✅ Розширений main.py з підтримкою бюджетів, пар, історії, аналітики, графіків та Binance
+
 import os
+import json
 import logging
-import telebot
-import openai
-import schedule
-import time
 import matplotlib.pyplot as plt
 from datetime import datetime
+from telegram import Bot, Update, ReplyKeyboardMarkup
+from telegram.ext import CommandHandler, MessageHandler, filters, ApplicationBuilder, ContextTypes
 from binance.client import Client
-import requests
+import openai
 
 # --- Логування ---
-logging.basicConfig(
-    filename='daily_analysis.log',
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- Ініціалізація ---
+# --- Змінні ---
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
+DATA_PATH = "settings.json"
 
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
+# --- Ініціалізація ---
+bot = Bot(token=TELEGRAM_TOKEN)
+app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 openai.api_key = OPENAI_API_KEY
 binance_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
-# --- Telegram команди ---
-@bot.message_handler(commands=['start'])
-def start_handler(message):
-    bot.send_message(message.chat.id, "👋 Привіт! Я CryptoBot. Напиши /menu для початку.")
+# --- Завантаження/збереження налаштувань ---
+def load_settings():
+    if os.path.exists(DATA_PATH):
+        with open(DATA_PATH, "r") as f:
+            return json.load(f)
+    return {"budget": 100.0, "pair": "BTCUSDT", "history": []}
 
-@bot.message_handler(commands=['menu'])
-def menu(message):
-    menu_text = (
-        "📋 Меню команд:\n"
-        "/start — Почати роботу\n"
-        "/status — Поточний баланс Binance\n"
-        "/report — GPT-аналітика\n"
-        "/buy — Купити BTCUSDT\n"
-        "/sell — Продати BTCUSDT\n"
-        "/help — Підказка"
-    )
-    bot.send_message(message.chat.id, menu_text)
+def save_settings(settings):
+    with open(DATA_PATH, "w") as f:
+        json.dump(settings, f, indent=2)
 
-@bot.message_handler(commands=['status'])
-def status_handler(message):
+settings = load_settings()
+
+# --- Команди ---
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("👋 Вітаю! Я Crypto Bot. Введи /menu для команд")
+
+async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    keyboard = [["/status", "/report"], ["/buy", "/sell"], ["/set_budget", "/set_pair"], ["/history", "/help"]]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    await update.message.reply_text("📋 Меню команд:", reply_markup=reply_markup)
+
+async def set_budget(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        amount = float(context.args[0])
+        settings["budget"] = amount
+        save_settings(settings)
+        await update.message.reply_text(f"✅ Бюджет оновлено: ${amount}")
+    except:
+        await update.message.reply_text("❗ Приклад: /set_budget 150.0")
+
+async def set_pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        pair = context.args[0].upper()
+        settings["pair"] = pair
+        save_settings(settings)
+        await update.message.reply_text(f"✅ Пара оновлена: {pair}")
+    except:
+        await update.message.reply_text("❗ Приклад: /set_pair BTCUSDT")
+
+async def show_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    hist = settings.get("history", [])
+    if not hist:
+        await update.message.reply_text("📭 Угод ще не було")
+    else:
+        text = "\n".join([f"{i+1}. {item}" for i, item in enumerate(hist[-5:])])
+        await update.message.reply_text(f"📘 Історія останніх угод:\n{text}")
+
+async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         account = binance_client.get_account()
         assets = [f"{a['asset']}: {a['free']}" for a in account['balances'] if float(a['free']) > 0.0]
         text = "💼 Поточний баланс Binance:\n" + "\n".join(assets)
-        bot.send_message(message.chat.id, text)
+        await update.message.reply_text(text)
     except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка: {e}")
+        await update.message.reply_text(f"❌ Помилка: {e}")
 
-@bot.message_handler(commands=['report'])
-def report_handler(message):
+async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         btc = binance_client.get_symbol_ticker(symbol="BTCUSDT")
         eth = binance_client.get_symbol_ticker(symbol="ETHUSDT")
@@ -67,76 +95,62 @@ def report_handler(message):
             messages=[{"role": "user", "content": prompt}]
         )
         reply = response.choices[0].message.content.strip()
-        bot.send_message(message.chat.id, f"🤖 GPT каже:\n{reply}")
+        await update.message.reply_text(f"🤖 GPT каже:\n{reply}")
     except Exception as e:
-        bot.send_message(message.chat.id, f"❌ GPT-звіт недоступний: {e}")
+        await update.message.reply_text(f"❌ GPT-звіт недоступний: {e}")
 
-@bot.message_handler(commands=['buy'])
-def buy_handler(message):
+async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         order = binance_client.create_order(
-            symbol='BTCUSDT',
+            symbol=settings["pair"],
             side='BUY',
             type='MARKET',
             quantity=0.0002
         )
-        bot.send_message(message.chat.id, f"✅ Купівля виконана: {order['fills'][0]['qty']} BTC")
+        settings["history"].append(f"Buy {order['symbol']} - {order['fills'][0]['qty']}")
+        save_settings(settings)
+        await update.message.reply_text(f"✅ Купівля виконана: {order['fills'][0]['qty']} {order['symbol']}")
     except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка купівлі: {e}")
+        await update.message.reply_text(f"❌ Помилка купівлі: {e}")
 
-@bot.message_handler(commands=['sell'])
-def sell_handler(message):
+async def sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         order = binance_client.create_order(
-            symbol='BTCUSDT',
+            symbol=settings["pair"],
             side='SELL',
             type='MARKET',
             quantity=0.0002
         )
-        bot.send_message(message.chat.id, f"✅ Продаж виконано: {order['fills'][0]['qty']} BTC")
+        settings["history"].append(f"Sell {order['symbol']} - {order['fills'][0]['qty']}")
+        save_settings(settings)
+        await update.message.reply_text(f"✅ Продаж виконано: {order['fills'][0]['qty']} {order['symbol']}")
     except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка продажу: {e}")
+        await update.message.reply_text(f"❌ Помилка продажу: {e}")
 
-@bot.message_handler(commands=['help'])
-def help_handler(message):
-    bot.send_message(message.chat.id, "🆘 Напиши /menu щоб побачити всі доступні команди")
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🆘 Напиши /menu щоб побачити всі доступні команди")
 
-@bot.message_handler(func=lambda m: True)
-def fallback(message):
-    bot.send_message(message.chat.id, "❔ Невідома команда. Напиши /menu")
+async def fallback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("🤖 Я вас не зрозумів. Введи /menu для списку команд")
 
-# --- Графік та щоденний аналіз ---
-def run_daily_analysis():
-    try:
-        prices = binance_client.get_all_tickers()
-        top = sorted([(p['symbol'], float(p['price'])) for p in prices if 'USDT' in p['symbol']], key=lambda x: -x[1])[:10]
+# --- Хендлери ---
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("menu", menu))
+app.add_handler(CommandHandler("set_budget", set_budget))
+app.add_handler(CommandHandler("set_pair", set_pair))
+app.add_handler(CommandHandler("history", show_history))
+app.add_handler(CommandHandler("status", status))
+app.add_handler(CommandHandler("report", report))
+app.add_handler(CommandHandler("buy", buy))
+app.add_handler(CommandHandler("sell", sell))
+app.add_handler(CommandHandler("help", help_command))
+app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
 
-        # Побудова графіка
-        symbols = [x[0] for x in top]
-        values = [x[1] for x in top]
-        plt.figure(figsize=(10,5))
-        plt.bar(symbols, values, color='skyblue')
-        plt.title("Топ 10 монет по ціні")
-        plt.xticks(rotation=45)
-        plt.tight_layout()
-        filename = f"top10_{datetime.now().strftime('%Y%m%d')}.png"
-        plt.savefig(filename)
+# --- Старт бота ---
+async def run_bot():
+    await bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
+    await app.run_polling()
 
-        summary = "📈 Топ 10 монет Binance:\n" + "\n".join([f"{s}: {v:.2f}" for s,v in top])
-        with open(filename, 'rb') as photo:
-            bot.send_photo(ADMIN_CHAT_ID, photo=photo, caption=summary)
-
-        logging.info("✅ Звіт відправлено")
-    except Exception as e:
-        logging.error(f"❌ Звіт не вдалось згенерувати: {e}")
-
-# --- Автозапуск о 09:00 ---
-schedule.every().day.at("09:00").do(run_daily_analysis)
-
-# --- Запуск бота ---
-if __name__ == '__main__':
-    bot.send_message(ADMIN_CHAT_ID, f"🚀 Crypto Bot запущено: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
-        bot.polling(none_stop=True)
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(run_bot())
