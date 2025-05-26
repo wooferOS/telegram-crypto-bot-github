@@ -152,21 +152,21 @@ app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
 async def run_bot():
     await bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
     await app.run_polling()
-
 if __name__ == "__main__":
     import asyncio
+    import nest_asyncio
+
     print("✅ ВЕРСІЯ: GPT+Binance Telegram Bot запущено")
 
     try:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(run_bot())
+        asyncio.run(run_bot())
     except RuntimeError as e:
         if "already running" in str(e):
-            print("⚠️ Event loop вже запущено. Викликаємо run_bot() напряму")
-            import nest_asyncio
+            print("⚠️ Event loop вже працює. Застосовуємо nest_asyncio")
             nest_asyncio.apply()
             loop = asyncio.get_event_loop()
-            loop.create_task(run_bot())
+            loop.run_until_complete(run_bot())
         else:
             raise
+
 
