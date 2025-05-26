@@ -134,30 +134,30 @@ async def fallback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🤖 Я вас не зрозумів. Введи /menu для списку команд")
 
 # --- Повідомлення при першому запуску ---
-async def notify_once(application):
+async def notify_once(app):
     if not os.path.exists(NOTIFY_FILE):
-        await application.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
+        await app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
         with open(NOTIFY_FILE, "w") as f:
             f.write(str(datetime.now()))
 
 # --- Запуск бота ---
+async def main():
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("menu", menu))
+    app.add_handler(CommandHandler("set_budget", set_budget))
+    app.add_handler(CommandHandler("set_pair", set_pair))
+    app.add_handler(CommandHandler("history", show_history))
+    app.add_handler(CommandHandler("status", status))
+    app.add_handler(CommandHandler("report", report))
+    app.add_handler(CommandHandler("buy", buy))
+    app.add_handler(CommandHandler("sell", sell))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
+
+    await notify_once(app)
+    await app.run_polling()
+
 if __name__ == "__main__":
-    async def main():
-        app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
-        app.add_handler(CommandHandler("start", start))
-        app.add_handler(CommandHandler("menu", menu))
-        app.add_handler(CommandHandler("set_budget", set_budget))
-        app.add_handler(CommandHandler("set_pair", set_pair))
-        app.add_handler(CommandHandler("history", show_history))
-        app.add_handler(CommandHandler("status", status))
-        app.add_handler(CommandHandler("report", report))
-        app.add_handler(CommandHandler("buy", buy))
-        app.add_handler(CommandHandler("sell", sell))
-        app.add_handler(CommandHandler("help", help_command))
-        app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
-
-        await notify_once(app)
-        await app.run_polling()
-
     asyncio.run(main())
