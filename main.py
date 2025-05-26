@@ -10,7 +10,6 @@ from telegram.ext import (
 )
 from binance.client import Client
 import openai
-import asyncio
 
 # --- Логування ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -25,6 +24,7 @@ ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 DATA_PATH = "settings.json"
 NOTIFY_FILE = ".notified"
 
+# --- Ініціалізація ---
 openai.api_key = OPENAI_API_KEY
 binance_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
@@ -132,17 +132,17 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def fallback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🤖 Я вас не зрозумів. Введи /menu для списку команд")
 
-# --- Основний запуск ---
-async def main():
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
-    # Повідомлення при першому запуску
+# --- Повідомлення при першому запуску ---
+async def notify_once(app):
     if not os.path.exists(NOTIFY_FILE):
         await app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
         with open(NOTIFY_FILE, "w") as f:
             f.write(str(datetime.now()))
 
-    # Хендлери
+# --- Головна точка входу ---
+def main():
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("menu", menu))
     app.add_handler(CommandHandler("set_budget", set_budget))
@@ -155,7 +155,10 @@ async def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
 
-    await app.run_polling()
+    # Сповіщення після старту
+    app.post_init = notify_once
+
+    app.run_polling()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
