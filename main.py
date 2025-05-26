@@ -155,11 +155,18 @@ async def run_bot():
 
 if __name__ == "__main__":
     import asyncio
-    import nest_asyncio
     print("✅ ВЕРСІЯ: GPT+Binance Telegram Bot запущено")
 
-    nest_asyncio.apply()
-    loop = asyncio.get_event_loop()
-    loop.create_task(run_bot())
-    loop.run_forever()
+    try:
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(run_bot())
+    except RuntimeError as e:
+        if "already running" in str(e):
+            print("⚠️ Event loop вже запущено. Викликаємо run_bot() напряму")
+            import nest_asyncio
+            nest_asyncio.apply()
+            loop = asyncio.get_event_loop()
+            loop.create_task(run_bot())
+        else:
+            raise
 
