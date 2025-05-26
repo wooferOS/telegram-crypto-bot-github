@@ -1,17 +1,15 @@
 import os
 import json
 import logging
-import matplotlib.pyplot as plt
 from datetime import datetime
 from dotenv import load_dotenv
-from telegram import Bot, Update, ReplyKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler,
     ContextTypes, filters
 )
 from binance.client import Client
 import openai
-import asyncio
 
 # --- Логування ---
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -24,9 +22,9 @@ BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 DATA_PATH = "settings.json"
+NOTIFY_FILE = ".notified"
 
 # --- Ініціалізація ---
-bot = Bot(token=TELEGRAM_TOKEN)
 openai.api_key = OPENAI_API_KEY
 binance_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
@@ -134,44 +132,33 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def fallback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🤖 Я вас не зрозумів. Введи /menu для списку команд")
 
-# --- Головна функція ---
-async def main():
-    application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("menu", menu))
-    application.add_handler(CommandHandler("set_budget", set_budget))
-    application.add_handler(CommandHandler("set_pair", set_pair))
-    application.add_handler(CommandHandler("history", show_history))
-    application.add_handler(CommandHandler("status", status))
-    application.add_handler(CommandHandler("report", report))
-    application.add_handler(CommandHandler("buy", buy))
-    application.add_handler(CommandHandler("sell", sell))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
-# --- Повідомлення при запуску ---
-async def post_init(application):
-    if not hasattr(application, "startup_notified"):
+# --- Повідомлення при першому запуску ---
+async def notify_once(application):
+    if not os.path.exists(NOTIFY_FILE):
         await application.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
-        application.startup_notified = True
+        with open(NOTIFY_FILE, "w") as f:
+            f.write(str(datetime.now()))
 
-# --- Створення застосунку ---
-app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
-
-# --- Хендлери ---
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("menu", menu))
-app.add_handler(CommandHandler("set_budget", set_budget))
-app.add_handler(CommandHandler("set_pair", set_pair))
-app.add_handler(CommandHandler("history", show_history))
-app.add_handler(CommandHandler("status", status))
-app.add_handler(CommandHandler("report", report))
-app.add_handler(CommandHandler("buy", buy))
-app.add_handler(CommandHandler("sell", sell))
-app.add_handler(CommandHandler("help", help_command))
-app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
-
-# --- Запуск ---
+# --- Запуск бота ---
 if __name__ == "__main__":
-    app.run_polling()
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("menu", menu))
+    app.add_handler(CommandHandler("set_budget", set_budget))
+    app.add_handler(CommandHandler("set_pair", set_pair))
+    app.add_handler(CommandHandler("history", show_history))
+    app.add_handler(CommandHandler("status", status))
+    app.add_handler(CommandHandler("report", report))
+    app.add_handler(CommandHandler("buy", buy))
+    app.add_handler(CommandHandler("sell", sell))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
+
+    # Запускаємо polling з повідомленням 1 раз
+    async def run():
+        await notify_once(app)
+        await app.run_polling()
+
+    import asyncio
+    asyncio.run(run())
