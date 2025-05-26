@@ -1,19 +1,22 @@
+
+
 # ✅ Розширений main.py з підтримкою бюджетів, пар, історії, аналітики, графіків та Binance
 
 import os
-from dotenv import load_dotenv
-load_dotenv()
 import json
 import logging
 import matplotlib.pyplot as plt
 from datetime import datetime
+from dotenv import load_dotenv
 from telegram import Bot, Update, ReplyKeyboardMarkup
 from telegram.ext import CommandHandler, MessageHandler, filters, ApplicationBuilder, ContextTypes
 from binance.client import Client
 import openai
 
+load_dotenv()
+
 # --- Логування ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # --- Змінні ---
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -44,9 +47,11 @@ settings = load_settings()
 
 # --- Команди ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("/start команда отримана")
     await update.message.reply_text("👋 Вітаю! Я Crypto Bot. Введи /menu для команд")
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("/menu команда отримана")
     keyboard = [["/status", "/report"], ["/buy", "/sell"], ["/set_budget", "/set_pair"], ["/history", "/help"]]
     reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text("📋 Меню команд:", reply_markup=reply_markup)
@@ -87,6 +92,7 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Помилка: {e}")
 
 async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("/report команда отримана")
     try:
         btc = binance_client.get_symbol_ticker(symbol="BTCUSDT")
         eth = binance_client.get_symbol_ticker(symbol="ETHUSDT")
@@ -102,6 +108,7 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ GPT-звіт недоступний: {e}")
 
 async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    print("/buy команда отримана")
     try:
         order = binance_client.create_order(
             symbol=settings["pair"],
@@ -169,5 +176,3 @@ if __name__ == "__main__":
             loop.create_task(run_bot())
         else:
             raise
-
-
