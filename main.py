@@ -25,7 +25,6 @@ ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 DATA_PATH = "settings.json"
 NOTIFY_FILE = ".notified"
 
-# --- Ініціалізація ---
 openai.api_key = OPENAI_API_KEY
 binance_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
@@ -133,17 +132,17 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def fallback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🤖 Я вас не зрозумів. Введи /menu для списку команд")
 
-# --- Повідомлення при першому запуску ---
-async def notify_once(app):
+# --- Основний запуск ---
+async def main():
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+
+    # Повідомлення при першому запуску
     if not os.path.exists(NOTIFY_FILE):
         await app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
         with open(NOTIFY_FILE, "w") as f:
             f.write(str(datetime.now()))
 
-# --- Запуск бота ---
-async def main():
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-
+    # Хендлери
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("menu", menu))
     app.add_handler(CommandHandler("set_budget", set_budget))
@@ -156,7 +155,6 @@ async def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
 
-    await notify_once(app)
     await app.run_polling()
 
 if __name__ == "__main__":
