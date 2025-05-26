@@ -1,6 +1,8 @@
 # ✅ Розширений main.py з підтримкою бюджетів, пар, історії, аналітики, графіків та Binance
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import json
 import logging
 import matplotlib.pyplot as plt
