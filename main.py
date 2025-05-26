@@ -149,17 +149,27 @@ async def main():
     application.add_handler(CommandHandler("sell", sell))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
+# --- Повідомлення при запуску ---
+async def post_init(application: ApplicationBuilder):
+    await application.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
 
-    await bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
-    await application.run_polling()
+# --- Створення застосунку ---
+app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
 
+# --- Хендлери ---
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("menu", menu))
+app.add_handler(CommandHandler("set_budget", set_budget))
+app.add_handler(CommandHandler("set_pair", set_pair))
+app.add_handler(CommandHandler("history", show_history))
+app.add_handler(CommandHandler("status", status))
+app.add_handler(CommandHandler("report", report))
+app.add_handler(CommandHandler("buy", buy))
+app.add_handler(CommandHandler("sell", sell))
+app.add_handler(CommandHandler("help", help_command))
+app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
+
+# --- Запуск ---
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except RuntimeError as e:
-        if "Cannot close a running event loop" in str(e):
-            import nest_asyncio
-            nest_asyncio.apply()
-            asyncio.get_event_loop().run_until_complete(main())
-        else:
-            raise
+    app.run_polling()
+
