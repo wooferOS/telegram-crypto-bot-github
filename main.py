@@ -72,7 +72,7 @@ async def set_pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     hist = settings.get("history", [])
     if not hist:
-        await update.message.reply_text("📭 Угод ще не було")
+        await update.message.reply_text("📍 Угод ще не було")
     else:
         text = "\n".join([f"{i+1}. {item}" for i, item in enumerate(hist[-5:])])
         await update.message.reply_text(f"📘 Історія останніх угод:\n{text}")
@@ -97,7 +97,7 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         reply = chat_response.choices[0].message.content.strip()
-        await update.message.reply_text(f"🤖 GPT каже:\n{reply}")
+        await update.message.reply_text(f"🧐 GPT каже:\n{reply}")
 
     except Exception as e:
         await update.message.reply_text(f"❌ GPT-звіт недоступний: {e}")
@@ -133,27 +133,26 @@ async def sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = """
 <b>📘 Довідка по командам:</b>
-
 /start – запуск бота
 /menu – кнопкове меню
-/set_pair BTCUSDT – встановити торгову пару (наприклад BTCUSDT)
-/set_budget 100 – встановити бюджет для покупки (в USDT)
-/status – показати баланс твого акаунта Binance
-/report – GPT-звіт з рекомендацією, що купити або продати
-/buy – купити актив на заданий бюджет
-/sell – продати актив з гаманця
-/history – показати останні операції
-/help – цей список з поясненнями
+/set_pair BTCUSDT – встановити торгову пару (BTCUSDT)
+/set_budget 100 – бюджет на купівлю
+/status – показати баланс Binance
+/report – GPT що робити
+/buy – купити
+/sell – продати
+/history – останні операції
+/help – цей список
 """
     await update.message.reply_text(help_text, parse_mode="HTML")
 
 async def fallback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🤖 Я вас не зрозумів. Введи /menu для списку команд")
+    await update.message.reply_text("🧐 Я вас не зрозумів. Введіть /menu для списку команд")
 
 # --- Сповіщення один раз ---
 def notify_once_sync(app):
     if not os.path.exists(NOTIFY_FILE):
-        app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
+        app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з функціоналом")
         with open(NOTIFY_FILE, "w") as f:
             f.write(str(datetime.now()))
 
