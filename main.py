@@ -10,6 +10,7 @@ from telegram.ext import (
 )
 from binance.client import Client
 import openai
+import asyncio
 
 # --- Логування ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -132,14 +133,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def fallback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🤖 Я вас не зрозумів. Введи /menu для списку команд")
 
-# --- Повідомлення при першому запуску ---
-async def notify_once(app):
+# --- Сповіщення один раз ---
+async def notify_once(application):
     if not os.path.exists(NOTIFY_FILE):
-        await app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
+        await application.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
         with open(NOTIFY_FILE, "w") as f:
             f.write(str(datetime.now()))
 
-# --- Запуск ---
+# --- Основний запуск ---
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(notify_once).build()
 
