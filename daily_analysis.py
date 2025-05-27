@@ -1,41 +1,40 @@
+
 import os
-import matplotlib.pyplot as plt
-import pandas as pd
-from telegram import Bot
+import json
 from dotenv import load_dotenv
+from binance.client import Client
+import openai
 
-# Завантаження змінних середовища (якщо потрібно)
+# --- Ініціалізація ---
 load_dotenv()
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
+BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
-bot = Bot(token=TELEGRAM_TOKEN)
 
-# Демонстраційні дані — можна замінити на Binance API
-dates = pd.date_range(end=pd.Timestamp.today(), periods=7)
-coins = ['BTC', 'ETH', 'BNB', 'XRP', 'ADA', 'SOL', 'DOT', 'DOGE', 'AVAX', 'MATIC']
-price_data = {coin: [100 + i * 5 + (j * 3) for j in range(7)] for i, coin in enumerate(coins)}
+openai.api_key = OPENAI_API_KEY
+binance_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
-# Побудова графіку
-df = pd.DataFrame(price_data, index=dates)
-plt.figure(figsize=(12, 6))
-for coin in coins:
-    plt.plot(df.index, df[coin], label=coin)
-plt.title("📊 Топ-10 монет — Динаміка цін")
-plt.xlabel("Дата")
-plt.ylabel("Ціна (умовна)")
-plt.legend()
-plt.grid(True)
-plt.tight_layout()
+def generate_report():
+    account = binance_client.get_account()
+    balances = {a['asset']: a['free'] for a in account['balances'] if float(a['free']) > 0.0}
+    prompt = f"Аналізуй мій портфель: {balances}. Що продавати і що купити сьогодні? Додай stop-loss."
 
-# Збереження в PNG
-plot_path = "top10_prices_analysis.png"
-plt.savefig(plot_path)
-plt.close()
-
-# Відправка графіку в Telegram
-with open(plot_path, 'rb') as photo:
-    bot.send_photo(
-        chat_id=ADMIN_CHAT_ID,
-        photo=photo,
-        caption="🧾 Щоденний графік: топ-10 монет 📈"
+    chat_response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": prompt}]
     )
+
+    return chat_response.choices[0].message.content.strip()
+
+def save_report(text):
+    with open("daily_report.txt", "w") as f:
+        f.write(text)
+
+if __name__ == "__main__":
+    try:
+        report = generate_report()
+        print(report)
+        save_report(report)
+    except Exception as e:
+        print(f"❌ ERROR: {e}")
