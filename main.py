@@ -85,17 +85,20 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Помилка: {e}")
 
+
 async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         btc = binance_client.get_symbol_ticker(symbol="BTCUSDT")
         eth = binance_client.get_symbol_ticker(symbol="ETHUSDT")
         prompt = f"BTC: {btc['price']}, ETH: {eth['price']}. Що купити або продати?"
+
         chat_response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}]
         )
-        reply = chat_response.choices[0].message["content"].strip()
+        reply = chat_response.choices[0].message['content'].strip()
         await update.message.reply_text(f"🤖 GPT каже:\n{reply}")
+
     except Exception as e:
         await update.message.reply_text(f"❌ GPT-звіт недоступний: {e}")
 
