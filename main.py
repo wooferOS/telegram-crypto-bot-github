@@ -132,13 +132,12 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def fallback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🤖 Я вас не зрозумів. Введи /menu для списку команд")
 
-# --- Повідомлення при запуску ---
+# --- Повідомлення при першому запуску ---
 async def notify_once(app):
     if not os.path.exists(NOTIFY_FILE):
         await app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
         with open(NOTIFY_FILE, "w") as f:
             f.write(str(datetime.now()))
-    await app.bot.delete_webhook(drop_pending_updates=True)
 
 # --- Запуск ---
 if __name__ == "__main__":
