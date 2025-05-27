@@ -127,8 +127,23 @@ async def sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Помилка продажу: {e}")
 
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🆘 Напиши /menu щоб побачити всі доступні команди")
+    help_text = """
+🛠 <b>Доступні команди:</b>
+
+/start – запуск бота
+/menu – кнопкове меню
+/set_pair BTCUSDT – встановити торгову пару
+/set_budget 100 – встановити бюджет (у USDT)
+/status – показати баланс Binance
+/report – GPT-звіт, що купити або продати
+/buy – купити актив за поточним бюджетом
+/sell – продати актив
+/history – історія останніх угод
+/help – список команд з поясненнями
+"""
+    await update.message.reply_text(help_text, parse_mode="HTML")
 
 async def fallback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🤖 Я вас не зрозумів. Введи /menu для списку команд")
