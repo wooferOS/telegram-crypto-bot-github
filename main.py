@@ -1,3 +1,6 @@
+from pathlib import Path
+
+main_py_code = '''
 import os
 import json
 import logging
@@ -11,6 +14,8 @@ from telegram.ext import (
 from binance.client import Client
 import openai
 import asyncio
+import matplotlib.pyplot as plt
+from io import BytesIO
 
 # --- Логування ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -34,7 +39,7 @@ def load_settings():
     if os.path.exists(DATA_PATH):
         with open(DATA_PATH, "r") as f:
             return json.load(f)
-    return {"budget": 100.0, "pair": "BTCUSDT", "history": []}
+    return {"budget": 100.0, "pair": "BTCUSDT", "history": [], "autotrade": False, "stop_loss": 5.0}
 
 def save_settings(settings):
     with open(DATA_PATH, "w") as f:
@@ -74,14 +79,14 @@ async def show_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not hist:
         await update.message.reply_text("📍 Угод ще не було")
     else:
-        text = "\n".join([f"{i+1}. {item}" for i, item in enumerate(hist[-5:])])
-        await update.message.reply_text(f"📘 Історія останніх угод:\n{text}")
+        text = "\\n".join([f"{i+1}. {item}" for i, item in enumerate(hist[-5:])])
+        await update.message.reply_text(f"📘 Історія останніх угод:\\n{text}")
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         account = binance_client.get_account()
         assets = [f"{a['asset']}: {a['free']}" for a in account['balances'] if float(a['free']) > 0.0]
-        await update.message.reply_text("💼 Поточний баланс Binance:\n" + "\n".join(assets))
+        await update.message.reply_text("💼 Поточний баланс Binance:\\n" + "\\n".join(assets))
     except Exception as e:
         await update.message.reply_text(f"❌ Помилка: {e}")
 
@@ -90,15 +95,12 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
         btc = binance_client.get_symbol_ticker(symbol="BTCUSDT")
         eth = binance_client.get_symbol_ticker(symbol="ETHUSDT")
         prompt = f"BTC: {btc['price']}, ETH: {eth['price']}. Що купити або продати?"
-
         chat_response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}]
         )
-
         reply = chat_response.choices[0].message.content.strip()
-        await update.message.reply_text(f"🧐 GPT каже:\n{reply}")
-
+        await update.message.reply_text(f"🧐 GPT каже:\\n{reply}")
     except Exception as e:
         await update.message.reply_text(f"❌ GPT-звіт недоступний: {e}")
 
@@ -131,23 +133,7 @@ async def sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Помилка продажу: {e}")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    help_text = """
-<b>📘 Довідка по командам:</b>
-/start – запуск бота
-/menu – кнопкове меню
-/set_pair BTCUSDT – встановити торгову пару (BTCUSDT)
-/set_budget 100 – бюджет на купівлю
-/status – показати баланс Binance
-/report – GPT що робити
-/buy – купити
-/sell – продати
-/history – останні операції
-/help – цей список
-"""
-    await update.message.reply_text(help_text, parse_mode="HTML")
-
-async def fallback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🧐 Я вас не зрозумів. Введіть /menu для списку команд")
+    help_text = \"\"\"\n<b>📘 Довідка по командам:</b>\n/start – запуск бота\n/menu – кнопкове меню\n/set_pair BTCUSDT – встановити торгову пару (BTCUSDT)\n/set_budget 100 – бюджет на купівлю\n/status – показати баланс Binance\n/report – GPT що робити\n/buy – купити\n/sell – продати\n/history – останні операції\n/help – цей список\n/autotrade_on – увімкнути автоторгівлю\n/autotrade_off – вимкнути автоторгівлю\n/set_stop 5 – встановити стоп-лосс у %\n/plan_today – план дій на день\n/chart – діаграма портфеля\n\"\"\"\n    await update.message.reply_text(help_text, parse_mode=\"HTML\")
 
 # --- Сповіщення один раз ---
 def notify_once_sync(app):
@@ -170,7 +156,6 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("buy", buy))
     app.add_handler(CommandHandler("sell", sell))
     app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
 
     try:
         notify_once_sync(app)
@@ -178,3 +163,9 @@ if __name__ == "__main__":
         logging.error(f"❌ Notify error: {e}")
 
     app.run_polling()
+'''
+
+# Save to file
+file_path = "/mnt/data/main.py"
+Path(file_path).write_text(main_py_code)
+file_path
