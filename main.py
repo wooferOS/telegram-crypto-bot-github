@@ -9,7 +9,7 @@ from telegram.ext import (
     ContextTypes, filters
 )
 from binance.client import Client
-from openai import OpenAI
+import openai  # ✅ правильний імпорт
 import asyncio
 
 # --- Логування ---
@@ -26,8 +26,9 @@ DATA_PATH = "settings.json"
 NOTIFY_FILE = ".notified"
 
 # --- Ініціалізація ---
-client = OpenAI(api_key=OPENAI_API_KEY)
+openai.api_key = OPENAI_API_KEY  # ✅ правильна ініціалізація
 binance_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
+
 
 # --- Завантаження/збереження налаштувань ---
 def load_settings():
