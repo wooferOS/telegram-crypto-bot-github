@@ -4,3 +4,4 @@ requests
 matplotlib
 schedule
 python-binance
+python-dotenv
