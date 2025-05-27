@@ -142,7 +142,7 @@ def notify_once_sync(app):
 
 # --- Основний запуск ---
 if __name__ == "__main__":
-   app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("menu", menu))
@@ -157,7 +157,10 @@ if __name__ == "__main__":
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
 
     # викликаємо синхронно перше повідомлення вручну
-    notify_once_sync(app)
+    try:
+        notify_once_sync(app)
+    except Exception as e:
+        logging.error(f"❌ Notify error: {e}")
 
     app.run_polling()
 
