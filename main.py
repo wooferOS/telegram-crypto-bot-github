@@ -127,7 +127,6 @@ async def sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await update.message.reply_text(f"❌ Помилка продажу: {e}")
 
-
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = """
 <b>📘 Довідка по командам:</b>
@@ -144,7 +143,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 /help – цей список з поясненнями
 """
     await update.message.reply_text(help_text, parse_mode="HTML")
-
 
 async def fallback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🤖 Я вас не зрозумів. Введи /menu для списку команд")
@@ -172,7 +170,6 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
 
-    # викликаємо синхронно перше повідомлення вручну
     try:
         notify_once_sync(app)
     except Exception as e:
