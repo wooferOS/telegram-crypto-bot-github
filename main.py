@@ -156,5 +156,8 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
 
-    app.run_polling(post_init=notify_once_sync)
+    # викликаємо синхронно перше повідомлення вручну
+    notify_once_sync(app)
+
+    app.run_polling()
 
