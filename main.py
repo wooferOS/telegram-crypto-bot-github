@@ -9,7 +9,7 @@ from telegram.ext import (
     ContextTypes, filters
 )
 from binance.client import Client
-import openai
+from openai import OpenAI
 import asyncio
 
 # --- Логування ---
@@ -26,7 +26,7 @@ DATA_PATH = "settings.json"
 NOTIFY_FILE = ".notified"
 
 # --- Ініціалізація ---
-openai.api_key = OPENAI_API_KEY
+client = OpenAI(api_key=OPENAI_API_KEY)
 binance_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
 # --- Завантаження/збереження налаштувань ---
@@ -90,11 +90,11 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
         btc = binance_client.get_symbol_ticker(symbol="BTCUSDT")
         eth = binance_client.get_symbol_ticker(symbol="ETHUSDT")
         prompt = f"BTC: {btc['price']}, ETH: {eth['price']}. Що купити або продати?"
-        response = openai.ChatCompletion.create(
+        chat_response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}]
         )
-        reply = response.choices[0].message.content.strip()
+        reply = chat_response.choices[0].message.content.strip()
         await update.message.reply_text(f"🤖 GPT каже:\n{reply}")
     except Exception as e:
         await update.message.reply_text(f"❌ GPT-звіт недоступний: {e}")
@@ -163,4 +163,3 @@ if __name__ == "__main__":
         logging.error(f"❌ Notify error: {e}")
 
     app.run_polling()
-
