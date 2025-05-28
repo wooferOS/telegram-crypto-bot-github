@@ -25,7 +25,7 @@ echo "📦 Зберігаю .github/workflows/daily.yml"
 git add .github/workflows/daily.yml
 
 echo "✅ Комічу всі зміни"
-git commit -m "🚀 Full update: all logic, GPT modules, forecasts, trading and reports"
+git commit -m "🚀 Full automation: GPT report, Binance trader, Telegram updates"
 
 echo "📥 Підтягуємо останні зміни з master"
 git pull --rebase origin master
@@ -33,8 +33,12 @@ git pull --rebase origin master
 echo "📤 Відправляю все в репозиторій"
 git push origin master
 
-echo "📨 Надсилаю повідомлення в Telegram"
-python3 -c "import os, requests; text = '✅ Успішно оновлено всі файли та пушено в GitHub!'; requests.post(f'https://api.telegram.org/bot{os.environ[\"TELEGRAM_TOKEN\"]}/sendMessage', data={'chat_id': os.environ[\"ADMIN_CHAT_ID\"], 'text': text})"
+# 🔄 Перевірка і створення логів
+[ ! -f /root/update_log.txt ] && touch /root/update_log.txt
+[ ! -f ~/telegram-crypto-bot-github/daily.log ] && touch ~/telegram-crypto-bot-github/daily.log
+
+# 📨 Надсилаємо повідомлення в Telegram
+python3 -c "import os, requests; text = '✅ Успішно оновлено всі файли та пушено в GitHub!'; requests.post(f'https://api.telegram.org/bot{os.environ[\"TELEGRAM_TOKEN\"]}/sendMessage', data={'chat_id': os.environ['ADMIN_CHAT_ID'], 'text': text})"
 
 echo "🚀 Готово! Перевір GitHub Actions та Telegram!"
 
