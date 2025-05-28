@@ -172,5 +172,7 @@ async def main():
     logging.info("🤖 Бот запущено через polling")
     await app.run_polling()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    import asyncio
     asyncio.run(main())
+
