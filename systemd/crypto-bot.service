@@ -1,18 +1,15 @@
 [Unit]
-Description=Crypto Bot Flask App via Gunicorn
+Description=Crypto Telegram Bot
 After=network.target
 
 [Service]
-User=root
-WorkingDirectory=/root/crypto-profit-bot/telegram-crypto-bot
-EnvironmentFile=/root/crypto-profit-bot/telegram-crypto-bot/.env
-ExecStart=/usr/bin/python3 -m gunicorn -w 1 -b 0.0.0.0:10000 app:app --max-requests 10 --timeout 60
+WorkingDirectory=/root/telegram-crypto-bot-github
+ExecStart=/usr/bin/python3 main.py
 Restart=always
 RestartSec=5
-LimitNOFILE=10000
-MemoryMax=300M
-StandardOutput=append:/var/log/crypto-bot.log
-StandardError=append:/var/log/crypto-bot.log
+StandardOutput=inherit
+StandardError=inherit
+Environment="PYTHONUNBUFFERED=1"
 
 [Install]
 WantedBy=multi-user.target
