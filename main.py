@@ -176,7 +176,6 @@ def handle_status(message):
 def handle_help(message):
     bot.send_message(message.chat.id, "🛟 Допомога:\n/menu — список команд\n/report — GPT-звіт\n/buy <symbol> <usdt>\n/sell <symbol> <amount>\n/confirm_buy — підтвердити купівлю\n/confirm_sell — підтвердити продаж")
 
-
 # 🔄 Запуск
 if __name__ == "__main__":
     print("🤖 Telegram бот стартує...")
@@ -184,3 +183,5 @@ if __name__ == "__main__":
         bot.polling(none_stop=True)
     except Exception as e:
         logging.error(f"Критична помилка: {e}")
+
+
