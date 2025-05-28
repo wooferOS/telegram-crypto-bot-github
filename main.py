@@ -1,6 +1,5 @@
-from pathlib import Path
+# main.py — повністю оновлена версія Telegram криптобота
 
-main_py_code = '''
 import os
 import json
 import logging
@@ -8,19 +7,15 @@ from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder, CommandHandler, MessageHandler,
-    ContextTypes, filters
+    ApplicationBuilder, CommandHandler, ContextTypes
 )
 from binance.client import Client
 import openai
-import asyncio
-import matplotlib.pyplot as plt
-from io import BytesIO
 
 # --- Логування ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- Змінні середовища ---
+# --- Завантаження .env ---
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -47,14 +42,14 @@ def save_settings(settings):
 
 settings = load_settings()
 
-# --- Команди ---
+# --- Команди бота ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Вітаю! Я Криптобот. Введи /menu для команд")
 
 async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [["/status", "/report"], ["/buy", "/sell"], ["/set_budget", "/set_pair"], ["/history", "/help"]]
-    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-    await update.message.reply_text("📋 Меню команд:", reply_markup=reply_markup)
+    markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    await update.message.reply_text("📋 Меню команд:", reply_markup=markup)
 
 async def set_budget(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
@@ -79,14 +74,14 @@ async def show_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not hist:
         await update.message.reply_text("📍 Угод ще не було")
     else:
-        text = "\\n".join([f"{i+1}. {item}" for i, item in enumerate(hist[-5:])])
-        await update.message.reply_text(f"📘 Історія останніх угод:\\n{text}")
+        text = "\n".join([f"{i+1}. {item}" for i, item in enumerate(hist[-5:])])
+        await update.message.reply_text(f"📘 Історія останніх угод:\n{text}")
 
 async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         account = binance_client.get_account()
         assets = [f"{a['asset']}: {a['free']}" for a in account['balances'] if float(a['free']) > 0.0]
-        await update.message.reply_text("💼 Поточний баланс Binance:\\n" + "\\n".join(assets))
+        await update.message.reply_text("💼 Поточний баланс Binance:\n" + "\n".join(assets))
     except Exception as e:
         await update.message.reply_text(f"❌ Помилка: {e}")
 
@@ -100,7 +95,7 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
             messages=[{"role": "user", "content": prompt}]
         )
         reply = chat_response.choices[0].message.content.strip()
-        await update.message.reply_text(f"🧐 GPT каже:\\n{reply}")
+        await update.message.reply_text(f"🧐 GPT каже:\n{reply}")
     except Exception as e:
         await update.message.reply_text(f"❌ GPT-звіт недоступний: {e}")
 
@@ -133,25 +128,29 @@ async def sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Помилка продажу: {e}")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    help_text = """<b>📘 Довідка по командам:</b>
+    help_text = """
+<b>📘 Довідка по командам:</b>
 /start – запуск бота
 /menu – кнопкове меню
-/set_pair BTCUSDT – встановити торгову пару (BTCUSDT)
+/set_pair BTCUSDT – встановити торгову пару
 /set_budget 100 – бюджет на купівлю
-/status – показати баланс Binance
-/report – GPT що робити
+/status – баланс Binance
+/report – GPT рекомендації
 /buy – купити
 /sell – продати
-/history – останні операції
-/help – цей список"""
+/history – останні угоди
+/help – список команд
+"""
     await update.message.reply_text(help_text, parse_mode="HTML")
 
+# --- Повідомлення 1 раз ---
 def notify_once_sync(app):
     if not os.path.exists(NOTIFY_FILE):
-        app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з функціоналом")
+        app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з polling")
         with open(NOTIFY_FILE, "w") as f:
             f.write(str(datetime.now()))
 
+# --- Запуск ---
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
@@ -171,9 +170,5 @@ if __name__ == "__main__":
     except Exception as e:
         logging.error(f"❌ Notify error: {e}")
 
+    print("🤖 Бот запущено через polling")
     app.run_polling()
-'''
-
-file_path = "/mnt/data/main.py"
-Path(file_path).write_text(main_py_code)
-file_path
