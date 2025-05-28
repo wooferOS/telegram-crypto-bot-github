@@ -1,3 +1,5 @@
+
+
 import os
 from dotenv import load_dotenv
 from binance.client import Client
@@ -48,3 +50,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ ERROR: {e}")
         send_to_telegram(f"❌ GPT-Звіт не згенеровано: {e}")
+    else:
+        send_to_telegram("✅ Daily analysis script completed. Перевір файл daily.log.")
