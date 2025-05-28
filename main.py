@@ -50,14 +50,14 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [["/status", "/report"], ["/buy", "/sell"], ["/set_budget", "/set_pair"], ["/history", "/help"]]
     markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text("📋 Меню команд:", reply_markup=markup)
-
+    
 async def set_budget(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         amount = float(context.args[0])
         settings["budget"] = amount
         save_settings(settings)
         await update.message.reply_text(f"✅ Бюджет оновлено: ${amount}")
-    except:
+    except Exception:
         await update.message.reply_text("❗ Приклад: /set_budget 150.0")
 
 async def set_pair(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -144,14 +144,16 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(help_text, parse_mode="HTML")
 
 # --- Повідомлення 1 раз ---
-def notify_once_sync(app):
+async def notify_once_async(app):
     if not os.path.exists(NOTIFY_FILE):
-        app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з polling")
+        await app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з polling")
         with open(NOTIFY_FILE, "w") as f:
             f.write(str(datetime.now()))
 
 # --- Запуск ---
-if __name__ == "__main__":
+import asyncio
+
+async def main():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
@@ -166,9 +168,12 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("help", help_command))
 
     try:
-        notify_once_sync(app)
+        await notify_once_async(app)
     except Exception as e:
         logging.error(f"❌ Notify error: {e}")
 
-    print("🤖 Бот запущено через polling")
-    app.run_polling()
+    logging.info("🤖 Бот запущено через polling")
+    await app.run_polling()
+
+if __name__ == "__main__":
+    asyncio.run(main())
