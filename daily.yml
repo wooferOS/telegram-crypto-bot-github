@@ -2,7 +2,7 @@ name: Daily Crypto Analysis
 
 on:
   schedule:
-    - cron: "0 6 * * *"  # Щодня о 6:00 UTC
+    - cron: "0 6 * * *"
   workflow_dispatch:
 
 jobs:
