@@ -150,31 +150,36 @@ async def notify_once_async(app):
             f.write(str(datetime.now()))
 
 # --- Запуск ---
-async def main():
-    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+def run():
+    import asyncio
 
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("menu", menu))
-    app.add_handler(CommandHandler("set_budget", set_budget))
-    app.add_handler(CommandHandler("set_pair", set_pair))
-    app.add_handler(CommandHandler("history", show_history))
-    app.add_handler(CommandHandler("status", status))
-    app.add_handler(CommandHandler("report", report))
-    app.add_handler(CommandHandler("buy", buy))
-    app.add_handler(CommandHandler("sell", sell))
-    app.add_handler(CommandHandler("help", help_command))
+    async def inner():
+        app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-    try:
-        await notify_once_async(app)
-    except Exception as e:
-        logging.error(f"❌ Notify error: {e}")
+        app.add_handler(CommandHandler("start", start))
+        app.add_handler(CommandHandler("menu", menu))
+        app.add_handler(CommandHandler("set_budget", set_budget))
+        app.add_handler(CommandHandler("set_pair", set_pair))
+        app.add_handler(CommandHandler("history", show_history))
+        app.add_handler(CommandHandler("status", status))
+        app.add_handler(CommandHandler("report", report))
+        app.add_handler(CommandHandler("buy", buy))
+        app.add_handler(CommandHandler("sell", sell))
+        app.add_handler(CommandHandler("help", help_command))
 
-    logging.info("🤖 Бот запущено через polling")
-    await app.run_polling()
+        try:
+            await notify_once_async(app)
+        except Exception as e:
+            logging.error(f"❌ Notify error: {e}")
+
+        logging.info("🤖 Бот запущено через polling")
+        await app.run_polling()
+
+    asyncio.run(inner())
+
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(main())
+    run()
 
 
 
