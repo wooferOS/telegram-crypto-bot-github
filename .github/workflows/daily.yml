@@ -8,6 +8,7 @@ on:
 jobs:
   run-daily-analysis:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -15,12 +16,12 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.10
+          python-version: "3.10"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install openai python-binance python-dotenv
+          pip install -r requirements.txt
 
       - name: Run daily analysis
         env:
@@ -29,3 +30,4 @@ jobs:
           BINANCE_SECRET_KEY: ${{ secrets.BINANCE_SECRET_KEY }}
           ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
         run: python daily_analysis.py
+
