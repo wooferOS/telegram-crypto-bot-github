@@ -2,15 +2,14 @@ name: Daily Crypto Analysis
 
 on:
   schedule:
-    - cron: '0 5 * * *'
+    - cron: '0 6 * * *'  # Щодня о 06:00 UTC
   workflow_dispatch:
 
 jobs:
-  run-daily-analysis:
+  run-analysis:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -18,20 +17,14 @@ jobs:
           python-version: '3.10'
 
       - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
+        run: pip install -r requirements.txt
 
-      - name: Run daily_analysis.py
+      - name: Run analysis
         env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
           BINANCE_SECRET_KEY: ${{ secrets.BINANCE_SECRET_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: python daily_analysis.py
-
-        - name: Notify Telegram
-    env:
-      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-      ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
-    run: |
-      python3 -c "import os, requests; text = open(f'daily_report_$(date +%F).md').read(); requests.post(f'https://api.telegram.org/bot{os.environ[\"TELEGRAM_TOKEN\"]}/sendMessage', data={'chat_id': os.environ['ADMIN_CHAT_ID'], 'text': text})"
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
+        run: python3 daily_analysis.py
 
