@@ -1,4 +1,4 @@
-# main.py — повністю оновлена версія Telegram криптобота
+# main.py — Telegram криптобот (оновлений для OpenAI SDK >= 1.0.0)
 
 import os
 import json
@@ -10,12 +10,13 @@ from telegram.ext import (
     ApplicationBuilder, CommandHandler, ContextTypes
 )
 from binance.client import Client
-import openai
+from openai import OpenAI
+import asyncio
 
 # --- Логування ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- Завантаження .env ---
+# --- Завантаження змінних середовища ---
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -25,11 +26,11 @@ ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 DATA_PATH = "settings.json"
 NOTIFY_FILE = ".notified"
 
-# --- Ініціалізація ---
-openai.api_key = OPENAI_API_KEY
+# --- Ініціалізація клієнтів ---
+client = OpenAI(api_key=OPENAI_API_KEY)
 binance_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
-# --- Завантаження/збереження налаштувань ---
+# --- Завантаження налаштувань ---
 def load_settings():
     if os.path.exists(DATA_PATH):
         with open(DATA_PATH, "r") as f:
@@ -50,7 +51,7 @@ async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [["/status", "/report"], ["/buy", "/sell"], ["/set_budget", "/set_pair"], ["/history", "/help"]]
     markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
     await update.message.reply_text("📋 Меню команд:", reply_markup=markup)
-    
+
 async def set_budget(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         amount = float(context.args[0])
@@ -90,7 +91,7 @@ async def report(update: Update, context: ContextTypes.DEFAULT_TYPE):
         btc = binance_client.get_symbol_ticker(symbol="BTCUSDT")
         eth = binance_client.get_symbol_ticker(symbol="ETHUSDT")
         prompt = f"BTC: {btc['price']}, ETH: {eth['price']}. Що купити або продати?"
-        chat_response = openai.ChatCompletion.create(
+        chat_response = client.chat.completions.create(
             model="gpt-4",
             messages=[{"role": "user", "content": prompt}]
         )
@@ -143,7 +144,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 """
     await update.message.reply_text(help_text, parse_mode="HTML")
 
-# --- Повідомлення 1 раз ---
+# --- Повідомлення при старті ---
 async def notify_once_async(app):
     if not os.path.exists(NOTIFY_FILE):
         await app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з polling")
@@ -151,8 +152,6 @@ async def notify_once_async(app):
             f.write(str(datetime.now()))
 
 # --- Запуск ---
-import asyncio
-
 async def main():
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
