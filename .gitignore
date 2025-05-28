@@ -1,2 +1,10 @@
 *.save
 .notified
+# Logs and temp
+*.log
+nohup.out
+__pycache__/
+*.pyc
+daily_report.txt
+run_bot.py
+test_binance.py
