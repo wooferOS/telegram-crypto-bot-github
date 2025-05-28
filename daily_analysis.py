@@ -20,12 +20,14 @@ binance_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 def generate_report():
     account = binance_client.get_account()
     balances = {a['asset']: a['free'] for a in account['balances'] if float(a['free']) > 0.0}
+    print("📊 BALANCES:", balances)  # <-- Додано для діагностики
     prompt = f"Аналізуй мій портфель: {balances}. Що продавати і що купити сьогодні? Додай stop-loss."
     chat_response = client.chat.completions.create(
         model="gpt-4",
         messages=[{"role": "user", "content": prompt}]
     )
     return chat_response.choices[0].message.content.strip()
+
 
 # --- Збереження звіту ---
 def save_report(text):
