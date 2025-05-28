@@ -1,4 +1,4 @@
-# main.py — Telegram криптобот (оновлений для OpenAI SDK >= 1.0.0)
+# main.py — Telegram криптобот з GPT і Binance
 
 import os
 import json
@@ -6,15 +6,16 @@ import logging
 from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, ContextTypes
+)
 from binance.client import Client
 from openai import OpenAI
-import asyncio
 
 # --- Логування ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# --- Завантаження змінних середовища ---
+# --- Змінні середовища ---
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -24,11 +25,11 @@ ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 DATA_PATH = "settings.json"
 NOTIFY_FILE = ".notified"
 
-# --- Ініціалізація клієнтів ---
+# --- Клієнти ---
 client = OpenAI(api_key=OPENAI_API_KEY)
 binance_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
-# --- Завантаження налаштувань ---
+# --- Налаштування ---
 def load_settings():
     if os.path.exists(DATA_PATH):
         with open(DATA_PATH, "r") as f:
@@ -41,7 +42,7 @@ def save_settings(settings):
 
 settings = load_settings()
 
-# --- Команди бота ---
+# --- Команди ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("👋 Вітаю! Я Криптобот. Введи /menu для команд")
 
@@ -142,7 +143,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 """
     await update.message.reply_text(help_text, parse_mode="HTML")
 
-# --- Повідомлення при старті ---
 async def notify_once_async(app):
     if not os.path.exists(NOTIFY_FILE):
         await app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з polling")
@@ -175,4 +175,3 @@ async def main():
 if __name__ == "__main__":
     import asyncio
     asyncio.run(main())
-
