@@ -172,13 +172,22 @@ async def main():
     logging.info("🤖 Бот запущено через polling")
     await app.run_polling()
 
+
 if __name__ == "__main__":
     import asyncio
+
     try:
         asyncio.run(main())
-    except RuntimeError:
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(main())
+    except RuntimeError as e:
+        import threading
+
+        def run_in_thread():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(main())
+
+        t = threading.Thread(target=run_in_thread)
+        t.start()
 
 
 
