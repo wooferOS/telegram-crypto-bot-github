@@ -6,8 +6,7 @@ import logging
 from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder
-application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 from binance.client import Client
 from openai import OpenAI
 import asyncio
@@ -174,5 +173,4 @@ async def main():
     await app.run_polling()
 
 if __name__ == '__main__':
-    application.run_polling()
-
+    asyncio.run(main())
