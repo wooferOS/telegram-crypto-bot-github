@@ -32,6 +32,7 @@ jobs:
   env:
     TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
     ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
-    run: |
-    python -c "import os, requests; text = open(f'daily_report_$(date +%F).md').read(); requests.post(f'https://api.telegram.org/bot{os.environ[\"TELEGRAM_TOKEN\"]}/sendMessage', data={'chat_id': os.environ['ADMIN_CHAT_ID'], 'text': text})"
+  run: |
+    REPORT_DATE=$(date +%F)
+    python -c "import os, requests; text = open(f'daily_report_{os.environ[\"REPORT_DATE\"]}.md').read(); requests.post(f'https://api.telegram.org/bot{os.environ[\"TELEGRAM_TOKEN\"]}/sendMessage', data={'chat_id': os.environ['ADMIN_CHAT_ID'], 'text': text})"
 
