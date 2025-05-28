@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd /root/crypto-profit-bot/telegram-crypto-bot || exit
+cd /root/telegram-crypto-bot-github || exit
 echo "📦 Оновлення коду з GitHub..."
 git pull
 
