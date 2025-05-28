@@ -1,76 +1,77 @@
 import os
-from binance.client import Client
-from datetime import datetime
-from openai import OpenAI
-
-# Завантаження змінних з .env
+import datetime
 from dotenv import load_dotenv
-load_dotenv()
+from openai import OpenAI
+from binance.client import Client
 
-# Binance API
+# Завантажуємо змінні з .env
+load_dotenv()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 
-# OpenAI API
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
-# Telegram Chat ID (опціонально)
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
-
-# Ініціалізація клієнтів
-binance_client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 openai_client = OpenAI(api_key=OPENAI_API_KEY)
+binance_client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 
-def get_wallet_report():
+# Отримуємо повний список активів
+def get_wallet_assets():
     balances = binance_client.get_account()["balances"]
-    wallet_lines = []
+    wallet = {}
     for asset in balances:
-        free = float(asset["free"])
-        if free > 0:
-            formatted = f"{asset['asset']}: {free}"
-            wallet_lines.append(formatted)
-    return "\n".join(wallet_lines)
+        asset_name = asset["asset"]
+        free_amount = float(asset["free"])
+        if free_amount > 0:
+            wallet[asset_name] = free_amount
+    return wallet
 
-def generate_gpt_report(wallet_text: str):
-    prompt = f"""
-Це мій криптовалютний портфель:
-{wallet_text}
+# Формуємо Markdown-звіт балансу
+def format_wallet(wallet: dict) -> str:
+    lines = [f"{asset}: {amount}" for asset, amount in wallet.items()]
+    return "\n".join(lines)
 
-Зроби короткий технічний аналіз на основі цього портфеля. Що виглядає перспективно на купівлю або продаж? Додай Stop Loss і Take Profit для кожного активу, якщо доречно.
-
-Не давай фінансових порад — лише технічний аналіз на основі поточної ситуації.
-"""
+# Генеруємо GPT-аналітику
+def generate_gpt_analysis(wallet_report: str) -> str:
     try:
+        prompt = (
+            f"Ось баланс криптогаманця на Binance:\n\n{wallet_report}\n\n"
+            f"Проаналізуй ці активи і надай короткі поради щодо того, що доцільно продати, "
+            f"що залишити, а що купити. Врахуй можливу волатильність, поточні тренди та ризики. "
+            f"Додай рекомендації щодо стоп-лоссів і потенційного прибутку. "
+            f"Напиши українською мовою, коротко та зрозуміло."
+        )
+
         response = openai_client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "Ти — аналітик криптовалют."},
-                {"role": "user", "content": prompt}
-            ]
+                {"role": "system", "content": "Ти — досвідчений криптоаналітик."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.7,
+            max_tokens=800,
         )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        return f"Помилка: {e}"
 
+        return response.choices[0].message.content.strip()
+
+    except Exception as e:
+        return f"⚠️ Помилка GPT: {str(e)}"
+
+# Головна функція генерації звіту
 def main():
     print("📊 Генеруємо щоденний звіт...")
 
-    today = datetime.today().strftime('%Y-%m-%d')
-    timestamp = datetime.now().strftime('%d.%m.%Y %H:%M')
+    today = datetime.date.today().isoformat()
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
 
-    # Отримання балансу
-    wallet_report = get_wallet_report()
+    wallet = get_wallet_assets()
+    wallet_report = format_wallet(wallet)
+    gpt_summary = generate_gpt_analysis(wallet_report)
 
-    # Отримання GPT аналізу
-    gpt_summary = generate_gpt_report(wallet_report)
-
-    # Формування звіту
     markdown = f"""# 📊 Щоденний звіт ({timestamp})
 
-## 💼 Поточний баланс Binance:
+💼 Поточний баланс Binance:
 {wallet_report}
 
-## 📈 GPT-аналітика:
+📈 GPT-аналітика:
 {gpt_summary}
 """
 
