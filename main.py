@@ -6,8 +6,8 @@ import logging
 from datetime import datetime
 from dotenv import load_dotenv
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import (
-    ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder
+application = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 )
 from binance.client import Client
 from openai import OpenAI
