@@ -77,3 +77,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ ERROR: {e}")
         send_to_telegram(f"❌ *GPT-Звіт не згенеровано:* `{e}`")
+
