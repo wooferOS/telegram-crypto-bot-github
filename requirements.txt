@@ -1,7 +1,7 @@
 openai
-requests
-python-dotenv
 python-telegram-bot
 python-binance
+requests
 schedule
 matplotlib
+python-dotenv
