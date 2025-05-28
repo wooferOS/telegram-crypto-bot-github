@@ -172,11 +172,14 @@ async def main():
         logging.error(f"❌ Notify error: {e}")
 
     logging.info("🤖 Бот запущено через polling")
+
     await app.initialize()
     await app.start()
     await app.updater.start_polling()
-    await app.updater.idle()
 
+    # Очікуємо завершення (наприклад, вручну через Ctrl+C)
+    while True:
+        await asyncio.sleep(3600)
 
 if __name__ == "__main__":
     asyncio.run(main())
