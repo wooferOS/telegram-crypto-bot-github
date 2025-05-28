@@ -1,7 +1,0 @@
-openai
-python-telegram-bot
-requests
-matplotlib
-schedule
-python-binance
-python-dotenv
