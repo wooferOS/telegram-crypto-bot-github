@@ -150,38 +150,36 @@ async def notify_once_async(app):
             f.write(str(datetime.now()))
 
 # --- Запуск ---
-def run():
-    import asyncio
+import asyncio
 
-    async def inner():
-        app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+async def main():
+    app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
-        app.add_handler(CommandHandler("start", start))
-        app.add_handler(CommandHandler("menu", menu))
-        app.add_handler(CommandHandler("set_budget", set_budget))
-        app.add_handler(CommandHandler("set_pair", set_pair))
-        app.add_handler(CommandHandler("history", show_history))
-        app.add_handler(CommandHandler("status", status))
-        app.add_handler(CommandHandler("report", report))
-        app.add_handler(CommandHandler("buy", buy))
-        app.add_handler(CommandHandler("sell", sell))
-        app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("menu", menu))
+    app.add_handler(CommandHandler("set_budget", set_budget))
+    app.add_handler(CommandHandler("set_pair", set_pair))
+    app.add_handler(CommandHandler("history", show_history))
+    app.add_handler(CommandHandler("status", status))
+    app.add_handler(CommandHandler("report", report))
+    app.add_handler(CommandHandler("buy", buy))
+    app.add_handler(CommandHandler("sell", sell))
+    app.add_handler(CommandHandler("help", help_command))
 
-        try:
-            await notify_once_async(app)
-        except Exception as e:
-            logging.error(f"❌ Notify error: {e}")
+    try:
+        await notify_once_async(app)
+    except Exception as e:
+        logging.error(f"❌ Notify error: {e}")
 
-        logging.info("🤖 Бот запущено через polling")
-        await app.run_polling()
-
-    asyncio.run(inner())
+    logging.info("🤖 Бот запущено через polling")
+    await app.initialize()
+    await app.start()
+    await app.updater.start_polling()
+    await app.updater.idle()
 
 
 if __name__ == "__main__":
-    run()
-
-
+    asyncio.run(main())
 
 
 
