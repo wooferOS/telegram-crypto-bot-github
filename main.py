@@ -133,16 +133,25 @@ async def sell(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(f"❌ Помилка продажу: {e}")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    help_text = \"\"\"\n<b>📘 Довідка по командам:</b>\n/start – запуск бота\n/menu – кнопкове меню\n/set_pair BTCUSDT – встановити торгову пару (BTCUSDT)\n/set_budget 100 – бюджет на купівлю\n/status – показати баланс Binance\n/report – GPT що робити\n/buy – купити\n/sell – продати\n/history – останні операції\n/help – цей список\n/autotrade_on – увімкнути автоторгівлю\n/autotrade_off – вимкнути автоторгівлю\n/set_stop 5 – встановити стоп-лосс у %\n/plan_today – план дій на день\n/chart – діаграма портфеля\n\"\"\"\n    await update.message.reply_text(help_text, parse_mode=\"HTML\")
+    help_text = """<b>📘 Довідка по командам:</b>
+/start – запуск бота
+/menu – кнопкове меню
+/set_pair BTCUSDT – встановити торгову пару (BTCUSDT)
+/set_budget 100 – бюджет на купівлю
+/status – показати баланс Binance
+/report – GPT що робити
+/buy – купити
+/sell – продати
+/history – останні операції
+/help – цей список"""
+    await update.message.reply_text(help_text, parse_mode="HTML")
 
-# --- Сповіщення один раз ---
 def notify_once_sync(app):
     if not os.path.exists(NOTIFY_FILE):
         app.bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з функціоналом")
         with open(NOTIFY_FILE, "w") as f:
             f.write(str(datetime.now()))
 
-# --- Основний запуск ---
 if __name__ == "__main__":
     app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 
@@ -165,7 +174,6 @@ if __name__ == "__main__":
     app.run_polling()
 '''
 
-# Save to file
 file_path = "/mnt/data/main.py"
 Path(file_path).write_text(main_py_code)
 file_path
