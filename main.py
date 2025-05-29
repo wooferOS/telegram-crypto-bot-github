@@ -6,7 +6,11 @@ import json
 import datetime
 from dotenv import load_dotenv
 from telebot import TeleBot
+<<<<<<< HEAD
 from telegram import ReplyKeyboardMarkup, KeyboardButton
+=======
+from telebot.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+>>>>>>> db0c74c (✅ Add budget check and update in confirm_buy and execute_buy)
 from binance.client import Client
 from daily_analysis import save_trade_history, generate_daily_report
 
@@ -25,12 +29,21 @@ def check_budget(amount):
         b = json.load(f)
     return (b["used"] + amount) <= b["budget"]
 
+<<<<<<< HEAD
 # 📱 Меню кнопок (PTB v20+)
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton("📊 Звіт"), KeyboardButton("💰 Баланс")],
         [KeyboardButton("📘 Історія"), KeyboardButton("🔄 Оновити")],
         [KeyboardButton("🛑 Скасувати")]
+=======
+# 📱 Меню кнопок
+main_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        ["\U0001F4B0 Баланс", "\U0001F4CA Звіт", "\U0001F4D8 Історія"],
+        ["\u2705 Підтвердити купівлю", "\u2705 Підтвердити продаж"],
+        ["\U0001F504 Оновити", "\U0001F6D1 Скасувати"]
+>>>>>>> db0c74c (✅ Add budget check and update in confirm_buy and execute_buy)
     ],
     resize_keyboard=True
 )
@@ -150,6 +163,7 @@ if not check_budget(total_amount):
             bot.reply_to(message, "⚠️ Недостатньо балансу для купівлі.")
         else:
             bot.reply_to(message, f"❌ Помилка під час купівлі: {str(e)}")
+<<<<<<< HEAD
 with open("budget.json", "r") as f:
     b = json.load(f)
 b["used"] += total_amount
@@ -202,6 +216,42 @@ b["used"] += total_amount
 with open("budget.json", "w") as f:
     json.dump(b, f)
 
+=======
+
+# 🧠 Inline підтвердження купівлі (демо-режим)
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+@bot.message_handler(commands=["confirm_buy_inline"])
+def confirm_buy_inline(message):
+    markup = InlineKeyboardMarkup()
+    markup.add(InlineKeyboardButton("✅ Підтвердити купівлю", callback_data="buy_now"))
+    bot.send_message(message.chat.id, "Підтверди купівлю криптовалюти:", reply_markup=markup)
+
+@bot.callback_query_handler(func=lambda call: call.data == "buy_now")
+def execute_buy(call):
+    assets_to_buy = [
+        {"asset": "ADA", "amount": 15},
+        {"asset": "HBAR", "amount": 80},
+        {"asset": "NOT", "amount": 90}
+    ]
+    try:
+        for asset in assets_to_buy:
+            symbol = f"{asset['asset']}USDT"
+            client.create_order(
+                symbol=symbol,
+                side="BUY",
+                type="MARKET",
+                quantity=asset["amount"]
+            )
+        save_trade_history(assets_to_buy, action="buy")
+        bot.edit_message_text("✅ Купівля виконана!", call.message.chat.id, call.message.message_id)
+    except Exception as e:
+        if "INSUFFICIENT_BALANCE" in str(e):
+            bot.send_message(call.message.chat.id, "⚠️ Недостатньо балансу для купівлі.")
+        else:
+            bot.send_message(call.message.chat.id, f"❌ Помилка: {str(e)}")
+
+>>>>>>> db0c74c (✅ Add budget check and update in confirm_buy and execute_buy)
 
 # 📘 /history — повна історія угод з групуванням по датах
 @bot.message_handler(commands=["history"])
@@ -242,6 +292,7 @@ main_menu = ReplyKeyboardMarkup(
     ],
     resize_keyboard=True
 )
+<<<<<<< HEAD
 
 # 💰 Баланс — кнопка
 @bot.message_handler(func=lambda message: message.text == "💰 Баланс")
@@ -337,8 +388,69 @@ def execute_buy(call):
             bot.send_message(call.message.chat.id, "⚠️ Недостатньо балансу для купівлі.")
         else:
             bot.send_message(call.message.chat.id, f"❌ Помилка: {str(e)}")
+=======
+>>>>>>> db0c74c (✅ Add budget check and update in confirm_buy and execute_buy)
 
+# 💰 Баланс — кнопка
+@bot.message_handler(func=lambda message: message.text == "💰 Баланс")
+def handle_balance(message):
+    try:
+        account_info = client.get_account()
+        balances = [b for b in account_info["balances"] if float(b["free"]) > 0 or float(b["locked"]) > 0]
+
+<<<<<<< HEAD
+=======
+        text = "💼 *Твій баланс:*\n"
+        for b in balances:
+            total = float(b["free"]) + float(b["locked"])
+            if total > 0:
+                text += f"- {b['asset']}: {total}\n"
+
+        bot.send_message(message.chat.id, text, parse_mode="Markdown")
+    except Exception as e:
+        if "INSUFFICIENT_BALANCE" in str(e):
+            bot.send_message(message.chat.id, "⚠️ Недостатньо балансу для операції.")
+        else:
+            bot.send_message(message.chat.id, f"❌ Помилка при отриманні балансу: {str(e)}")
+
+# 📘 Історія — кнопка
+@bot.message_handler(func=lambda message: message.text == "📘 Історія")
+def handle_history_button(message):
+    handle_history(message)
+
+# 📊 Звіт — кнопка
+@bot.message_handler(func=lambda message: message.text == "📊 Звіт")
+def handle_report_button(message):
+    report_handler(message)
+
+# 🔄 Оновити — кнопка
+@bot.message_handler(func=lambda message: message.text == "🔄 Оновити")
+def handle_refresh(message):
+    bot.send_message(message.chat.id, "🔄 Дані оновлено (реалізація триває)")
+
+# 🛑 Скасувати — кнопка
+@bot.message_handler(func=lambda message: message.text == "🛑 Скасувати")
+def handle_cancel(message):
+    bot.send_message(message.chat.id, "❌ Операцію скасовано")
+# 🟢 /start і /help — стартове повідомлення
+@bot.message_handler(commands=["start", "help"])
+def send_welcome(message):
+    text = (
+        "👋 Привіт! Я GPT-асистент Binance.\n\n"
+        "🔸 Щодня о 09:00 та 20:00 я надсилаю аналітику.\n"
+        "🔸 Ти можеш підтвердити дії:\n"
+        "   - /confirm_sell — підтвердити продаж\n"
+        "   - /confirm_buy — підтвердити купівлю\n"
+        "   - /report — аналітика GPT\n"
+        "   - /history — історія твоїх угод\n"
+        "   - /set_budget 100 — встановити бюджет\n"
+        "   - /buy BTC 0.01 — купити вручну\n"
+        "   - /sell ETH 0.5 — продати вручну\n"
+        "   - /status — переглянути бюджет\n\n"
+        "💰 Я зберігаю всі твої операції автоматично!"
+    )
+    bot.reply_to(message, text, reply_markup=main_menu)
 
 # ✅ Запуск бота
 if __name__ == "__main__":
-    bot.infinity_polling()
+    main()
