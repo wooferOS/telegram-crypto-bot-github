@@ -240,6 +240,10 @@ def manual_sell(message):
     except Exception as e:
         msg = "⚠️ Недостатньо активу." if "INSUFFICIENT_BALANCE" in str(e) else f"❌ Помилка: {str(e)}"
         bot.reply_to(message, msg)
+        
+@bot.message_handler(commands=["menu"])
+def show_menu(message):
+    bot.send_message(message.chat.id, "📋 Обери дію:", reply_markup=get_main_keyboard())
 
 # ✅ Запуск бота
 if __name__ == "__main__":
