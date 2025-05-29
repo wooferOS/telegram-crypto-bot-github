@@ -9,6 +9,8 @@ from telegram import ReplyKeyboardMarkup
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from binance.client import Client
 from daily_analysis import save_trade_history, generate_daily_report
+from telegram import Update
+from telegram.ext import CallbackContext
 
 # 🧪 Завантаження .env
 load_dotenv()
@@ -27,11 +29,18 @@ def check_budget(amount):
     return (b["used"] + amount) <= b["budget"]
 
 # 📱 Головне меню кнопок
-main_menu = ReplyKeyboardMarkup(resize_keyboard=True)
-main_menu.row("💰 Баланс", "📊 Звіт", "📘 Історія")
-main_menu.row("✅ Підтвердити купівлю", "✅ Підтвердити продаж")
-main_menu.row("🔄 Оновити", "🛑 Скасувати")
-
+def get_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton("💰 Баланс"), KeyboardButton("📊 Звіт"), KeyboardButton("📘 Історія")],
+            [KeyboardButton("✅ Підтвердити купівлю"), KeyboardButton("✅ Підтвердити продаж")],
+            [KeyboardButton("🔄 Оновити"), KeyboardButton("⛔ Скасувати")]
+        ],
+        resize_keyboard=True
+    )
+@application.command_handler("start")
+def start(update: Update, context: CallbackContext):
+    update.message.reply_text("👋 Ласкаво просимо!", reply_markup=get_keyboard())
 
 # 🟢 /start і /help
 @bot.message_handler(commands=["start", "help"])
