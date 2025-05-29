@@ -3,6 +3,7 @@
 import os
 import telebot
 import json
+from telegram import ReplyKeyboardMarkup
 from binance.client import Client
 from dotenv import load_dotenv
 from daily_analysis import save_trade_history, generate_daily_report
