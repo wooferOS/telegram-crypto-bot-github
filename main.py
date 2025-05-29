@@ -26,14 +26,10 @@ def check_budget(amount):
     return (b["used"] + amount) <= b["budget"]
 
 # 📱 Меню кнопок
-main_menu = ReplyKeyboardMarkup(
-    keyboard=[
-        ["\U0001F4B0 Баланс", "\U0001F4CA Звіт", "\U0001F4D8 Історія"],
-        ["\u2705 Підтвердити купівлю", "\u2705 Підтвердити продаж"],
-        ["\U0001F504 Оновити", "\U0001F6D1 Скасувати"]
-    ],
-    resize_keyboard=True
-)
+main_menu = ReplyKeyboardMarkup(resize_keyboard=True)
+main_menu.row(KeyboardButton("📊 Звіт"), KeyboardButton("💰 Баланс"))
+main_menu.row(KeyboardButton("📘 Історія"), KeyboardButton("🔄 Оновити"))
+main_menu.row(KeyboardButton("🛑 Скасувати"))
 
 # ✅ ЧАСТИНА 2: Кнопки: Баланс, Історія, Звіт, Оновити, Скасувати
 @bot.message_handler(func=lambda message: message.text == "\U0001F4B0 Баланс")
