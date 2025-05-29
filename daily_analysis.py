@@ -196,3 +196,4 @@ def generate_daily_report():
 """
     return full_report
 
+
