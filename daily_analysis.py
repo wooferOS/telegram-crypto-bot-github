@@ -1,10 +1,13 @@
 import os
 import datetime
+import json
 import requests
 from openai import OpenAI
 from binance.client import Client
+from dotenv import load_dotenv
 
-# Змінні середовища
+# Завантажуємо змінні з .env
+load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
@@ -28,7 +31,6 @@ def get_binance_balances():
 def generate_wallet_report(wallet):
     lines = [f"{asset}: {amount}" for asset, amount in wallet.items()]
     return "\n".join(lines)
-
 def calculate_profit_percentage(today_wallet, yesterday_wallet):
     changes = []
     for asset, amount in today_wallet.items():
@@ -51,89 +53,71 @@ def generate_gpt_report(wallet_report):
 
 Не надавай фінансових порад, лише технічну думку.
 """
-    response = openai_client.chat.completions.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return response.choices[0].message.content
 
-def send_telegram_text(text):
+    completion = openai_client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "Ти GPT-аналітик ринку криптовалют."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return completion.choices[0].message.content.strip()
+
+def save_report_to_file(text, folder="reports"):
+    now = datetime.datetime.now()
+    date_str = now.strftime("%Y-%m-%d")
+    time_str = now.strftime("%H-%M")
+    folder_path = os.path.join(folder, date_str)
+    os.makedirs(folder_path, exist_ok=True)
+    file_path = os.path.join(folder_path, f"daily_report_{time_str}.md")
+    with open(file_path, "w") as f:
+        f.write(text)
+    return file_path
+def send_telegram_message(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {
         "chat_id": ADMIN_CHAT_ID,
-        "text": text,
+        "text": message,
         "parse_mode": "Markdown"
     }
-    requests.post(url, json=payload)
+    try:
+        response = requests.post(url, data=payload)
+        response.raise_for_status()
+    except Exception as e:
+        print(f"❌ Помилка надсилання в Telegram: {e}")
 
-def send_telegram_file(filepath, caption="📎 Щоденний звіт"):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
-    with open(filepath, "rb") as file:
-        files = {"document": file}
-        data = {"chat_id": ADMIN_CHAT_ID, "caption": caption}
-        requests.post(url, data=data, files=files)
-
-def load_yesterday_wallet(filepath):
-    if os.path.exists(filepath):
-        with open(filepath, "r", encoding="utf-8") as f:
-            lines = f.readlines()
-            return {line.split(":")[0].strip(): float(line.split(":")[1]) for line in lines}
-    return {}
-
-def save_today_wallet(wallet, filepath):
-    with open(filepath, "w", encoding="utf-8") as f:
-        for asset, amount in wallet.items():
-            f.write(f"{asset}: {amount}\n")
-
-def log_message(message):
-    with open("daily.log", "a", encoding="utf-8") as log:
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        log.write(f"[{timestamp}] {message}\n")
+def log_event(text, logfile="daily.log"):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{timestamp}] {text}\n"
+    with open(logfile, "a") as f:
+        f.write(line)
 
 def main():
-    now = datetime.datetime.now()
-    today = now.strftime("%Y-%m-%d")
-    timestamp = now.strftime("%d.%m.%Y %H:%M")
-    reports_dir = f"reports/{today}"
-    os.makedirs(reports_dir, exist_ok=True)
-    wallet_file = f"{reports_dir}/wallet.txt"
+    log_event("🔁 Початок щоденного аналізу...")
+    today_wallet = get_binance_balances()
+    wallet_report = generate_wallet_report(today_wallet)
 
-    log_message("🔁 Початок щоденного аналізу...")
+    gpt_text = generate_gpt_report(wallet_report)
 
-    wallet = get_binance_balances()
-    wallet_report = generate_wallet_report(wallet)
+    full_report = f"""📊 *Звіт крипто-портфелю*
 
-    yesterday_file = f"reports/{(now - datetime.timedelta(days=1)).strftime('%Y-%m-%d')}/wallet.txt"
-    yesterday_wallet = load_yesterday_wallet(yesterday_file)
-    profit_change = calculate_profit_percentage(wallet, yesterday_wallet)
-
-    try:
-        gpt_summary = generate_gpt_report(wallet_report)
-    except Exception as e:
-        gpt_summary = f"❌ Помилка GPT: {str(e)}"
-        log_message(gpt_summary)
-
-    markdown = f"""# 📊 Щоденний звіт ({timestamp})
-
-## 💼 Поточний баланс Binance:
+💰 *Баланс:*
 {wallet_report}
 
-## 📊 Зміна порівняно з учора:
-{profit_change}
-
-## 📈 GPT-аналітика:
-{gpt_summary}
+📈 *GPT-звіт:*
+{gpt_text}
 """
-
-    report_path = f"{reports_dir}/daily_report.md"
-    with open(report_path, "w", encoding="utf-8") as f:
-        f.write(markdown)
-    save_today_wallet(wallet, wallet_file)
-
-    send_telegram_text(f"✅ Щоденний звіт за {timestamp}")
-    send_telegram_file(report_path)
-
-    log_message("✅ Звіт сформовано та надіслано.\n")
+    file_path = save_report_to_file(full_report)
+    send_telegram_message(full_report)
+    log_event("✅ Звіт сформовано та надіслано.")
+def save_report_to_file(text):
+    today = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
+    folder = "reports"
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, f"daily_report_{today}.md")
+    with open(path, "w") as f:
+        f.write(text)
+    return path
 
 if __name__ == "__main__":
     main()
