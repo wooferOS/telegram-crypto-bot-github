@@ -101,8 +101,11 @@ https://www.binance.com/uk-UA/markets/overview
     )
     return response.choices[0].message.content.strip()
 
-
-
+def save_wallet_snapshot(wallet):
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    os.makedirs("wallet_snapshots", exist_ok=True)
+    with open(f"wallet_snapshots/{today}.json", "w") as f:
+        json.dump(wallet, f, indent=2)
 
 def save_report(text):
     now = datetime.datetime.now()
@@ -124,6 +127,7 @@ def send_telegram(text):
     except Exception as e:
         print("❌ Telegram error:", e)
 
+
 def main():
     wallet = get_wallet_balances()
     wallet_text = build_detailed_wallet_report(wallet)
@@ -132,7 +136,10 @@ def main():
     full_report = f"📊 *Звіт крипто-портфелю*\n\n💰 *Баланс:*\n{wallet_text}\n\n📈 *GPT-звіт:*\n{gpt_text}"
     file_path = save_report(full_report)
     send_telegram(full_report)
+    save_wallet_snapshot(wallet)
     print(f"✅ Звіт надіслано. Збережено у {file_path}")
 
 if __name__ == "__main__":
     main()
+
+    
