@@ -20,6 +20,10 @@ BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 
 bot = TeleBot(TELEGRAM_TOKEN)
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+def check_budget(amount):
+    with open("budget.json", "r") as f:
+        b = json.load(f)
+    return (b["used"] + amount) <= b["budget"]
 
 # 📱 Меню кнопок
 main_menu = ReplyKeyboardMarkup(
