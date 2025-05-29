@@ -59,6 +59,27 @@ def build_detailed_wallet_report(wallet):
             f"*{asset}*: {amount} × {avg_price:.6f} = {total_usdt:.2f} USDT ≈ {total_uah:.2f}₴"
         )
     return "\n".join(report)
+
+def calculate_daily_pnl(current_wallet, snapshot_file="wallet_snapshot.json"):
+    previous = {}
+    if os.path.exists(snapshot_file):
+        with open(snapshot_file, "r") as f:
+            previous = json.load(f)
+
+    pnl_lines = []
+    for asset, current_amount in current_wallet.items():
+        prev_amount = previous.get(asset, 0)
+        if prev_amount == 0:
+            continue
+        delta = current_amount - prev_amount
+        percent = (delta / prev_amount) * 100
+        pnl_lines.append(f"{asset}: {prev_amount:.4f} → {current_amount:.4f} ({delta:+.4f}, {percent:+.2f}%)")
+
+    with open(snapshot_file, "w") as f:
+        json.dump(current_wallet, f)
+
+    return "\n".join(pnl_lines) if pnl_lines else "Немає змін у PNL"
+
 def generate_gpt_report(wallet_text):
     today = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     prompt = f"""
@@ -131,9 +152,10 @@ def send_telegram(text):
 def main():
     wallet = get_wallet_balances()
     wallet_text = build_detailed_wallet_report(wallet)
+    daily_pnl = calculate_daily_pnl(wallet)
     gpt_text = generate_gpt_report(wallet_text)
 
-    full_report = f"📊 *Звіт крипто-портфелю*\n\n💰 *Баланс:*\n{wallet_text}\n\n📈 *GPT-звіт:*\n{gpt_text}"
+    full_report = f"📊 *Звіт крипто-портфелю*\n\n💰 *Баланс:*\n{wallet_text}\n\n📉 *Щоденний PNL:*\n{daily_pnl}\n\n📈 *GPT-звіт:*\n{gpt_text}"
     file_path = save_report(full_report)
     send_telegram(full_report)
     save_wallet_snapshot(wallet)
