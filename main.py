@@ -29,6 +29,7 @@ def check_budget(amount):
 
 # 📱 Головне меню кнопок
 def get_main_keyboard():
+    print("DEBUG: get_main_keyboard called")  # DEBUG
     return ReplyKeyboardMarkup([
         ["💰 Баланс", "📊 Звіт", "📘 Історія"],
         ["✅ Підтвердити купівлю", "✅ Підтвердити продаж"],
@@ -85,6 +86,7 @@ def cancel(m):
 # 🟢 /start і /help
 @bot.message_handler(commands=["start", "help"])
 def send_welcome(message):
+    logging.info(f"DEBUG: /start або /help від {message.chat.username}")
     text = (
         "👋 Привіт! Я GPT-асистент Binance.\n\n"
         "🔸 Щодня о 09:00 та 20:00 я надсилаю аналітику.\n"
@@ -100,6 +102,7 @@ def send_welcome(message):
         "💰 Я зберігаю всі твої операції автоматично!"
     )
     bot.reply_to(message, text, reply_markup=get_main_keyboard())
+
 
 # 🔁 Обробники кнопок / команд (рефакторинг)
 @bot.message_handler(func=lambda m: m.text == "📘 Історія")
