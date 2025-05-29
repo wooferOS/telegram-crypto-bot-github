@@ -195,5 +195,3 @@ def generate_daily_report():
 {gpt_text}
 """
     return full_report
-
-

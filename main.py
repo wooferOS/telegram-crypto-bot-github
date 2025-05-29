@@ -151,6 +151,9 @@ def handle_history(message):
 
     bot.send_message(chat_id=message.chat.id, text=text, parse_mode="Markdown")
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> b4c56a7 (🔧 Fix: інтеграція generate_daily_report + команда /report)
 # 🚀 Запуск бота
 bot.infinity_polling()
