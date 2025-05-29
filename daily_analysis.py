@@ -1,12 +1,12 @@
 import os
-import datetime
 import json
 import requests
-from openai import OpenAI
-from binance.client import Client
+import datetime
 from dotenv import load_dotenv
+from binance.client import Client
+from openai import OpenAI
 
-# Завантажуємо змінні з .env
+# Завантаження змінних з .env
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
@@ -14,174 +14,110 @@ BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 
-# Ініціалізація клієнтів
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
-binance_client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
-
-def get_binance_balances():
-    balances = binance_client.get_account()["balances"]
+# Клієнти
+client = OpenAI(api_key=OPENAI_API_KEY)
+binance = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
+def get_wallet_balances():
+    raw_balances = binance.get_account()["balances"]
     wallet = {}
-    for b in balances:
+    for b in raw_balances:
         asset = b["asset"]
-        free = float(b["free"])
-        if free > 0:
-            wallet[asset] = free
+        amount = float(b["free"])
+        if amount > 0:
+            wallet[asset] = amount
     return wallet
 
-def generate_wallet_report(wallet):
-    lines = [f"{asset}: {amount}" for asset, amount in wallet.items()]
-    return "\n".join(lines)
-def calculate_profit_percentage(today_wallet, yesterday_wallet):
-    changes = []
-    for asset, amount in today_wallet.items():
-        y_amount = yesterday_wallet.get(asset, 0)
-        if y_amount > 0:
-            change = ((amount - y_amount) / y_amount) * 100
-            changes.append(f"{asset}: {change:.2f}%")
-    return "\n".join(changes) if changes else "📉 Недостатньо даних для порівняння."
+def get_usdt_to_uah():
+    try:
+        res = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=USDTUAH").json()
+        return float(res["price"])
+    except:
+        return 39.5  # резервний курс
 
-def generate_gpt_report(wallet_report):
-    today_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+def get_avg_price(symbol):
+    try:
+        res = binance.get_avg_price(symbol=symbol)
+        return float(res["price"])
+    except:
+        return 0.0
+def build_detailed_wallet_report(wallet):
+    report = []
+    usdt_to_uah = get_usdt_to_uah()
 
-    # Зчитуємо історію
-    history_file = "trade_history.json"
-    if os.path.exists(history_file):
-        with open(history_file, "r") as f:
-            trade_history = json.load(f)
-    else:
-        trade_history = []
+    for asset, amount in wallet.items():
+        if asset == "USDT":
+            value = amount
+            uah = value * usdt_to_uah
+            report.append(f"*{asset}*: {amount:.4f} ≈ {uah:.2f}₴")
+            continue
 
-    history_summary = "\n".join([f"{item['date']}: {item['action']} {item['asset']} {item['amount']}" for item in trade_history[-5:]]) or "Історія відсутня"
-
+        pair = f"{asset}USDT"
+        avg_price = get_avg_price(pair)
+        total_usdt = avg_price * amount
+        total_uah = total_usdt * usdt_to_uah
+        report.append(
+            f"*{asset}*: {amount} × {avg_price:.6f} = {total_usdt:.2f} USDT ≈ {total_uah:.2f}₴"
+        )
+    return "\n".join(report)
+def generate_gpt_report(wallet_text):
+    today = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     prompt = f"""
-Ти — досвідчений криптоаналітик. Ти аналізуєш увесь відкритий ринок криптовалют (не лише Binance) та даєш короткий і впевнений звіт на основі портфеля та історії. Не пиши фраз типу «я лише припускаю». Формуй чіткий прогноз.
+Ти — криптоасистент. Проаналізуй портфель користувача. Не використовуй знак $.
+Дай рекомендації: які монети продавати, які купити, з поясненням, стоп-лоссами та прибутками. Використовуй лише USDT та гривні (₴).
+    
+Баланс користувача:
+{wallet_text}
 
-Дата: {today_str}
+Ринок: Binance (https://www.binance.com/uk-UA/markets/overview)
+Дата: {today}
 
-ПОРТФЕЛЬ:
-{wallet_report}
-
-ОСТАННІ ОПЕРАЦІЇ:
-{history_summary}
-
-ФОРМАТ ВІДПОВІДІ:
-📊 ЗВІТ НА {today_str}
-
-🔻 ПРОДАЖ:
-1. <монета> — <сума> ≈ $<ціна>  
-Причина: <коротко>.  
-/confirm_sell_<монета>
-
-🔼 КУПІВЛЯ:
-1. <монета> — <сума> ≈ $<ціна>  
-Стоп-лосс: -X%, Тейк-профіт: +Y%  
-/confirm_buy_<монета>
-
-📈 ОЧІКУВАНИЙ ПРИБУТОК:
-- Продаж <монета>: +$  
-+ Купівля <монета>: +$  
-= Разом: +$ / +X%
-
-🧠 Прогноз: <які монети перспективні, які в ризику>.
-💾 Усі дії збережено.
+Формат:
+📊 Звіт на {today}
+🔻 ПРОДАЖ: ...  
+🔼 КУПІВЛЯ: ...  
+📈 ОЧІКУВАНИЙ ПРИБУТОК: ...  
+🧠 Прогноз: ...
 """
 
-    response = openai_client.chat.completions.create(
+    response = client.chat.completions.create(
         model="gpt-4",
         messages=[
-            {"role": "system", "content": "Ти — технічний криптоаналітик, що формує впевнений щоденний звіт по портфелю на основі ринку й історії трейдів."},
+            {"role": "system", "content": "Ти криптоаналітик. Формуй чіткий теханаліз зі знанням Binance Academy."},
             {"role": "user", "content": prompt}
         ]
     )
-
     return response.choices[0].message.content.strip()
 
 
-
-def save_report_to_file(text, folder="reports"):
+def save_report(text):
     now = datetime.datetime.now()
-    date_str = now.strftime("%Y-%m-%d")
-    time_str = now.strftime("%H-%M")
-    folder_path = os.path.join(folder, date_str)
-    os.makedirs(folder_path, exist_ok=True)
-    file_path = os.path.join(folder_path, f"daily_report_{time_str}.md")
-    with open(file_path, "w") as f:
+    folder = f"reports/{now.strftime('%Y-%m-%d')}"
+    os.makedirs(folder, exist_ok=True)
+    path = f"{folder}/daily_report_{now.strftime('%H-%M')}.md"
+    with open(path, "w") as f:
         f.write(text)
-    return file_path
-def send_telegram_message(message):
+    return path
+def send_telegram(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
+    data = {
         "chat_id": ADMIN_CHAT_ID,
-        "text": message,
+        "text": text,
         "parse_mode": "Markdown"
     }
     try:
-        response = requests.post(url, data=payload)
-        response.raise_for_status()
+        requests.post(url, data=data)
     except Exception as e:
-        print(f"❌ Помилка надсилання в Telegram: {e}")
-
-def log_event(text, logfile="daily.log"):
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    line = f"[{timestamp}] {text}\n"
-    with open(logfile, "a") as f:
-        f.write(line)
-
-def save_trade_history(assets: list, action: str):
-    # assets = [{"asset": "ADA", "amount": 100}, {"asset": "ETH", "amount": 0.3}]
-    history_file = "trade_history.json"
-    if os.path.exists(history_file):
-        with open(history_file, "r") as f:
-            trade_history = json.load(f)
-    else:
-        trade_history = []
-
-    for item in assets:
-        trade_history.append({
-            "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-            "action": action,
-            "asset": item["asset"],
-            "amount": item["amount"]
-        })
-
-    with open(history_file, "w") as f:
-        json.dump(trade_history, f, indent=2)
+        print("❌ Telegram error:", e)
 
 def main():
-    log_event("🔁 Початок щоденного аналізу...")
+    wallet = get_wallet_balances()
+    wallet_text = build_detailed_wallet_report(wallet)
+    gpt_text = generate_gpt_report(wallet_text)
 
-    wallet = get_binance_balances()
-    wallet_report = generate_wallet_report(wallet)
-    gpt_text = generate_gpt_report(wallet_report)
+    full_report = f"📊 *Звіт крипто-портфелю*\n\n💰 *Баланс:*\n{wallet_text}\n\n📈 *GPT-звіт:*\n{gpt_text}"
+    file_path = save_report(full_report)
+    send_telegram(full_report)
+    print(f"✅ Звіт надіслано. Збережено у {file_path}")
 
-    full_report = f"""📊 *Звіт крипто-портфелю*
-
-💰 *Баланс:*
-{wallet_report}
-
-📈 *GPT-звіт:*
-{gpt_text}
-"""
-
-    file_path = save_report_to_file(full_report)
-    send_telegram_message(full_report)
-    log_event(f"✅ Звіт сформовано та надіслано. Файл: {file_path}")
-def generate_daily_report():
-    wallet = get_binance_balances()
-    wallet_report = generate_wallet_report(wallet)
-    gpt_text = generate_gpt_report(wallet_report)
-
-    full_report = f"""📊 *Звіт крипто-портфелю*
-
-💰 *Баланс:*
-{wallet_report}
-
-📈 *GPT-звіт:*
-{gpt_text}
-"""
-
-    file_path = save_report_to_file(full_report)
-    return full_report, file_path
-    
 if __name__ == "__main__":
     main()
