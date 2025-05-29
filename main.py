@@ -6,7 +6,7 @@ import json
 import datetime
 from dotenv import load_dotenv
 from telebot import TeleBot
-from telebot.types import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton
+from telegram import ReplyKeyboardMarkup, KeyboardButton
 from binance.client import Client
 from daily_analysis import save_trade_history, generate_daily_report
 
@@ -25,11 +25,15 @@ def check_budget(amount):
         b = json.load(f)
     return (b["used"] + amount) <= b["budget"]
 
-# 📱 Меню кнопок
-main_menu = ReplyKeyboardMarkup(resize_keyboard=True)
-main_menu.row(KeyboardButton("📊 Звіт"), KeyboardButton("💰 Баланс"))
-main_menu.row(KeyboardButton("📘 Історія"), KeyboardButton("🔄 Оновити"))
-main_menu.row(KeyboardButton("🛑 Скасувати"))
+# 📱 Меню кнопок (PTB v20+)
+main_menu = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton("📊 Звіт"), KeyboardButton("💰 Баланс")],
+        [KeyboardButton("📘 Історія"), KeyboardButton("🔄 Оновити")],
+        [KeyboardButton("🛑 Скасувати")]
+    ],
+    resize_keyboard=True
+)
 
 # ✅ ЧАСТИНА 2: Кнопки: Баланс, Історія, Звіт, Оновити, Скасувати
 @bot.message_handler(func=lambda message: message.text == "\U0001F4B0 Баланс")
