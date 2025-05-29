@@ -5,8 +5,6 @@ import requests
 from binance.client import Client
 from openai import OpenAI
 from dotenv import load_dotenv
-from utils import convert_to_uah, get_price_usdt
-from pnl import get_daily_pnl
 
 # Завантаження змінних з .env
 load_dotenv()
