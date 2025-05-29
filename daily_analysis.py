@@ -164,6 +164,11 @@ def main():
 """
     file_path = save_report_to_file(full_report)
     send_telegram_message(full_report)
+    # 🔄 Зберігання історії після підтвердження (буде викликатися окремо у confirm)
+# Приклад:
+# save_trade_history([{"asset": "ADA", "amount": 100}], action="buy")
+# save_trade_history([{"asset": "XRP", "amount": 50}], action="sell")
+
     log_event("✅ Звіт сформовано та надіслано.")
 def save_report_to_file(text):
     today = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
