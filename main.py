@@ -1,6 +1,7 @@
 # 📦 main.py — Telegram бот для криптоасистента з підтвердженнями та аналітикою
 
 # ✅ ЧАСТИНА 1: Імпорти, .env, ініціалізація bot та Binance client
+import logging
 import os
 import json
 from dotenv import load_dotenv
