@@ -149,9 +149,9 @@ def save_trade_history(assets: list, action: str):
 
 def main():
     log_event("🔁 Початок щоденного аналізу...")
-    today_wallet = get_binance_balances()
-    wallet_report = generate_wallet_report(today_wallet)
 
+    wallet = get_binance_balances()
+    wallet_report = generate_wallet_report(wallet)
     gpt_text = generate_gpt_report(wallet_report)
 
     full_report = f"""📊 *Звіт крипто-портфелю*
@@ -162,25 +162,10 @@ def main():
 📈 *GPT-звіт:*
 {gpt_text}
 """
+
     file_path = save_report_to_file(full_report)
     send_telegram_message(full_report)
-    # 🔄 Зберігання історії після підтвердження (буде викликатися окремо у confirm)
-# Приклад:
-# save_trade_history([{"asset": "ADA", "amount": 100}], action="buy")
-# save_trade_history([{"asset": "XRP", "amount": 50}], action="sell")
-
-    log_event("✅ Звіт сформовано та надіслано.")
-def save_report_to_file(text):
-    today = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")
-    folder = "reports"
-    os.makedirs(folder, exist_ok=True)
-    path = os.path.join(folder, f"daily_report_{today}.md")
-    with open(path, "w") as f:
-        f.write(text)
-    return path
-
-if __name__ == "__main__":
-    main()
+    log_event(f"✅ Звіт сформовано та надіслано. Файл: {file_path}")
 def generate_daily_report():
     wallet = get_binance_balances()
     wallet_report = generate_wallet_report(wallet)
@@ -194,4 +179,9 @@ def generate_daily_report():
 📈 *GPT-звіт:*
 {gpt_text}
 """
-    return full_report
+
+    file_path = save_report_to_file(full_report)
+    return full_report, file_path
+    
+if __name__ == "__main__":
+    main()
