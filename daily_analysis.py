@@ -127,6 +127,26 @@ def log_event(text, logfile="daily.log"):
     with open(logfile, "a") as f:
         f.write(line)
 
+def save_trade_history(assets: list, action: str):
+    # assets = [{"asset": "ADA", "amount": 100}, {"asset": "ETH", "amount": 0.3}]
+    history_file = "trade_history.json"
+    if os.path.exists(history_file):
+        with open(history_file, "r") as f:
+            trade_history = json.load(f)
+    else:
+        trade_history = []
+
+    for item in assets:
+        trade_history.append({
+            "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+            "action": action,
+            "asset": item["asset"],
+            "amount": item["amount"]
+        })
+
+    with open(history_file, "w") as f:
+        json.dump(trade_history, f, indent=2)
+
 def main():
     log_event("🔁 Початок щоденного аналізу...")
     today_wallet = get_binance_balances()
