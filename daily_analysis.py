@@ -136,7 +136,7 @@ def save_wallet_snapshot(wallet):
         json.dump(wallet, f, indent=2)
 
 def save_report(text):
-    now = datetime.datetime.now()
+    now = datetime.now()
     folder = f"reports/{now.strftime('%Y-%m-%d')}"
     os.makedirs(folder, exist_ok=True)
     path = f"{folder}/daily_report_{now.strftime('%H-%M')}.md"
