@@ -79,6 +79,11 @@ def calculate_daily_pnl(current_wallet, snapshot_file="wallet_snapshot.json"):
         json.dump(current_wallet, f)
 
     return "\n".join(pnl_lines) if pnl_lines else "Немає змін у PNL"
+    
+def save_trade_history(history, filename='trade_history.json'):
+    import json
+    with open(filename, 'w') as f:
+        json.dump(history, f, indent=2)
 
 def generate_gpt_report(wallet_text):
     today = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
