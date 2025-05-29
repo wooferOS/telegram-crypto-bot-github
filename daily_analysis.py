@@ -40,6 +40,7 @@ def get_avg_price(symbol):
         return float(res["price"])
     except:
         return 0.0
+
 def build_detailed_wallet_report(wallet):
     report = []
     usdt_to_uah = get_usdt_to_uah()
@@ -59,7 +60,6 @@ def build_detailed_wallet_report(wallet):
             f"*{asset}*: {amount} × {avg_price:.6f} = {total_usdt:.2f} USDT ≈ {total_uah:.2f}₴"
         )
     return "\n".join(report)
-
 def calculate_daily_pnl(current_wallet, snapshot_file="wallet_snapshot.json"):
     previous = {}
     if os.path.exists(snapshot_file):
@@ -79,9 +79,8 @@ def calculate_daily_pnl(current_wallet, snapshot_file="wallet_snapshot.json"):
         json.dump(current_wallet, f)
 
     return "\n".join(pnl_lines) if pnl_lines else "Немає змін у PNL"
-    
+
 def save_trade_history(history, filename='trade_history.json'):
-    import json
     with open(filename, 'w') as f:
         json.dump(history, f, indent=2)
 
@@ -126,7 +125,6 @@ https://www.binance.com/uk-UA/markets/overview
         ]
     )
     return response.choices[0].message.content.strip()
-
 def save_wallet_snapshot(wallet):
     today = datetime.now().strftime("%Y-%m-%d %H:%M")
     os.makedirs("wallet_snapshots", exist_ok=True)
@@ -141,6 +139,7 @@ def save_report(text):
     with open(path, "w") as f:
         f.write(text)
     return path
+
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     data = {
@@ -152,8 +151,6 @@ def send_telegram(text):
         requests.post(url, data=data)
     except Exception as e:
         print("❌ Telegram error:", e)
-
-
 def main():
     wallet = get_wallet_balances()
     wallet_text = build_detailed_wallet_report(wallet)
@@ -168,5 +165,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    
