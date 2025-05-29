@@ -130,6 +130,10 @@ def confirm_buy(message):
         {"asset": "HBAR", "amount": 80},
         {"asset": "NOT", "amount": 90}
     ]
+    total_amount = sum([a["amount"] for a in assets_to_buy])
+if not check_budget(total_amount):
+    bot.send_message(message.chat.id, "⚠️ Перевищено бюджет.")
+    return
     try:
         for asset in assets_to_buy:
             symbol = f"{asset['asset']}USDT"
@@ -146,23 +150,27 @@ def confirm_buy(message):
             bot.reply_to(message, "⚠️ Недостатньо балансу для купівлі.")
         else:
             bot.reply_to(message, f"❌ Помилка під час купівлі: {str(e)}")
+with open("budget.json", "r") as f:
+    b = json.load(f)
+b["used"] += total_amount
+with open("budget.json", "w") as f:
+    json.dump(b, f)
 
 # 🧠 Inline підтвердження купівлі (демо-режим)
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-@bot.message_handler(commands=["confirm_buy_inline"])
-def confirm_buy_inline(message):
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("✅ Підтвердити купівлю", callback_data="buy_now"))
-    bot.send_message(message.chat.id, "Підтверди купівлю криптовалюти:", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data == "buy_now")
-def execute_buy(call):
+@bot.message_handler(commands=["confirm_buy"])
+def confirm_buy(message):
     assets_to_buy = [
         {"asset": "ADA", "amount": 15},
         {"asset": "HBAR", "amount": 80},
         {"asset": "NOT", "amount": 90}
     ]
+    total_amount = sum([a["amount"] for a in assets_to_buy])
+    if not check_budget(total_amount):
+        bot.send_message(message.chat.id, "⚠️ Перевищено бюджет.")
+        return
+
     try:
         for asset in assets_to_buy:
             symbol = f"{asset['asset']}USDT"
@@ -173,12 +181,26 @@ def execute_buy(call):
                 quantity=asset["amount"]
             )
         save_trade_history(assets_to_buy, action="buy")
-        bot.edit_message_text("✅ Купівля виконана!", call.message.chat.id, call.message.message_id)
+
+        # ✅ Оновлюємо budget.json
+        with open("budget.json", "r") as f:
+            b = json.load(f)
+        b["used"] += total_amount
+        with open("budget.json", "w") as f:
+            json.dump(b, f)
+
+        bot.reply_to(message, "✅ Купівля виконана та збережена в історії.")
     except Exception as e:
         if "INSUFFICIENT_BALANCE" in str(e):
-            bot.send_message(call.message.chat.id, "⚠️ Недостатньо балансу для купівлі.")
+            bot.reply_to(message, "⚠️ Недостатньо балансу для купівлі.")
         else:
-            bot.send_message(call.message.chat.id, f"❌ Помилка: {str(e)}")
+            bot.reply_to(message, f"❌ Помилка під час купівлі: {str(e)}")
+
+with open("budget.json", "r") as f:
+    b = json.load(f)
+b["used"] += total_amount
+with open("budget.json", "w") as f:
+    json.dump(b, f)
 
 
 # 📘 /history — повна історія угод з групуванням по датах
@@ -278,6 +300,44 @@ def send_welcome(message):
         "💰 Я зберігаю всі твої операції автоматично!"
     )
     bot.reply_to(message, text, reply_markup=main_menu)
+    
+@bot.callback_query_handler(func=lambda call: call.data == "buy_now")
+def execute_buy(call):
+    assets_to_buy = [
+        {"asset": "ADA", "amount": 15},
+        {"asset": "HBAR", "amount": 80},
+        {"asset": "NOT", "amount": 90}
+    ]
+    total_amount = sum([a["amount"] for a in assets_to_buy])
+    if not check_budget(total_amount):
+        bot.send_message(call.message.chat.id, "⚠️ Перевищено бюджет.")
+        return
+
+    try:
+        for asset in assets_to_buy:
+            symbol = f"{asset['asset']}USDT"
+            client.create_order(
+                symbol=symbol,
+                side="BUY",
+                type="MARKET",
+                quantity=asset["amount"]
+            )
+        save_trade_history(assets_to_buy, action="buy")
+
+        # ✅ Оновлюємо використаний бюджет
+        with open("budget.json", "r") as f:
+            b = json.load(f)
+        b["used"] += total_amount
+        with open("budget.json", "w") as f:
+            json.dump(b, f)
+
+        bot.edit_message_text("✅ Купівля виконана!", call.message.chat.id, call.message.message_id)
+    except Exception as e:
+        if "INSUFFICIENT_BALANCE" in str(e):
+            bot.send_message(call.message.chat.id, "⚠️ Недостатньо балансу для купівлі.")
+        else:
+            bot.send_message(call.message.chat.id, f"❌ Помилка: {str(e)}")
+
 
 # ✅ Запуск бота
 if __name__ == "__main__":
