@@ -5,6 +5,7 @@ import os
 import json
 from dotenv import load_dotenv
 from telebot import TeleBot
+from telegram import ReplyKeyboardMarkup
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from binance.client import Client
 from daily_analysis import save_trade_history, generate_daily_report
