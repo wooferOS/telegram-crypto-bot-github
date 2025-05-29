@@ -121,5 +121,35 @@ main_menu = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
+@bot.message_handler(commands=["history"])
+def handle_history(message):
+    history_file = "trade_history.json"
+    if not os.path.exists(history_file):
+        bot.send_message(chat_id=message.chat.id, text="Історія порожня 🕰️")
+        return
+
+    with open(history_file, "r") as f:
+        history = json.load(f)
+
+    if not history:
+        bot.send_message(chat_id=message.chat.id, text="Історія ще не збережена.")
+        return
+
+    text = "📘 *ІСТОРІЯ УГОД*:\n"
+    grouped = {}
+
+    for item in history:
+        date = item["date"].split(" ")[0]
+        grouped.setdefault(date, []).append(item)
+
+    for date, entries in grouped.items():
+        text += f"\n📆 {date}:\n"
+        for e in entries:
+            emoji = "✅" if e["action"] == "buy" else "❌"
+            text += f"- {emoji} {e['action'].upper()} {e['asset']} — {e['amount']}\n"
+
+    bot.send_message(chat_id=message.chat.id, text=text, parse_mode="Markdown")
+
+
 # 🚀 Запуск бота
 bot.infinity_polling()
