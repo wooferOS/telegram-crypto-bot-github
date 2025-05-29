@@ -161,7 +161,7 @@ def main():
     file_path = save_report(full_report)
     send_telegram(full_report)
     save_wallet_snapshot(wallet)
-    print(f"✅ Звіт надіслано. Збережено у {file_path}")
+    return full_report, file_path
 
 if __name__ == "__main__":
     main()
