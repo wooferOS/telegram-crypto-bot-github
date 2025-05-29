@@ -88,7 +88,7 @@ def save_trade_history(history, filename='trade_history.json'):
         json.dump(history, f, indent=2)
 
 def generate_gpt_report(wallet_text):
-    today = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    today = datetime.now().strftime("%Y-%m-%d %H:%M")
     prompt = f"""
 Ти — криптоаналітик. Проаналізуй портфель користувача. Використовуй **тільки** USDT та гривні (₴), без символу $.
 
@@ -130,7 +130,7 @@ https://www.binance.com/uk-UA/markets/overview
     return response.choices[0].message.content.strip()
 
 def save_wallet_snapshot(wallet):
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    today = datetime.now().strftime("%Y-%m-%d %H:%M")
     os.makedirs("wallet_snapshots", exist_ok=True)
     with open(f"wallet_snapshots/{today}.json", "w") as f:
         json.dump(wallet, f, indent=2)
