@@ -181,3 +181,18 @@ def save_report_to_file(text):
 
 if __name__ == "__main__":
     main()
+def generate_daily_report():
+    wallet = get_binance_balances()
+    wallet_report = generate_wallet_report(wallet)
+    gpt_text = generate_gpt_report(wallet_report)
+
+    full_report = f"""📊 *Звіт крипто-портфелю*
+
+💰 *Баланс:*
+{wallet_report}
+
+📈 *GPT-звіт:*
+{gpt_text}
+"""
+    return full_report
+
