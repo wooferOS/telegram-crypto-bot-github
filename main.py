@@ -125,6 +125,7 @@ main_menu = ReplyKeyboardMarkup(
 @bot.message_handler(commands=["history"])
 def handle_history(message):
     history_file = "trade_history.json"
+
     if not os.path.exists(history_file):
         bot.send_message(chat_id=message.chat.id, text="Історія порожня 🕰️")
         return
@@ -151,9 +152,6 @@ def handle_history(message):
 
     bot.send_message(chat_id=message.chat.id, text=text, parse_mode="Markdown")
 
-<<<<<<< HEAD
 
-=======
->>>>>>> b4c56a7 (🔧 Fix: інтеграція generate_daily_report + команда /report)
 # 🚀 Запуск бота
 bot.infinity_polling()
