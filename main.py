@@ -35,6 +35,53 @@ def get_main_keyboard():
         ["🔄 Оновити", "🛑 Скасувати"]
     ], resize_keyboard=True)
 
+# 🔁 Обробники кнопок / команд (рефакторинг)
+@bot.message_handler(func=lambda m: m.text == "💰 Баланс")
+def handle_balance(message):
+    print("➡️ Натиснуто: 💰 Баланс")
+    try:
+        account_info = client.get_account()
+        balances = [b for b in account_info["balances"] if float(b["free"]) > 0 or float(b["locked"]) > 0]
+        text = "💼 *Твій баланс:*\n"
+        for b in balances:
+            total = float(b["free"]) + float(b["locked"])
+            text += f"- {b['asset']}: {total}\n"
+        bot.send_message(message.chat.id, text, parse_mode="Markdown")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Помилка при отриманні балансу: {str(e)}")
+
+
+@bot.message_handler(func=lambda m: m.text == "📊 Звіт")
+def report_btn(m):
+    print("➡️ Натиснуто: 📊 Звіт")
+    report_handler(m)
+
+@bot.message_handler(func=lambda m: m.text == "📘 Історія")
+def history_btn(m):
+    print("➡️ Натиснуто: 📘 Історія")
+    handle_history(m)
+
+@bot.message_handler(func=lambda m: m.text == "✅ Підтвердити купівлю")
+def confirm_buy_button(m):
+    print("➡️ Натиснуто: ✅ Підтвердити купівлю")
+    bot.send_message(m.chat.id, "🛒 Виклик підтвердження купівлі через /confirm_buy")
+
+@bot.message_handler(func=lambda m: m.text == "✅ Підтвердити продаж")
+def confirm_sell_button(m):
+    print("➡️ Натиснуто: ✅ Підтвердити продаж")
+    bot.send_message(m.chat.id, "💸 Виклик підтвердження продажу через /confirm_sell")
+
+@bot.message_handler(func=lambda m: m.text == "🔄 Оновити")
+def refresh(m):
+    print("➡️ Натиснуто: 🔄 Оновити")
+    bot.send_message(m.chat.id, "🔄 Дані оновлено (реалізація триває)")
+
+@bot.message_handler(func=lambda m: m.text == "🛑 Скасувати")
+def cancel(m):
+    print("➡️ Натиснуто: 🛑 Скасувати")
+    bot.send_message(m.chat.id, "❌ Операцію скасовано")
+
+
 # 🟢 /start і /help
 @bot.message_handler(commands=["start", "help"])
 def send_welcome(message):
