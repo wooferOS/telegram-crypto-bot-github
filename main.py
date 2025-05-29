@@ -5,12 +5,11 @@ import os
 import json
 from dotenv import load_dotenv
 from telebot import TeleBot
-from telegram import ReplyKeyboardMarkup
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from binance.client import Client
 from daily_analysis import save_trade_history, generate_daily_report
-from telegram import Update
-from telegram.ext import CallbackContext
+
+
 
 # 🧪 Завантаження .env
 load_dotenv()
@@ -29,18 +28,12 @@ def check_budget(amount):
     return (b["used"] + amount) <= b["budget"]
 
 # 📱 Головне меню кнопок
-def get_keyboard():
-    return ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton("💰 Баланс"), KeyboardButton("📊 Звіт"), KeyboardButton("📘 Історія")],
-            [KeyboardButton("✅ Підтвердити купівлю"), KeyboardButton("✅ Підтвердити продаж")],
-            [KeyboardButton("🔄 Оновити"), KeyboardButton("⛔ Скасувати")]
-        ],
-        resize_keyboard=True
-    )
-@application.command_handler("start")
-def start(update: Update, context: CallbackContext):
-    update.message.reply_text("👋 Ласкаво просимо!", reply_markup=get_keyboard())
+def get_main_keyboard():
+    return ReplyKeyboardMarkup([
+        ["💰 Баланс", "📊 Звіт", "📘 Історія"],
+        ["✅ Підтвердити купівлю", "✅ Підтвердити продаж"],
+        ["🔄 Оновити", "🛑 Скасувати"]
+    ], resize_keyboard=True)
 
 # 🟢 /start і /help
 @bot.message_handler(commands=["start", "help"])
@@ -59,7 +52,7 @@ def send_welcome(message):
         "   - /status — переглянути бюджет\n\n"
         "💰 Я зберігаю всі твої операції автоматично!"
     )
-    bot.reply_to(message, text, reply_markup=main_menu)
+    bot.reply_to(message, text, reply_markup=get_main_keyboard())
 
 # 🔁 Обробники кнопок / команд (рефакторинг)
 @bot.message_handler(func=lambda m: m.text == "📘 Історія")
