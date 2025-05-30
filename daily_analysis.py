@@ -178,7 +178,7 @@ def send_telegram_report(text, path=None):
     except Exception as e:
         logging.error(f"❌ Помилка при надсиланні в Telegram: {e}")
         
-        def get_binance_balances():
+def get_binance_balances():
     try:
         account_info = client.get_account()
         balances = account_info.get("balances", [])
