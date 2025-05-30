@@ -1,10 +1,25 @@
-*.save
-.notified
-# Logs and temp
-*.log
-nohup.out
+# Python
 __pycache__/
 *.pyc
-daily_report.txt
-run_bot.py
-test_binance.py
+*.pyo
+*.pyd
+*.db
+
+# Віртуальні середовища
+env/
+venv/
+
+# Логи
+*.log
+logs/
+daily.log
+
+# Звіти GPT
+reports/
+*.md.save
+
+# Змінні середовища
+.env
+
+# Telegram кеш
+.notified
