@@ -86,10 +86,12 @@ def main():
         market_data = get_market_data()
         balances = get_balance()
         report = generate_gpt_report(market_data, balances)
+        path = save_report(report)
         send_telegram(report)
-        save_report(report)
+        return report, path
     except Exception as e:
         send_telegram(f"❌ Помилка в аналізі: {str(e)}")
+        return None
 
 # Надсилання звіту в Telegram
 def send_telegram(text):
