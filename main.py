@@ -194,39 +194,43 @@ def handle_confirm_buy(call):
     bot.answer_callback_query(call.id)
 
     try:
-        # Розрахунок кількості на 15 USDT
-        price = float(client.get_symbol_ticker(symbol=f"{coin}USDT")["price"])
-        quantity = round(15 / price, 5)
+        # 🧮 Отримуємо USDT баланс
+        balance = client.get_asset_balance(asset="USDT")
+        usdt_balance = float(balance["free"])
 
-        # Купівля
+        if usdt_balance < 5:
+            bot.send_message(call.message.chat.id, "⚠️ Недостатньо USDT для купівлі.")
+            return
+
+        # 📈 Ціна монети
+        price = float(client.get_symbol_ticker(symbol=f"{coin}USDT")["price"])
+
+        # 📦 Розрахунок кількості
+        quantity = round(usdt_balance / price, 6)
+
+        # 🛒 Створення ордера
         order = client.create_order(
             symbol=f"{coin}USDT",
             side="BUY",
             type="MARKET",
             quantity=quantity
         )
-        bot.send_message(call.message.chat.id, f"✅ Куплено {quantity} {coin} на 15 USDT.")
 
-        # Збереження в історію
-        save_trade_history([
-            {
-                "asset": coin,
-                "amount": quantity,
-                "price": price,
-                "value": round(quantity * price, 2)
-            }
-        ], action="buy")
+        # ✅ Звіт
+        bot.send_message(call.message.chat.id, f"✅ Куплено {quantity} {coin}.")
 
-        # Оновлення використаного бюджету
-        with open("budget.json", "r") as f:
-            budget_data = json.load(f)
-        budget_data["used"] += 15
-        with open("budget.json", "w") as f:
-            json.dump(budget_data, f)
+        # 📝 Логування в історію
+        save_trade_history([{
+            "symbol": coin,
+            "action": "BUY",
+            "quantity": quantity,
+            "usdt_spent": round(usdt_balance, 2),
+            "price": price,
+            "time": datetime.now().isoformat()
+        }], action="BUY")
 
     except Exception as e:
-        bot.send_message(call.message.chat.id, f"❌ Помилка купівлі {coin}: {str(e)}")
-
+        bot.send_message(call.message.chat.id, f"❌ Помилка при купівлі {coin}: {e}")
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("confirmsell_"))
