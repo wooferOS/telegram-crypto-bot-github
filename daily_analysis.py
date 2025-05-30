@@ -238,7 +238,7 @@ def main():
         analysis = ask_gpt(prompt)
 
         # 5. Зберегти звіт
-        date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        date_str = datetime.now().strftime("%Y-%m-%d")
         report_dir = os.path.join("reports", date_str)
         ensure_directory(report_dir)
         report_path = save_report(analysis, report_dir)
