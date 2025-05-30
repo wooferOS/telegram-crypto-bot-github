@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export $(cat /root/telegram-crypto-bot-github/.env | xargs)
+
 echo "📥 Отримую останні зміни з GitHub..."
 cd ~/telegram-crypto-bot-github || exit
 git pull origin master
