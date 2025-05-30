@@ -6,7 +6,6 @@ After=network.target
 ExecStart=/usr/bin/python3 /root/telegram-crypto-bot-github/main.py
 WorkingDirectory=/root/telegram-crypto-bot-github
 Restart=always
-User=root
 Environment="PYTHONUNBUFFERED=1"
 
 [Install]
