@@ -3,201 +3,215 @@ import json
 import logging
 from datetime import datetime
 from binance.client import Client
+from binance.exceptions import BinanceAPIException
 from openai import OpenAI
 import requests
 
-# Функція логування
-def log_message(message: str):
-    import logging
-    logging.basicConfig(filename="daily.log", level=logging.INFO, format="%(asctime)s %(levelname)s:%(message)s")
+# Ініціалізація клієнтів
+client = Client(api_key=os.getenv("BINANCE_API_KEY"), api_secret=os.getenv("BINANCE_SECRET_KEY"))
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Шлях до whitelist
+WHITELIST_PATH = "whitelist.json"
+REPORTS_DIR = "reports"
+LOG_FILE = "daily.log"
+UAH_RATE = 43.0
+# Налаштування логування
+logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format="%(asctime)s %(levelname)s:%(message)s")
+
+def log_message(message):
+    print(message)
     logging.info(message)
 
-# Функція надсилання повідомлення у Telegram
-def send_telegram(message: str):
-    import requests, os
-    token = os.getenv("TELEGRAM_TOKEN")
+def send_telegram(message):
+    telegram_token = os.getenv("TELEGRAM_TOKEN")
     chat_id = os.getenv("ADMIN_CHAT_ID")
-    if token and chat_id:
-        url = f"https://api.telegram.org/bot{token}/sendMessage"
-        requests.post(url, data={"chat_id": chat_id, "text": message})
+    url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+    data = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
+    try:
+        requests.post(url, data=data)
+    except Exception as e:
+        logging.error(f"❌ Telegram Error: {str(e)}")
+def save_to_file(data, filename):
+    with open(filename, "w") as f:
+        json.dump(data, f, indent=2)
 
-# Ініціалізація ключів
-BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
-BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
-client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
+def load_from_file(filename):
+    if os.path.exists(filename):
+        with open(filename, "r") as f:
+            return json.load(f)
+    return {}
 
-# Клієнти
-client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
-# Логування
-logging.basicConfig(filename="daily.log", level=logging.INFO, format="%(asctime)s %(levelname)s:%(message)s")
+def save_report(content, date_str, hour_min):
+    folder = f"reports/{date_str}"
+    os.makedirs(folder, exist_ok=True)
+    path = f"{folder}/daily_report_{hour_min}.md"
+    with open(path, "w") as f:
+        f.write(content)
+    return path
+def analyze_balance(client):
+    balances = get_binance_balances(client)
+    result = []
+    for asset in balances:
+        symbol = asset["asset"]
+        free = float(asset["free"])
+        if free == 0 or symbol == "USDT":
+            continue
+        pair = symbol + "USDT"
+        try:
+            price = float(client.get_symbol_ticker(symbol=pair)["price"])
+            value = round(price * free, 2)
+            result.append({
+                "symbol": symbol,
+                "amount": free,
+                "value_usdt": value,
+                "pair": pair
+            })
+        except Exception as e:
+            log.error(f"❌ Не вдалося отримати ціну для {pair}: {str(e)}")
+    return sorted(result, key=lambda x: x["value_usdt"], reverse=True)
 
-# Каталог для збереження звітів
-def ensure_report_dir():
-    today = datetime.now().strftime("%Y-%m-%d")
-    path = os.path.join("reports", today)
-    os.makedirs(path, exist_ok=True)
+def get_whitelist():
+    return [
+        "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "AVAXUSDT",
+        "XRPUSDT", "DOGEUSDT", "LINKUSDT", "MATICUSDT", "TRXUSDT",
+        "ADAUSDT", "DOTUSDT", "LTCUSDT", "UNIUSDT", "ATOMUSDT",
+        "NEARUSDT", "XLMUSDT", "INJUSDT", "OPUSDT", "ARBUSDT",
+        "TIAUSDT", "SUIUSDT", "PEPEUSDT", "FETUSDT", "RNDRUSDT",
+        "SEIUSDT", "ORDIUSDT", "1000SATSUSDT", "JASMYUSDT", "ENJUSDT"
+    ]
+def get_market_data(client, whitelist):
+    tickers = client.get_ticker()
+    market_data = {}
+    for t in tickers:
+        symbol = t["symbol"]
+        if symbol in whitelist:
+            try:
+                change = float(t["priceChangePercent"])
+                volume = float(t["quoteVolume"])
+                last_price = float(t["lastPrice"])
+                market_data[symbol] = {
+                    "change": change,
+                    "volume": volume,
+                    "last_price": last_price
+                }
+            except:
+                continue
+    return market_data
+
+def prepare_analysis(balance_data, market_data):
+    to_sell = []
+    to_buy = []
+    for asset in balance_data:
+        pair = asset["pair"]
+        if pair in market_data:
+            perf = market_data[pair]["change"]
+            if perf < -2:  # умовно слабка монета
+                to_sell.append({**asset, "change": perf})
+
+    sorted_market = sorted(market_data.items(), key=lambda x: (x[1]["change"], x[1]["volume"]), reverse=True)
+    for symbol, data in sorted_market[:3]:  # топ 3 монети на купівлю
+        to_buy.append({
+            "pair": symbol,
+            "change": data["change"],
+            "volume": data["volume"],
+            "price": data["last_price"]
+        })
+
+    return to_sell, to_buy
+def estimate_profit(buy_entry, sell_entry):
+    try:
+        profit = (sell_entry["price"] - buy_entry["price"]) * (buy_entry["usdt"] / buy_entry["price"])
+        return round(profit, 2)
+    except:
+        return 0.0
+
+def format_trade_command(action, symbol):
+    return f"/confirm{action.lower()}{symbol.replace('/', '')}"
+
+def generate_report(balance_usdt, to_sell, to_buy, currency_rate):
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    report = f"# 📊 Звіт GPT-аналітики ({now})\n\n"
+    report += f"**Поточний баланс:** {balance_usdt:.2f} USDT ≈ {balance_usdt * currency_rate:.2f} грн\n\n"
+
+    report += "## 🔻 Рекомендовано продати:\n"
+    if to_sell:
+        for asset in to_sell:
+            report += f"- {asset['asset']} ({asset['pair']}): {asset['usdt']:.2f} USDT — зміна {asset['change']}%\n"
+            report += f"  👉 {format_trade_command('sell', asset['pair'])}\n"
+    else:
+        report += "Немає слабких активів для продажу.\n"
+
+    report += "\n## 🟢 Рекомендовано купити:\n"
+    if to_buy:
+        for asset in to_buy:
+            report += f"- {asset['pair']}: зміна +{asset['change']}%, обʼєм {asset['volume']:.2f}\n"
+            report += f"  👉 {format_trade_command('buy', asset['pair'])}\n"
+    else:
+        report += "Немає вигідних монет для купівлі.\n"
+
+    return report
+def ensure_directory(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+
+def save_report(text, report_dir):
+    now = datetime.datetime.now().strftime("%H-%M")
+    filename = f"daily_report_{now}.md"
+    path = os.path.join(report_dir, filename)
+    with open(path, "w") as f:
+        f.write(text)
     return path
 
-# Список whitelist пар для аналізу
-WHITELIST = [
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT", "XRPUSDT", "DOGEUSDT",
-    "DOTUSDT", "MATICUSDT", "AVAXUSDT", "SHIBUSDT", "LINKUSDT", "TRXUSDT", "LTCUSDT",
-    "BCHUSDT", "ATOMUSDT", "XLMUSDT", "APTUSDT", "ARBUSDT", "OPUSDT", "IMXUSDT", "PEPEUSDT",
-    "RNDRUSDT", "1000SATSUSDT", "TIAUSDT", "WIFUSDT", "JASMYUSDT", "NOTUSDT", "STRKUSDT", "TRUMPUSDT"
-]
-# Отримати поточний баланс з Binance
-def get_binance_balances():
+def send_telegram_report(text, path=None):
     try:
-        balances = client.get_account()["balances"]
-        result = []
-        for asset in balances:
-            asset_name = asset["asset"]
-            free = float(asset["free"])
-            if free > 0:
-                if asset_name == "USDT":
-                    usdt_value = free
-                    price = 1.0
-                else:
-                    symbol = asset_name + "USDT"
-                    try:
-                        ticker = client.get_symbol_ticker(symbol=symbol)
-                        price = float(ticker["price"])
-                        usdt_value = price * free
-                    except:
-                        price = 0.0
-                        usdt_value = 0.0
-                result.append({
-                    "symbol": asset_name,
-                    "amount": round(free, 4),
-                    "price": round(price, 6),
-                    "usdt_value": round(usdt_value, 2)
-                })
-        return result
+        bot.send_message(chat_id=ADMIN_CHAT_ID, text="📤 Новий звіт GPT-аналітики:", parse_mode=ParseMode.MARKDOWN)
+        if path and os.path.exists(path):
+            with open(path, "rb") as f:
+                bot.send_document(chat_id=ADMIN_CHAT_ID, document=f)
+        else:
+            bot.send_message(chat_id=ADMIN_CHAT_ID, text=text, parse_mode=ParseMode.MARKDOWN)
     except Exception as e:
-        logging.error(f"❌ Помилка при отриманні балансу: {str(e)}")
-        return []
-# Отримати whitelist монет з ринку Binance
-def get_market_whitelist_data():
-    try:
-        tickers = client.ticker_24hr()
-        filtered = []
-        for t in tickers:
-            symbol = t["symbol"]
-            if symbol in WHITELIST and symbol.endswith("USDT"):
-                try:
-                    price_change_percent = float(t["priceChangePercent"])
-                    volume = float(t["quoteVolume"])
-                    filtered.append({
-                        "symbol": symbol,
-                        "price_change_percent": price_change_percent,
-                        "volume": volume
-                    })
-                except:
-                    continue
-        return sorted(filtered, key=lambda x: x["price_change_percent"], reverse=True)
-    except Exception as e:
-        logging.error(f"❌ Помилка при аналізі ринку: {str(e)}")
-        return []
-# Побудувати GPT-звіт
-def build_gpt_report(balance_summary, market_whitelist):
-    try:
-        total_usdt = sum([coin["usdt_value"] for coin in balance_summary])
-        sorted_market = market_whitelist[:5]
-        sorted_balance = sorted(balance_summary, key=lambda x: x["usdt_value"], reverse=True)
-
-        prompt = f"""
-Твоя роль — GPT-аналітик для трейдингу. Сформуй короткий, чіткий звіт на 24 години з урахуванням:
-
-1. Поточний баланс:
-{json.dumps(balance_summary, indent=2, ensure_ascii=False)}
-
-2. Топ монети з whitelist з найбільшим потенціалом:
-{json.dumps(sorted_market, indent=2, ensure_ascii=False)}
-
-Завдання:
-- Які монети з балансу варто продати, чому?
-- Які монети з whitelist купити, чому?
-- Який очікуваний прибуток у % і USDT через 24 години?
-- Додай команди типу /confirmsellXRP /confirmbuyBTC
-- Обовʼязково додай Stop Loss і Take Profit для кожної купівлі
-- Твоя відповідь українською мовою, лаконічно
-
-Дата: {datetime.now().strftime('%Y-%m-%d %H:%M')}
-"""
-
-        chat_completion = openai_client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "Ти — досвідчений криптоаналітик Binance."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        return chat_completion.choices[0].message.content.strip()
-    except Exception as e:
-        logging.error(f"❌ Помилка генерації GPT-звіту: {str(e)}")
-        return "❌ GPT-звіт недоступний."
-# Створити .md файл звіту
-def save_report_to_file(gpt_text, prefix="daily_report"):
-    try:
-        today = datetime.now().strftime("%Y-%m-%d")
-        time_str = datetime.now().strftime("%H-%M")
-        report_dir = os.path.join("reports", today)
-        os.makedirs(report_dir, exist_ok=True)
-        filename = os.path.join(report_dir, f"{prefix}_{time_str}.md")
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(gpt_text)
-        return filename
-    except Exception as e:
-        logging.error(f"❌ Помилка збереження GPT-звіту: {str(e)}")
-        return None
-
-
-# Надіслати звіт у Telegram
-def send_report_to_telegram(report_text, report_file):
-    try:
-        if TELEGRAM_TOKEN and ADMIN_CHAT_ID:
-            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-            requests.post(url, data={"chat_id": ADMIN_CHAT_ID, "text": report_text, "parse_mode": "Markdown"})
-            if os.path.exists(report_file):
-                files = {"document": open(report_file, "rb")}
-                doc_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendDocument"
-                requests.post(doc_url, data={"chat_id": ADMIN_CHAT_ID}, files=files)
-    except Exception as e:
-        logging.error(f"❌ Помилка надсилання звіту в Telegram: {str(e)}")
-# Основна функція для щоденного запуску
+        logging.error(f"❌ Помилка при надсиланні в Telegram: {e}")
 def main():
     try:
         log_message("🔁 Запуск daily_analysis.py")
 
-        # Крок 1: Отримання балансу
+        # 1. Отримати баланс
         balances = get_binance_balances()
 
-        # Крок 2: Отримання ринкових даних
+        # 2. Отримати ринкові дані
         market_data = get_market_data()
 
-        # Крок 3: Побудова звіту GPT
-        report_text = generate_gpt_report(balances, market_data)
+        # 3. Побудувати GPT-запит
+        prompt = build_gpt_prompt(balances, market_data)
 
-        # Крок 4: Збереження та надсилання звіту
-        report_file = save_report_to_file(report_text)
-        if report_file:
-            send_report_to_telegram(report_text, report_file)
-            log_message(f"✅ Звіт сформовано: {report_file}")
-        else:
-            log_message("⚠️ Звіт не збережено.")
+        # 4. Запит до GPT
+        analysis = ask_gpt(prompt)
+
+        # 5. Зберегти звіт
+        date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        report_dir = os.path.join("reports", date_str)
+        ensure_directory(report_dir)
+        report_path = save_report(analysis, report_dir)
+
+        # 6. Надіслати в Telegram
+        send_telegram_report(analysis, report_path)
+
     except Exception as err:
-        error_message = f"❌ Помилка в аналізі: {str(err)}"
-        logging.error(error_message)
-        send_telegram(error_message)
-if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        logging.exception("❌ Фатальна помилка у виконанні скрипта:")
+        logging.error("❌ Фатальна помилка у виконанні скрипта:")
+        logging.error(traceback.format_exc())
         try:
-            send_telegram(f"❌ Помилка у виконанні: {str(e)}")
+            send_telegram(f"❌ Помилка у виконанні: {str(err)}")
         except:
             pass
+if __name__ == "__main__":
+    main()
+except Exception as err:
+    error_message = f"❌ Помилка в аналізі: {str(err)}"
+    logging.error(error_message)
+    try:
+        if TELEGRAM_TOKEN and ADMIN_CHAT_ID:
+            send_telegram(f"❌ Фатальна помилка у виконанні скрипта:\n{error_message}")
+    except Exception as send_err:
+        logging.error(f"Не вдалося надіслати повідомлення у Telegram: {str(send_err)}")
