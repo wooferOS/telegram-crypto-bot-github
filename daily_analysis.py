@@ -57,29 +57,73 @@ def get_balance():
     return balances
 # Генерація GPT-звіту на основі балансу та ринку
 def generate_gpt_report(market_data, balances):
-    report_lines = []
-    report_lines.append("📊 Звіт портфелю (щоденна аналітика)")
-    report_lines.append("")
-    report_lines.append("💰 Баланс:")
+    """
+    Формує GPT-звіт:
+    - Аналіз активів на балансі
+    - Визначає, що продавати
+    - Визначає, що купувати
+    - Розраховує очікуваний прибуток
+    """
+    from datetime import datetime
 
-    for symbol, qty in balances.items():
-        symbol_full = symbol + "USDT"
-        if symbol_full in market_data:
-            price = market_data[symbol_full]["price"]
-            usdt_value = qty * price
-            uah_value = usdt_value * UAH_RATE
-            report_lines.append(f"{symbol}: {qty:.4f} × {price:.6f} = {usdt_value:.2f} USDT ≈ {uah_value:.2f}₴")
+    assets_to_sell = []
+    assets_to_buy = []
+    expected_profit_usdt = 0
 
-    report_lines.append("")
-    report_lines.append("🔼 Купити (потенціал на 24 години):")
+    # Визначаємо кандидати на продаж з балансу
+    for asset, info in balances.items():
+        if asset == "USDT":
+            continue
+        price_change = market_data.get(asset + "/USDT", {}).get("price_change_percent", 0)
+        if price_change < -1:  # просідання за добу > 1%
+            assets_to_sell.append((asset, info["amount"], info["value_usdt"], price_change))
 
-    top_to_buy = sorted(market_data.items(), key=lambda x: x[1]["percent_change"], reverse=True)[:3]
-    for symbol, data in top_to_buy:
-        coin = symbol.replace("USDT", "").replace("TUSD", "").replace("USDC", "")
-        report_lines.append(f"- {coin}: {data['percent_change']}% за добу, обʼєм: {data['volume']:.0f}")
-        report_lines.append(f"  Команда: /confirmbuy{coin}")
+    # Визначаємо найперспективніші активи для купівлі
+    potential_buys = []
+    for pair, data in market_data.items():
+        if "/USDT" not in pair:
+            continue
+        symbol = pair.replace("/USDT", "")
+        if symbol in balances:
+            continue  # не пропонуємо купити те, що вже маємо
+        if data["price_change_percent"] > 2 and data["volume"] > 100000:
+            potential_buys.append((symbol, data["price_change_percent"], data["volume"]))
 
-    return "\n".join(report_lines)
+    potential_buys.sort(key=lambda x: -x[1])
+    assets_to_buy = potential_buys[:3]  # топ-3 для купівлі
+
+    # Оцінка прибутку
+    if assets_to_sell and assets_to_buy:
+        sell_usdt = assets_to_sell[0][2]
+        buy_gain_percent = assets_to_buy[0][1]
+        expected_profit_usdt = round(sell_usdt * (buy_gain_percent / 100), 2)
+
+    # Формуємо Markdown-звіт
+    report = "📊 GPT-звіт (станом на {})\n\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"))
+
+    if assets_to_sell:
+        report += "🔻 Продати:\n"
+        for asset, amount, value, change in assets_to_sell:
+            report += f"- {asset}: {amount:.4f} ≈ {value:.2f} USDT ({change:+.2f}%)\n"
+            report += f"  Команда: /confirmsell{asset}\n"
+    else:
+        report += "🔻 Продати: немає явних кандидатів\n"
+
+    report += "\n"
+
+    if assets_to_buy:
+        report += "🔼 Купити:\n"
+        for symbol, change, volume in assets_to_buy:
+            report += f"- {symbol}: {change:+.2f}% за добу, обʼєм: {volume}\n"
+            report += f"  Команда: /confirmbuy{symbol}\n"
+    else:
+        report += "🔼 Купити: не знайдено підходящих активів\n"
+
+    report += "\n📈 Очікуваний прибуток: "
+    report += f"+{expected_profit_usdt:.2f} USDT за добу\n" if expected_profit_usdt else "недостатньо даних\n"
+
+    return report
+
 # Основна функція: аналіз + Telegram-звіт
 def main():
     try:
