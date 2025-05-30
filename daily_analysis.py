@@ -50,13 +50,6 @@ def load_from_file(filename):
             return json.load(f)
     return {}
 
-def save_report(content, date_str, hour_min):
-    folder = f"reports/{date_str}"
-    os.makedirs(folder, exist_ok=True)
-    path = f"{folder}/daily_report_{hour_min}.md"
-    with open(path, "w") as f:
-        f.write(content)
-    return path
 def analyze_balance(client):
     balances = get_binance_balances(client)
     result = []
@@ -163,20 +156,12 @@ def ensure_directory(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
-def save_report(text, report_dir):
-    now = datetime.now().strftime("%H-%M")
-    filename = f"daily_report_{now}.md"
-    path = os.path.join(report_dir, filename)
-    with open(path, "w") as f:
-        f.write(text)
-    return path
-
 async def send_telegram_report(text, path=None):
     try:
         await bot.send_message(chat_id=ADMIN_CHAT_ID, text="📤 Новий звіт GPT-аналітики:", parse_mode=ParseMode.MARKDOWN)
         if path and os.path.exists(path):
             with open(path, "rb") as f:
-                await bot.send_document(chat_id=ADMIN_CHAT_ID, document=f)
+                await bot.send_message(chat_id=ADMIN_CHAT_ID, text=analysis, parse_mode=ParseMode.MARKDOWN)
         else:
             await bot.send_message(chat_id=ADMIN_CHAT_ID, text=text, parse_mode=ParseMode.MARKDOWN)
     except Exception as e:
@@ -245,7 +230,9 @@ def main():
         date_str = datetime.now().strftime("%Y-%m-%d")
         report_dir = os.path.join("reports", date_str)
         ensure_directory(report_dir)
-        report_path = save_report(analysis, report_dir)
+        
+        # ✅ Використовуй тільки Telegram:
+        bot.send_message(chat_id=ADMIN_CHAT_ID, text=analysis, parse_mode=ParseMode.MARKDOWN)
 
         # 6. Надіслати в Telegram
         asyncio.run(send_telegram_report(analysis, report_path))
