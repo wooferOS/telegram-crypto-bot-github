@@ -169,7 +169,10 @@ async def send_telegram_report(report, to_buy, to_sell):
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    send_telegram_report(report, to_buy, to_sell)
+    try:
+        await bot.send_message(chat_id=ADMIN_CHAT_ID, text=report, parse_mode=ParseMode.MARKDOWN, reply_markup=reply_markup)
+    except Exception as e:
+        logging.error(f"❌ Telegram error: {e}")
 
 
 def get_binance_balances(client):
