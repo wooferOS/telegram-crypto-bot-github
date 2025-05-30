@@ -178,7 +178,7 @@ def send_telegram_report(text, path=None):
     except Exception as e:
         logging.error(f"❌ Помилка при надсиланні в Telegram: {e}")
         
-def get_binance_balances():
+def get_binance_balances(client):
     try:
         account_info = client.get_account()
         balances = account_info.get("balances", [])
@@ -198,12 +198,13 @@ def get_binance_balances():
 def main():
     try:
         log_message("🔁 Запуск daily_analysis.py")
-
+        
         # 1. Отримати баланс
-        balances = get_binance_balances()
+        balances = get_binance_balances(client)
 
         # 2. Отримати ринкові дані
-        market_data = get_market_data()
+        whitelist = get_whitelist()
+        market_data = get_market_data(client, whitelist)
 
         # 3. Побудувати GPT-запит
         prompt = build_gpt_prompt(balances, market_data)
