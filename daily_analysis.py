@@ -52,7 +52,9 @@ def get_balance():
                     result[symbol] = {"amount": free, "price": price}
                 except:
                     continue
-    return result
+    client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)  # Ініціалізація клієнта
+tickers = client.get_ticker_24hr()  # Отримання всіх тикерів за 24h
+
 def get_market_data():
     btc_data = client.get_ticker(symbol="BTCUSDT")
     market_data = {}
@@ -65,9 +67,10 @@ def get_market_data():
                     "volume": float(item["quoteVolume"]),
                     "change": float(item["priceChangePercent"])
                 }
-            except:
+            except Exception as e:
                 continue
     return market_data
+
 def analyze_profit_opportunities(balance_data, market_data):
     sell_suggestions = []
     buy_suggestions = []
@@ -87,6 +90,10 @@ def analyze_profit_opportunities(balance_data, market_data):
                     "change": change,
                     "cmd": f"/confirmsell{asset}"
                 })
+
+    # buy_suggestions генеруються пізніше на основі обробленого market_data
+    return sell_suggestions, buy_suggestions
+
 
     for symbol, info in market_data.items():
         asset = symbol.replace("USDT", "")
