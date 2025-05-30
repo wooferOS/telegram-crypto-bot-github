@@ -252,13 +252,14 @@ def generate_report(balance, to_sell, to_buy, uah_rate, gpt_forecast):
 async def main():
     try:
         log_message("🔁 Запуск daily_analysis.py")
-        
+
         # 1. Отримати баланс
         balances = get_binance_balances(client)
 
-        # 2. Отримати ринкові дані
-        whitelist = get_whitelist()
+        # 2. Отримати whitelist та ринкові дані
+        whitelist = get_whitelist(client)
         market_data = get_market_data(client, whitelist)
+
 
         # 3. Побудувати GPT-запит
         prompt = build_gpt_prompt(balances, market_data)
