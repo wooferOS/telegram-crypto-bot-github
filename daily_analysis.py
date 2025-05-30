@@ -163,9 +163,11 @@ async def send_telegram_report(report, to_buy, to_sell):
 
     keyboard = []
     for coin in to_buy:
-    keyboard.append([InlineKeyboardButton(f"Купити {coin}", callback_data=f"confirmbuy_{coin}")])
+        keyboard.append([InlineKeyboardButton(f"Купити {coin}", callback_data=f"confirmbuy_{coin}")])
     for coin in to_sell:
-    keyboard.append([InlineKeyboardButton(f"Продати {coin}", callback_data=f"confirmsell_{coin}")])
+        keyboard.append([InlineKeyboardButton(f"Продати {coin}", callback_data=f"confirmsell_{coin}")])
+
+
 
 
     reply_markup = InlineKeyboardMarkup(keyboard)
