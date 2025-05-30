@@ -204,6 +204,32 @@ def ask_gpt(prompt):
     except Exception as e:
         logging.error(f"❌ GPT-помилка: {e}")
         return "❌ Не вдалося отримати відповідь від GPT."
+        
+def generate_report(balance, to_sell, to_buy, uah_rate, gpt_forecast):
+    now = datetime.now().strftime("%d.%m.%Y %H:%M")
+    report_lines = [f"📊 *Звіт GPT-аналітики ({now})*\n"]
+
+    report_lines.append("💼 *Баланс:*")
+    for coin, value in balance.items():
+        report_lines.append(f"- {coin}: {value['amount']} → ≈ {round(value['usdt'], 2)} USDT")
+
+    if to_sell:
+        report_lines.append("\n📉 *Рекомендується продати:*")
+        for coin in to_sell:
+            reason = to_sell[coin].get("reason", "")
+            report_lines.append(f"- 🔴 {coin} — {reason}\n→ `/confirmsell_{coin}`")
+
+    if to_buy:
+        report_lines.append("\n📈 *Рекомендується купити:*")
+        for coin in to_buy:
+            reason = to_buy[coin].get("reason", "")
+            report_lines.append(f"- 🟢 {coin} — {reason}\n→ `/confirmbuy_{coin}`")
+
+    total_profit = sum(x.get("expected_profit", 0) for x in to_buy.values())
+    report_lines.append(f"\n📈 *Очікуваний прибуток:* ~{round(total_profit, 2)} USDT")
+
+    report_lines.append(f"\n📅 *Прогноз GPT:*\n{gpt_forecast.strip()}")
+    return "\n".join(report_lines)
 
 async def main():
     try:
@@ -222,13 +248,10 @@ async def main():
         # 4. Запит до GPT
         analysis = ask_gpt(prompt)
 
-        # 5. Зберегти звіт
-        date_str = datetime.now().strftime("%Y-%m-%d")
-        report_dir = os.path.join("reports", date_str)
-        ensure_directory(report_dir)
-        
-        # ✅ Використовуй тільки Telegram:
-        await send_telegram_report(analysis)
+        # 5. Згенерувати та надіслати фінальний Markdown-звіт
+        report = generate_report(sum(asset["value_usdt"] for asset in analyze_balance(client)), *prepare_analysis(analyze_balance(client), market_data), UAH_RATE)
+        await send_telegram_report(report)
+
 
     except Exception as err:
         logging.error("❌ Фатальна помилка у виконанні скрипта:")
@@ -239,5 +262,6 @@ async def main():
             pass
 if __name__ == "__main__":
     asyncio.run(main())
+
 
 
