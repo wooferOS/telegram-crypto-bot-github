@@ -49,7 +49,7 @@ def get_balance():
                     continue
     return result
 def get_market_data():
-    tickers = binance_client.get_ticker_24hr()
+    btc_data = client.get_ticker(symbol="BTCUSDT")
     market_data = {}
     for item in tickers:
         symbol = item["symbol"]
