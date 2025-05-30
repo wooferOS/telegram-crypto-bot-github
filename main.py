@@ -237,26 +237,32 @@ def handle_confirm_sell(call):
     try:
         balance = client.get_asset_balance(asset=coin)
         quantity = round(float(balance["free"]), 6)
+
+        if quantity == 0:
+            bot.send_message(call.message.chat.id, f"⚠️ Недостатньо {coin} для продажу.")
+            return
+
         order = client.create_order(
             symbol=f"{coin}USDT",
             side="SELL",
             type="MARKET",
             quantity=quantity
         )
+
+        # ✅ Звіт
         bot.send_message(call.message.chat.id, f"✅ Продано {quantity} {coin}.")
+
+        # ✅ Історія
+        save_trade_history([{
+            "symbol": coin,
+            "action": "SELL",
+            "quantity": quantity,
+            "time": datetime.now().isoformat()
+        }], action="SELL")
+
     except Exception as e:
         bot.send_message(call.message.chat.id, f"❌ Помилка при продажу {coin}: {e}")
 
-    # Зберегти в історію
-    price = float(client.get_symbol_ticker(symbol=f"{coin}USDT")["price"])
-    save_trade_history([
-        {
-            "asset": coin,
-            "amount": quantity,
-            "price": price,
-            "value": round(quantity * price, 2)
-        }
-    ], action="sell")
 
 
 # 💸 Ручна купівля /buy BTC 0.01
