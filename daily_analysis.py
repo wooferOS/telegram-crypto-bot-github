@@ -25,6 +25,11 @@ WHITELIST = [
     "PYTHUSDT", "WIFUSDT", "1000SATSUSDT", "PEPEUSDT", "LTCUSDT",
     "HBARUSDT", "NOTUSDT", "TRUMPUSDT", "STRKUSDT", "JUPUSDT", "SUIUSDT", "SEIUSDT"
 ]
+
+def log_message(message: str):
+    with open("daily.log", "a") as f:
+        f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}\n")
+
 def get_usdt_price(symbol):
     try:
         ticker = client.get_symbol_ticker(symbol=symbol + "USDT")
@@ -231,8 +236,8 @@ def main():
         send_telegram(error_message)
 if __name__ == "__main__":
     log_message("🔁 Запуск daily_analysis.py")
-    today = datetime.datetime.now().strftime("%Y-%m-%d")
-    time_now = datetime.datetime.now().strftime("%H-%M")
+    today = datetime.now().strftime("%Y-%m-%d")
+    time_now = datetime.now().strftime("%H-%M")
 
     try:
         main()
