@@ -177,6 +177,22 @@ def send_telegram_report(text, path=None):
             bot.send_message(chat_id=ADMIN_CHAT_ID, text=text, parse_mode=ParseMode.MARKDOWN)
     except Exception as e:
         logging.error(f"❌ Помилка при надсиланні в Telegram: {e}")
+        def get_binance_balances():
+    try:
+        account_info = client.get_account()
+        balances = account_info.get("balances", [])
+        result = {}
+        for asset in balances:
+            asset_name = asset["asset"]
+            free = float(asset["free"])
+            locked = float(asset["locked"])
+            total = free + locked
+            if total > 0:
+                result[asset_name] = total
+        return result
+    except Exception as e:
+        logging.error(f"❌ Не вдалося отримати баланс Binance: {str(e)}")
+        return {}
 def main():
     try:
         log_message("🔁 Запуск daily_analysis.py")
