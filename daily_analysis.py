@@ -6,7 +6,8 @@ from binance.client import Client
 from binance.exceptions import BinanceAPIException
 from openai import OpenAI
 import requests
-from telegram import Bot, ParseMode
+from telegram import Bot
+from telegram.constants import ParseMode
 import traceback
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
