@@ -26,7 +26,7 @@ BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
 # Клієнти
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
@@ -49,7 +49,7 @@ WHITELIST = [
     "RNDRUSDT", "1000SATSUSDT", "TIAUSDT", "WIFUSDT", "JASMYUSDT", "NOTUSDT", "STRKUSDT", "TRUMPUSDT"
 ]
 # Отримати поточний баланс з Binance
-def get_current_balance():
+def get_binance_balances():
     try:
         balances = client.get_account()["balances"]
         result = []
@@ -57,18 +57,24 @@ def get_current_balance():
             asset_name = asset["asset"]
             free = float(asset["free"])
             if free > 0:
-                symbol = asset_name + "USDT"
-                try:
-                    price = float(client.get_symbol_ticker(symbol=symbol)["price"])
-                    result.append({
-                        "symbol": symbol,
-                        "asset": asset_name,
-                        "amount": free,
-                        "price": price,
-                        "value": round(free * price, 2)
-                    })
-                except:
-                    continue
+                if asset_name == "USDT":
+                    usdt_value = free
+                    price = 1.0
+                else:
+                    symbol = asset_name + "USDT"
+                    try:
+                        ticker = client.get_symbol_ticker(symbol=symbol)
+                        price = float(ticker["price"])
+                        usdt_value = price * free
+                    except:
+                        price = 0.0
+                        usdt_value = 0.0
+                result.append({
+                    "symbol": asset_name,
+                    "amount": round(free, 4),
+                    "price": round(price, 6),
+                    "usdt_value": round(usdt_value, 2)
+                })
         return result
     except Exception as e:
         logging.error(f"❌ Помилка при отриманні балансу: {str(e)}")
