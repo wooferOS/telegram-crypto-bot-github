@@ -10,6 +10,8 @@ from telegram import Bot
 from telegram.constants import ParseMode
 import traceback
 import asyncio
+from daily_analysis import build_trade_markup
+
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
@@ -153,7 +155,9 @@ def generate_report(balance_usdt, to_sell, to_buy, currency_rate):
     else:
         report += "Немає вигідних монет для купівлі.\n"
 
-    return report
+    # ✅ Повертаємо не тільки звіт, а й to_buy, to_sell
+    return report, to_buy, to_sell
+
 def ensure_directory(path):
     if not os.path.exists(path):
         os.makedirs(path)
