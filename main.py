@@ -194,8 +194,11 @@ def handle_confirm_buy(call):
     bot.answer_callback_query(call.id)
 
     try:
-        quantity = 15 / float(client.get_symbol_ticker(symbol=f"{coin}USDT")["price"])  # Купуємо на 15 USDT
-        quantity = round(quantity, 6)  # округлення до 6 знаків
+        # Розрахунок кількості на 15 USDT
+        price = float(client.get_symbol_ticker(symbol=f"{coin}USDT")["price"])
+        quantity = round(15 / price, 5)
+
+        # Купівля
         order = client.create_order(
             symbol=f"{coin}USDT",
             side="BUY",
@@ -203,8 +206,27 @@ def handle_confirm_buy(call):
             quantity=quantity
         )
         bot.send_message(call.message.chat.id, f"✅ Куплено {quantity} {coin} на 15 USDT.")
+
+        # Збереження в історію
+        save_trade_history([
+            {
+                "asset": coin,
+                "amount": quantity,
+                "price": price,
+                "value": round(quantity * price, 2)
+            }
+        ], action="buy")
+
+        # Оновлення використаного бюджету
+        with open("budget.json", "r") as f:
+            budget_data = json.load(f)
+        budget_data["used"] += 15
+        with open("budget.json", "w") as f:
+            json.dump(budget_data, f)
+
     except Exception as e:
-        bot.send_message(call.message.chat.id, f"❌ Помилка при купівлі {coin}: {e}")
+        bot.send_message(call.message.chat.id, f"❌ Помилка купівлі {coin}: {str(e)}")
+
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("confirmsell_"))
