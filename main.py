@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from telebot import TeleBot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from binance.client import Client
-from daily_analysis import main as generate_daily_report  # GPT-звіт з daily_analysis.py
+from daily_analysis import build_trade_markup  # імпорт кнопок з аналітики
 from telebot.types import CallbackQuery
 from datetime import datetime
 
@@ -70,6 +70,7 @@ def handle_balance(message):
         bot.send_message(message.chat.id, text, parse_mode="Markdown")
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка при отриманні балансу: {str(e)}")
+        
 # 📊 Кнопка: Звіт
 @bot.message_handler(func=lambda m: m.text == "📊 Звіт")
 def report_btn(message):
@@ -85,10 +86,14 @@ def report_handler(message):
             bot.send_message(message.chat.id, "❌ Помилка при формуванні GPT-звіту.")
             return
 
-        report_text, report_file = result
-        bot.send_message(message.chat.id, report_text, parse_mode="Markdown")
-        with open(report_file, "rb") as f:
-            bot.send_document(message.chat.id, f)
+        # ⬅️ Замість файлу: розпаковка даних
+        report_text, to_buy, to_sell = result
+
+        # ✅ Кнопки
+        markup = build_trade_markup(to_buy, to_sell)
+
+        # 📩 Надсилаємо звіт з кнопками
+        bot.send_message(message.chat.id, report_text, parse_mode="Markdown", reply_markup=markup)
 
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка при формуванні звіту: {str(e)}")
