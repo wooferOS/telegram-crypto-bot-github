@@ -9,6 +9,7 @@ import requests
 from telegram import Bot
 from telegram.constants import ParseMode
 import traceback
+import asyncio
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
@@ -170,17 +171,17 @@ def save_report(text, report_dir):
         f.write(text)
     return path
 
-def send_telegram_report(text, path=None):
+async def send_telegram_report(text, path=None):
     try:
-        bot.send_message(chat_id=ADMIN_CHAT_ID, text="📤 Новий звіт GPT-аналітики:", parse_mode=ParseMode.MARKDOWN)
+        await bot.send_message(chat_id=ADMIN_CHAT_ID, text="📤 Новий звіт GPT-аналітики:", parse_mode=ParseMode.MARKDOWN)
         if path and os.path.exists(path):
             with open(path, "rb") as f:
-                bot.send_document(chat_id=ADMIN_CHAT_ID, document=f)
+                await bot.send_document(chat_id=ADMIN_CHAT_ID, document=f)
         else:
-            bot.send_message(chat_id=ADMIN_CHAT_ID, text=text, parse_mode=ParseMode.MARKDOWN)
+            await bot.send_message(chat_id=ADMIN_CHAT_ID, text=text, parse_mode=ParseMode.MARKDOWN)
     except Exception as e:
         logging.error(f"❌ Помилка при надсиланні в Telegram: {e}")
-        
+    
 def get_binance_balances(client):
     try:
         account_info = client.get_account()
@@ -247,7 +248,7 @@ def main():
         report_path = save_report(analysis, report_dir)
 
         # 6. Надіслати в Telegram
-        send_telegram_report(analysis, report_path)
+        asyncio.run(send_telegram_report(analysis, report_path))
 
     except Exception as err:
         logging.error("❌ Фатальна помилка у виконанні скрипта:")
