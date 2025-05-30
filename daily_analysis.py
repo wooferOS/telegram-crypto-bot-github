@@ -209,7 +209,7 @@ def ask_gpt(prompt):
         logging.error(f"❌ GPT-помилка: {e}")
         return "❌ Не вдалося отримати відповідь від GPT."
 
-def main():
+async def main():
     try:
         log_message("🔁 Запуск daily_analysis.py")
         
@@ -232,10 +232,10 @@ def main():
         ensure_directory(report_dir)
         
         # ✅ Використовуй тільки Telegram:
-        bot.send_message(chat_id=ADMIN_CHAT_ID, text=analysis, parse_mode=ParseMode.MARKDOWN)
+        await send_telegram_report(analysis)
 
         # 6. Надіслати в Telegram
-        asyncio.run(send_telegram_report(analysis, report_path))
+        asyncio.run(send_telegram_report(analysis))
 
     except Exception as err:
         logging.error("❌ Фатальна помилка у виконанні скрипта:")
@@ -245,8 +245,7 @@ def main():
         except:
             pass
 if __name__ == "__main__":
-    try:
-        main()
+    asyncio.run(main())
     except Exception as err:
         error_message = f"❌ Помилка в аналізі: {str(err)}"
         logging.error(error_message)
