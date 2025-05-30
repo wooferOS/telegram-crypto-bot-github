@@ -206,12 +206,14 @@ def main():
         except:
             pass
 if __name__ == "__main__":
-    main()
-except Exception as err:
-    error_message = f"❌ Помилка в аналізі: {str(err)}"
-    logging.error(error_message)
     try:
-        if TELEGRAM_TOKEN and ADMIN_CHAT_ID:
-            send_telegram(f"❌ Фатальна помилка у виконанні скрипта:\n{error_message}")
-    except Exception as send_err:
-        logging.error(f"Не вдалося надіслати повідомлення у Telegram: {str(send_err)}")
+        main()
+    except Exception as err:
+        error_message = f"❌ Помилка в аналізі: {str(err)}"
+        logging.error(error_message)
+        try:
+            if TELEGRAM_TOKEN and ADMIN_CHAT_ID:
+                send_telegram(f"❌ Фатальна помилка у виконанні скрипта:\n{error_message}")
+        except Exception as send_err:
+            logging.error(f"Не вдалося надіслати повідомлення у Telegram: {str(send_err)}")
+
