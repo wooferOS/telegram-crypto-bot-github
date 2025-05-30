@@ -276,9 +276,9 @@ async def main():
             gpt_forecast=analysis
         )
         await send_telegram_report(
-        report,
-        to_buy={a["pair"]: {"reason": f"обʼєм {a['volume']} | зміна +{a['change']}%"} for a in to_buy},
-        to_sell={a["symbol"]: {"reason": f"зміна {a['change']}%"} for a in to_sell}
+            report,
+            to_buy=[a["pair"] for a in to_buy],
+            to_sell=[a["symbol"] for a in to_sell]
         )
 
 
