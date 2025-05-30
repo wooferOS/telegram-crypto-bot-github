@@ -7,7 +7,6 @@ from dotenv import load_dotenv
 from telebot import TeleBot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from binance.client import Client
-from daily_analysis import build_trade_markup  # імпорт кнопок з аналітики
 from telebot.types import CallbackQuery
 from datetime import datetime
 
