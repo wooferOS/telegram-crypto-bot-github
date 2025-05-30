@@ -1,44 +1,35 @@
 #!/bin/bash
 
-echo "📦 Зберігаю main.py"
+echo "📦 Зберігаю актуальні файли"
 git add main.py
-
-echo "📦 Зберігаю daily_analysis.py"
 git add daily_analysis.py
-
-echo "📦 Зберігаю auto_trader.py"
-git add auto_trader.py
-
-echo "📦 Зберігаю forecast_and_history_modules.py"
-git add forecast_and_history_modules.py
-
-echo "📦 Зберігаю summary_and_profit_logger.py"
-git add summary_and_profit_logger.py
-
-echo "📦 Зберігаю recommendations.json"
-git add recommendations.json
-
-echo "📦 Зберігаю requirements.txt"
 git add requirements.txt
-
-echo "📦 Зберігаю .github/workflows/daily.yml"
 git add .github/workflows/daily.yml
+git add .env.example
+git add README.md
+git add README_DEPLOY.md
+git add systemd/crypto-bot.service
+git add logrotate/crypto-bot
+git add restart_bot.sh
+git add deploy.sh
+git add update_all.sh
+git add github-secrets-template.md
+git add .gitignore
 
 echo "✅ Комічу всі зміни"
-git commit -m "🚀 Full automation: GPT report, Binance trader, Telegram updates"
+git commit -m "🔄 Auto-update: GPT Binance bot core + configs"
 
 echo "📥 Підтягуємо останні зміни з master"
 git pull --rebase origin master
 
-echo "📤 Відправляю все в репозиторій"
+echo "📤 Відправляю все в GitHub"
 git push origin master
 
-# 🔄 Перевірка і створення логів
-[ ! -f /root/update_log.txt ] && touch /root/update_log.txt
-[ ! -f ~/telegram-crypto-bot-github/daily.log ] && touch ~/telegram-crypto-bot-github/daily.log
+echo "🔁 Перезапускаю systemd сервіс"
+sudo systemctl restart crypto-bot
+sudo systemctl status crypto-bot --no-pager
 
 # 📨 Надсилаємо повідомлення в Telegram
-python3 -c "import os, requests; text = '✅ Успішно оновлено всі файли та пушено в GitHub!'; requests.post(f'https://api.telegram.org/bot{os.environ[\"TELEGRAM_TOKEN\"]}/sendMessage', data={'chat_id': os.environ['ADMIN_CHAT_ID'], 'text': text})"
+python3 -c "import os, requests; text = '✅ Успішне оновлення Telegram GPT-бота!'; requests.post(f'https://api.telegram.org/bot{os.environ[\"TELEGRAM_TOKEN\"]}/sendMessage', data={'chat_id': os.environ['ADMIN_CHAT_ID'], 'text': text})"
 
-echo "🚀 Готово! Перевір GitHub Actions та Telegram!"
-
+echo "🚀 Готово!"
