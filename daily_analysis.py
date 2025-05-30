@@ -1,145 +1,97 @@
-from datetime import datetime
+# daily_analysis.py — оновлена логіка GPT-аналізу ринку
+
 import os
 import json
+from datetime import datetime
 import requests
+from dotenv import load_dotenv
 from binance.client import Client
 from openai import OpenAI
-from dotenv import load_dotenv
+from telegram import Bot
 
-# Завантаження змінних з .env
+# Завантаження змінних
 load_dotenv()
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
+UAH_RATE = 43.0  # фіксований курс гривні
 
-# Клієнти
-client = OpenAI(api_key=OPENAI_API_KEY)
-binance = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
-def get_wallet_balances():
-    raw_balances = binance.get_account()["balances"]
-    wallet = {}
-    for b in raw_balances:
-        asset = b["asset"]
-        amount = float(b["free"])
-        if amount > 0:
-            wallet[asset] = amount
-    return wallet
+# Ініціалізація клієнтів
+client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
+bot = Bot(token=TELEGRAM_TOKEN)
+openai = OpenAI(api_key=OPENAI_API_KEY)
 
-def get_usdt_to_uah():
+# Whitelist пар для аналізу
+WHITELIST = [
+    "BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "SOLUSDT", "XRPUSDT", "DOTUSDT", "AVAXUSDT",
+    "DOGEUSDT", "TRXUSDT", "LINKUSDT", "LTCUSDT", "SHIBUSDT", "UNIUSDT", "FETUSDT", "OPUSDT",
+    "INJUSDT", "PEPEUSDT", "WLDUSDT", "SUIUSDT", "1000SATSUSDT", "STRKUSDT", "NOTUSDT", "TRUMPUSDT",
+    "XRPTUSD", "GMTUSDT", "ARBUSDT", "HBARUSDT", "ATOMUSDT", "GMTUSDC"
+]
+# Отримання змін по ринку для whitelist монет
+def get_market_data():
+    changes = {}
+    tickers = client.get_ticker()
+    for t in tickers:
+        symbol = t['symbol']
+        if symbol in WHITELIST:
+            changes[symbol] = {
+                "price": float(t["lastPrice"]),
+                "percent_change": float(t["priceChangePercent"]),
+                "volume": float(t["volume"])
+            }
+    return changes
+
+# Отримання балансу гаманця з Binance
+def get_balance():
+    account = client.get_account()
+    balances = {}
+    for b in account['balances']:
+        asset = b['asset']
+        free = float(b['free'])
+        if free > 0:
+            if asset + "USDT" in WHITELIST:
+                balances[asset] = free
+    return balances
+# Генерація GPT-звіту на основі балансу та ринку
+def generate_gpt_report(market_data, balances):
+    report_lines = []
+    report_lines.append("📊 Звіт портфелю (щоденна аналітика)")
+    report_lines.append("")
+    report_lines.append("💰 Баланс:")
+
+    for symbol, qty in balances.items():
+        symbol_full = symbol + "USDT"
+        if symbol_full in market_data:
+            price = market_data[symbol_full]["price"]
+            usdt_value = qty * price
+            uah_value = usdt_value * UAH_RATE
+            report_lines.append(f"{symbol}: {qty:.4f} × {price:.6f} = {usdt_value:.2f} USDT ≈ {uah_value:.2f}₴")
+
+    report_lines.append("")
+    report_lines.append("🔼 Купити (потенціал на 24 години):")
+
+    top_to_buy = sorted(market_data.items(), key=lambda x: x[1]["percent_change"], reverse=True)[:3]
+    for symbol, data in top_to_buy:
+        coin = symbol.replace("USDT", "").replace("TUSD", "").replace("USDC", "")
+        report_lines.append(f"- {coin}: {data['percent_change']}% за добу, обʼєм: {data['volume']:.0f}")
+        report_lines.append(f"  Команда: /confirmbuy{coin}")
+
+    return "\n".join(report_lines)
+# Основна функція: аналіз + Telegram-звіт
+def main():
     try:
-        res = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=USDTUAH").json()
-        return float(res["price"])
-    except:
-        return 39.5  # резервний курс
+        market_data = get_market_data()
+        balances = get_balance()
+        report = generate_gpt_report(market_data, balances)
+        send_telegram(report)
+        save_report(report)
+    except Exception as e:
+        send_telegram(f"❌ Помилка в аналізі: {str(e)}")
 
-def get_avg_price(symbol):
-    try:
-        res = binance.get_avg_price(symbol=symbol)
-        return float(res["price"])
-    except:
-        return 0.0
-
-def build_detailed_wallet_report(wallet):
-    report = []
-    usdt_to_uah = get_usdt_to_uah()
-
-    for asset, amount in wallet.items():
-        if asset == "USDT":
-            value = amount
-            uah = value * usdt_to_uah
-            report.append(f"*{asset}*: {amount:.4f} ≈ {uah:.2f}₴")
-            continue
-
-        pair = f"{asset}USDT"
-        avg_price = get_avg_price(pair)
-        total_usdt = avg_price * amount
-        total_uah = total_usdt * usdt_to_uah
-        report.append(
-            f"*{asset}*: {amount} × {avg_price:.6f} = {total_usdt:.2f} USDT ≈ {total_uah:.2f}₴"
-        )
-    return "\n".join(report)
-def calculate_daily_pnl(current_wallet, snapshot_file="wallet_snapshot.json"):
-    previous = {}
-    if os.path.exists(snapshot_file):
-        with open(snapshot_file, "r") as f:
-            previous = json.load(f)
-
-    pnl_lines = []
-    for asset, current_amount in current_wallet.items():
-        prev_amount = previous.get(asset, 0)
-        if prev_amount == 0:
-            continue
-        delta = current_amount - prev_amount
-        percent = (delta / prev_amount) * 100
-        pnl_lines.append(f"{asset}: {prev_amount:.4f} → {current_amount:.4f} ({delta:+.4f}, {percent:+.2f}%)")
-
-    with open(snapshot_file, "w") as f:
-        json.dump(current_wallet, f)
-
-    return "\n".join(pnl_lines) if pnl_lines else "Немає змін у PNL"
-
-def save_trade_history(history, filename='trade_history.json'):
-    with open(filename, 'w') as f:
-        json.dump(history, f, indent=2)
-
-def generate_gpt_report(wallet_text):
-    today = datetime.now().strftime("%Y-%m-%d %H:%M")
-    prompt = f"""
-Ти — криптоаналітик. Проаналізуй портфель користувача. Використовуй **тільки** USDT та гривні (₴), без символу $.
-
-**Формуй чіткий прогноз на базі Binance Markets**:
-https://www.binance.com/uk-UA/markets/overview
-
-Вивід має містити:
-
-1. 🔻 ПРОДАЖ:
-   - <монета> — <кількість> ≈ <вартість в USDT> ≈ <вартість в ₴>
-   - Причина: коротка, лаконічна.
-   - Команда: /confirmsell<монета>
-
-2. 🔼 КУПІВЛЯ:
-   - <монета> — <кількість або обʼєм> ≈ <вартість в USDT> ≈ <вартість в ₴>
-   - Стоп-лосс: -X%, Тейк-профіт: +Y%
-   - Команда: /confirmbuy<монета>
-
-3. 📈 ОЧІКУВАНИЙ ПРИБУТОК:
-   - Сума в USDT і ₴.
-
-4. 🧠 Прогноз: чітка оцінка ситуації. Не вживати "можливо", "я думаю", "ймовірно". Ти асистент і формуєш рішення.
-
----
-
-Баланс користувача:
-{wallet_text}
-
-Дата: {today}
-"""
-
-    response = client.chat.completions.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "Ти GPT-аналітик. Формуй звіт по крипто-портфелю з Binance з урахуванням поточних даних. Уникай $ — лише USDT та ₴. Використовуй досвід Binance Academy для прогнозу."},
-            {"role": "user", "content": prompt}
-        ]
-    )
-    return response.choices[0].message.content.strip()
-def save_wallet_snapshot(wallet):
-    today = datetime.now().strftime("%Y-%m-%d %H:%M")
-    os.makedirs("wallet_snapshots", exist_ok=True)
-    with open(f"wallet_snapshots/{today}.json", "w") as f:
-        json.dump(wallet, f, indent=2)
-
-def save_report(text):
-    now = datetime.now()
-    folder = f"reports/{now.strftime('%Y-%m-%d')}"
-    os.makedirs(folder, exist_ok=True)
-    path = f"{folder}/daily_report_{now.strftime('%H-%M')}.md"
-    with open(path, "w") as f:
-        f.write(text)
-    return path
-
+# Надсилання звіту в Telegram
 def send_telegram(text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     data = {
@@ -151,17 +103,16 @@ def send_telegram(text):
         requests.post(url, data=data)
     except Exception as e:
         print("❌ Telegram error:", e)
-def main():
-    wallet = get_wallet_balances()
-    wallet_text = build_detailed_wallet_report(wallet)
-    daily_pnl = calculate_daily_pnl(wallet)
-    gpt_text = generate_gpt_report(wallet_text)
+# Збереження звіту в папку reports/YYYY-MM-DD/daily_report_HH-MM.md
+def save_report(text):
+    now = datetime.now()
+    folder = f"reports/{now.strftime('%Y-%m-%d')}"
+    os.makedirs(folder, exist_ok=True)
+    path = f"{folder}/daily_report_{now.strftime('%H-%M')}.md"
+    with open(path, "w") as f:
+        f.write(text)
+    return path
 
-    full_report = f"📊 *Звіт крипто-портфелю*\n\n💰 *Баланс:*\n{wallet_text}\n\n📉 *Щоденний PNL:*\n{daily_pnl}\n\n📈 *GPT-звіт:*\n{gpt_text}"
-    file_path = save_report(full_report)
-    send_telegram(full_report)
-    save_wallet_snapshot(wallet)
-    return full_report, file_path
-
+# Запуск скрипта
 if __name__ == "__main__":
     main()
