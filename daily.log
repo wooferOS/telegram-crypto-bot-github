@@ -1,2 +1,10 @@
-[2025-05-30 15:14:47,872] \U0001f501 Початок щоденного аналізу...
-[2025-05-30 15:14:48,168] \u274c Помилка в аналізі: APIError(code=-2015): Invalid API-key, IP, or permissions for action.
+[2025-05-30 15:14:47,872] рџ”Ѓ РџРѕС‡Р°С‚РѕРє С‰РѕРґРµРЅРЅРѕРіРѕ Р°РЅР°Р»С–Р·Сѓ...
+[2025-05-30 15:14:48,168] вќЊ РџРѕРјРёР»РєР° РІ Р°РЅР°Р»С–Р·С–: APIError(code=-2015): Invalid API-key, IP, or permissions for action.
+/root/telegram-crypto-bot-github/daily.log {
+    daily
+    rotate 7
+    compress
+    missingok
+    notifempty
+    copytruncate
+}
