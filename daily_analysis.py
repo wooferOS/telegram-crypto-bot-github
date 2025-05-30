@@ -1,164 +1,254 @@
-# daily_analysis.py — оновлена логіка GPT-аналізу ринку
-
 import os
 import json
+import logging
 from datetime import datetime
-import requests
 from dotenv import load_dotenv
 from binance.client import Client
 from openai import OpenAI
 from telegram import Bot
 
-# Завантаження змінних
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
-UAH_RATE = 43.0  # фіксований курс гривні
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-# Ініціалізація клієнтів
-client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
+client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 bot = Bot(token=TELEGRAM_TOKEN)
-openai = OpenAI(api_key=OPENAI_API_KEY)
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
-# Whitelist пар для аналізу
 WHITELIST = [
-    "BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "SOLUSDT", "XRPUSDT", "DOTUSDT", "AVAXUSDT",
-    "DOGEUSDT", "TRXUSDT", "LINKUSDT", "LTCUSDT", "SHIBUSDT", "UNIUSDT", "FETUSDT", "OPUSDT",
-    "INJUSDT", "PEPEUSDT", "WLDUSDT", "SUIUSDT", "1000SATSUSDT", "STRKUSDT", "NOTUSDT", "TRUMPUSDT",
-    "XRPTUSD", "GMTUSDT", "ARBUSDT", "HBARUSDT", "ATOMUSDT", "GMTUSDC"
+    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT", "AVAXUSDT",
+    "XRPUSDT", "TRXUSDT", "LINKUSDT", "MATICUSDT", "DOGEUSDT", "DOTUSDT",
+    "OPUSDT", "ARBUSDT", "FETUSDT", "INJUSDT", "RNDRUSDT", "TIAUSDT",
+    "PYTHUSDT", "WIFUSDT", "1000SATSUSDT", "PEPEUSDT", "LTCUSDT",
+    "HBARUSDT", "NOTUSDT", "TRUMPUSDT", "STRKUSDT", "JUPUSDT", "SUIUSDT", "SEIUSDT"
 ]
-# Отримання змін по ринку для whitelist монет
-def get_market_data():
-    changes = {}
-    tickers = client.get_ticker()
-    for t in tickers:
-        symbol = t['symbol']
-        if symbol in WHITELIST:
-            changes[symbol] = {
-                "price": float(t["lastPrice"]),
-                "percent_change": float(t["priceChangePercent"]),
-                "volume": float(t["volume"])
-            }
-    return changes
+def get_usdt_price(symbol):
+    try:
+        ticker = client.get_symbol_ticker(symbol=symbol + "USDT")
+        return float(ticker["price"])
+    except Exception:
+        return 0.0
 
-# Отримання балансу гаманця з Binance
-def get_balance():
-    account = client.get_account()
-    balances = {}
-    for b in account['balances']:
-        asset = b['asset']
-        free = float(b['free'])
+def get_binance_balance():
+    balances = client.get_account()["balances"]
+    result = {}
+    for b in balances:
+        asset = b["asset"]
+        free = float(b["free"])
         if free > 0:
-            if asset + "USDT" in WHITELIST:
-                balances[asset] = free
-    return balances
-# Генерація GPT-звіту на основі балансу та ринку
-def generate_gpt_report(market_data, balances):
-    """
-    Формує GPT-звіт:
-    - Аналіз активів на балансі
-    - Визначає, що продавати
-    - Визначає, що купувати
-    - Розраховує очікуваний прибуток
-    """
-    from datetime import datetime
+            result[asset] = round(free, 8)
+    return result
 
-    assets_to_sell = []
-    assets_to_buy = []
-    expected_profit_usdt = 0
-
-    # Визначаємо кандидати на продаж з балансу
-    for asset, info in balances.items():
-        if asset == "USDT":
+def get_market_data():
+    tickers = client.get_ticker()
+    result = {}
+    for t in tickers:
+        symbol = t["symbol"]
+        if symbol not in WHITELIST:
             continue
-        price_change = market_data.get(asset + "/USDT", {}).get("price_change_percent", 0)
-        if price_change < -1:  # просідання за добу > 1%
-            assets_to_sell.append((asset, info["amount"], info["value_usdt"], price_change))
-
-    # Визначаємо найперспективніші активи для купівлі
-    potential_buys = []
-    for pair, data in market_data.items():
-        if "/USDT" not in pair:
+        try:
+            price_change = float(t["priceChangePercent"])
+            volume = float(t["quoteVolume"])
+            result[symbol] = {
+                "change": price_change,
+                "volume": round(volume, 2)
+            }
+        except Exception:
             continue
-        symbol = pair.replace("/USDT", "")
-        if symbol in balances:
-            continue  # не пропонуємо купити те, що вже маємо
-        if data["price_change_percent"] > 2 and data["volume"] > 100000:
-            potential_buys.append((symbol, data["price_change_percent"], data["volume"]))
+    return result
+def analyze_portfolio(balance: dict, market: dict) -> tuple:
+    to_sell = []
+    to_buy = []
 
-    potential_buys.sort(key=lambda x: -x[1])
-    assets_to_buy = potential_buys[:3]  # топ-3 для купівлі
+    for asset, amount in balance.items():
+        symbol = asset + "USDT"
+        if symbol in market:
+            change = market[symbol]["change"]
+            if change < -2.0:  # монета просіла більше ніж на 2% — кандидат на продаж
+                price = get_usdt_price(asset)
+                value = round(amount * price, 2)
+                to_sell.append({
+                    "asset": asset,
+                    "amount": amount,
+                    "price": price,
+                    "value": value,
+                    "change": change
+                })
 
-    # Оцінка прибутку
-    if assets_to_sell and assets_to_buy:
-        sell_usdt = assets_to_sell[0][2]
-        buy_gain_percent = assets_to_buy[0][1]
-        expected_profit_usdt = round(sell_usdt * (buy_gain_percent / 100), 2)
+    sorted_market = sorted(market.items(), key=lambda x: x[1]["change"], reverse=True)
+    for symbol, data in sorted_market[:3]:  # топ-3 монети для купівлі
+        asset = symbol.replace("USDT", "")
+        change = data["change"]
+        volume = data["volume"]
+        if asset not in balance:
+            to_buy.append({
+                "asset": asset,
+                "change": change,
+                "volume": volume
+            })
 
-    # Формуємо Markdown-звіт
-    report = "📊 GPT-звіт (станом на {})\n\n".format(datetime.now().strftime("%Y-%m-%d %H:%M"))
+    return to_sell, to_buy
+def generate_stop_loss_take_profit(price: float) -> tuple:
+    stop_loss = round(price * 0.97, 6)     # -3%
+    take_profit = round(price * 1.05, 6)   # +5%
+    return stop_loss, take_profit
 
-    if assets_to_sell:
-        report += "🔻 Продати:\n"
-        for asset, amount, value, change in assets_to_sell:
-            report += f"- {asset}: {amount:.4f} ≈ {value:.2f} USDT ({change:+.2f}%)\n"
-            report += f"  Команда: /confirmsell{asset}\n"
+
+def estimate_profit(sell_list, buy_list, budget=100):
+    # Припустимо, продаємо всі з sell_list і купуємо рівними частками buy_list
+    expected_total_profit = 0.0
+    recommendations = []
+
+    if not buy_list or not sell_list:
+        return 0.0, []
+
+    per_buy_amount = budget / len(buy_list)
+
+    for buy in buy_list:
+        symbol = buy["asset"] + "USDT"
+        if symbol in MARKET_CACHE:
+            buy_price = MARKET_CACHE[symbol]["price"]
+            change = MARKET_CACHE[symbol]["change"]
+            expected_profit = round(per_buy_amount * (change / 100), 2)
+            expected_total_profit += expected_profit
+            recommendations.append({
+                "asset": buy["asset"],
+                "change": change,
+                "expected_profit": expected_profit,
+                "buy_price": buy_price
+            })
+
+    return expected_total_profit, recommendations
+def format_report(balances, sell_list, buy_list, recommendations, expected_profit_usdt):
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    lines = [f"📊 GPT-звіт (станом на {now})\n"]
+
+    # Баланс
+    lines.append("💰 Баланс:")
+    for item in balances:
+        lines.append(f"{item['asset']}: {item['amount']} × {item['price']} = {item['value_usdt']} USDT ≈ {item['value_uah']}₴")
+
+    # Продавати
+    if sell_list:
+        lines.append("\n🔻 Продати:")
+        for item in sell_list:
+            stop_loss, take_profit = generate_stop_loss_take_profit(item["price"])
+            lines.append(f"- {item['asset']}: {item['value_usdt']} USDT — прогноз слабкий.")
+            lines.append(f"  Команда: /confirmsell{item['asset']}")
+            lines.append(f"  Стоп-лосс: {stop_loss}, Тейк-профіт: {take_profit}")
     else:
-        report += "🔻 Продати: немає явних кандидатів\n"
+        lines.append("\n🔻 Продати: немає явних кандидатів")
 
-    report += "\n"
-
-    if assets_to_buy:
-        report += "🔼 Купити:\n"
-        for symbol, change, volume in assets_to_buy:
-            report += f"- {symbol}: {change:+.2f}% за добу, обʼєм: {volume}\n"
-            report += f"  Команда: /confirmbuy{symbol}\n"
+    # Купити
+    if buy_list:
+        lines.append("\n🔼 Купити (потенціал на 24 години):")
+        for item in recommendations:
+            stop_loss, take_profit = generate_stop_loss_take_profit(item["buy_price"])
+            lines.append(f"- {item['asset']}: {item['change']}% за добу")
+            lines.append(f"  Очікуваний прибуток: {item['expected_profit']} USDT")
+            lines.append(f"  Команда: /confirmbuy{item['asset']}")
+            lines.append(f"  Стоп-лосс: {stop_loss}, Тейк-профіт: {take_profit}")
     else:
-        report += "🔼 Купити: не знайдено підходящих активів\n"
+        lines.append("\n🔼 Купити: не знайдено підходящих активів")
 
-    report += "\n📈 Очікуваний прибуток: "
-    report += f"+{expected_profit_usdt:.2f} USDT за добу\n" if expected_profit_usdt else "недостатньо даних\n"
+    # Очікуваний прибуток
+    lines.append(f"\n📈 Очікуваний прибуток: {round(expected_profit_usdt, 2)} USDT")
 
-    return report
+    return "\n".join(lines)
+def generate_stop_loss_take_profit(price):
+    stop_loss = round(price * 0.95, 6)  # 5% нижче
+    take_profit = round(price * 1.05, 6)  # 5% вище
+    return stop_loss, take_profit
+def save_report_md(balance_data, sell_candidates, buy_candidates, date_str, time_str):
+    lines = [f"📊 GPT-звіт (станом на {date_str} {time_str})\n"]
 
-# Основна функція: аналіз + Telegram-звіт
+    lines.append("💰 Поточний баланс:")
+    for asset in balance_data:
+        lines.append(f"{asset['symbol']}: {asset['amount']} × {asset['price']} = {asset['value_usdt']} USDT ≈ {asset['value_uah']}₴")
+    lines.append("")
+
+    if sell_candidates:
+        lines.append("🔻 Продати:")
+        for asset in sell_candidates:
+            sl, tp = generate_stop_loss_take_profit(asset['price'])
+            lines.append(
+                f"- {asset['symbol']}: прогноз {asset['change']}%, ціна: {asset['price']}, "
+                f"стоп-лосс: {sl}, тейк-профіт: {tp}\n  Команда: /confirmsell{asset['symbol']}"
+            )
+    else:
+        lines.append("🔻 Продати: немає явних кандидатів")
+
+    lines.append("")
+
+    if buy_candidates:
+        lines.append("🔼 Купити:")
+        for asset in buy_candidates:
+            sl, tp = generate_stop_loss_take_profit(asset['price'])
+            lines.append(
+                f"- {asset['symbol']}: прогноз {asset['change']}%, ціна: {asset['price']}, "
+                f"обʼєм: {asset['volume']}, стоп-лосс: {sl}, тейк-профіт: {tp}\n  Команда: /confirmbuy{asset['symbol']}"
+            )
+    else:
+        lines.append("🔼 Купити: не знайдено підходящих активів")
+
+    lines.append("")
+    lines.append("📈 Очікуваний прибуток: буде розраховано після підтвердження")
+
+    folder = f"reports/{date_str}"
+    os.makedirs(folder, exist_ok=True)
+    filename = f"{folder}/daily_report_{time_str}.md"
+    with open(filename, "w") as f:
+        f.write("\n".join(lines))
+
+    return filename, "\n".join(lines)
 def main():
     try:
+        logging.info("🔁 Початок щоденного аналізу...")
+
+        date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        time_str = datetime.datetime.now().strftime("%H-%M")
+
+        balances = get_binance_balance()
+        balance_data = analyze_balance(balances)
+
         market_data = get_market_data()
-        balances = get_balance()
-        report = generate_gpt_report(market_data, balances)
-        path = save_report(report)
-        send_telegram(report)
-        return report, path
-    except Exception as e:
-        send_telegram(f"❌ Помилка в аналізі: {str(e)}")
-        return None
+        sell_candidates = find_sell_candidates(balance_data, market_data)
+        buy_candidates = find_buy_candidates(market_data)
 
-# Надсилання звіту в Telegram
-def send_telegram(text):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {
-        "chat_id": ADMIN_CHAT_ID,
-        "text": text,
-        "parse_mode": "Markdown"
-    }
-    try:
-        requests.post(url, data=data)
-    except Exception as e:
-        print("❌ Telegram error:", e)
-# Збереження звіту в папку reports/YYYY-MM-DD/daily_report_HH-MM.md
-def save_report(text):
-    now = datetime.now()
-    folder = f"reports/{now.strftime('%Y-%m-%d')}"
-    os.makedirs(folder, exist_ok=True)
-    path = f"{folder}/daily_report_{now.strftime('%H-%M')}.md"
-    with open(path, "w") as f:
-        f.write(text)
-    return path
+        report_path, report_text = save_report_md(balance_data, sell_candidates, buy_candidates, date_str, time_str)
 
-# Запуск скрипта
+        send_telegram("✅ Звіт сформовано та надіслано.")
+        send_file_telegram(report_path)
+
+        logging.info(f"✅ Звіт сформовано та надіслано. Файл: {report_path}")
+
+    except Exception as e:
+        error_message = f"❌ Помилка в аналізі: {str(e)}"
+        logging.error(error_message)
+        send_telegram(error_message)
 if __name__ == "__main__":
-    main()
+    log_message("🔁 Запуск daily_analysis.py")
+    today = datetime.datetime.now().strftime("%Y-%m-%d")
+    time_now = datetime.datetime.now().strftime("%H-%M")
+
+    try:
+        main()
+    except Exception as err:
+        logging.exception("❌ Фатальна помилка у виконанні скрипта:")
+        send_telegram(f"❌ Помилка у виконанні: {str(err)}")
+# Створення необхідної директорії для зберігання звітів
+def ensure_reports_dir():
+    date_dir = os.path.join(REPORT_DIR, datetime.datetime.now().strftime("%Y-%m-%d"))
+    os.makedirs(date_dir, exist_ok=True)
+    return date_dir
+
+# Файл логування (якщо викликається напряму)
+log_file = os.path.join(BASE_DIR, "daily.log")
+if not os.path.exists(log_file):
+    with open(log_file, "w") as f:
+        f.write("")
+
+# Кінець файлу daily_analysis.py
