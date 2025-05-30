@@ -226,14 +226,16 @@ def handle_confirm_sell(call):
         bot.send_message(call.message.chat.id, f"❌ Помилка при продажу {coin}: {e}")
 
     # Зберегти в історію
+    price = float(client.get_symbol_ticker(symbol=f"{coin}USDT")["price"])
     save_trade_history([
         {
             "asset": coin,
-            "amount": quantity,         # реальна кількість
-            "price": price,             # ціна купівлі
+            "amount": quantity,
+            "price": price,
             "value": round(quantity * price, 2)
         }
-    ], action="buy")
+    ], action="sell")
+
 
 # 💸 Ручна купівля /buy BTC 0.01
 @bot.message_handler(commands=["buy"])
