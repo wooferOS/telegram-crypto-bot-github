@@ -1,31 +1,33 @@
-name: Daily GPT Market Analysis
+name: Daily Report
 
 on:
   schedule:
-    - cron: '0 6 * * *'  # 09:00 Kyiv time
-    - cron: '0 17 * * *' # 20:00 Kyiv time
+    - cron: '0 6 * * *'  # 09:00 за Києвом
   workflow_dispatch:
 
 jobs:
-  run-daily-analysis:
+  build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@v2
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.10
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+    - name: Check .env presence
+      run: |
+        if [ ! -f .env ]; then echo "❌ .env файл не знайдено!"; exit 1; fi
 
-      - name: Run daily GPT market analysis
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
-          BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
-          BINANCE_SECRET_KEY: ${{ secrets.BINANCE_SECRET_KEY }}
-        run: python3 daily_analysis.py
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run daily_analysis
+      run: |
+        export $(cat .env | xargs)
+        python3 daily_analysis.py >> daily.log 2>&1
