@@ -249,7 +249,7 @@ async def main():
         analysis = ask_gpt(prompt)
 
         # 5. Згенерувати та надіслати фінальний Markdown-звіт
-                balance_data = analyze_balance(client)
+        balance_data = analyze_balance(client)
         to_sell, to_buy = prepare_analysis(balance_data, market_data)
         balance_value = sum(asset["value_usdt"] for asset in balance_data)
 
@@ -261,7 +261,6 @@ async def main():
             gpt_forecast=analysis
         )
         await send_telegram_report(report)
-
 
     except Exception as err:
         logging.error("❌ Фатальна помилка у виконанні скрипта:")
