@@ -10,7 +10,6 @@ from telegram import Bot
 from telegram.constants import ParseMode
 import traceback
 import asyncio
-from daily_analysis import build_trade_markup
 
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
