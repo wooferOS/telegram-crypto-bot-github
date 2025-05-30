@@ -9,6 +9,7 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from binance.client import Client
 from daily_analysis import main as generate_daily_report  # GPT-звіт з daily_analysis.py
 from telebot.types import CallbackQuery
+from datetime import datetime
 
 # Завантаження змінних з .env
 load_dotenv()
