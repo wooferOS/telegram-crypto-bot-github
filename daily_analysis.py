@@ -249,7 +249,17 @@ async def main():
         analysis = ask_gpt(prompt)
 
         # 5. Згенерувати та надіслати фінальний Markdown-звіт
-        report = generate_report(sum(asset["value_usdt"] for asset in analyze_balance(client)), *prepare_analysis(analyze_balance(client), market_data), UAH_RATE)
+                balance_data = analyze_balance(client)
+        to_sell, to_buy = prepare_analysis(balance_data, market_data)
+        balance_value = sum(asset["value_usdt"] for asset in balance_data)
+
+        report = generate_report(
+            balance={a["symbol"]: {"amount": a["amount"], "usdt": a["value_usdt"]} for a in balance_data},
+            to_sell={a["symbol"]: {"reason": f"зміна {a['change']}%"} for a in to_sell},
+            to_buy={a["pair"]: {"reason": f"обʼєм {a['volume']} | зміна +{a['change']}%", "expected_profit": 3.5} for a in to_buy},
+            uah_rate=UAH_RATE,
+            gpt_forecast=analysis
+        )
         await send_telegram_report(report)
 
 
