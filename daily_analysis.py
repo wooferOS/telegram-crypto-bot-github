@@ -7,6 +7,11 @@ from binance.client import Client
 from openai import OpenAI
 import requests
 
+
+BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
+BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
+client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
+
 # Ініціалізація логування
 logging.basicConfig(filename="daily.log", level=logging.INFO, format="%(asctime)s %(levelname)s:%(message)s")
 
