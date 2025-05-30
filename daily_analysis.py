@@ -194,6 +194,17 @@ def get_binance_balances(client):
     except Exception as e:
         logging.error(f"❌ Не вдалося отримати баланс Binance: {str(e)}")
         return {}
+        
+def build_gpt_prompt(balances, market_data):
+    prompt = "Оціни мій криптопортфель і порадь, що продати, що купити:\n\n"
+    prompt += "Поточні активи:\n"
+    for asset, amount in balances.items():
+        prompt += f"- {asset}: {amount}\n"
+    prompt += "\nАктуальні ринкові дані:\n"
+    for symbol, data in market_data.items():
+        prompt += f"- {symbol}: {data['change']}% змін, обʼєм {data['volume']}, ціна {data['last_price']}\n"
+    prompt += "\nРезультат подай у вигляді рекомендацій з обґрунтуванням."
+    return prompt
 
 def main():
     try:
