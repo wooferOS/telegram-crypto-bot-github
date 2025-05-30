@@ -78,7 +78,8 @@ def report_btn(message):
 @bot.message_handler(commands=["report"])
 def report_handler(message):
     try:
-        result = generate_daily_report()
+        import asyncio
+        result = asyncio.run(generate_daily_report())
         if result is None:
             bot.send_message(message.chat.id, "❌ Помилка при формуванні GPT-звіту.")
             return
