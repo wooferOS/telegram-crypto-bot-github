@@ -74,33 +74,30 @@ def analyze_balance(client):
 
     return sorted(result, key=lambda x: x["value_usdt"], reverse=True)
 
+def get_whitelist(client):
+    """Отримує всі торгові пари з USDT на Binance."""
+    return [t['symbol'] for t in client.get_ticker() if t['symbol'].endswith("USDT")]
 
-def get_whitelist():
-    return [
-        "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "AVAXUSDT",
-        "XRPUSDT", "DOGEUSDT", "LINKUSDT", "MATICUSDT", "TRXUSDT",
-        "ADAUSDT", "DOTUSDT", "LTCUSDT", "UNIUSDT", "ATOMUSDT",
-        "NEARUSDT", "XLMUSDT", "INJUSDT", "OPUSDT", "ARBUSDT",
-        "TIAUSDT", "SUIUSDT", "PEPEUSDT", "FETUSDT", "RNDRUSDT",
-        "SEIUSDT", "ORDIUSDT", "1000SATSUSDT", "JASMYUSDT", "ENJUSDT"
-    ]
 def get_market_data(client, whitelist):
+    """Формує ринкові дані (зміна %, обʼєм, остання ціна) для whitelist."""
     tickers = client.get_ticker()
     market_data = {}
+
     for t in tickers:
-        symbol = t["symbol"]
+        symbol = t.get("symbol")
         if symbol in whitelist:
             try:
-                change = float(t["priceChangePercent"])
-                volume = float(t["quoteVolume"])
-                last_price = float(t["lastPrice"])
+                change = float(t.get("priceChangePercent", 0))
+                volume = float(t.get("quoteVolume", 0))
+                last_price = float(t.get("lastPrice", 0))
                 market_data[symbol] = {
                     "change": change,
                     "volume": volume,
                     "last_price": last_price
                 }
-            except:
+            except Exception:
                 continue
+
     return market_data
 
 def prepare_analysis(balance_data, market_data):
