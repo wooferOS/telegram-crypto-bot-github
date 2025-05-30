@@ -6,6 +6,10 @@ from binance.client import Client
 from binance.exceptions import BinanceAPIException
 from openai import OpenAI
 import requests
+import traceback
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 
 # Ініціалізація клієнтів
 client = Client(api_key=os.getenv("BINANCE_API_KEY"), api_secret=os.getenv("BINANCE_SECRET_KEY"))
@@ -21,7 +25,7 @@ logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format="%(asctime)s %
 
 def log_message(message):
     print(message)
-    logging.info(message)
+    logging.info("🔁 Запуск daily_analysis.py")
 
 def send_telegram(message):
     telegram_token = os.getenv("TELEGRAM_TOKEN")
