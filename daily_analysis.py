@@ -53,8 +53,8 @@ def load_from_file(filename):
 def analyze_balance(client):
     balances = get_binance_balances(client)
     result = []
-    for asset in balances:
-        symbol = asset["asset"]
+    for asset in balances.get("balances", []):
+    symbol = asset.get("asset")
         free = float(asset["free"])
         if free == 0 or symbol == "USDT":
             continue
