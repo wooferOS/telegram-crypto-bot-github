@@ -1,30 +1,30 @@
-name: Daily Crypto Analysis
+name: Daily GPT Market Analysis
 
 on:
   schedule:
-    - cron: '0 6 * * *'  # Щодня о 06:00 UTC
+    - cron: '0 6 * * *'   # 09:00 Kyiv (UTC+3)
+    - cron: '0 17 * * *'  # 20:00 Kyiv
   workflow_dispatch:
-
 jobs:
-  run-analysis:
+  run:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.10'
+          python-version: '3.11'
 
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run analysis
+      - name: Run GPT daily analysis
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
-          BINANCE_SECRET_KEY: ${{ secrets.BINANCE_SECRET_KEY }}
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
-        run: python3 daily_analysis.py
-
+          BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
+          BINANCE_SECRET_KEY: ${{ secrets.BINANCE_SECRET_KEY }}
+        run: python daily_analysis.py
