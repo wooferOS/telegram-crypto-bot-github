@@ -8,11 +8,7 @@ from telebot import TeleBot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from binance.client import Client
 from daily_analysis import main as generate_daily_report  # GPT-звіт з daily_analysis.py
-from telegram.ext import CallbackQueryHandler
-from telegram import Update
-from telegram.ext import CallbackContext
-from telegram.ext import Dispatcher
-from telegram.ext import CallbackQueryHandler
+from telebot.types import CallbackQuery
 
 # Завантаження змінних з .env
 load_dotenv()
@@ -23,12 +19,6 @@ BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 
 bot = TeleBot(TELEGRAM_TOKEN)
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
-
-from telegram.ext import Dispatcher
-from telegram import Bot as TgBot
-
-tg_bot = TgBot(token=TELEGRAM_TOKEN)
-dispatcher = Dispatcher(bot=tg_bot, update_queue=None, use_context=True)
 
 # 📱 Головне меню кнопок
 def get_main_keyboard():
@@ -195,6 +185,21 @@ def execute_buy(call):
     except Exception as e:
         msg = "⚠️ Недостатньо балансу." if "INSUFFICIENT_BALANCE" in str(e) else f"❌ Помилка: {str(e)}"
         bot.send_message(call.message.chat.id, msg)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("confirmbuy_"))
+def handle_confirm_buy(call):
+    coin = call.data.split("_")[1]
+    bot.answer_callback_query(call.id)
+    bot.send_message(call.message.chat.id, f"✅ Підтверджено купівлю {coin}. Виконую купівлю...")
+    # Тут логіка купівлі (реалізуй під себе)
+
+@bot.callback_query_handler(func=lambda call: call.data.startswith("confirmsell_"))
+def handle_confirm_sell(call):
+    coin = call.data.split("_")[1]
+    bot.answer_callback_query(call.id)
+    bot.send_message(call.message.chat.id, f"✅ Підтверджено продаж {coin}. Виконую продаж...")
+    # Тут логіка продажу (реалізуй під себе)
+
 # 💸 Ручна купівля /buy BTC 0.01
 @bot.message_handler(commands=["buy"])
 def manual_buy(message):
@@ -307,8 +312,7 @@ def confirm_sell(update: Update, context: CallbackContext):
 # ✅ Запуск бота
 if __name__ == "__main__":
     print("🚀 Бот запущено!")
-    dispatcher.add_handler(CallbackQueryHandler(confirm_buy, pattern=r"^confirmbuy_"))
-    dispatcher.add_handler(CallbackQueryHandler(confirm_sell, pattern=r"^confirmsell_"))
     bot.polling(none_stop=True)
+
 
 
