@@ -158,13 +158,20 @@ def ensure_directory(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
-async def send_telegram_report(text, path=None):
-    try:
-        await bot.send_message(chat_id=ADMIN_CHAT_ID, text="📤 Новий звіт GPT-аналітики:", parse_mode=ParseMode.MARKDOWN)
-        await bot.send_message(chat_id=ADMIN_CHAT_ID, text=text, parse_mode=ParseMode.MARKDOWN)
-    except Exception as e:
-        logging.error(f"❌ Помилка при надсиланні в Telegram: {e}")
-    
+async def send_telegram_report(report, to_buy, to_sell):
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+    keyboard = []
+    for coin in to_buy:
+        keyboard.append([InlineKeyboardButton(f"Купити {coin}", callback_data=f"confirmbuy_{coin}")])
+    for coin in to_sell:
+        keyboard.append([InlineKeyboardButton(f"Продати {coin}", callback_data=f"confirmsell_{coin}")])
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    send_telegram_report(report, to_buy, to_sell)
+
+
 def get_binance_balances(client):
     try:
         account_info = client.get_account()
