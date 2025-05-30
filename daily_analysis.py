@@ -205,6 +205,20 @@ def build_gpt_prompt(balances, market_data):
         prompt += f"- {symbol}: {data['change']}% змін, обʼєм {data['volume']}, ціна {data['last_price']}\n"
     prompt += "\nРезультат подай у вигляді рекомендацій з обґрунтуванням."
     return prompt
+    
+def ask_gpt(prompt):
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Ти фінансовий аналітик крипторинку."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        logging.error(f"❌ GPT-помилка: {e}")
+        return "❌ Не вдалося отримати відповідь від GPT."
 
 def main():
     try:
