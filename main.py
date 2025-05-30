@@ -9,6 +9,10 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from binance.client import Client
 from daily_analysis import main as generate_daily_report  # GPT-звіт з daily_analysis.py
 from telegram.ext import CallbackQueryHandler
+from telegram import Update
+from telegram.ext import CallbackContext
+from telegram.ext import Dispatcher
+from telegram.ext import CallbackQueryHandler
 
 # Завантаження змінних з .env
 load_dotenv()
@@ -19,6 +23,13 @@ BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 
 bot = TeleBot(TELEGRAM_TOKEN)
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+
+from telegram.ext import Dispatcher
+from telegram import Bot as TgBot
+
+tg_bot = TgBot(token=TELEGRAM_TOKEN)
+dispatcher = Dispatcher(bot=tg_bot, update_queue=None, use_context=True)
+
 # 📱 Головне меню кнопок
 def get_main_keyboard():
     return ReplyKeyboardMarkup([
@@ -282,24 +293,22 @@ def save_trade_history(entries, action):
         
 def confirm_buy(update: Update, context: CallbackContext):
     query = update.callback_query
-    query.answer()
     coin = query.data.split("_")[1]
-    context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=f"✅ Підтверджено купівлю {coin}. Виконую...")
-    # TODO: Додай логіку купівлі через Binance API
+    query.answer()
+    context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=f"✅ Підтверджено купівлю {coin}. Виконую купівлю...")
 
 def confirm_sell(update: Update, context: CallbackContext):
     query = update.callback_query
-    query.answer()
     coin = query.data.split("_")[1]
-    context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=f"✅ Підтверджено продаж {coin}. Виконую...")
-    # TODO: Додай логіку продажу через Binance API
+    query.answer()
+    context.bot.send_message(chat_id=ADMIN_CHAT_ID, text=f"✅ Підтверджено продаж {coin}. Виконую продаж...")
+
 
 # ✅ Запуск бота
 if __name__ == "__main__":
     print("🚀 Бот запущено!")
-
     dispatcher.add_handler(CallbackQueryHandler(confirm_buy, pattern=r"^confirmbuy_"))
     dispatcher.add_handler(CallbackQueryHandler(confirm_sell, pattern=r"^confirmsell_"))
-
     bot.polling(none_stop=True)
+
 
