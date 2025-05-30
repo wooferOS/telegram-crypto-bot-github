@@ -6,6 +6,21 @@ from binance.client import Client
 from openai import OpenAI
 import requests
 
+# Функція логування
+def log_message(message: str):
+    import logging
+    logging.basicConfig(filename="daily.log", level=logging.INFO, format="%(asctime)s %(levelname)s:%(message)s")
+    logging.info(message)
+
+# Функція надсилання повідомлення у Telegram
+def send_telegram(message: str):
+    import requests, os
+    token = os.getenv("TELEGRAM_TOKEN")
+    chat_id = os.getenv("ADMIN_CHAT_ID")
+    if token and chat_id:
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        requests.post(url, data={"chat_id": chat_id, "text": message})
+
 # Ініціалізація ключів
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
