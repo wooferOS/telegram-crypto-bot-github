@@ -225,6 +225,15 @@ def handle_confirm_sell(call):
     except Exception as e:
         bot.send_message(call.message.chat.id, f"❌ Помилка при продажу {coin}: {e}")
 
+    # Зберегти в історію
+    save_trade_history([
+        {
+            "asset": coin,
+            "amount": quantity,         # реальна кількість
+            "price": price,             # ціна купівлі
+            "value": round(quantity * price, 2)
+        }
+    ], action="buy")
 
 # 💸 Ручна купівля /buy BTC 0.01
 @bot.message_handler(commands=["buy"])
