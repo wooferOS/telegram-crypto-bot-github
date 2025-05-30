@@ -134,7 +134,7 @@ def format_trade_command(action, symbol):
     return f"/confirm{action.lower()}{symbol.replace('/', '')}"
 
 def generate_report(balance_usdt, to_sell, to_buy, currency_rate):
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
     report = f"# 📊 Звіт GPT-аналітики ({now})\n\n"
     report += f"**Поточний баланс:** {balance_usdt:.2f} USDT ≈ {balance_usdt * currency_rate:.2f} грн\n\n"
 
@@ -160,7 +160,7 @@ def ensure_directory(path):
         os.makedirs(path)
 
 def save_report(text, report_dir):
-    now = datetime.datetime.now().strftime("%H-%M")
+    now = datetime.now().strftime("%H-%M")
     filename = f"daily_report_{now}.md"
     path = os.path.join(report_dir, filename)
     with open(path, "w") as f:
