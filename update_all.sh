@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export $(cat /root/telegram-crypto-bot-github/.env | xargs)
+
 echo "📦 Зберігаю актуальні файли"
 git add main.py
 git add daily_analysis.py
