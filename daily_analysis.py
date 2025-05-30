@@ -28,6 +28,18 @@ UAH_RATE = 43.0
 # Налаштування логування
 logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format="%(asctime)s %(levelname)s:%(message)s")
 
+def split_text(text, max_length=4000):
+    """Ділить довгий текст на частини для Telegram."""
+    parts = []
+    while len(text) > max_length:
+        split_at = text.rfind("\n", 0, max_length)
+        if split_at == -1:
+            split_at = max_length
+        parts.append(text[:split_at])
+        text = text[split_at:].lstrip()
+    parts.append(text)
+    return parts
+
 def log_message(message):
     print(message)
     logging.info("🔁 Запуск daily_analysis.py")
@@ -154,12 +166,21 @@ def generate_report(balance_usdt, to_sell, to_buy, currency_rate):
     # ✅ Повертаємо не тільки звіт, а й to_buy, to_sell
     return report, to_buy, to_sell
 
-def ensure_directory(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
+def split_text(text, max_length=4000):
+    """Ділить довгий текст на частини для Telegram."""
+    parts = []
+    while len(text) > max_length:
+        split_at = text.rfind("\n", 0, max_length)
+        if split_at == -1:
+            split_at = max_length
+        parts.append(text[:split_at])
+        text = text[split_at:].lstrip()
+    parts.append(text)
+    return parts
 
 async def send_telegram_report(report, to_buy, to_sell):
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    from telegram.constants import ParseMode
 
     keyboard = [
         [InlineKeyboardButton(f"🟢 Купити {coin}", callback_data=f"confirmbuy_{coin}")]
@@ -168,15 +189,12 @@ async def send_telegram_report(report, to_buy, to_sell):
         [InlineKeyboardButton(f"🔴 Продати {coin}", callback_data=f"confirmsell_{coin}")]
         for coin in to_sell
     ]
-
-
-
-
-
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     try:
-        await bot.send_message(chat_id=ADMIN_CHAT_ID, text=report, parse_mode=ParseMode.MARKDOWN, reply_markup=reply_markup)
+        for part in split_text(report):
+            await bot.send_message(chat_id=ADMIN_CHAT_ID, text=part, parse_mode=ParseMode.MARKDOWN)
+        await bot.send_message(chat_id=ADMIN_CHAT_ID, text="⬇️ Дії з монетами:", reply_markup=reply_markup)
     except Exception as e:
         logging.error(f"❌ Telegram error: {e}")
 
