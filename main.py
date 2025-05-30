@@ -1,6 +1,5 @@
-# 📦 main.py — Telegram бот для криптоасистента з підтвердженнями та аналітикою
+# 📦 main.py — Telegram бот для GPT-аналітики Binance
 
-# ✅ ЧАСТИНА 1: Імпорти, .env, ініціалізація bot та Binance client
 import logging
 import os
 import json
@@ -8,11 +7,10 @@ from dotenv import load_dotenv
 from telebot import TeleBot
 from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
 from binance.client import Client
-from daily_analysis import main as generate_daily_report
+from daily_analysis import main as generate_daily_report  # GPT-звіт з daily_analysis.py
 
-# 🧪 Завантаження .env
+# Завантаження змінних з .env
 load_dotenv()
-
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
@@ -20,68 +18,22 @@ BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 
 bot = TeleBot(TELEGRAM_TOKEN)
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
-
-def check_budget(amount):
-    with open("budget.json", "r") as f:
-        b = json.load(f)
-    return (b["used"] + amount) <= b["budget"]
-
 # 📱 Головне меню кнопок
 def get_main_keyboard():
-    print("DEBUG: get_main_keyboard called")  # DEBUG
     return ReplyKeyboardMarkup([
         ["💰 Баланс", "📊 Звіт", "📘 Історія"],
         ["✅ Підтвердити купівлю", "✅ Підтвердити продаж"],
         ["🔄 Оновити", "🛑 Скасувати"]
     ], resize_keyboard=True)
 
-# 🔁 Обробники кнопок / команд (рефакторинг)
-@bot.message_handler(func=lambda m: m.text == "💰 Баланс")
-def handle_balance(message):
-    print("➡️ Натиснуто: 💰 Баланс")
+# 📊 Перевірка бюджету перед купівлею
+def check_budget(amount):
     try:
-        account_info = client.get_account()
-        balances = [b for b in account_info["balances"] if float(b["free"]) > 0 or float(b["locked"]) > 0]
-        text = "💼 *Твій баланс:*\n"
-        for b in balances:
-            total = float(b["free"]) + float(b["locked"])
-            text += f"- {b['asset']}: {total}\n"
-        bot.send_message(message.chat.id, text, parse_mode="Markdown")
-    except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка при отриманні балансу: {str(e)}")
-
-
-@bot.message_handler(func=lambda m: m.text == "📊 Звіт")
-def report_btn(m):
-    print("➡️ Натиснуто: 📊 Звіт")
-    report_handler(m)
-
-@bot.message_handler(func=lambda m: m.text == "📘 Історія")
-def history_btn(m):
-    print("➡️ Натиснуто: 📘 Історія")
-    handle_history(m)
-
-@bot.message_handler(func=lambda m: m.text == "✅ Підтвердити купівлю")
-def confirm_buy_button(m):
-    print("➡️ Натиснуто: ✅ Підтвердити купівлю")
-    bot.send_message(m.chat.id, "🛒 Виклик підтвердження купівлі через /confirm_buy")
-
-@bot.message_handler(func=lambda m: m.text == "✅ Підтвердити продаж")
-def confirm_sell_button(m):
-    print("➡️ Натиснуто: ✅ Підтвердити продаж")
-    bot.send_message(m.chat.id, "💸 Виклик підтвердження продажу через /confirm_sell")
-
-@bot.message_handler(func=lambda m: m.text == "🔄 Оновити")
-def refresh(m):
-    print("➡️ Натиснуто: 🔄 Оновити")
-    bot.send_message(m.chat.id, "🔄 Дані оновлено (реалізація триває)")
-
-@bot.message_handler(func=lambda m: m.text == "🛑 Скасувати")
-def cancel(m):
-    print("➡️ Натиснуто: 🛑 Скасувати")
-    bot.send_message(m.chat.id, "❌ Операцію скасовано")
-
-
+        with open("budget.json", "r") as f:
+            b = json.load(f)
+        return (b["used"] + amount) <= b["budget"]
+    except:
+        return False
 # 🟢 /start і /help
 @bot.message_handler(commands=["start", "help"])
 def send_welcome(message):
@@ -102,21 +54,40 @@ def send_welcome(message):
     )
     bot.reply_to(message, text, reply_markup=get_main_keyboard())
 
-
-# 🔁 Обробники кнопок / команд (рефакторинг)
-@bot.message_handler(func=lambda m: m.text == "📘 Історія")
-def history_btn(m): handle_history(m)
-
+# 🔘 Кнопка: Баланс
+@bot.message_handler(func=lambda m: m.text == "💰 Баланс")
+def handle_balance(message):
+    try:
+        account_info = client.get_account()
+        balances = [b for b in account_info["balances"] if float(b["free"]) > 0 or float(b["locked"]) > 0]
+        text = "💼 *Твій баланс:*\n"
+        for b in balances:
+            total = float(b["free"]) + float(b["locked"])
+            text += f"- {b['asset']}: {total}\n"
+        bot.send_message(message.chat.id, text, parse_mode="Markdown")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Помилка при отриманні балансу: {str(e)}")
+# 📊 Кнопка: Звіт
 @bot.message_handler(func=lambda m: m.text == "📊 Звіт")
-def report_btn(m): report_handler(m)
+def report_btn(message):
+    report_handler(message)
 
-@bot.message_handler(func=lambda m: m.text == "🔄 Оновити")
-def refresh(m): bot.send_message(m.chat.id, "🔄 Дані оновлено (реалізація триває)")
+# 📈 Команда /report — GPT-аналітика
+@bot.message_handler(commands=["report"])
+def report_handler(message):
+    try:
+        report_text, report_file = generate_daily_report()
+        bot.send_message(message.chat.id, report_text, parse_mode="Markdown")
+        with open(report_file, "rb") as f:
+            bot.send_document(message.chat.id, f)
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Помилка при формуванні звіту: {str(e)}")
+# 📘 Кнопка: Історія
+@bot.message_handler(func=lambda m: m.text == "📘 Історія")
+def history_btn(message):
+    handle_history(message)
 
-@bot.message_handler(func=lambda m: m.text == "🛑 Скасувати")
-def cancel(m): bot.send_message(m.chat.id, "❌ Операцію скасовано")
-
-# 📘 /history
+# 📘 Команда /history — історія угод
 @bot.message_handler(commands=["history"])
 def handle_history(message):
     history_file = "trade_history.json"
@@ -139,26 +110,31 @@ def handle_history(message):
             emoji = "✅" if e["action"] == "buy" else "❌"
             text += f"- {emoji} {e['action'].upper()} {e['asset']} — {e['amount']}\n"
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
+# ✅ Кнопка: Підтвердити купівлю
+@bot.message_handler(func=lambda m: m.text == "✅ Підтвердити купівлю")
+def confirm_buy_button(message):
+    bot.send_message(message.chat.id, "🛒 Виклик підтвердження купівлі через /confirm_buy")
 
-# 📊 /report
-@bot.message_handler(commands=["report"])
-def report_handler(message):
-    try:
-        report_text, report_file = generate_daily_report()
-        bot.send_message(message.chat.id, report_text, parse_mode="Markdown")
-        with open(report_file, "rb") as f:
-            bot.send_document(message.chat.id, f)
-    except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка при формуванні звіту: {str(e)}")
+# ✅ Кнопка: Підтвердити продаж
+@bot.message_handler(func=lambda m: m.text == "✅ Підтвердити продаж")
+def confirm_sell_button(message):
+    bot.send_message(message.chat.id, "💸 Виклик підтвердження продажу через /confirm_sell")
 
-# ✅ /confirm_sell
+# 🛑 Кнопка: Скасувати
+@bot.message_handler(func=lambda m: m.text == "🛑 Скасувати")
+def cancel(message):
+    bot.send_message(message.chat.id, "❌ Операцію скасовано")
+
+# 🔄 Кнопка: Оновити
+@bot.message_handler(func=lambda m: m.text == "🔄 Оновити")
+def refresh(message):
+    bot.send_message(message.chat.id, "🔄 Дані оновлено (реалізація триває)")
+# ✅ /confirm_sell — виконати продаж
 @bot.message_handler(commands=["confirm_sell"])
 def confirm_sell(message):
     assets = [
-        {"asset": "TRX", "amount": 24},
-        {"asset": "XRP", "amount": 9.99},
+        {"asset": "AMB", "amount": 0.73},
         {"asset": "GFT", "amount": 74},
-        {"asset": "TRUMP", "amount": 1.5}
     ]
     try:
         for asset in assets:
@@ -170,7 +146,7 @@ def confirm_sell(message):
         msg = "⚠️ Недостатньо балансу." if "INSUFFICIENT_BALANCE" in str(e) else f"❌ Помилка: {str(e)}"
         bot.reply_to(message, msg)
 
-# ✅ confirm_buy_inline
+# ✅ /confirm_buy_inline — кнопка підтвердження купівлі
 @bot.message_handler(commands=["confirm_buy_inline"])
 def confirm_buy_inline(message):
     markup = InlineKeyboardMarkup()
@@ -180,9 +156,7 @@ def confirm_buy_inline(message):
 @bot.callback_query_handler(func=lambda call: call.data == "buy_now")
 def execute_buy(call):
     assets = [
-        {"asset": "ADA", "amount": 15},
-        {"asset": "HBAR", "amount": 80},
-        {"asset": "NOT", "amount": 90}
+        {"asset": "XRP", "amount": 10},
     ]
     total = sum([a["amount"] for a in assets])
     if not check_budget(total):
@@ -202,53 +176,7 @@ def execute_buy(call):
     except Exception as e:
         msg = "⚠️ Недостатньо балансу." if "INSUFFICIENT_BALANCE" in str(e) else f"❌ Помилка: {str(e)}"
         bot.send_message(call.message.chat.id, msg)
-
-# 💰 Баланс
-@bot.message_handler(func=lambda m: m.text == "💰 Баланс")
-def handle_balance(message):
-    try:
-        account_info = client.get_account()
-        balances = [b for b in account_info["balances"] if float(b["free"]) > 0 or float(b["locked"]) > 0]
-        text = "💼 *Твій баланс:*\n"
-        for b in balances:
-            total = float(b["free"]) + float(b["locked"])
-            text += f"- {b['asset']}: {total}\n"
-        bot.send_message(message.chat.id, text, parse_mode="Markdown")
-    except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка при отриманні балансу: {str(e)}")
-
-# /set_budget
-@bot.message_handler(commands=["set_budget"])
-def set_budget(message):
-    try:
-        parts = message.text.strip().split()
-        if len(parts) != 2:
-            bot.reply_to(message, "❗️ Формат: /set_budget 100")
-            return
-        new_budget = float(parts[1])
-        with open("budget.json", "r") as f:
-            b = json.load(f)
-        b["budget"] = new_budget
-        with open("budget.json", "w") as f:
-            json.dump(b, f)
-        bot.reply_to(message, f"✅ Новий бюджет встановлено: *{new_budget}* USDT", parse_mode="Markdown")
-    except Exception as e:
-        bot.reply_to(message, f"❌ Помилка: {str(e)}")
-
-# /status
-@bot.message_handler(commands=["status"])
-def status(message):
-    try:
-        with open("budget.json", "r") as f:
-            b = json.load(f)
-        used = b["used"]
-        budget = b["budget"]
-        percent = round((used / budget) * 100, 2) if budget else 0
-        bot.reply_to(message, f"📊 *Бюджет*: {used} / {budget} USDT (*{percent}% використано*)", parse_mode="Markdown")
-    except Exception as e:
-        bot.reply_to(message, f"❌ Помилка: {str(e)}")
-
-# /buy
+# 💸 Ручна купівля /buy BTC 0.01
 @bot.message_handler(commands=["buy"])
 def manual_buy(message):
     try:
@@ -273,7 +201,7 @@ def manual_buy(message):
         msg = "⚠️ Недостатньо балансу." if "INSUFFICIENT_BALANCE" in str(e) else f"❌ Помилка: {str(e)}"
         bot.reply_to(message, msg)
 
-# /sell
+# 💰 Ручний продаж /sell ETH 0.5
 @bot.message_handler(commands=["sell"])
 def manual_sell(message):
     try:
@@ -289,11 +217,62 @@ def manual_sell(message):
     except Exception as e:
         msg = "⚠️ Недостатньо активу." if "INSUFFICIENT_BALANCE" in str(e) else f"❌ Помилка: {str(e)}"
         bot.reply_to(message, msg)
-        
+
+# 📊 /status — перегляд бюджету
+@bot.message_handler(commands=["status"])
+def status(message):
+    try:
+        with open("budget.json", "r") as f:
+            b = json.load(f)
+        used = b["used"]
+        budget = b["budget"]
+        percent = round((used / budget) * 100, 2) if budget else 0
+        bot.reply_to(message, f"📊 *Бюджет*: {used} / {budget} USDT (*{percent}% використано*)", parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Помилка: {str(e)}")
+
+# /set_budget 100
+@bot.message_handler(commands=["set_budget"])
+def set_budget(message):
+    try:
+        parts = message.text.strip().split()
+        if len(parts) != 2:
+            bot.reply_to(message, "❗️ Формат: /set_budget 100")
+            return
+        new_budget = float(parts[1])
+        with open("budget.json", "r") as f:
+            b = json.load(f)
+        b["budget"] = new_budget
+        with open("budget.json", "w") as f:
+            json.dump(b, f)
+        bot.reply_to(message, f"✅ Новий бюджет: *{new_budget}* USDT", parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Помилка: {str(e)}")
+
+# /menu — показати клавіатуру
 @bot.message_handler(commands=["menu"])
 def show_menu(message):
     bot.send_message(message.chat.id, "📋 Обери дію:", reply_markup=get_main_keyboard())
+# 🗃️ Збереження історії угод
+def save_trade_history(entries, action):
+    today = datetime.now().strftime("%Y-%m-%d %H:%M")
+    for entry in entries:
+        entry["action"] = action
+        entry["date"] = today
+    try:
+        history_file = "trade_history.json"
+        if os.path.exists(history_file):
+            with open(history_file, "r") as f:
+                history = json.load(f)
+        else:
+            history = []
+        history.extend(entries)
+        with open(history_file, "w") as f:
+            json.dump(history, f, indent=2)
+    except Exception as e:
+        print("❌ Помилка при збереженні історії:", e)
 
 # ✅ Запуск бота
 if __name__ == "__main__":
+    print("🚀 Бот запущено!")
     bot.polling(none_stop=True)
