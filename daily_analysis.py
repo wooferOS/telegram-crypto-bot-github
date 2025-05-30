@@ -6,6 +6,15 @@ from dotenv import load_dotenv
 from binance.client import Client
 from openai import OpenAI
 from telegram import Bot
+import os
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
+bot = Bot(token=TELEGRAM_TOKEN)
+
+def send_telegram(message):
+    if bot and ADMIN_CHAT_ID:
+        bot.send_message(chat_id=ADMIN_CHAT_ID, text=message)
 
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -128,7 +137,7 @@ def estimate_profit(sell_list, buy_list, budget=100):
 
     return expected_total_profit, recommendations
 def format_report(balances, sell_list, buy_list, recommendations, expected_profit_usdt):
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
     lines = [f"📊 GPT-звіт (станом на {now})\n"]
 
     # Баланс
@@ -213,8 +222,8 @@ def main():
     try:
         logging.info("🔁 Початок щоденного аналізу...")
 
-        date_str = datetime.datetime.now().strftime("%Y-%m-%d")
-        time_str = datetime.datetime.now().strftime("%H-%M")
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        time_str = datetime.now().strftime("%H-%M")
 
         balances = get_binance_balance()
         balance_data = analyze_balance(balances)
@@ -246,7 +255,7 @@ if __name__ == "__main__":
         send_telegram(f"❌ Помилка у виконанні: {str(err)}")
 # Створення необхідної директорії для зберігання звітів
 def ensure_reports_dir():
-    date_dir = os.path.join(REPORT_DIR, datetime.datetime.now().strftime("%Y-%m-%d"))
+    date_dir = os.path.join(REPORT_DIR, datetime.now().strftime("%Y-%m-%d"))
     os.makedirs(date_dir, exist_ok=True)
     return date_dir
 
