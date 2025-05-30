@@ -159,11 +159,7 @@ def ensure_directory(path):
 async def send_telegram_report(text, path=None):
     try:
         await bot.send_message(chat_id=ADMIN_CHAT_ID, text="📤 Новий звіт GPT-аналітики:", parse_mode=ParseMode.MARKDOWN)
-        if path and os.path.exists(path):
-            with open(path, "rb") as f:
-                await bot.send_message(chat_id=ADMIN_CHAT_ID, text=analysis, parse_mode=ParseMode.MARKDOWN)
-        else:
-            await bot.send_message(chat_id=ADMIN_CHAT_ID, text=text, parse_mode=ParseMode.MARKDOWN)
+        await bot.send_message(chat_id=ADMIN_CHAT_ID, text=text, parse_mode=ParseMode.MARKDOWN)
     except Exception as e:
         logging.error(f"❌ Помилка при надсиланні в Telegram: {e}")
     
@@ -234,9 +230,6 @@ async def main():
         # ✅ Використовуй тільки Telegram:
         await send_telegram_report(analysis)
 
-        # 6. Надіслати в Telegram
-        asyncio.run(send_telegram_report(analysis))
-
     except Exception as err:
         logging.error("❌ Фатальна помилка у виконанні скрипта:")
         logging.error(traceback.format_exc())
@@ -246,12 +239,5 @@ async def main():
             pass
 if __name__ == "__main__":
     asyncio.run(main())
-    except Exception as err:
-        error_message = f"❌ Помилка в аналізі: {str(err)}"
-        logging.error(error_message)
-        try:
-            if TELEGRAM_TOKEN and ADMIN_CHAT_ID:
-                send_telegram(f"❌ Фатальна помилка у виконанні скрипта:\n{error_message}")
-        except Exception as send_err:
-            logging.error(f"Не вдалося надіслати повідомлення у Telegram: {str(send_err)}")
+
 
