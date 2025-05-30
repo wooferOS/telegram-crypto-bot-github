@@ -51,13 +51,13 @@ def load_from_file(filename):
     return {}
 
 def analyze_balance(client):
-    balances = get_binance_balances(client)
+    balances = get_binance_balances(client)  # {BTC: 0.004, ETH: 0.02, ...}
     result = []
-    for asset in balances.get("balances", []):
-    symbol = asset.get("asset")
-        free = float(asset["free"])
+
+    for symbol, free in balances.items():
         if free == 0 or symbol == "USDT":
             continue
+
         pair = symbol + "USDT"
         try:
             price = float(client.get_symbol_ticker(symbol=pair)["price"])
@@ -70,7 +70,9 @@ def analyze_balance(client):
             })
         except Exception as e:
             log.error(f"❌ Не вдалося отримати ціну для {pair}: {str(e)}")
+
     return sorted(result, key=lambda x: x["value_usdt"], reverse=True)
+
 
 def get_whitelist():
     return [
