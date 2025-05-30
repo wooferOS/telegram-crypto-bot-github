@@ -1,10 +1,9 @@
 #!/bin/bash
 
-cd /root/telegram-crypto-bot-github || exit
-echo "📦 Оновлення коду з GitHub..."
-git pull
+echo "📥 Отримую останні зміни з GitHub..."
+cd ~/telegram-crypto-bot-github || exit
+git pull origin master
 
-echo "🔁 Перезапуск сервісу crypto-bot.service..."
-systemctl restart crypto-bot.service
-
-echo "✅ Бот перезапущено!"
+echo "🔁 Перезапуск бота через systemd..."
+sudo systemctl restart crypto-bot
+sudo systemctl status crypto-bot --no-pager
