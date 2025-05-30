@@ -53,7 +53,7 @@ def get_balance():
                 except:
                     continue
     client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)  # Ініціалізація клієнта
-tickers = client.get_ticker_24hr()  # Отримання всіх тикерів за 24h
+tickers = client.get_ticker()  # Отримання всіх тикерів за 24h
 
 def get_market_data():
     btc_data = client.get_ticker(symbol="BTCUSDT")
