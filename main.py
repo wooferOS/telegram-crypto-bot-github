@@ -76,12 +76,19 @@ def report_btn(message):
 @bot.message_handler(commands=["report"])
 def report_handler(message):
     try:
-        report_text, report_file = generate_daily_report()
+        result = generate_daily_report()
+        if result is None:
+            bot.send_message(message.chat.id, "❌ Помилка при формуванні GPT-звіту.")
+            return
+
+        report_text, report_file = result
         bot.send_message(message.chat.id, report_text, parse_mode="Markdown")
         with open(report_file, "rb") as f:
             bot.send_document(message.chat.id, f)
+
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка при формуванні звіту: {str(e)}")
+
 # 📘 Кнопка: Історія
 @bot.message_handler(func=lambda m: m.text == "📘 Історія")
 def history_btn(message):
