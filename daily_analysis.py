@@ -6,6 +6,7 @@ from binance.client import Client
 from binance.exceptions import BinanceAPIException
 from openai import OpenAI
 import requests
+from telegram import Bot, ParseMode
 import traceback
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -14,6 +15,7 @@ ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 # Ініціалізація клієнтів
 client = Client(api_key=os.getenv("BINANCE_API_KEY"), api_secret=os.getenv("BINANCE_SECRET_KEY"))
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+bot = Bot(token=TELEGRAM_TOKEN)
 
 # Шлях до whitelist
 WHITELIST_PATH = "whitelist.json"
