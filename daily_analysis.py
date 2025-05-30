@@ -5,27 +5,35 @@ from datetime import datetime
 from dotenv import load_dotenv
 from binance.client import Client
 from openai import OpenAI
-from telegram import Bot
-import os
+import requests
+
+load_dotenv()
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
+BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
+
+bot = requests.Session()
+client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
+
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
 bot = Bot(token=TELEGRAM_TOKEN)
 
 def send_telegram(message):
-    if bot and ADMIN_CHAT_ID:
-        bot.send_message(chat_id=ADMIN_CHAT_ID, text=message)
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {"chat_id": ADMIN_CHAT_ID, "text": message, "parse_mode": "Markdown"}
+    try:
+        response = bot.post(url, json=payload)
+        if not response.ok:
+            logging.error(f"Telegram error: {response.text}")
+    except Exception as e:
+        logging.error(f"Telegram send exception: {str(e)}")
 
-load_dotenv()
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
-BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
-BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
-bot = Bot(token=TELEGRAM_TOKEN)
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 WHITELIST = [
     "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "ADAUSDT", "AVAXUSDT",
