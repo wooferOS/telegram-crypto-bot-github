@@ -13,7 +13,7 @@ from telebot.types import (
 from binance.client import Client
 from flask import Flask
 from threading import Thread
-from daily_analysis import run_daily_analysis
+from daily_analysis import generate_daily_report
 
 # Завантаження .env
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
