@@ -8,8 +8,6 @@ WorkingDirectory=/root/telegram-crypto-bot-github
 Restart=always
 User=root
 Environment=PYTHONUNBUFFERED=1
-StandardOutput=file:/root/telegram-crypto-bot-github/logs/bot.log
-StandardError=file:/root/telegram-crypto-bot-github/logs/bot.log
 
 [Install]
 WantedBy=multi-user.target
