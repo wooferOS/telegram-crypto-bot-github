@@ -1,29 +1,35 @@
-name: Daily GPT Report
+name: Daily Analysis
 
 on:
   schedule:
-    - cron: '0 6,17 * * *'  # 09:00 і 20:00 за Києвом (UTC+3)
-  workflow_dispatch:
+    - cron: '0 6,17 * * *'  # Запуск о 09:00 і 20:00 за +03:00
+  workflow_dispatch:        # Можна запускати вручну з GitHub
 
 jobs:
-  report:
+  run-analysis:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
 
-      - name: Install Python
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.10
+          python-version: '3.10'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create .env file from secrets
+        run: |
+          echo "TELEGRAM_TOKEN=${{ secrets.TELEGRAM_TOKEN }}" >> .env
+          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
+          echo "ADMIN_CHAT_ID=${{ secrets.ADMIN_CHAT_ID }}" >> .env
+          echo "BINANCE_API_KEY=${{ secrets.BINANCE_API_KEY }}" >> .env
+          echo "BINANCE_SECRET_KEY=${{ secrets.BINANCE_SECRET_KEY }}" >> .env
 
       - name: Run daily analysis
-        env:
-          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ADMIN_CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
-          BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
-          BINANCE_SECRET_KEY: ${{ secrets.BINANCE_SECRET_KEY }}
-        run: python daily_analysis.py
+        run: python3 daily_analysis.py
