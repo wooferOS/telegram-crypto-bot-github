@@ -5,15 +5,13 @@ import os
 import json
 from dotenv import load_dotenv
 from telebot import TeleBot
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from binance.client import Client
-from telebot.types import CallbackQuery
 from datetime import datetime
 from flask import Flask
 from threading import Thread
 from daily_analysis import generate_daily_report
 import asyncio
-
 
 # Завантаження змінних з .env
 load_dotenv()
@@ -24,287 +22,147 @@ BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 
 bot = TeleBot(TELEGRAM_TOKEN)
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
-
-# 📱 Головне меню кнопок
+# 📲 Клавіатура для головного меню
 def get_main_keyboard():
-    return ReplyKeyboardMarkup([
-    ["💰 Баланс", "📊 Звіт", "📘 Історія"],
-    ["✅ Підтвердити купівлю", "✅ Підтвердити продаж"],
-    ["🔄 Оновити", "🛑 Скасувати"]
-], resize_keyboard=True)
-
-    
-# 🔘 Формування кнопок для купівлі/продажу
-def build_trade_markup(to_buy, to_sell):
-    markup = InlineKeyboardMarkup()
-    for symbol in to_buy:
-        markup.add(InlineKeyboardButton(f"🟢 Купити {symbol}", callback_data=f"confirmbuy_{symbol}"))
-    for symbol in to_sell:
-        markup.add(InlineKeyboardButton(f"🔴 Продати {symbol}", callback_data=f"confirmsell_{symbol}"))
-    return markup
-
-# 📊 Перевірка бюджету перед купівлею
-def check_budget(amount):
-    try:
-        with open("budget.json", "r") as f:
-            b = json.load(f)
-        return (b["used"] + amount) <= b["budget"]
-    except:
-        return False
-# 🟢 /start і /help
-@bot.message_handler(commands=["start", "help"])
-def send_welcome(message):
-    logging.info(f"DEBUG: /start або /help від {message.chat.username}")
-    text = (
-        "👋 Привіт! Я GPT-асистент Binance.\n\n"
-        "🔸 Щодня о 09:00 та 20:00 я надсилаю аналітику.\n"
-        "🔸 Ти можеш підтвердити дії:\n"
-        "   - /confirm_sell — підтвердити продаж\n"
-        "   - /confirm_buy — підтвердити купівлю\n"
-        "   - /report — аналітика GPT\n"
-        "   - /history — історія твоїх угод\n"
-        "   - /set_budget 100 — встановити бюджет\n"
-        "   - /buy BTC 0.01 — купити вручну\n"
-        "   - /sell ETH 0.5 — продати вручну\n"
-        "   - /status — переглянути бюджет\n\n"
-        "💰 Я зберігаю всі твої операції автоматично!"
+    keyboard = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
+    keyboard.add(
+        KeyboardButton("📊 Баланс"),
+        KeyboardButton("📈 Звіт"),
+        KeyboardButton("📜 Історія"),
+        KeyboardButton("✅ Підтвердити купівлю"),
+        KeyboardButton("❌ Підтвердити продаж"),
+        KeyboardButton("🔄 Оновити"),
+        KeyboardButton("🚫 Скасувати")
     )
-    bot.reply_to(message, text, reply_markup=get_main_keyboard())
+    return keyboard
 
-# 🔘 Кнопка: Баланс
-@bot.message_handler(func=lambda m: m.text == "💰 Баланс")
-def handle_balance(message):
+# 🎉 Привітальне повідомлення
+@bot.message_handler(commands=["start"])
+def send_welcome(message):
+    text = "🤖 *Вітаю у Telegram Crypto Bot!* Обери команду з меню."
+    bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+# 📊 Показати баланс Binance
+def get_binance_balance():
     try:
         account_info = client.get_account()
-        balances = [b for b in account_info["balances"] if float(b["free"]) > 0 or float(b["locked"]) > 0]
-        text = "💼 *Твій баланс:*\n"
+        balances = account_info["balances"]
+        filtered = [b for b in balances if float(b["free"]) > 0 or float(b["locked"]) > 0]
+        result = []
+        for b in filtered:
+            asset = b["asset"]
+            free = float(b["free"])
+            locked = float(b["locked"])
+            total = free + locked
+            result.append(f"{asset}: {total:.4f}")
+        return "\n".join(result)
+    except Exception as e:
+        return f"❌ Помилка отримання балансу: {e}"
+
+# Обробка кнопки 📊 Баланс
+@bot.message_handler(func=lambda msg: msg.text == "📊 Баланс")
+def handle_balance(msg):
+    bot.send_message(msg.chat.id, "📊 Ваш баланс:\n" + get_binance_balance())
+# 📋 Головна клавіатура
+def get_main_keyboard():
+    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    kb.row("📊 Баланс", "📈 Звіт")
+    kb.row("🕘 Історія", "♻️ Оновити")
+    kb.row("✅ Підтвердити купівлю", "✅ Підтвердити продаж")
+    kb.row("❌ Скасувати")
+    return kb
+
+# Обробка команди /menu або кнопки "📋 Меню"
+@bot.message_handler(commands=["menu"])
+def show_menu(message):
+    bot.send_message(message.chat.id, "📋 Обери дію:", reply_markup=get_main_keyboard())
+# 🧾 Команда /balance або кнопка "📊 Баланс"
+@bot.message_handler(commands=["balance"])
+@bot.message_handler(func=lambda message: message.text == "📊 Баланс")
+def send_balance(message):
+    try:
+        account_info = client.get_account()
+        balances = account_info["balances"]
+        text = "*💰 Баланс акаунта Binance:*\n\n"
+        total = 0.0
         for b in balances:
-            total = float(b["free"]) + float(b["locked"])
-            text += f"- {b['asset']}: {total}\n"
+            asset = b["asset"]
+            free = float(b["free"])
+            if free > 0:
+                if asset == "USDT":
+                    total += free
+                text += f"• {asset}: `{free}`\n"
+        text += f"\n*Загалом (USDT еквівалент):* `{round(total, 2)} USDT`"
         bot.send_message(message.chat.id, text, parse_mode="Markdown")
     except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка при отриманні балансу: {str(e)}")
-        
-# 📊 Кнопка: Звіт
-@bot.message_handler(func=lambda m: m.text == "📊 Звіт")
-def report_btn(message):
-    handle_report(message)
+        bot.send_message(message.chat.id, f"❌ Помилка отримання балансу: {e}")
 
-# 📈 Команда /report — GPT-аналітика
+# 📈 Команда /report або кнопка "📈 Звіт"
 @bot.message_handler(commands=["report"])
-def handle_report(message):
-    bot.send_message(message.chat.id, "📊 Формую GPT-звіт, зачекайте...")
-
-    async def process_report():
-        try:
-            result = await generate_daily_report()
-            if result is None:
-                bot.send_message(message.chat.id, "❌ Помилка при формуванні GPT-звіту.")
-                return
-
-            report_text, to_buy, to_sell = result
-            markup = build_trade_markup(to_buy, to_sell)
-            bot.send_message(message.chat.id, report_text, parse_mode="Markdown", reply_markup=markup)
-
-        except Exception as e:
-            bot.send_message(message.chat.id, f"❌ Помилка при формуванні звіту: {str(e)}")
-
-    asyncio.run(process_report())
-
-
-# 📘 Кнопка: Історія
-@bot.message_handler(func=lambda m: m.text == "📘 Історія")
-def history_btn(message):
-    handle_history(message)
-
-# 📘 Команда /history — історія угод
-@bot.message_handler(commands=["history"])
-def handle_history(message):
-    history_file = "trade_history.json"
-    if not os.path.exists(history_file):
-        bot.send_message(message.chat.id, "📭 Історія порожня.")
-        return
-    with open(history_file, "r") as f:
-        history = json.load(f)
-    if not history:
-        bot.send_message(message.chat.id, "📭 Історія ще не збережена.")
-        return
-    text = "📘 *ІСТОРІЯ УГОД*:\n"
-    grouped = {}
-    for item in history:
-        date = item["date"].split(" ")[0]
-        grouped.setdefault(date, []).append(item)
-    for date, entries in grouped.items():
-        text += f"\n📆 {date}:\n"
-        for e in entries:
-            emoji = "✅" if e["action"] == "buy" else "❌"
-            text += f"- {emoji} {e['action'].upper()} {e['asset']} — {e['amount']}\n"
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
-# ✅ Кнопка: Підтвердити купівлю
-@bot.message_handler(func=lambda m: m.text == "✅ Підтвердити купівлю")
-def confirm_buy_button(message):
-    bot.send_message(message.chat.id, "🛒 Виклик підтвердження купівлі через /confirm_buy")
-
-# ✅ Кнопка: Підтвердити продаж
-@bot.message_handler(func=lambda m: m.text == "✅ Підтвердити продаж")
-def confirm_sell_button(message):
-    bot.send_message(message.chat.id, "💸 Виклик підтвердження продажу через /confirm_sell")
-
-# 🛑 Кнопка: Скасувати
-@bot.message_handler(func=lambda m: m.text == "🛑 Скасувати")
-def cancel(message):
-    bot.send_message(message.chat.id, "❌ Операцію скасовано")
-
-# 🔄 Кнопка: Оновити
-@bot.message_handler(func=lambda m: m.text == "🔄 Оновити")
-def refresh(message):
-    bot.send_message(message.chat.id, "🔄 Дані оновлено (реалізація триває)")
-# ✅ /confirm_sell — виконати продаж
-@bot.message_handler(commands=["confirm_sell"])
-def confirm_sell(message):
-    assets = [
-        {"asset": "AMB", "amount": 0.73},
-        {"asset": "GFT", "amount": 74},
-    ]
+@bot.message_handler(func=lambda message: message.text == "📈 Звіт")
+def send_report(message):
     try:
-        for asset in assets:
-            symbol = f"{asset['asset']}USDT"
-            client.create_order(symbol=symbol, side="SELL", type="MARKET", quantity=asset["amount"])
-        save_trade_history(assets, action="sell")
-        bot.reply_to(message, "✅ Продаж виконано та збережено в історії.")
+        bot.send_message(message.chat.id, "📡 Формую аналітичний звіт...")
+
+        result = run_daily_analysis()
+        bot.send_message(message.chat.id, result, parse_mode="Markdown")
     except Exception as e:
-        msg = "⚠️ Недостатньо балансу." if "INSUFFICIENT_BALANCE" in str(e) else f"❌ Помилка: {str(e)}"
-        bot.reply_to(message, msg)
-
-# ✅ /confirm_buy_inline — кнопка підтвердження купівлі
-@bot.message_handler(commands=["confirm_buy_inline"])
-def confirm_buy_inline(message):
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("✅ Підтвердити купівлю", callback_data="buy_now"))
-    bot.send_message(message.chat.id, "Підтверди купівлю криптовалюти:", reply_markup=markup)
-
-@bot.callback_query_handler(func=lambda call: call.data == "buy_now")
-def execute_buy(call):
-    assets = [
-        {"asset": "XRP", "amount": 10},
-    ]
-    total = sum([a["amount"] for a in assets])
-    if not check_budget(total):
-        bot.send_message(call.message.chat.id, "⚠️ Перевищено бюджет.")
-        return
+        bot.send_message(message.chat.id, f"❌ Не вдалося сформувати звіт: {e}")
+# ✅ Обробка підтвердження купівлі
+@bot.message_handler(commands=["confirmbuy"])
+@bot.message_handler(func=lambda message: message.text == "✅ Підтвердити купівлю")
+def confirm_buy(message):
     try:
-        for asset in assets:
-            symbol = f"{asset['asset']}USDT"
-            client.create_order(symbol=symbol, side="BUY", type="MARKET", quantity=asset["amount"])
-        save_trade_history(assets, action="buy")
-        with open("budget.json", "r") as f:
-            b = json.load(f)
-        b["used"] += total
-        with open("budget.json", "w") as f:
-            json.dump(b, f)
-        bot.edit_message_text(call.message.chat.id, call.message.message_id, "✅ Купівля виконана.")
-    except Exception as e:
-        msg = "⚠️ Недостатньо балансу." if "INSUFFICIENT_BALANCE" in str(e) else f"❌ Помилка: {str(e)}"
-        bot.send_message(call.message.chat.id, msg)
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("confirmbuy_"))
-def handle_confirm_buy(call):
-    coin = call.data.split("_")[1]
-    bot.answer_callback_query(call.id)
-
-    try:
-        # 🧮 Отримуємо USDT баланс
-        balance = client.get_asset_balance(asset="USDT")
-        usdt_balance = float(balance["free"])
-
-        if usdt_balance < 5:
-            bot.send_message(call.message.chat.id, "⚠️ Недостатньо USDT для купівлі.")
+        data = load_signal("buy")
+        if not data:
+            bot.send_message(message.chat.id, "ℹ️ Немає сигналу для купівлі.")
             return
+        coin = data["symbol"]
+        quantity = float(data["quantity"])
+        price = float(data["price"])
 
-        # 📈 Ціна монети
-        price = float(client.get_symbol_ticker(symbol=f"{coin}USDT")["price"])
+        order = client.order_market_buy(symbol=f"{coin}USDT", quantity=round(quantity, 6))
+        bot.send_message(message.chat.id, f"✅ Куплено {quantity} {coin} за ринковою ціною.")
 
-        # 📦 Розрахунок кількості
-        quantity = round(usdt_balance / price, 6)
-
-        # 🛒 Створення ордера
-        order = client.create_order(
-            symbol=f"{coin}USDT",
-            side="BUY",
-            type="MARKET",
-            quantity=quantity
-        )
-
-        # ✅ Звіт
-        bot.send_message(call.message.chat.id, f"✅ Куплено {quantity} {coin}.")
-
-        # 📝 Логування в історію
         save_trade_history([{
             "symbol": coin,
             "action": "BUY",
             "quantity": quantity,
-            "usdt_spent": round(usdt_balance, 2),
-            "price": price,
             "time": datetime.now().isoformat()
         }], action="BUY")
 
     except Exception as e:
-        bot.send_message(call.message.chat.id, f"❌ Помилка при купівлі {coin}: {e}")
+        bot.send_message(message.chat.id, f"❌ Помилка при купівлі: {e}")
 
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("confirmsell_"))
-def handle_confirm_sell(call):
-    coin = call.data.split("_")[1]
-    bot.answer_callback_query(call.id)
-
+# ✅ Обробка підтвердження продажу
+@bot.message_handler(commands=["confirmsell"])
+@bot.message_handler(func=lambda message: message.text == "✅ Підтвердити продаж")
+def confirm_sell(message):
     try:
-        balance = client.get_asset_balance(asset=coin)
-        quantity = round(float(balance["free"]), 6)
-
-        if quantity == 0:
-            bot.send_message(call.message.chat.id, f"⚠️ Недостатньо {coin} для продажу.")
+        data = load_signal("sell")
+        if not data:
+            bot.send_message(message.chat.id, "ℹ️ Немає сигналу для продажу.")
             return
+        coin = data["symbol"]
+        quantity = float(data["quantity"])
+        price = float(data["price"])
 
-        order = client.create_order(
+        stop_price = round(price * 0.97, 4)
+        limit_price = round(price * 1.05, 4)
+
+        client.create_order(
             symbol=f"{coin}USDT",
             side="SELL",
-            type="MARKET",
-            quantity=quantity
+            type="OCO",
+            quantity=round(quantity, 6),
+            price=str(limit_price),
+            stopPrice=str(stop_price),
+            stopLimitPrice=str(stop_price),
+            stopLimitTimeInForce='GTC'
         )
-        
-# 🎯 Встановлюємо Stop-Loss і Take-Profit через OCO
-try:
-    stop_price = round(price * 0.97, 4)
-    limit_price = round(price * 1.05, 4)
 
-    client.create_order(
-        symbol=f"{coin}USDT",
-        side="SELL",
-        type="OCO",
-        quantity=round(quantity, 6),
-        price=str(limit_price),
-        stopPrice=str(stop_price),
-        stopLimitPrice=str(stop_price),
-        stopLimitTimeInForce='GTC'
-    )
+        bot.send_message(message.chat.id, f"💚Stop-loss: {stop_price} | Take-profit: {limit_price} для {coin} встановлено.")
+        bot.send_message(message.chat.id, f"✅Продано {quantity} {coin}.")
 
-    bot.send_message(call.message.chat.id, f"💚Stop-loss: {stop_price} | Take-profit: {limit_price} для {coin} встановлено.")
-    bot.send_message(call.message.chat.id, f"✅Продано {quantity} {coin}.")
-    
-    save_trade_history([{
-        "symbol": coin,
-        "action": "SELL",
-        "quantity": quantity,
-        "time": datetime.now().isoformat()
-    }], action="SELL")
-
-except Exception as e:
-    bot.send_message(call.message.chat.id, f"⚠️ Не вдалося виконати операцію: {e}")
-
-        # ✅ Звіт
-        bot.send_message(call.message.chat.id, f"✅ Продано {quantity} {coin}.")
-
-        # ✅ Історія
         save_trade_history([{
             "symbol": coin,
             "action": "SELL",
@@ -313,79 +171,125 @@ except Exception as e:
         }], action="SELL")
 
     except Exception as e:
-        bot.send_message(call.message.chat.id, f"❌ Помилка при продажу {coin}: {e}")
-
-
-
-# 💸 Ручна купівля /buy BTC 0.01
+        bot.send_message(message.chat.id, f"⚠️ Не вдалося виконати операцію: {e}")
+# ✅ Команда ручної купівлі
 @bot.message_handler(commands=["buy"])
-def manual_buy(message):
+def handle_buy(message):
     try:
-        parts = message.text.strip().split()
-        if len(parts) != 3:
-            bot.reply_to(message, "❗️ Формат: /buy BTC 0.01")
+        args = message.text.split()
+        if len(args) != 3:
+            bot.send_message(message.chat.id, "❗ Формат: /buy BTC 0.01")
             return
-        asset, amount = parts[1].upper(), float(parts[2])
-        if not check_budget(amount):
-            bot.reply_to(message, "⚠️ Перевищено бюджет.")
-            return
-        symbol = f"{asset}USDT"
-        client.create_order(symbol=symbol, side="BUY", type="MARKET", quantity=amount)
-        save_trade_history([{"asset": asset, "amount": amount}], action="buy")
-        with open("budget.json", "r") as f:
-            b = json.load(f)
-        b["used"] += amount
-        with open("budget.json", "w") as f:
-            json.dump(b, f)
-        bot.reply_to(message, f"✅ Купівля {amount} {asset} виконана.")
-    except Exception as e:
-        msg = "⚠️ Недостатньо балансу." if "INSUFFICIENT_BALANCE" in str(e) else f"❌ Помилка: {str(e)}"
-        bot.reply_to(message, msg)
+        coin = args[1].upper()
+        quantity = float(args[2])
+        price = float(client.get_symbol_ticker(symbol=f"{coin}USDT")["price"])
 
-# 💰 Ручний продаж /sell ETH 0.5
+        save_signal("buy", {
+            "symbol": coin,
+            "quantity": quantity,
+            "price": price
+        })
+        bot.send_message(message.chat.id, f"📥 Сигнал купівлі {quantity} {coin} збережено.\nНатисни *✅ Підтвердити купівлю*", parse_mode="Markdown")
+
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Помилка: {e}")
+
+# ✅ Команда ручного продажу
 @bot.message_handler(commands=["sell"])
-def manual_sell(message):
+def handle_sell(message):
     try:
-        parts = message.text.strip().split()
-        if len(parts) != 3:
-            bot.reply_to(message, "❗️ Формат: /sell ETH 0.5")
+        args = message.text.split()
+        if len(args) != 3:
+            bot.send_message(message.chat.id, "❗ Формат: /sell BTC 0.01")
             return
-        asset, amount = parts[1].upper(), float(parts[2])
-        symbol = f"{asset}USDT"
-        client.create_order(symbol=symbol, side="SELL", type="MARKET", quantity=amount)
-        save_trade_history([{"asset": asset, "amount": amount}], action="sell")
-        bot.reply_to(message, f"✅ Продаж {amount} {asset} виконано.")
-    except Exception as e:
-        msg = "⚠️ Недостатньо активу." if "INSUFFICIENT_BALANCE" in str(e) else f"❌ Помилка: {str(e)}"
-        bot.reply_to(message, msg)
+        coin = args[1].upper()
+        quantity = float(args[2])
+        price = float(client.get_symbol_ticker(symbol=f"{coin}USDT")["price"])
 
-# 📊 /status — перегляд бюджету
-@bot.message_handler(commands=["status"])
-def status(message):
+        save_signal("sell", {
+            "symbol": coin,
+            "quantity": quantity,
+            "price": price
+        })
+        bot.send_message(message.chat.id, f"📤 Сигнал продажу {quantity} {coin} збережено.\nНатисни *✅ Підтвердити продаж*", parse_mode="Markdown")
+
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Помилка: {e}")
+# ✅ Підтвердження купівлі
+@bot.message_handler(commands=["confirmbuy"])
+def confirm_buy(message):
     try:
-        with open("budget.json", "r") as f:
-            b = json.load(f)
-        used = b["used"]
-        budget = b["budget"]
-        percent = round((used / budget) * 100, 2) if budget else 0
-        bot.reply_to(message, f"📊 *Бюджет*: {used} / {budget} USDT (*{percent}% використано*)", parse_mode="Markdown")
-    except Exception as e:
-        bot.reply_to(message, f"❌ Помилка: {str(e)}")
+        with open("signals.json", "r") as f:
+            data = json.load(f)
+        buy = data.get("buy", {})
+        coin = buy["symbol"]
+        quantity = float(buy["quantity"])
+        price = float(client.get_symbol_ticker(symbol=f"{coin}USDT")["price"])
 
-# /set_budget 100
+        client.order_market_buy(
+            symbol=f"{coin}USDT",
+            quantity=quantity
+        )
+        bot.send_message(message.chat.id, f"✅ Куплено {quantity} {coin} за ціною ~{price}")
+
+        save_trade_history([{
+            "symbol": coin,
+            "action": "BUY",
+            "quantity": quantity,
+            "time": datetime.now().isoformat()
+        }], action="BUY")
+
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Помилка при купівлі: {e}")
+
+# ✅ Підтвердження продажу з Stop-Loss / Take-Profit
+@bot.message_handler(commands=["confirmsell"])
+def confirm_sell(message):
+    try:
+        with open("signals.json", "r") as f:
+            data = json.load(f)
+        sell = data.get("sell", {})
+        coin = sell["symbol"]
+        quantity = float(sell["quantity"])
+        price = float(client.get_symbol_ticker(symbol=f"{coin}USDT")["price"])
+
+        stop_price = round(price * 0.97, 4)      # -3%
+        limit_price = round(price * 1.05, 4)     # +5%
+
+        client.create_order(
+            symbol=f"{coin}USDT",
+            side="SELL",
+            type="OCO",
+            quantity=round(quantity, 6),
+            price=str(limit_price),
+            stopPrice=str(stop_price),
+            stopLimitPrice=str(stop_price),
+            stopLimitTimeInForce='GTC'
+        )
+
+        bot.send_message(message.chat.id, f"💚Stop-loss: {stop_price} | Take-profit: {limit_price} для {coin} встановлено.")
+        bot.send_message(message.chat.id, f"✅Продано {quantity} {coin}.")
+
+        save_trade_history([{
+            "symbol": coin,
+            "action": "SELL",
+            "quantity": quantity,
+            "time": datetime.now().isoformat()
+        }], action="SELL")
+
+    except Exception as e:
+        bot.send_message(message.chat.id, f"⚠️ Не вдалося виконати операцію: {e}")
+# 💰 Установка бюджету
 @bot.message_handler(commands=["set_budget"])
 def set_budget(message):
+    msg = bot.send_message(message.chat.id, "📝 Введи бюджет у USDT:")
+    bot.register_next_step_handler(msg, save_budget)
+
+def save_budget(message):
     try:
-        parts = message.text.strip().split()
-        if len(parts) != 2:
-            bot.reply_to(message, "❗️ Формат: /set_budget 100")
-            return
-        new_budget = float(parts[1])
-        with open("budget.json", "r") as f:
-            b = json.load(f)
-        b["budget"] = new_budget
+        new_budget = float(message.text)
         with open("budget.json", "w") as f:
-            json.dump(b, f)
+            json.dump({"budget": new_budget}, f)
         bot.reply_to(message, f"✅ Новий бюджет: *{new_budget}* USDT", parse_mode="Markdown")
     except Exception as e:
         bot.reply_to(message, f"❌ Помилка: {str(e)}")
@@ -394,6 +298,7 @@ def set_budget(message):
 @bot.message_handler(commands=["menu"])
 def show_menu(message):
     bot.send_message(message.chat.id, "📋 Обери дію:", reply_markup=get_main_keyboard())
+
 # 🗃️ Збереження історії угод
 def save_trade_history(entries, action):
     today = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -412,7 +317,6 @@ def save_trade_history(entries, action):
             json.dump(history, f, indent=2)
     except Exception as e:
         print("❌ Помилка при збереженні історії:", e)
-
 # Healthcheck Flask app
 health_app = Flask(__name__)
 
@@ -427,11 +331,7 @@ def run_flask():
 flask_thread = Thread(target=run_flask)
 flask_thread.start()
 
-
-# ✅ Запуск бота
+# ✅ Запуск Telegram-бота
 if __name__ == "__main__":
     print("🚀 Бот запущено!")
     bot.polling(none_stop=True)
-
-
-
