@@ -221,11 +221,20 @@ def build_gpt_prompt(balances, market_data):
     prompt += "Поточні активи:\n"
     for asset, amount in balances.items():
         prompt += f"- {asset}: {amount}\n"
+
     prompt += "\nАктуальні ринкові дані:\n"
-    for symbol, data in market_data.items():
+    
+    # Сортуємо по обʼєму торгів — від найбільшого до найменшого
+    sorted_market = sorted(market_data.items(), key=lambda x: x[1]['volume'], reverse=True)
+
+    # Вибираємо лише топ-30 найактивніших
+    top_market = sorted_market[:30]
+
+    for symbol, data in top_market:
         prompt += f"- {symbol}: {data['change']}% змін, обʼєм {data['volume']}, ціна {data['last_price']}\n"
-    prompt += "\nРезультат подай у вигляді рекомендацій з обґрунтуванням."
+
     return prompt
+
     
 def ask_gpt(prompt):
     try:
