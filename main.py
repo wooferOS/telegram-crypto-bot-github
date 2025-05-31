@@ -1,197 +1,177 @@
+# 📦 main.py — Telegram бот для GPT-аналітики Binance
+
 import os
-from dotenv import load_dotenv
-
-dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
-load_dotenv(dotenv_path)
-
 import json
 import logging
 from datetime import datetime
+from dotenv import load_dotenv
+from telebot import TeleBot
+from telebot.types import (
+    ReplyKeyboardMarkup, KeyboardButton,
+    InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+)
 from binance.client import Client
-from binance.exceptions import BinanceAPIException
-from openai import OpenAI
-import requests
-from telegram import Bot
-from telegram.constants import ParseMode
-import traceback
-import asyncio
+from flask import Flask
+from threading import Thread
+from daily_analysis import run_daily_analysis
 
-# Логування
-LOG_FILE = "daily.log"
-logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format="%(asctime)s %(levelname)s:%(message)s")
-# Завантаження змінних із .env
+# Завантаження .env
+dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+load_dotenv(dotenv_path)
+# Ініціалізація змінних середовища
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID"))
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 
 # Ініціалізація клієнтів
+bot = TeleBot(TELEGRAM_TOKEN)
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
-bot = Bot(token=TELEGRAM_TOKEN)
 
-# Константи
-WHITELIST_PATH = "whitelist.json"
-UAH_RATE = 43.0  # курс гривні
-# Отримати баланс з Binance
-def get_binance_balance():
-    balances = client.get_account()["balances"]
-    result = {}
+# Логування
+logging.basicConfig(level=logging.INFO)
+# 📱 Клавіатура
+main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+main_keyboard.add(
+    KeyboardButton("📊 Баланс"),
+    KeyboardButton("📈 Звіт"),
+    KeyboardButton("📜 Історія"),
+)
+main_keyboard.add(
+    KeyboardButton("✅ Підтвердити купівлю"),
+    KeyboardButton("❌ Підтвердити продаж")
+)
+main_keyboard.add(
+    KeyboardButton("🔄 Оновити"),
+    KeyboardButton("🚫 Скасувати")
+)
+# 🟢 Команди старту
+@bot.message_handler(commands=["start", "menu", "help"])
+def start_handler(message):
+    bot.send_message(
+        message.chat.id,
+        "👋 Вітаю! Я GPT-аналітик крипторинку Binance.\n\nНатисніть кнопку нижче або оберіть команду:",
+        reply_markup=main_keyboard
+    )
+# 📊 Баланс
+@bot.message_handler(func=lambda m: m.text == "📊 Баланс")
+def handle_balance(message):
+    balances = client.get_account().get("balances", [])
+    text = "📊 <b>Поточний баланс Binance:</b>\n\n"
+    total_usdt = 0.0
+
     for asset in balances:
         free = float(asset["free"])
-        if free > 0:
-            symbol = asset["asset"]
-            if symbol.endswith("UP") or symbol.endswith("DOWN"):
+        locked = float(asset["locked"])
+        total = free + locked
+        if total > 0 and asset["asset"] != "USDT":
+            symbol = f'{asset["asset"]}USDT'
+            try:
+                price = float(client.get_symbol_ticker(symbol=symbol)["price"])
+                value = round(total * price, 2)
+                total_usdt += value
+                text += f'▫️ <b>{asset["asset"]}</b>: {round(total, 4)} ≈ {value} USDT\n'
+            except:
                 continue
-            result[symbol] = free
-    return result
+        elif asset["asset"] == "USDT":
+            total_usdt += total
+            text += f'▫️ <b>USDT</b>: {round(total, 2)} USDT\n'
 
-# Завантажити whitelist
-def load_whitelist():
-    if os.path.exists(WHITELIST_PATH):
-        with open(WHITELIST_PATH, "r") as f:
-            return json.load(f)
-    return []
-
-# Отримати поточну ціну монети в USDT
-def get_price(symbol):
+    text += f"\n<b>Загальна вартість:</b> {round(total_usdt, 2)} USDT"
+    bot.send_message(message.chat.id, text, parse_mode="HTML")
+# 📈 Звіт
+@bot.message_handler(func=lambda m: m.text == "📈 Звіт")
+def handle_report(message):
+    msg = bot.send_message(message.chat.id, "📡 Зачекай, формую GPT-звіт...")
     try:
-        if symbol == "USDT":
-            return 1.0
-        return float(client.get_symbol_ticker(symbol=f"{symbol}USDT")["price"])
-    except Exception:
-        return None
-# Форматувати число з 2 знаками після коми
-def fmt(x):
-    return f"{x:.2f}"
-
-# GPT-запит на базі опису ринку
-async def ask_gpt(prompt):
-    try:
-        response = openai_client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "Ти криптоаналітик. Давай чіткі торгові рекомендації за 24-годинною динамікою. Не додавай фраз типу 'я не фінансовий радник'."},
-                {"role": "user", "content": prompt},
-            ],
-            temperature=0.4,
-        )
-        return response.choices[0].message.content
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(generate_daily_report())
+        bot.edit_message_text(chat_id=message.chat.id, message_id=msg.message_id, text=result, parse_mode=ParseMode.HTML)
     except Exception as e:
-        logging.error(f"❌ GPT-помилка: {e}")
-        return "GPT недоступний. Спробуйте пізніше."
-# Завантажити whitelist монет
-def load_whitelist():
+        error_text = f"❌ Помилка формування звіту: {str(e)}"
+        bot.edit_message_text(chat_id=message.chat.id, message_id=msg.message_id, text=error_text)
+        logging.error(error_text)
+# 📊 Баланс
+@bot.message_handler(func=lambda m: m.text == "📊 Баланс")
+def handle_balance(message):
     try:
-        with open(WHITELIST_PATH, "r") as f:
-            return json.load(f)
-    except:
-        return []
-
-# Отримати актуальний баланс у Binance
-def get_current_holdings():
-    holdings = {}
-    prices = client.get_all_tickers()
-    ticker_price = {item["symbol"]: float(item["price"]) for item in prices}
-
-    account = client.get_account()
-    for balance in account["balances"]:
-        asset = balance["asset"]
-        free = float(balance["free"])
-        if free > 0:
-            symbol = asset + "USDT"
-            price = ticker_price.get(symbol, 0)
-            holdings[asset] = {
-                "amount": free,
-                "price": price,
-                "value_usdt": free * price
-            }
-    return holdings
-# PNL для кожної монети на основі попередніх цін
-def load_previous_snapshot():
-    try:
-        with open("prev_snapshot.json", "r") as f:
-            return json.load(f)
-    except:
-        return {}
-
-def save_current_snapshot(data):
-    with open("prev_snapshot.json", "w") as f:
-        json.dump(data, f)
-
-def calculate_daily_pnl(current, previous):
-    pnl = {}
-    for asset, info in current.items():
-        prev_info = previous.get(asset)
-        if prev_info:
-            change = ((info["price"] - prev_info["price"]) / prev_info["price"]) * 100
-            pnl[asset] = round(change, 2)
-        else:
-            pnl[asset] = 0.0
-    return pnl
-
-def convert_to_uah(usdt_amount):
-    return round(usdt_amount * UAH_RATE, 2)
-def format_portfolio_report(balance_info, pnl_data, recommendations, total_expected_profit):
-    lines = ["📊 *Щоденний звіт по портфелю*",
-             f"🕒 Станом на: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ""]
-
-    lines.append("*💼 Баланс:*")
-    for asset, data in balance_info.items():
-        usdt_val = round(data["usdt_value"], 2)
-        avg_price = data.get("avg_price", "—")
-        pnl = pnl_data.get(asset, 0)
-        uah_val = convert_to_uah(usdt_val)
-        lines.append(f"• {asset}: {data['amount']} (~{usdt_val} USDT | {uah_val} UAH) | Середня ціна: {avg_price} | PNL: {pnl}%")
-    lines.append("")
-
-    lines.append("*📉 Рекомендовано продати:*")
-    if recommendations["sell"]:
-        for item in recommendations["sell"]:
-            lines.append(f"• {item['symbol']}: прогноз слабкий, продача вигідна")
-    else:
-        lines.append("• Нічого не рекомендовано продавати.")
-    lines.append("")
-
-    lines.append("*📈 Рекомендовано купити:*")
-    if recommendations["buy"]:
-        for item in recommendations["buy"]:
-            sl = item.get("stop_loss")
-            tp = item.get("take_profit")
-            lines.append(f"• {item['symbol']}: вигідна динаміка | Очікуваний прибуток: {item['expected_profit']}% | SL: {sl} | TP: {tp}")
-    else:
-        lines.append("• Немає актуальних покупок на добу.")
-    lines.append("")
-
-    lines.append(f"💰 *Сумарний очікуваний прибуток за добу:* ~{total_expected_profit}%")
-
-    return "\n".join(lines)
-async def generate_daily_report():
-    try:
-        balance_info = get_portfolio_balance()
-        prices = get_whitelist_prices()
-        pnl_data = calculate_pnl(balance_info)
-        recommendations = analyze_market(prices, balance_info)
-        total_expected_profit = round(sum(item["expected_profit"] for item in recommendations["buy"]), 2)
-
-        report = format_portfolio_report(balance_info, pnl_data, recommendations, total_expected_profit)
-        logging.info("✅ GPT-звіт сформовано")
-
-        bot.send_message(chat_id=ADMIN_CHAT_ID, text=report, parse_mode=ParseMode.MARKDOWN)
-        logging.info("📤 Звіт надіслано в Telegram")
-
+        balances = client.get_account()["balances"]
+        text = "<b>💰 Поточний баланс:</b>\n\n"
+        for asset in balances:
+            free = float(asset["free"])
+            locked = float(asset["locked"])
+            total = free + locked
+            if total > 0:
+                text += f"{asset['asset']}: {total:.4f}\n"
+        bot.send_message(message.chat.id, text, parse_mode=ParseMode.HTML)
     except Exception as e:
-        logging.error(f"❌ Помилка під час створення звіту: {e}")
-        traceback.print_exc()
-        bot.send_message(chat_id=ADMIN_CHAT_ID, text=f"❌ Помилка під час створення звіту:\n{e}")
-def run_daily_analysis():
+        bot.send_message(message.chat.id, f"❌ Помилка отримання балансу: {str(e)}")
+        logging.error(f"BALANCE ERROR: {str(e)}")
+# 📈 Звіт
+@bot.message_handler(func=lambda m: m.text == "📈 Звіт")
+def handle_report(message):
+    try:
+        bot.send_message(message.chat.id, "⏳ Генеруємо звіт...")
+        asyncio.run(generate_daily_report())
+        bot.send_message(message.chat.id, "✅ Звіт надіслано.")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Помилка генерації звіту: {str(e)}")
+        logging.error(f"REPORT ERROR: {str(e)}")
+# 🟢 Підтвердити купівлю
+@bot.message_handler(func=lambda m: m.text == "🟢 Підтвердити купівлю")
+def handle_confirm_buy(message):
+    bot.send_message(message.chat.id, "✅ Підтвердження купівлі буде реалізовано окремою логікою.")
+
+# 🔴 Підтвердити продаж
+@bot.message_handler(func=lambda m: m.text == "🔴 Підтвердити продаж")
+def handle_confirm_sell(message):
+    bot.send_message(message.chat.id, "✅ Підтвердження продажу буде реалізовано окремою логікою.")
+
+# ♻️ Оновити
+@bot.message_handler(func=lambda m: m.text == "♻️ Оновити")
+def handle_refresh(message):
+    bot.send_message(message.chat.id, "🔄 Дані оновлюються...")
     asyncio.run(generate_daily_report())
 
+# ❌ Скасувати
+@bot.message_handler(func=lambda m: m.text == "❌ Скасувати")
+def handle_cancel(message):
+    bot.send_message(message.chat.id, "❎ Дію скасовано.")
+# Обробка callback-кнопок (якщо використовуєш inline-кнопки)
+@bot.callback_query_handler(func=lambda call: True)
+def callback_inline(call: CallbackQuery):
+    try:
+        if call.data.startswith("confirmbuy_"):
+            pair = call.data.split("_")[1]
+            bot.send_message(call.message.chat.id, f"✅ Ви підтвердили купівлю {pair}")
+            # Тут буде логіка купівлі через Binance API
 
+        elif call.data.startswith("confirmsell_"):
+            pair = call.data.split("_")[1]
+            bot.send_message(call.message.chat.id, f"✅ Ви підтвердили продаж {pair}")
+            # Тут буде логіка продажу через Binance API
+
+        else:
+            bot.send_message(call.message.chat.id, "⚠️ Невідома дія.")
+    except Exception as e:
+        logging.error(f"❌ Callback помилка: {e}")
+        bot.send_message(call.message.chat.id, "❌ Сталася помилка при обробці дії.")
+# Flask app для healthcheck
+app = Flask(__name__)
+
+@app.route("/health", methods=["GET", "HEAD"])
+def health_check():
+    return "OK", 200
+
+def run_flask():
+    app.run(host="0.0.0.0", port=10000)
+
+def run_bot():
+    logging.info("🚀 Бот запущено!")
+    bot.infinity_polling()
 if __name__ == "__main__":
-    run_daily_analysis()
-    
-# 📘 Кінець файлу daily_analysis.py
-# 🔁 Цей скрипт запускається щодня через GitHub Actions або вручну
-# 🚀 Створює звіт, надсилає в Telegram, прогнозує угоди
+    flask_thread = Thread(target=run_flask)
+    flask_thread.start()
+
+    run_bot()
