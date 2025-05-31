@@ -11,6 +11,9 @@ from telebot.types import CallbackQuery
 from datetime import datetime
 from flask import Flask
 from threading import Thread
+from daily_analysis import generate_daily_report
+import asyncio
+
 
 # Завантаження змінних з .env
 load_dotenv()
@@ -75,29 +78,29 @@ def handle_balance(message):
 # 📊 Кнопка: Звіт
 @bot.message_handler(func=lambda m: m.text == "📊 Звіт")
 def report_btn(message):
-    report_handler(message)
+    handle_report(message)
 
 # 📈 Команда /report — GPT-аналітика
 @bot.message_handler(commands=["report"])
-def report_handler(message):
-    try:
-        import asyncio
-        result = asyncio.run(generate_daily_report())
-        if result is None:
-            bot.send_message(message.chat.id, "❌ Помилка при формуванні GPT-звіту.")
-            return
+def handle_report(message):
+    bot.send_message(message.chat.id, "📊 Формую GPT-звіт, зачекайте...")
 
-        # ⬅️ Замість файлу: розпаковка даних
-        report_text, to_buy, to_sell = result
+    async def process_report():
+        try:
+            result = await generate_daily_report()
+            if result is None:
+                bot.send_message(message.chat.id, "❌ Помилка при формуванні GPT-звіту.")
+                return
 
-        # ✅ Кнопки
-        markup = build_trade_markup(to_buy, to_sell)
+            report_text, to_buy, to_sell = result
+            markup = build_trade_markup(to_buy, to_sell)
+            bot.send_message(message.chat.id, report_text, parse_mode="Markdown", reply_markup=markup)
 
-        # 📩 Надсилаємо звіт з кнопками
-        bot.send_message(message.chat.id, report_text, parse_mode="Markdown", reply_markup=markup)
+        except Exception as e:
+            bot.send_message(message.chat.id, f"❌ Помилка при формуванні звіту: {str(e)}")
 
-    except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка при формуванні звіту: {str(e)}")
+    asyncio.run(process_report())
+
 
 # 📘 Кнопка: Історія
 @bot.message_handler(func=lambda m: m.text == "📘 Історія")
