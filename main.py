@@ -9,6 +9,8 @@ from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from binance.client import Client
 from telebot.types import CallbackQuery
 from datetime import datetime
+from flask import Flask
+from threading import Thread
 
 # Завантаження змінних з .env
 load_dotenv()
@@ -368,7 +370,20 @@ def save_trade_history(entries, action):
             json.dump(history, f, indent=2)
     except Exception as e:
         print("❌ Помилка при збереженні історії:", e)
-        
+
+# Healthcheck Flask app
+health_app = Flask(__name__)
+
+@health_app.route("/health")
+def health():
+    return "OK", 200
+
+def run_flask():
+    health_app.run(host="0.0.0.0", port=10000)
+
+# Запуск Flask у окремому потоці
+flask_thread = Thread(target=run_flask)
+flask_thread.start()
 
 
 # ✅ Запуск бота
