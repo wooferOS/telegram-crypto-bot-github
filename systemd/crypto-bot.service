@@ -1,12 +1,13 @@
 [Unit]
-Description=Crypto Telegram Bot
+Description=Telegram GPT Crypto Bot
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 /root/telegram-crypto-bot-github/main.py
 WorkingDirectory=/root/telegram-crypto-bot-github
+EnvironmentFile=/root/telegram-crypto-bot-github/.env
+ExecStart=/usr/bin/python3 main.py
 Restart=always
-Environment="PYTHONUNBUFFERED=1"
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
