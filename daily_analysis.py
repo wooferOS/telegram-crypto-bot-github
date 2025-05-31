@@ -302,7 +302,9 @@ async def generate_daily_report():
         return "", [], []
 
 if __name__ == "__main__":
-    generate_daily_report()
+    import asyncio
+    asyncio.run(generate_daily_report())
+
 
 
 
