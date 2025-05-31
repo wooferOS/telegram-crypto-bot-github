@@ -270,6 +270,25 @@ def handle_confirm_sell(call):
             type="MARKET",
             quantity=quantity
         )
+        
+# 🎯 Встановлюємо Stop-Loss і Take-Profit через OCO
+stop_price = round(price * 0.97, 4)     # 3% нижче
+limit_price = round(price * 1.05, 4)    # 5% вище
+
+try:
+    client.create_order(
+        symbol=f"{coin}USDT",
+        side="SELL",
+        type="OCO",
+        quantity=round(quantity, 6),
+        price=str(limit_price),
+        stopPrice=str(stop_price),
+        stopLimitPrice=str(stop_price),
+        stopLimitTimeInForce='GTC'
+    )
+    bot.send_message(call.message.chat.id, f"🛡 Stop-loss: {stop_price} | Take-profit: {limit_price} для {coin} встановлено.")
+except Exception as e:
+    bot.send_message(call.message.chat.id, f"⚠️ Не вдалося встановити стоп/тейк: {e}")
 
         # ✅ Звіт
         bot.send_message(call.message.chat.id, f"✅ Продано {quantity} {coin}.")
