@@ -28,10 +28,11 @@ client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 # 📱 Головне меню кнопок
 def get_main_keyboard():
     return ReplyKeyboardMarkup([
-        ["💰 Баланс", "📊 Звіт", "📘 Історія"],
-        ["✅ Підтвердити купівлю", "✅ Підтвердити продаж"],
-        ["🔄 Оновити", "🛑 Скасувати"]
-    ], resize_keyboard=True)
+    ["💰 Баланс", "📊 Звіт", "📘 Історія"],
+    ["✅ Підтвердити купівлю", "✅ Підтвердити продаж"],
+    ["🔄 Оновити", "🛑 Скасувати"]
+], resize_keyboard=True)
+
     
 # 🔘 Формування кнопок для купівлі/продажу
 def build_trade_markup(to_buy, to_sell):
