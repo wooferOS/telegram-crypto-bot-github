@@ -32,6 +32,15 @@ def get_main_keyboard():
         ["✅ Підтвердити купівлю", "✅ Підтвердити продаж"],
         ["🔄 Оновити", "🛑 Скасувати"]
     ], resize_keyboard=True)
+    
+# 🔘 Формування кнопок для купівлі/продажу
+def build_trade_markup(to_buy, to_sell):
+    markup = InlineKeyboardMarkup()
+    for symbol in to_buy:
+        markup.add(InlineKeyboardButton(f"🟢 Купити {symbol}", callback_data=f"confirmbuy_{symbol}"))
+    for symbol in to_sell:
+        markup.add(InlineKeyboardButton(f"🔴 Продати {symbol}", callback_data=f"confirmsell_{symbol}"))
+    return markup
 
 # 📊 Перевірка бюджету перед купівлею
 def check_budget(amount):
