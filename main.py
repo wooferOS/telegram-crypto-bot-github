@@ -1,347 +1,197 @@
-# 📦 main.py — Telegram бот для GPT-аналітики Binance
-
-import logging
 import os
-import json
-import asyncio
-from datetime import datetime
 from dotenv import load_dotenv
-from flask import Flask
-from threading import Thread
-from telebot import TeleBot
-from telebot.types import (
-    ReplyKeyboardMarkup,
-    KeyboardButton,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
-    CallbackQuery,
-)
+
+dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+load_dotenv(dotenv_path)
+
+import json
+import logging
+from datetime import datetime
 from binance.client import Client
-from daily_analysis import run_daily_analysis  # ✅ ось основне
+from binance.exceptions import BinanceAPIException
+from openai import OpenAI
+import requests
+from telegram import Bot
+from telegram.constants import ParseMode
+import traceback
+import asyncio
 
-# Завантаження .env
-load_dotenv()
-
-
-# Завантаження змінних з .env
-load_dotenv()
+# Логування
+LOG_FILE = "daily.log"
+logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format="%(asctime)s %(levelname)s:%(message)s")
+# Завантаження змінних із .env
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 
-bot = TeleBot(TELEGRAM_TOKEN)
+# Ініціалізація клієнтів
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
-# 📲 Клавіатура для головного меню
-def get_main_keyboard():
-    keyboard = ReplyKeyboardMarkup(resize_keyboard=True, row_width=2)
-    keyboard.add(
-        KeyboardButton("📊 Баланс"),
-        KeyboardButton("📈 Звіт"),
-        KeyboardButton("📜 Історія"),
-        KeyboardButton("✅ Підтвердити купівлю"),
-        KeyboardButton("❌ Підтвердити продаж"),
-        KeyboardButton("🔄 Оновити"),
-        KeyboardButton("🚫 Скасувати")
-    )
-    return keyboard
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
+bot = Bot(token=TELEGRAM_TOKEN)
 
-# 🎉 Привітальне повідомлення
-@bot.message_handler(commands=["start"])
-def send_welcome(message):
-    text = "🤖 *Вітаю у Telegram Crypto Bot!* Обери команду з меню."
-    bot.reply_to(message, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
-# 📊 Показати баланс Binance
+# Константи
+WHITELIST_PATH = "whitelist.json"
+UAH_RATE = 43.0  # курс гривні
+# Отримати баланс з Binance
 def get_binance_balance():
+    balances = client.get_account()["balances"]
+    result = {}
+    for asset in balances:
+        free = float(asset["free"])
+        if free > 0:
+            symbol = asset["asset"]
+            if symbol.endswith("UP") or symbol.endswith("DOWN"):
+                continue
+            result[symbol] = free
+    return result
+
+# Завантажити whitelist
+def load_whitelist():
+    if os.path.exists(WHITELIST_PATH):
+        with open(WHITELIST_PATH, "r") as f:
+            return json.load(f)
+    return []
+
+# Отримати поточну ціну монети в USDT
+def get_price(symbol):
     try:
-        account_info = client.get_account()
-        balances = account_info["balances"]
-        filtered = [b for b in balances if float(b["free"]) > 0 or float(b["locked"]) > 0]
-        result = []
-        for b in filtered:
-            asset = b["asset"]
-            free = float(b["free"])
-            locked = float(b["locked"])
-            total = free + locked
-            result.append(f"{asset}: {total:.4f}")
-        return "\n".join(result)
-    except Exception as e:
-        return f"❌ Помилка отримання балансу: {e}"
+        if symbol == "USDT":
+            return 1.0
+        return float(client.get_symbol_ticker(symbol=f"{symbol}USDT")["price"])
+    except Exception:
+        return None
+# Форматувати число з 2 знаками після коми
+def fmt(x):
+    return f"{x:.2f}"
 
-# Обробка кнопки 📊 Баланс
-@bot.message_handler(func=lambda msg: msg.text == "📊 Баланс")
-def handle_balance(msg):
-    bot.send_message(msg.chat.id, "📊 Ваш баланс:\n" + get_binance_balance())
-# 📋 Головна клавіатура
-def get_main_keyboard():
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    kb.row("📊 Баланс", "📈 Звіт")
-    kb.row("🕘 Історія", "♻️ Оновити")
-    kb.row("✅ Підтвердити купівлю", "✅ Підтвердити продаж")
-    kb.row("❌ Скасувати")
-    return kb
-
-# Обробка команди /menu або кнопки "📋 Меню"
-@bot.message_handler(commands=["menu"])
-def show_menu(message):
-    bot.send_message(message.chat.id, "📋 Обери дію:", reply_markup=get_main_keyboard())
-# 🧾 Команда /balance або кнопка "📊 Баланс"
-@bot.message_handler(commands=["balance"])
-@bot.message_handler(func=lambda message: message.text == "📊 Баланс")
-def send_balance(message):
+# GPT-запит на базі опису ринку
+async def ask_gpt(prompt):
     try:
-        account_info = client.get_account()
-        balances = account_info["balances"]
-        text = "*💰 Баланс акаунта Binance:*\n\n"
-        total = 0.0
-        for b in balances:
-            asset = b["asset"]
-            free = float(b["free"])
-            if free > 0:
-                if asset == "USDT":
-                    total += free
-                text += f"• {asset}: `{free}`\n"
-        text += f"\n*Загалом (USDT еквівалент):* `{round(total, 2)} USDT`"
-        bot.send_message(message.chat.id, text, parse_mode="Markdown")
-    except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка отримання балансу: {e}")
-
-# 📈 Команда /report або кнопка "📈 Звіт"
-@bot.message_handler(commands=["report"])
-@bot.message_handler(func=lambda message: message.text == "📈 Звіт")
-def send_report(message):
-    try:
-        bot.send_message(message.chat.id, "📡 Формую аналітичний звіт...")
-
-        result = run_daily_analysis()
-        bot.send_message(message.chat.id, result, parse_mode="Markdown")
-    except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Не вдалося сформувати звіт: {e}")
-# ✅ Обробка підтвердження купівлі
-@bot.message_handler(commands=["confirmbuy"])
-@bot.message_handler(func=lambda message: message.text == "✅ Підтвердити купівлю")
-def confirm_buy(message):
-    try:
-        data = load_signal("buy")
-        if not data:
-            bot.send_message(message.chat.id, "ℹ️ Немає сигналу для купівлі.")
-            return
-        coin = data["symbol"]
-        quantity = float(data["quantity"])
-        price = float(data["price"])
-
-        order = client.order_market_buy(symbol=f"{coin}USDT", quantity=round(quantity, 6))
-        bot.send_message(message.chat.id, f"✅ Куплено {quantity} {coin} за ринковою ціною.")
-
-        save_trade_history([{
-            "symbol": coin,
-            "action": "BUY",
-            "quantity": quantity,
-            "time": datetime.now().isoformat()
-        }], action="BUY")
-
-    except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка при купівлі: {e}")
-
-# ✅ Обробка підтвердження продажу
-@bot.message_handler(commands=["confirmsell"])
-@bot.message_handler(func=lambda message: message.text == "✅ Підтвердити продаж")
-def confirm_sell(message):
-    try:
-        data = load_signal("sell")
-        if not data:
-            bot.send_message(message.chat.id, "ℹ️ Немає сигналу для продажу.")
-            return
-        coin = data["symbol"]
-        quantity = float(data["quantity"])
-        price = float(data["price"])
-
-        stop_price = round(price * 0.97, 4)
-        limit_price = round(price * 1.05, 4)
-
-        client.create_order(
-            symbol=f"{coin}USDT",
-            side="SELL",
-            type="OCO",
-            quantity=round(quantity, 6),
-            price=str(limit_price),
-            stopPrice=str(stop_price),
-            stopLimitPrice=str(stop_price),
-            stopLimitTimeInForce='GTC'
+        response = openai_client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Ти криптоаналітик. Давай чіткі торгові рекомендації за 24-годинною динамікою. Не додавай фраз типу 'я не фінансовий радник'."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.4,
         )
-
-        bot.send_message(message.chat.id, f"💚Stop-loss: {stop_price} | Take-profit: {limit_price} для {coin} встановлено.")
-        bot.send_message(message.chat.id, f"✅Продано {quantity} {coin}.")
-
-        save_trade_history([{
-            "symbol": coin,
-            "action": "SELL",
-            "quantity": quantity,
-            "time": datetime.now().isoformat()
-        }], action="SELL")
-
+        return response.choices[0].message.content
     except Exception as e:
-        bot.send_message(message.chat.id, f"⚠️ Не вдалося виконати операцію: {e}")
-# ✅ Команда ручної купівлі
-@bot.message_handler(commands=["buy"])
-def handle_buy(message):
+        logging.error(f"❌ GPT-помилка: {e}")
+        return "GPT недоступний. Спробуйте пізніше."
+# Завантажити whitelist монет
+def load_whitelist():
     try:
-        args = message.text.split()
-        if len(args) != 3:
-            bot.send_message(message.chat.id, "❗ Формат: /buy BTC 0.01")
-            return
-        coin = args[1].upper()
-        quantity = float(args[2])
-        price = float(client.get_symbol_ticker(symbol=f"{coin}USDT")["price"])
+        with open(WHITELIST_PATH, "r") as f:
+            return json.load(f)
+    except:
+        return []
 
-        save_signal("buy", {
-            "symbol": coin,
-            "quantity": quantity,
-            "price": price
-        })
-        bot.send_message(message.chat.id, f"📥 Сигнал купівлі {quantity} {coin} збережено.\nНатисни *✅ Підтвердити купівлю*", parse_mode="Markdown")
+# Отримати актуальний баланс у Binance
+def get_current_holdings():
+    holdings = {}
+    prices = client.get_all_tickers()
+    ticker_price = {item["symbol"]: float(item["price"]) for item in prices}
 
-    except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка: {e}")
-
-# ✅ Команда ручного продажу
-@bot.message_handler(commands=["sell"])
-def handle_sell(message):
+    account = client.get_account()
+    for balance in account["balances"]:
+        asset = balance["asset"]
+        free = float(balance["free"])
+        if free > 0:
+            symbol = asset + "USDT"
+            price = ticker_price.get(symbol, 0)
+            holdings[asset] = {
+                "amount": free,
+                "price": price,
+                "value_usdt": free * price
+            }
+    return holdings
+# PNL для кожної монети на основі попередніх цін
+def load_previous_snapshot():
     try:
-        args = message.text.split()
-        if len(args) != 3:
-            bot.send_message(message.chat.id, "❗ Формат: /sell BTC 0.01")
-            return
-        coin = args[1].upper()
-        quantity = float(args[2])
-        price = float(client.get_symbol_ticker(symbol=f"{coin}USDT")["price"])
+        with open("prev_snapshot.json", "r") as f:
+            return json.load(f)
+    except:
+        return {}
 
-        save_signal("sell", {
-            "symbol": coin,
-            "quantity": quantity,
-            "price": price
-        })
-        bot.send_message(message.chat.id, f"📤 Сигнал продажу {quantity} {coin} збережено.\nНатисни *✅ Підтвердити продаж*", parse_mode="Markdown")
+def save_current_snapshot(data):
+    with open("prev_snapshot.json", "w") as f:
+        json.dump(data, f)
 
-    except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка: {e}")
-# ✅ Підтвердження купівлі
-@bot.message_handler(commands=["confirmbuy"])
-def confirm_buy(message):
-    try:
-        with open("signals.json", "r") as f:
-            data = json.load(f)
-        buy = data.get("buy", {})
-        coin = buy["symbol"]
-        quantity = float(buy["quantity"])
-        price = float(client.get_symbol_ticker(symbol=f"{coin}USDT")["price"])
-
-        client.order_market_buy(
-            symbol=f"{coin}USDT",
-            quantity=quantity
-        )
-        bot.send_message(message.chat.id, f"✅ Куплено {quantity} {coin} за ціною ~{price}")
-
-        save_trade_history([{
-            "symbol": coin,
-            "action": "BUY",
-            "quantity": quantity,
-            "time": datetime.now().isoformat()
-        }], action="BUY")
-
-    except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка при купівлі: {e}")
-
-# ✅ Підтвердження продажу з Stop-Loss / Take-Profit
-@bot.message_handler(commands=["confirmsell"])
-def confirm_sell(message):
-    try:
-        with open("signals.json", "r") as f:
-            data = json.load(f)
-        sell = data.get("sell", {})
-        coin = sell["symbol"]
-        quantity = float(sell["quantity"])
-        price = float(client.get_symbol_ticker(symbol=f"{coin}USDT")["price"])
-
-        stop_price = round(price * 0.97, 4)      # -3%
-        limit_price = round(price * 1.05, 4)     # +5%
-
-        client.create_order(
-            symbol=f"{coin}USDT",
-            side="SELL",
-            type="OCO",
-            quantity=round(quantity, 6),
-            price=str(limit_price),
-            stopPrice=str(stop_price),
-            stopLimitPrice=str(stop_price),
-            stopLimitTimeInForce='GTC'
-        )
-
-        bot.send_message(message.chat.id, f"💚Stop-loss: {stop_price} | Take-profit: {limit_price} для {coin} встановлено.")
-        bot.send_message(message.chat.id, f"✅Продано {quantity} {coin}.")
-
-        save_trade_history([{
-            "symbol": coin,
-            "action": "SELL",
-            "quantity": quantity,
-            "time": datetime.now().isoformat()
-        }], action="SELL")
-
-    except Exception as e:
-        bot.send_message(message.chat.id, f"⚠️ Не вдалося виконати операцію: {e}")
-# 💰 Установка бюджету
-@bot.message_handler(commands=["set_budget"])
-def set_budget(message):
-    msg = bot.send_message(message.chat.id, "📝 Введи бюджет у USDT:")
-    bot.register_next_step_handler(msg, save_budget)
-
-def save_budget(message):
-    try:
-        new_budget = float(message.text)
-        with open("budget.json", "w") as f:
-            json.dump({"budget": new_budget}, f)
-        bot.reply_to(message, f"✅ Новий бюджет: *{new_budget}* USDT", parse_mode="Markdown")
-    except Exception as e:
-        bot.reply_to(message, f"❌ Помилка: {str(e)}")
-
-# /menu — показати клавіатуру
-@bot.message_handler(commands=["menu"])
-def show_menu(message):
-    bot.send_message(message.chat.id, "📋 Обери дію:", reply_markup=get_main_keyboard())
-
-# 🗃️ Збереження історії угод
-def save_trade_history(entries, action):
-    today = datetime.now().strftime("%Y-%m-%d %H:%M")
-    for entry in entries:
-        entry["action"] = action
-        entry["date"] = today
-    try:
-        history_file = "trade_history.json"
-        if os.path.exists(history_file):
-            with open(history_file, "r") as f:
-                history = json.load(f)
+def calculate_daily_pnl(current, previous):
+    pnl = {}
+    for asset, info in current.items():
+        prev_info = previous.get(asset)
+        if prev_info:
+            change = ((info["price"] - prev_info["price"]) / prev_info["price"]) * 100
+            pnl[asset] = round(change, 2)
         else:
-            history = []
-        history.extend(entries)
-        with open(history_file, "w") as f:
-            json.dump(history, f, indent=2)
+            pnl[asset] = 0.0
+    return pnl
+
+def convert_to_uah(usdt_amount):
+    return round(usdt_amount * UAH_RATE, 2)
+def format_portfolio_report(balance_info, pnl_data, recommendations, total_expected_profit):
+    lines = ["📊 *Щоденний звіт по портфелю*",
+             f"🕒 Станом на: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ""]
+
+    lines.append("*💼 Баланс:*")
+    for asset, data in balance_info.items():
+        usdt_val = round(data["usdt_value"], 2)
+        avg_price = data.get("avg_price", "—")
+        pnl = pnl_data.get(asset, 0)
+        uah_val = convert_to_uah(usdt_val)
+        lines.append(f"• {asset}: {data['amount']} (~{usdt_val} USDT | {uah_val} UAH) | Середня ціна: {avg_price} | PNL: {pnl}%")
+    lines.append("")
+
+    lines.append("*📉 Рекомендовано продати:*")
+    if recommendations["sell"]:
+        for item in recommendations["sell"]:
+            lines.append(f"• {item['symbol']}: прогноз слабкий, продача вигідна")
+    else:
+        lines.append("• Нічого не рекомендовано продавати.")
+    lines.append("")
+
+    lines.append("*📈 Рекомендовано купити:*")
+    if recommendations["buy"]:
+        for item in recommendations["buy"]:
+            sl = item.get("stop_loss")
+            tp = item.get("take_profit")
+            lines.append(f"• {item['symbol']}: вигідна динаміка | Очікуваний прибуток: {item['expected_profit']}% | SL: {sl} | TP: {tp}")
+    else:
+        lines.append("• Немає актуальних покупок на добу.")
+    lines.append("")
+
+    lines.append(f"💰 *Сумарний очікуваний прибуток за добу:* ~{total_expected_profit}%")
+
+    return "\n".join(lines)
+async def generate_daily_report():
+    try:
+        balance_info = get_portfolio_balance()
+        prices = get_whitelist_prices()
+        pnl_data = calculate_pnl(balance_info)
+        recommendations = analyze_market(prices, balance_info)
+        total_expected_profit = round(sum(item["expected_profit"] for item in recommendations["buy"]), 2)
+
+        report = format_portfolio_report(balance_info, pnl_data, recommendations, total_expected_profit)
+        logging.info("✅ GPT-звіт сформовано")
+
+        bot.send_message(chat_id=ADMIN_CHAT_ID, text=report, parse_mode=ParseMode.MARKDOWN)
+        logging.info("📤 Звіт надіслано в Telegram")
+
     except Exception as e:
-        print("❌ Помилка при збереженні історії:", e)
-# Healthcheck Flask app
-health_app = Flask(__name__)
+        logging.error(f"❌ Помилка під час створення звіту: {e}")
+        traceback.print_exc()
+        bot.send_message(chat_id=ADMIN_CHAT_ID, text=f"❌ Помилка під час створення звіту:\n{e}")
+def run_daily_analysis():
+    asyncio.run(generate_daily_report())
 
-@health_app.route("/health")
-def health():
-    return "OK", 200
 
-def run_flask():
-    health_app.run(host="0.0.0.0", port=10000)
-
-# Запуск Flask у окремому потоці
-flask_thread = Thread(target=run_flask)
-flask_thread.start()
-
-# ✅ Запуск Telegram-бота
 if __name__ == "__main__":
-    print("🚀 Бот запущено!")
-    bot.polling(none_stop=True)
+    run_daily_analysis()
+    
+# 📘 Кінець файлу daily_analysis.py
+# 🔁 Цей скрипт запускається щодня через GitHub Actions або вручну
+# 🚀 Створює звіт, надсилає в Telegram, прогнозує угоди
