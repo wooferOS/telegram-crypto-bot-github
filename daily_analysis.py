@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 load_dotenv(dotenv_path)
 
-
 import json
 import logging
 from datetime import datetime
@@ -17,293 +16,182 @@ from telegram.constants import ParseMode
 import traceback
 import asyncio
 
-
-
+# Логування
+LOG_FILE = "daily.log"
+logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format="%(asctime)s %(levelname)s:%(message)s")
+# Завантаження змінних із .env
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
+BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 
 # Ініціалізація клієнтів
-client = Client(api_key=os.getenv("BINANCE_API_KEY"), api_secret=os.getenv("BINANCE_SECRET_KEY"))
-openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 bot = Bot(token=TELEGRAM_TOKEN)
 
-# Шлях до whitelist
+# Константи
 WHITELIST_PATH = "whitelist.json"
-REPORTS_DIR = "reports"
-LOG_FILE = "daily.log"
-UAH_RATE = 43.0
-# Налаштування логування
-logging.basicConfig(filename=LOG_FILE, level=logging.INFO, format="%(asctime)s %(levelname)s:%(message)s")
-
-def split_text(text, max_length=4000):
-    """Ділить довгий текст на частини для Telegram."""
-    parts = []
-    while len(text) > max_length:
-        split_at = text.rfind("\n", 0, max_length)
-        if split_at == -1:
-            split_at = max_length
-        parts.append(text[:split_at])
-        text = text[split_at:].lstrip()
-    parts.append(text)
-    return parts
-
-def log_message(message):
-    print(message)
-    logging.info("🔁 Запуск daily_analysis.py")
-
-def send_telegram(message):
-    telegram_token = os.getenv("TELEGRAM_TOKEN")
-    chat_id = os.getenv("ADMIN_CHAT_ID")
-    url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
-    data = {"chat_id": chat_id, "text": message, "parse_mode": "Markdown"}
-    try:
-        requests.post(url, data=data)
-    except Exception as e:
-        logging.error(f"❌ Telegram Error: {str(e)}")
-def save_to_file(data, filename):
-    with open(filename, "w") as f:
-        json.dump(data, f, indent=2)
-
-def load_from_file(filename):
-    if os.path.exists(filename):
-        with open(filename, "r") as f:
-            return json.load(f)
-    return {}
-
-def analyze_balance(client):
-    balances = get_binance_balances(client)  # {BTC: 0.004, ETH: 0.02, ...}
-    result = []
-
-    for symbol, free in balances.items():
-        if free == 0 or symbol == "USDT":
-            continue
-
-        pair = symbol + "USDT"
-        try:
-            price = float(client.get_symbol_ticker(symbol=pair)["price"])
-            value = round(price * free, 2)
-            result.append({
-                "symbol": symbol,
-                "amount": free,
-                "value_usdt": value,
-                "pair": pair
-            })
-        except Exception as e:
-            log.error(f"❌ Не вдалося отримати ціну для {pair}: {str(e)}")
-
-    return sorted(result, key=lambda x: x["value_usdt"], reverse=True)
-
-def get_whitelist(client):
-    """Отримує всі торгові пари з USDT на Binance."""
-    return [t['symbol'] for t in client.get_ticker() if t['symbol'].endswith("USDT")]
-
-def get_market_data(client, whitelist):
-    """Формує ринкові дані (зміна %, обʼєм, остання ціна) для whitelist."""
-    tickers = client.get_ticker()
-    market_data = {}
-
-    for t in tickers:
-        symbol = t.get("symbol")
-        if symbol in whitelist:
-            try:
-                change = float(t.get("priceChangePercent", 0))
-                volume = float(t.get("quoteVolume", 0))
-                last_price = float(t.get("lastPrice", 0))
-                market_data[symbol] = {
-                    "change": change,
-                    "volume": volume,
-                    "last_price": last_price
-                }
-            except Exception:
+UAH_RATE = 43.0  # курс гривні
+# Отримати баланс з Binance
+def get_binance_balance():
+    balances = client.get_account()["balances"]
+    result = {}
+    for asset in balances:
+        free = float(asset["free"])
+        if free > 0:
+            symbol = asset["asset"]
+            if symbol.endswith("UP") or symbol.endswith("DOWN"):
                 continue
+            result[symbol] = free
+    return result
 
-    return market_data
+# Завантажити whitelist
+def load_whitelist():
+    if os.path.exists(WHITELIST_PATH):
+        with open(WHITELIST_PATH, "r") as f:
+            return json.load(f)
+    return []
 
-def prepare_analysis(balance_data, market_data):
-    to_sell = []
-    to_buy = []
-    for asset in balance_data:
-        pair = asset["pair"]
-        if pair in market_data:
-            perf = market_data[pair]["change"]
-            if perf < -2:  # умовно слабка монета
-                to_sell.append({**asset, "change": perf})
-
-    sorted_market = sorted(market_data.items(), key=lambda x: (x[1]["change"], x[1]["volume"]), reverse=True)
-    for symbol, data in sorted_market[:3]:  # топ 3 монети на купівлю
-        to_buy.append({
-            "pair": symbol,
-            "change": data["change"],
-            "volume": data["volume"],
-            "price": data["last_price"]
-        })
-
-    return to_sell, to_buy
-def estimate_profit(buy_entry, sell_entry):
+# Отримати поточну ціну монети в USDT
+def get_price(symbol):
     try:
-        profit = (sell_entry["price"] - buy_entry["price"]) * (buy_entry["usdt"] / buy_entry["price"])
-        return round(profit, 2)
-    except:
-        return 0.0
+        if symbol == "USDT":
+            return 1.0
+        return float(client.get_symbol_ticker(symbol=f"{symbol}USDT")["price"])
+    except Exception:
+        return None
+# Форматувати число з 2 знаками після коми
+def fmt(x):
+    return f"{x:.2f}"
 
-def format_trade_command(action, symbol):
-    return f"/confirm{action.lower()}{symbol.replace('/', '')}"
-
-def generate_report(balance_usdt, to_sell, to_buy, currency_rate):
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
-    report = f"# 📊 Звіт GPT-аналітики ({now})\n\n"
-    report += f"**Поточний баланс:** {balance_usdt:.2f} USDT ≈ {balance_usdt * currency_rate:.2f} грн\n\n"
-
-    report += "## 🔻 Рекомендовано продати:\n"
-    if to_sell:
-        for asset in to_sell:
-            report += f"- {asset['asset']} ({asset['pair']}): {asset['usdt']:.2f} USDT — зміна {asset['change']}%\n"
-            report += f"  👉 {format_trade_command('sell', asset['pair'])}\n"
-    else:
-        report += "Немає слабких активів для продажу.\n"
-
-    report += "\n## 🟢 Рекомендовано купити:\n"
-    if to_buy:
-        for asset in to_buy:
-            report += f"- {asset['pair']}: зміна +{asset['change']}%, обʼєм {asset['volume']:.2f}\n"
-            report += f"  👉 {format_trade_command('buy', asset['pair'])}\n"
-    else:
-        report += "Немає вигідних монет для купівлі.\n"
-
-    # ✅ Повертаємо не тільки звіт, а й to_buy, to_sell
-    return report, to_buy, to_sell
-
-def split_text(text, max_length=4000):
-    """Ділить довгий текст на частини для Telegram."""
-    parts = []
-    while len(text) > max_length:
-        split_at = text.rfind("\n", 0, max_length)
-        if split_at == -1:
-            split_at = max_length
-        parts.append(text[:split_at])
-        text = text[split_at:].lstrip()
-    parts.append(text)
-    return parts
-
-async def send_telegram_report(report, to_buy, to_sell):
-    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-    from telegram.constants import ParseMode
-
-    keyboard = [
-        [InlineKeyboardButton(f"🟢 Купити {coin}", callback_data=f"confirmbuy_{coin}")]
-        for coin in to_buy
-    ] + [
-        [InlineKeyboardButton(f"🔴 Продати {coin}", callback_data=f"confirmsell_{coin}")]
-        for coin in to_sell
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    try:
-        for part in split_text(report):
-            await bot.send_message(chat_id=ADMIN_CHAT_ID, text=part, parse_mode=ParseMode.MARKDOWN)
-        await bot.send_message(chat_id=ADMIN_CHAT_ID, text="⬇️ Дії з монетами:", reply_markup=reply_markup)
-    except Exception as e:
-        logging.error(f"❌ Telegram error: {e}")
-
-
-def get_binance_balances(client):
-    try:
-        account_info = client.get_account()
-        balances = account_info.get("balances", [])
-        result = {}
-        for asset in balances:
-            asset_name = asset["asset"]
-            free = float(asset["free"])
-            locked = float(asset["locked"])
-            total = free + locked
-            if total > 0:
-                result[asset_name] = total
-        return result
-    except Exception as e:
-        logging.error(f"❌ Не вдалося отримати баланс Binance: {str(e)}")
-        return {}
-        
-def build_gpt_prompt(balances, market_data):
-    prompt = "Оціни мій криптопортфель і порадь, що продати, що купити:\n\n"
-    prompt += "Поточні активи:\n"
-    for asset, amount in balances.items():
-        prompt += f"- {asset}: {amount}\n"
-
-    prompt += "\nАктуальні ринкові дані:\n"
-    
-    # Сортуємо по обʼєму торгів — від найбільшого до найменшого
-    sorted_market = sorted(market_data.items(), key=lambda x: x[1]['volume'], reverse=True)
-
-    # Вибираємо лише топ-30 найактивніших
-    top_market = sorted_market[:30]
-
-    for symbol, data in top_market:
-        prompt += f"- {symbol}: {data['change']}% змін, обʼєм {data['volume']}, ціна {data['last_price']}\n"
-
-    return prompt
-
-def ask_gpt(prompt):
+# GPT-запит на базі опису ринку
+async def ask_gpt(prompt):
     try:
         response = openai_client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "Ти фінансовий аналітик крипторинку."},
-                {"role": "user", "content": prompt}
-            ]
+                {"role": "system", "content": "Ти криптоаналітик. Давай чіткі торгові рекомендації за 24-годинною динамікою. Не додавай фраз типу 'я не фінансовий радник'."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.4,
         )
         return response.choices[0].message.content
     except Exception as e:
         logging.error(f"❌ GPT-помилка: {e}")
-        return "❌ Не вдалося отримати відповідь від GPT."
+        return "GPT недоступний. Спробуйте пізніше."
+# Завантажити whitelist монет
+def load_whitelist():
+    try:
+        with open(WHITELIST_PATH, "r") as f:
+            return json.load(f)
+    except:
+        return []
 
-def generate_report(balance, to_sell, to_buy, uah_rate, gpt_forecast):
-    now = datetime.now().strftime("%d.%m.%Y %H:%M")
-    report_lines = [f"📊 *Звіт GPT-аналітики ({now})*\n"]
+# Отримати актуальний баланс у Binance
+def get_current_holdings():
+    holdings = {}
+    prices = client.get_all_tickers()
+    ticker_price = {item["symbol"]: float(item["price"]) for item in prices}
 
-    report_lines.append("💼 *Баланс:*")
-    for coin, value in balance.items():
-        report_lines.append(f"- {coin}: {value['amount']} → ≈ {round(value['usdt'], 2)} USDT")
+    account = client.get_account()
+    for balance in account["balances"]:
+        asset = balance["asset"]
+        free = float(balance["free"])
+        if free > 0:
+            symbol = asset + "USDT"
+            price = ticker_price.get(symbol, 0)
+            holdings[asset] = {
+                "amount": free,
+                "price": price,
+                "value_usdt": free * price
+            }
+    return holdings
+# PNL для кожної монети на основі попередніх цін
+def load_previous_snapshot():
+    try:
+        with open("prev_snapshot.json", "r") as f:
+            return json.load(f)
+    except:
+        return {}
 
-    if to_sell:
-        report_lines.append("\n📉 *Рекомендується продати:*")
-        for coin in to_sell:
-            reason = to_sell[coin].get("reason", "")
-            report_lines.append(f"- 🔴 {coin} — {reason}\n→ `/confirmsell_{coin}`")
+def save_current_snapshot(data):
+    with open("prev_snapshot.json", "w") as f:
+        json.dump(data, f)
 
-    if to_buy:
-        report_lines.append("\n📈 *Рекомендується купити:*")
-        for coin in to_buy:
-            reason = to_buy[coin].get("reason", "")
-            report_lines.append(f"- 🟢 {coin} — {reason}\n→ `/confirmbuy_{coin}`")
+def calculate_daily_pnl(current, previous):
+    pnl = {}
+    for asset, info in current.items():
+        prev_info = previous.get(asset)
+        if prev_info:
+            change = ((info["price"] - prev_info["price"]) / prev_info["price"]) * 100
+            pnl[asset] = round(change, 2)
+        else:
+            pnl[asset] = 0.0
+    return pnl
 
-    total_profit = sum(x.get("expected_profit", 0) for x in to_buy.values())
-    report_lines.append(f"\n📈 *Очікуваний прибуток:* ~{round(total_profit, 2)} USDT")
+def convert_to_uah(usdt_amount):
+    return round(usdt_amount * UAH_RATE, 2)
+def format_portfolio_report(balance_info, pnl_data, recommendations, total_expected_profit):
+    lines = ["📊 *Щоденний звіт по портфелю*",
+             f"🕒 Станом на: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", ""]
 
-    report_lines.append(f"\n📅 *Прогноз GPT:*\n{gpt_forecast.strip()}")
-    return "\n".join(report_lines)
+    lines.append("*💼 Баланс:*")
+    for asset, data in balance_info.items():
+        usdt_val = round(data["usdt_value"], 2)
+        avg_price = data.get("avg_price", "—")
+        pnl = pnl_data.get(asset, 0)
+        uah_val = convert_to_uah(usdt_val)
+        lines.append(f"• {asset}: {data['amount']} (~{usdt_val} USDT | {uah_val} UAH) | Середня ціна: {avg_price} | PNL: {pnl}%")
+    lines.append("")
 
-# Основна асинхронна функція для генерації звіту
+    lines.append("*📉 Рекомендовано продати:*")
+    if recommendations["sell"]:
+        for item in recommendations["sell"]:
+            lines.append(f"• {item['symbol']}: прогноз слабкий, продача вигідна")
+    else:
+        lines.append("• Нічого не рекомендовано продавати.")
+    lines.append("")
+
+    lines.append("*📈 Рекомендовано купити:*")
+    if recommendations["buy"]:
+        for item in recommendations["buy"]:
+            sl = item.get("stop_loss")
+            tp = item.get("take_profit")
+            lines.append(f"• {item['symbol']}: вигідна динаміка | Очікуваний прибуток: {item['expected_profit']}% | SL: {sl} | TP: {tp}")
+    else:
+        lines.append("• Немає актуальних покупок на добу.")
+    lines.append("")
+
+    lines.append(f"💰 *Сумарний очікуваний прибуток за добу:* ~{total_expected_profit}%")
+
+    return "\n".join(lines)
 async def generate_daily_report():
     try:
-        # Тут має бути твоя логіка: отримання балансу, прогнозу, формування звіту
-        # Наприклад:
-        report = "📊 Це тестовий звіт GPT по Binance. Все працює ✅"
-        logging.info("Звіт згенеровано успішно")
+        balance_info = get_portfolio_balance()
+        prices = get_whitelist_prices()
+        pnl_data = calculate_pnl(balance_info)
+        recommendations = analyze_market(prices, balance_info)
+        total_expected_profit = round(sum(item["expected_profit"] for item in recommendations["buy"]), 2)
+
+        report = format_portfolio_report(balance_info, pnl_data, recommendations, total_expected_profit)
+        logging.info("✅ GPT-звіт сформовано")
+
         bot.send_message(chat_id=ADMIN_CHAT_ID, text=report, parse_mode=ParseMode.MARKDOWN)
+        logging.info("📤 Звіт надіслано в Telegram")
+
     except Exception as e:
         logging.error(f"❌ Помилка під час створення звіту: {e}")
-        bot.send_message(chat_id=ADMIN_CHAT_ID, text=f"❌ Помилка у звіті: {e}")
-
-# Обгортка для виклику з main.py
+        traceback.print_exc()
+        bot.send_message(chat_id=ADMIN_CHAT_ID, text=f"❌ Помилка під час створення звіту:\n{e}")
 def run_daily_analysis():
     asyncio.run(generate_daily_report())
 
-# Якщо хочеш запускати вручну:
+
 if __name__ == "__main__":
     run_daily_analysis()
-
-
-
-
-
-
+    
+# 📘 Кінець файлу daily_analysis.py
+# 🔁 Цей скрипт запускається щодня через GitHub Actions або вручну
+# 🚀 Створює звіт, надсилає в Telegram, прогнозує угоди
