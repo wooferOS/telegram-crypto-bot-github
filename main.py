@@ -6,6 +6,7 @@ import logging
 from datetime import datetime
 from dotenv import load_dotenv
 from telebot import TeleBot
+from telebot import types
 from telebot.types import (
     ReplyKeyboardMarkup, KeyboardButton,
     InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
