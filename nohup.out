@@ -1,0 +1,13 @@
+python3: can't open file '/root/telegram-crypto-bot-github/health_app.py': [Errno 2] No such file or directory
+ * Serving Flask app 'health_app'
+ * Debug mode: off
+WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:10000
+ * Running on http://188.166.27.248:10000
+Press CTRL+C to quit
+188.166.27.248 - - [31/May/2025 04:14:30] "GET /health HTTP/1.1" 200 -
+188.166.27.248 - - [31/May/2025 04:21:48] "GET /health HTTP/1.1" 200 -
+216.144.248.23 - - [31/May/2025 04:23:16] "HEAD /health HTTP/1.1" 200 -
+69.162.124.235 - - [31/May/2025 04:28:21] "HEAD /health HTTP/1.1" 200 -
+216.144.248.19 - - [31/May/2025 04:33:24] "HEAD /health HTTP/1.1" 200 -

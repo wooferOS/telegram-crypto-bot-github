@@ -8,3 +8,59 @@
     notifempty
     copytruncate
 }
+2025-05-31 04:26:24,908 INFO:🔁 Запуск daily_analysis.py
+2025-05-31 04:26:43,831 INFO:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-05-31 04:26:46,630 INFO:HTTP Request: POST https://api.telegram.org/bot7810501536:AAEMqeKkK938AlUJUByz4ePYZaCZYOGKA14/sendMessage "HTTP/1.1 200 OK"
+2025-05-31 04:26:46,678 INFO:HTTP Request: POST https://api.telegram.org/bot7810501536:AAEMqeKkK938AlUJUByz4ePYZaCZYOGKA14/sendMessage "HTTP/1.1 200 OK"
+2025-05-31 04:55:10,354 INFO:🔁 Запуск daily_analysis.py
+2025-05-31 04:55:29,381 INFO:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-05-31 04:55:32,141 INFO:HTTP Request: POST https://api.telegram.org/bot7810501536:AAEMqeKkK938AlUJUByz4ePYZaCZYOGKA14/sendMessage "HTTP/1.1 200 OK"
+2025-05-31 04:55:32,172 INFO:HTTP Request: POST https://api.telegram.org/bot7810501536:AAEMqeKkK938AlUJUByz4ePYZaCZYOGKA14/sendMessage "HTTP/1.1 200 OK"
+2025-05-31 05:11:14,458 INFO:🔁 Запуск daily_analysis.py
+2025-05-31 05:11:33,308 INFO:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-05-31 05:11:36,067 INFO:HTTP Request: POST https://api.telegram.org/bot7810501536:AAEMqeKkK938AlUJUByz4ePYZaCZYOGKA14/sendMessage "HTTP/1.1 200 OK"
+2025-05-31 05:11:36,092 INFO:HTTP Request: POST https://api.telegram.org/bot7810501536:AAEMqeKkK938AlUJUByz4ePYZaCZYOGKA14/sendMessage "HTTP/1.1 200 OK"
+2025-05-31 05:36:16,466 INFO:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:10000
+ * Running on http://188.166.27.248:10000
+2025-05-31 05:36:16,467 INFO:[33mPress CTRL+C to quit[0m
+2025-05-31 05:37:03,688 INFO:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-05-31 05:39:13,591 INFO:216.144.248.19 - - [31/May/2025 05:39:13] "HEAD /health HTTP/1.1" 200 -
+2025-05-31 05:39:25,611 INFO:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:10000
+ * Running on http://188.166.27.248:10000
+2025-05-31 05:39:25,611 INFO:[33mPress CTRL+C to quit[0m
+2025-05-31 05:40:19,172 INFO:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-05-31 05:42:48,734 INFO:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:10000
+ * Running on http://188.166.27.248:10000
+2025-05-31 05:42:48,735 INFO:[33mPress CTRL+C to quit[0m
+2025-05-31 05:43:52,687 INFO:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-05-31 05:44:17,576 INFO:216.144.248.21 - - [31/May/2025 05:44:17] "HEAD /health HTTP/1.1" 200 -
+2025-05-31 05:49:21,707 INFO:216.144.248.24 - - [31/May/2025 05:49:21] "HEAD /health HTTP/1.1" 200 -
+2025-05-31 05:49:36,114 INFO:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-05-31 05:49:57,330 INFO:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-05-31 05:54:06,091 INFO:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:10000
+ * Running on http://188.166.27.248:10000
+2025-05-31 05:54:06,091 INFO:[33mPress CTRL+C to quit[0m
+2025-05-31 05:54:25,373 INFO:216.144.248.23 - - [31/May/2025 05:54:25] "HEAD /health HTTP/1.1" 200 -
+2025-05-31 05:55:20,218 INFO:HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-05-31 05:59:28,454 INFO:216.144.248.25 - - [31/May/2025 05:59:28] "HEAD /health HTTP/1.1" 200 -
+Traceback (most recent call last):
+  File "/root/telegram-crypto-bot-github/daily_analysis.py", line 20, in <module>
+    openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+  File "/usr/local/lib/python3.10/dist-packages/openai/_client.py", line 126, in __init__
+    raise OpenAIError(
+openai.OpenAIError: The api_key client option must be set either by passing api_key to the client or by setting the OPENAI_API_KEY environment variable
+2025-05-31 06:04:32,103 INFO:216.144.248.21 - - [31/May/2025 06:04:32] "HEAD /health HTTP/1.1" 200 -
+2025-05-31 06:09:36,088 INFO:216.144.248.27 - - [31/May/2025 06:09:36] "HEAD /health HTTP/1.1" 200 -
+2025-05-31 06:10:11,902 INFO:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:10000
+ * Running on http://188.166.27.248:10000
+2025-05-31 06:10:11,902 INFO:[33mPress CTRL+C to quit[0m
