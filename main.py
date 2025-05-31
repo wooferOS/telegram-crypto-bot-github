@@ -3,16 +3,24 @@
 import logging
 import os
 import json
-from dotenv import load_dotenv
-from telebot import TeleBot
-from telebot.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
-from binance.client import Client
-from telebot.types import CallbackQuery
+import asyncio
 from datetime import datetime
+from dotenv import load_dotenv
 from flask import Flask
 from threading import Thread
-from daily_analysis import generate_daily_report
-import asyncio
+from telebot import TeleBot
+from telebot.types import (
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    CallbackQuery,
+)
+from binance.client import Client
+from daily_analysis import run_daily_analysis  # ✅ ось основне
+
+# Завантаження .env
+load_dotenv()
 
 
 # Завантаження змінних з .env
