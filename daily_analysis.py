@@ -235,7 +235,6 @@ def build_gpt_prompt(balances, market_data):
 
     return prompt
 
-    
 def ask_gpt(prompt):
     try:
         response = openai_client.chat.completions.create(
@@ -249,7 +248,7 @@ def ask_gpt(prompt):
     except Exception as e:
         logging.error(f"❌ GPT-помилка: {e}")
         return "❌ Не вдалося отримати відповідь від GPT."
-        
+
 def generate_report(balance, to_sell, to_buy, uah_rate, gpt_forecast):
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
     report_lines = [f"📊 *Звіт GPT-аналітики ({now})*\n"]
@@ -276,28 +275,17 @@ def generate_report(balance, to_sell, to_buy, uah_rate, gpt_forecast):
     report_lines.append(f"\n📅 *Прогноз GPT:*\n{gpt_forecast.strip()}")
     return "\n".join(report_lines)
 
-async def main():
+async def generate_daily_report():
     try:
-        log_message("🔁 Запуск daily_analysis.py")
-
-        # 1. Отримати баланс
         balances = get_binance_balances(client)
-
-        # 2. Отримати whitelist та ринкові дані
         whitelist = get_whitelist(client)
         market_data = get_market_data(client, whitelist)
 
-
-        # 3. Побудувати GPT-запит
         prompt = build_gpt_prompt(balances, market_data)
-
-        # 4. Запит до GPT
         analysis = ask_gpt(prompt)
 
-        # 5. Згенерувати та надіслати фінальний Markdown-звіт
         balance_data = analyze_balance(client)
         to_sell, to_buy = prepare_analysis(balance_data, market_data)
-        balance_value = sum(asset["value_usdt"] for asset in balance_data)
 
         report = generate_report(
             balance={a["symbol"]: {"amount": a["amount"], "usdt": a["value_usdt"]} for a in balance_data},
@@ -306,20 +294,13 @@ async def main():
             uah_rate=UAH_RATE,
             gpt_forecast=analysis
         )
-        await send_telegram_report(
-            report,
-            to_buy=[a["pair"] for a in to_buy],
-            to_sell=[a["symbol"] for a in to_sell]
-        )
 
+        return report, [a["pair"] for a in to_buy], [a["symbol"] for a in to_sell]
 
-    except Exception as err:
-        logging.error("❌ Фатальна помилка у виконанні скрипта:")
-        logging.error(traceback.format_exc())
-        try:
-            send_telegram(f"❌ Помилка у виконанні: {str(err)}")
-        except:
-            pass
+    except Exception as e:
+        logging.error(f"❌ generate_daily_report error: {str(e)}")
+        return "", [], []
+
 if __name__ == "__main__":
     asyncio.run(main())
 
