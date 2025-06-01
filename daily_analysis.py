@@ -104,6 +104,7 @@ def send_report_via_telegram(message):
         requests.post(url, json=payload)
     except Exception as e:
         print(f"❌ Telegram Error: {e}")
+
 def run_daily_analysis():
     try:
         balance_data_raw = get_binance_balance()
@@ -126,12 +127,20 @@ def run_daily_analysis():
         for symbol, amount in balance_data_raw.items():
             if symbol in EXCLUDED_ASSETS:
                 continue
+
             price_key = f"{symbol}USDT"
             if price_key not in prices:
                 continue
+
             price = prices[price_key]
             usdt_value = round(amount * price, 2)
-            avg_price = previous_snapshot.get(symbol, {}).get("avg_price", price)
+
+            snapshot_value = previous_snapshot.get(symbol, {})
+            if isinstance(snapshot_value, dict):
+                avg_price = snapshot_value.get("avg_price", price)
+            else:
+                avg_price = price
+
             pnl = round((price - avg_price) * amount, 2)
             pnl_percent = round((pnl / (avg_price * amount)) * 100, 2) if avg_price else 0
             uah_value = round(usdt_value * rate_uah)
@@ -146,6 +155,20 @@ def run_daily_analysis():
                 "pnl_percent": pnl_percent,
                 "uah_value": uah_value
             })
+
+        # Формування та надсилання звіту
+        message_lines = ["📊 *Щоденний звіт балансу:*"]
+        for item in balance_info:
+            message_lines.append(
+                f"*{item['symbol']}*: {item['amount']} — ${item['usdt_value']} | 📈 PnL: ${item['pnl']} ({item['pnl_percent']}%)"
+            )
+        message_lines.append(f"\n💰 *Загальний баланс:* ${round(total_usdt, 2)} (~{round(total_usdt * rate_uah)} UAH)")
+
+        send_report_via_telegram("\n".join(message_lines))
+
+    except Exception as e:
+        print(f"❌ Daily Analysis Error: {e}")
+        send_report_via_telegram(f"❌ Помилка під час аналізу: {e}")
 
         # 🔎 Генерація умовних рекомендацій (заглушки, замінити GPT)
         sell_recommendations = [i for i in balance_info if i["pnl_percent"] < -5]
