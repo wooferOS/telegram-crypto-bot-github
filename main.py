@@ -28,6 +28,8 @@ BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 # Ініціалізація клієнтів
 bot = TeleBot(TELEGRAM_TOKEN)
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+# ✅ Завантажити попередній сигнал
+signal = load_signal()
 
 # Логування
 logging.basicConfig(level=logging.INFO)
@@ -171,6 +173,20 @@ def run_flask():
 def run_bot():
     logging.info("🚀 Бот запущено!")
     bot.infinity_polling()
+
+# ✅ Завантажити сигнал з файлу
+def load_signal():
+    try:
+        with open("signal.json", "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+# ✅ Зберегти сигнал у файл
+def save_signal(signal):
+    with open("signal.json", "w") as f:
+        json.dump(signal, f)
+
 if __name__ == "__main__":
     flask_thread = Thread(target=run_flask)
     flask_thread.start()
