@@ -8,6 +8,7 @@ from flask import Flask
 from telebot import TeleBot, types
 from binance.client import Client
 from daily_analysis import run_daily_analysis
+from flask import request, jsonify
 
 load_dotenv(".env")
 
@@ -164,6 +165,14 @@ def run_polling():
 def run_flask():
     print("🌐 Flask-сервер для /health запущено на порту 10000")
     app.run(host="0.0.0.0", port=10000)
+
+@app.route("/daily", methods=["POST"])
+def trigger_daily_analysis():
+    try:
+        run_daily_analysis()
+        return jsonify({"status": "ok", "message": "Аналіз запущено"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
     threading.Thread(target=run_polling).start()
