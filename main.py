@@ -26,6 +26,18 @@ BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 bot = TeleBot(TELEGRAM_TOKEN)
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 
+# 💰 Поточний бюджет (буде оновлюватись через /set_budget)
+budget = {"USDT": 100}
+
+# ✅ Список дозволених монет (для купівлі/продажу)
+WHITELIST = [
+    "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT",
+    "DOGEUSDT", "AVAXUSDT", "DOTUSDT", "TRXUSDT", "LINKUSDT", "MATICUSDT",
+    "LTCUSDT", "BCHUSDT", "ATOMUSDT", "NEARUSDT", "FILUSDT", "ICPUSDT",
+    "ETCUSDT", "HBARUSDT", "VETUSDT", "RUNEUSDT", "INJUSDT", "OPUSDT",
+    "ARBUSDT", "SUIUSDT", "STXUSDT", "TIAUSDT", "SEIUSDT", "1000PEPEUSDT"
+]
+
 # ✅ Завантаження попереднього сигналу
 def load_signal():
     try:
@@ -246,7 +258,8 @@ def callback_inline(call):
             "time": datetime.utcnow().isoformat()
         }
         save_signal(signal)
+
 if __name__ == "__main__":
     print("🚀 Бот запущено!")
-    app.run(host="0.0.0.0", port=5000)
     bot.polling(none_stop=True)
+
