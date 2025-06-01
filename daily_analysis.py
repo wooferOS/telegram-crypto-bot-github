@@ -2,17 +2,13 @@ import os
 import json
 import logging
 from datetime import datetime
-from binance.client import Client
-from binance.exceptions import BinanceAPIException
-from openai import OpenAI
-import requests
-from telegram import Bot
-from telegram.constants import ParseMode
-import traceback
-import asyncio
 from dotenv import load_dotenv
+from binance.client import Client
+from openai import OpenAI
+from telegram import Bot
+import requests
 
-# Завантаження змінних середовища
+# 🔐 Завантаження змінних середовища
 load_dotenv()
 
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
@@ -25,7 +21,7 @@ client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 tg_bot = Bot(token=TELEGRAM_TOKEN)
 openai = OpenAI(api_key=OPENAI_API_KEY)
 
-# Список дозволених торгових пар
+# ⚪ WHITELIST монет
 WHITELIST = [
     "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT", "DOGEUSDT", "AVAXUSDT",
     "DOTUSDT", "TRXUSDT", "LINKUSDT", "MATICUSDT", "UNIUSDT", "LTCUSDT", "BCHUSDT", "XLMUSDT",
@@ -33,55 +29,53 @@ WHITELIST = [
     "EGLDUSDT", "AAVEUSDT", "NEARUSDT", "FTMUSDT", "AXSUSDT", "THETAUSDT"
 ]
 
-# Валюти, які не слід аналізувати (наприклад, нативні стейблкоїни)
 EXCLUDED_ASSETS = ["USDT", "BUSD", "TUSD", "USDC", "FDUSD"]
 
-# Шлях до лог-файлу
 LOG_FILE = "daily.log"
-
-# Отримати поточний курс USDT до UAH (псевдо-реальне значення для прикладу)
+# 📉 Курс USDT → UAH (можна під'єднати реальний API)
 def get_usdt_to_uah_rate():
-    return 39.2  # 🟡 можна підключити API ПриватБанк або MonoBank
-# Отримати баланс акаунту
+    return 39.2  # Приклад: курс ПриватБанку або MonoBank
+
+# 📊 Отримати баланс
 def get_binance_balance():
     balances = client.get_account()["balances"]
     result = {}
     for asset in balances:
-        free = float(asset["free"])
-        locked = float(asset["locked"])
-        total = free + locked
+        total = float(asset["free"]) + float(asset["locked"])
         if total > 0:
             result[asset["asset"]] = round(total, 6)
     return result
-# Отримати поточну ціну пари (наприклад, BTCUSDT)
-def get_symbol_price(symbol):
-    ticker = client.get_symbol_ticker(symbol=symbol)
-    return float(ticker["price"])
-# Формування звіту в Telegram
-def format_report(balance_info, sell_recommendations, buy_recommendations):
-    lines = []
-    lines.append("*📊 Звіт по портфелю:*")
-    lines.append("")
-    total_usdt = 0
 
-    for asset in balance_info:
-        amount = asset["amount"]
-        usdt_value = asset["usdt_value"]
-        avg_price = asset["avg_price"]
-        pnl = asset["pnl"]
-        pnl_percent = asset["pnl_percent"]
-        ua_value = asset["uah_value"]
-        total_usdt += usdt_value
+# 💵 Отримати поточні ціни (всі пари)
+def get_current_prices():
+    prices = client.get_all_tickers()
+    return {p["symbol"]: float(p["price"]) for p in prices}
 
-        lines.append(f"🔹 {asset['symbol']}")
-        lines.append(f"  - Кількість: {amount}")
-        lines.append(f"  - Вартість: {usdt_value:.2f} USDT ≈ {ua_value:.0f} грн")
-        lines.append(f"  - Середня ціна: {avg_price:.4f} USDT")
-        lines.append(f"  - PNL: {pnl:+.2f} USDT ({pnl_percent:+.2f}%)")
+# 💾 Завантажити попередній знімок балансу
+def load_previous_snapshot():
+    try:
+        with open("balance_snapshot.json", "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+# 💾 Зберегти поточний знімок
+def save_current_snapshot(snapshot):
+    with open("balance_snapshot.json", "w") as f:
+        json.dump(snapshot, f, indent=2)
+# 🧾 Формування звіту Markdown
+def format_report(balance_info, total_usdt, sell_recommendations, buy_recommendations):
+    lines = ["*📊 Звіт по портфелю Binance:*", ""]
+
+    for item in balance_info:
+        lines.append(f"🔹 *{item['symbol']}*")
+        lines.append(f"  - Кількість: {item['amount']}")
+        lines.append(f"  - Вартість: {item['usdt_value']:.2f} USDT ≈ {item['uah_value']:.0f} грн")
+        lines.append(f"  - Середня ціна: {item['avg_price']:.4f} USDT")
+        lines.append(f"  - PNL: {item['pnl']:+.2f} USDT ({item['pnl_percent']:+.2f}%)")
         lines.append("")
 
-    lines.append(f"*Загальна вартість:* {total_usdt:.2f} USDT")
-    lines.append("")
+    lines.append(f"*💰 Загальна вартість:* {total_usdt:.2f} USDT\n")
 
     if sell_recommendations:
         lines.append("*📉 Рекомендації на продаж:*")
@@ -92,82 +86,84 @@ def format_report(balance_info, sell_recommendations, buy_recommendations):
     if buy_recommendations:
         lines.append("*📈 Рекомендації на купівлю:*")
         for rec in buy_recommendations:
-            lines.append(
-                f"🟢 {rec['symbol']} — очікувана дохідність: {rec['expected_profit']:.2f}%"
-            )
+            lines.append(f"🟢 {rec['symbol']} — дохідність: {rec['expected_profit']:.2f}%")
             lines.append(f"    ▪ Стоп-лосс: {rec['stop_loss']} ▪ Тейк-профіт: {rec['take_profit']}")
         lines.append("")
 
     return "\n".join(lines)
-# Надсилання звіту в Telegram
+
+# 📤 Надіслати звіт у Telegram
 def send_report_via_telegram(message):
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         payload = {
             "chat_id": ADMIN_CHAT_ID,
             "text": message,
-            "parse_mode": "Markdown",
+            "parse_mode": "Markdown"
         }
-        response = requests.post(url, json=payload)
-        response.raise_for_status()
+        requests.post(url, json=payload)
     except Exception as e:
-        log.error(f"❌ Помилка надсилання звіту в Telegram: {e}")
-# Основна функція
+        print(f"❌ Telegram Error: {e}")
 def run_daily_analysis():
-    log.info("🔍 Запуск щоденного аналізу...")
-
-    balance_data = get_binance_balance()
-    if not balance_data:
-        send_report_via_telegram("❌ Неможливо отримати баланс з Binance.")
-        return
-
-    prices = get_current_prices()
-    if not prices:
-        send_report_via_telegram("❌ Неможливо отримати ціни з Binance.")
-        return
-
-    # 🔄 Завантажити попередній баланс для PNL
-    previous_snapshot = load_previous_snapshot()
-    save_current_snapshot(balance_data)
-
-    # 📊 Обробка балансу
-    report_lines = []
-    total_usdt = 0
-    total_usdt_yesterday = 0
-    for asset, data in balance_data.items():
-        price = prices.get(f"{asset}USDT", 0)
-        value = round(data["free"] * price, 2)
-        avg_price = data.get("avg_price", price)
-        pnl = round((price - avg_price) * data["free"], 2)
-        pnl_pct = round((price - avg_price) / avg_price * 100, 2) if avg_price else 0
-        pnl_text = f"{pnl} USDT ({pnl_pct}%)"
-
-        yesterday_value = previous_snapshot.get(asset, {}).get("value", 0)
-        change_pct = round((value - yesterday_value) / yesterday_value * 100, 2) if yesterday_value else 0
-        report_lines.append(f"*{asset}*: {data['free']} → {value} USDT | Середня: {avg_price} | PNL: {pnl_text} | Зміна: {change_pct}%")
-
-        total_usdt += value
-        total_usdt_yesterday += yesterday_value
-
-    # 📈 Загальна зміна
-    total_change_pct = round((total_usdt - total_usdt_yesterday) / total_usdt_yesterday * 100, 2) if total_usdt_yesterday else 0
-    report_header = f"*📊 Звіт Binance*\n\n💼 Поточна вартість: {total_usdt} USDT\n📉 Зміна за добу: {total_change_pct}%\n\n"
-
-    full_report = report_header + "\n".join(report_lines)
-    send_report_via_telegram(full_report)
-
-# ✅ Завантажити попередній знімок балансу
-def load_previous_snapshot():
     try:
-        with open("balance_snapshot.json", "r") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
+        balance_data_raw = get_binance_balance()
+        if not balance_data_raw:
+            send_report_via_telegram("❌ Неможливо отримати баланс з Binance.")
+            return
 
-# ✅ Зберегти поточний знімок балансу
-def save_current_snapshot(snapshot):
-    with open("balance_snapshot.json", "w") as f:
-        json.dump(snapshot, f, indent=2)
+        prices = get_current_prices()
+        if not prices:
+            send_report_via_telegram("❌ Неможливо отримати ціни з Binance.")
+            return
 
+        rate_uah = get_usdt_to_uah_rate()
+        previous_snapshot = load_previous_snapshot()
+        save_current_snapshot(balance_data_raw)
+
+        total_usdt = 0
+        balance_info = []
+
+        for symbol, amount in balance_data_raw.items():
+            if symbol in EXCLUDED_ASSETS:
+                continue
+            price_key = f"{symbol}USDT"
+            if price_key not in prices:
+                continue
+            price = prices[price_key]
+            usdt_value = round(amount * price, 2)
+            avg_price = previous_snapshot.get(symbol, {}).get("avg_price", price)
+            pnl = round((price - avg_price) * amount, 2)
+            pnl_percent = round((pnl / (avg_price * amount)) * 100, 2) if avg_price else 0
+            uah_value = round(usdt_value * rate_uah)
+
+            total_usdt += usdt_value
+            balance_info.append({
+                "symbol": symbol,
+                "amount": amount,
+                "usdt_value": usdt_value,
+                "avg_price": avg_price,
+                "pnl": pnl,
+                "pnl_percent": pnl_percent,
+                "uah_value": uah_value
+            })
+
+        # 🔎 Генерація умовних рекомендацій (заглушки, замінити GPT)
+        sell_recommendations = [i for i in balance_info if i["pnl_percent"] < -5]
+        buy_recommendations = [{
+            "symbol": sym.replace("USDT", ""),
+            "expected_profit": 4.5,
+            "stop_loss": "3%",
+            "take_profit": "7%"
+        } for sym in WHITELIST[:3]]  # топ-3
+
+        report = format_report(balance_info, total_usdt, sell_recommendations, buy_recommendations)
+        send_report_via_telegram(report)
+        return report
+
+    except Exception as e:
+        send_report_via_telegram(f"❌ Помилка в аналізі: {str(e)}")
+        return None
+
+# ▶️ Локальний запуск
 if __name__ == "__main__":
     run_daily_analysis()
