@@ -164,10 +164,3 @@ def run_daily_analysis():
     except Exception as e:
         send_report_via_telegram(f"❌ Помилка аналізу: {e}")
         print(f"❌ Run Analysis Error: {e}")
-@app.route("/daily", methods=["POST"])
-def trigger_daily_analysis():
-    try:
-        run_daily_analysis()
-        return jsonify({"status": "ok", "message": "Аналіз запущено"}), 200
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
