@@ -173,15 +173,6 @@ def run_daily_analysis():
         print(error_message)
         send_report_via_telegram(error_message)
 
-            # Повідомлення по активу
-            messages.append(
-                f"*{symbol}*\n"
-                f"Кількість: `{amount}`\n"
-                f"Ціна: `{price}` | Середня: `{avg_price}`\n"
-                f"📊 PnL: `{pnl}` ({pnl_percent}%)\n"
-                f"💰 Вартість: `{usdt_value}` / `{uah_value}₴`\n"
-            )
-
             # Генерація рекомендації
             if pnl_percent > 3:
                 suggestions.append(f"📤 Продати {symbol} (PnL: {pnl_percent}%)")
