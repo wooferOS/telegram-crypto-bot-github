@@ -78,9 +78,10 @@ def load_previous_snapshot():
 def save_current_snapshot(balance_data, prices=None):
     snapshot = {}
     for symbol, amount in balance_data.items():
+        # Якщо ціни є — записуємо середню ціну
         if prices:
             price_key = f"{symbol}USDT"
-            price = prices.get(price_key, 0)
+            price = prices.get(price_key, 1.0 if symbol == "USDT" else 0)
             snapshot[symbol] = {
                 "amount": amount,
                 "avg_price": price
@@ -88,8 +89,9 @@ def save_current_snapshot(balance_data, prices=None):
         else:
             snapshot[symbol] = {
                 "amount": amount,
-                "avg_price": 0
+                "avg_price": 1.0 if symbol == "USDT" else 0
             }
+
     try:
         with open(SNAPSHOT_FILE, "w") as file:
             json.dump(snapshot, file, indent=2)
@@ -123,6 +125,17 @@ def run_daily_analysis():
             if symbol in EXCLUDED_ASSETS:
                 continue
 
+            # 🔁 Додати USDT до звіту
+            if symbol == "USDT":
+                total_usdt += amount
+                messages.append(
+                    f"*{symbol}*\n"
+                    f"Кількість: `{amount}`\n"
+                    f"Ціна: `1.0` | Середня: `1.0`\n"
+                    f"📊 PnL: `0.0` (0.0%)\n"
+                    f"💰 Вартість: `{amount}` USDT / `{round(amount * rate_uah)}₴`\n"
+                )
+                continue
             price_key = f"{symbol}USDT"
             price = prices.get(price_key)
             if not price:
@@ -138,6 +151,27 @@ def run_daily_analysis():
             uah_value = round(usdt_value * rate_uah)
 
             total_usdt += usdt_value
+
+            messages.append(
+                f"*{symbol}*\n"
+                f"Кількість: `{amount}`\n"
+                f"Ціна: `{price}` | Середня: `{avg_price}`\n"
+                f"📊 PnL: `{pnl}` ({pnl_percent}%)\n"
+                f"💰 Вартість: `{usdt_value}` USDT / `{uah_value}₴`\n"
+            )
+        total_uah = round(total_usdt * rate_uah)
+
+        summary = (
+            f"\n📦 *Загальна вартість портфеля:* `{round(total_usdt, 2)}` USDT ≈ `{total_uah}₴`\n"
+        )
+
+        full_report = "\n".join(messages) + summary
+        send_report_via_telegram(full_report)
+
+    except Exception as e:
+        error_message = f"❌ Помилка при виконанні щоденного аналізу: {e}"
+        print(error_message)
+        send_report_via_telegram(error_message)
 
             # Повідомлення по активу
             messages.append(
