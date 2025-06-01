@@ -1,7 +1,9 @@
 /root/telegram-crypto-bot-github/daily.log {
     daily
-    missingok
     rotate 7
-    compress
+    missingok
     notifempty
+    compress
+    delaycompress
+    copytruncate
 }
