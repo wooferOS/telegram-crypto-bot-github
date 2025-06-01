@@ -155,6 +155,38 @@ def run_daily_analysis():
             "stop_loss": "3%",
             "take_profit": "7%"
         } for sym in WHITELIST[:3]]  # топ-3
+        # 🧠 GPT-аналітика — формуємо промпт з балансу
+        symbols_for_gpt = [item["symbol"] for item in balance_info]
+        balance_summary = "\n".join(
+            f"{item['symbol']}: {item['amount']} @ {item['avg_price']:.4f}" for item in balance_info
+        )
+
+        prompt = (
+            f"Твій баланс на Binance:\n{balance_summary}\n\n"
+            f"Курс USDT: {rate_uah} грн\n"
+            f"Сформуй короткий аналіз: які з монет краще продати, а які з whitelist купити сьогодні на добу, "
+            f"з оцінкою очікуваного прибутку в %, stop-loss і take-profit.\n"
+            f"Формат відповіді: JSON з двома списками — sell і buy. "
+            f"У кожному елементі: symbol, expected_profit, stop_loss, take_profit.\n"
+        )
+
+        try:
+            response = openai.chat.completions.create(
+                model="gpt-4",
+                messages=[{"role": "system", "content": "Ти криптоаналітик Binance."},
+                          {"role": "user", "content": prompt}]
+            )
+            gpt_data = json.loads(response.choices[0].message.content)
+            sell_recommendations = gpt_data.get("sell", [])
+            buy_recommendations = gpt_data.get("buy", [])
+        except Exception as e:
+            sell_recommendations = [i for i in balance_info if i["pnl_percent"] < -5]
+            buy_recommendations = [{
+                "symbol": sym.replace("USDT", ""),
+                "expected_profit": 4.5,
+                "stop_loss": "3%",
+                "take_profit": "7%"
+            } for sym in WHITELIST[:3]]
 
         report = format_report(balance_info, total_usdt, sell_recommendations, buy_recommendations)
         send_report_via_telegram(report)
