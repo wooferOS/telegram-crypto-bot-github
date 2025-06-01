@@ -76,21 +76,25 @@ def send_balance(message):
         response = "📊 *Ваш поточний баланс:*\n\n"
         total_usdt = 0
         for asset in balances:
-            amount = float(asset["free"])
-            if amount < 0.01:
+            free = float(asset["free"])
+            locked = float(asset["locked"])
+            amount = free + locked
+            if amount < 0.0001:
                 continue
             symbol = asset["asset"]
             try:
-                price = float(client.get_symbol_ticker(symbol=f"{symbol}USDT")["price"])
+                ticker = client.get_symbol_ticker(symbol=f"{symbol}USDT")
+                price = float(ticker["price"])
             except:
                 continue
-            value = amount * price
+            value = round(amount * price, 2)
             total_usdt += value
-            response += f"▫️ {symbol}: {amount:.4f} ≈ {value:.2f} USDT\n"
+            response += f"▫️ {symbol}: {amount:.6f} ≈ {value:.2f} USDT\n"
         response += f"\n💰 *Загальна вартість:* {total_usdt:.2f} USDT"
         bot.send_message(message.chat.id, response, parse_mode="Markdown")
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка: {str(e)}")
+
 
 def send_report(message):
     try:
