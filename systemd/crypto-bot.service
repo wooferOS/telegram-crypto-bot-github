@@ -1,12 +1,16 @@
 [Unit]
-Description=Crypto Telegram Bot (GPT-enabled)
+Description=Telegram GPT Crypto Bot (Flask + Polling)
 After=network.target
 
 [Service]
+User=root
 WorkingDirectory=/root/telegram-crypto-bot-github
 ExecStart=/usr/bin/python3 main.py
 Restart=always
-Environment="PYTHONUNBUFFERED=1"
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONUNBUFFERED=1
 
 [Install]
 WantedBy=multi-user.target
