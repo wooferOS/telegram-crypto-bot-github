@@ -77,7 +77,6 @@ def show_id(message):
 def send_balance(message):
     try:
         balances = client.get_account()["balances"]
-<<<<<<< HEAD
         response = "📊 *Ваш поточний баланс:*\n\n"
         total_usdt = 0
         for asset in balances:
@@ -93,7 +92,6 @@ def send_balance(message):
             total_usdt += value
             response += f"▫️ {symbol}: {amount:.4f} ≈ {value:.2f} USDT\n"
         response += f"\n💰 *Загальна вартість:* {total_usdt:.2f} USDT"
-=======
         prices = {item["symbol"]: float(item["price"]) for item in client.get_all_tickers()}
         rate_uah = get_usdt_to_uah_rate()
 
@@ -196,10 +194,8 @@ def run_polling():
 def run_flask():
     print("🌐 Flask-сервер для /health запущено на порту 10000")
     app.run(host="0.0.0.0", port=10000)
-
-<<<<<<< HEAD
-=======
 @app.route("/daily", methods=["POST"])
+
 def trigger_daily_analysis():
     try:
         run_daily_analysis()
