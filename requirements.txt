@@ -1,7 +1,7 @@
 openai>=1.0.0
 requests>=2.25.0
 python-dotenv>=1.0.0
-pyTelegramBotAPI>=4.0.0
-python-telegram-bot>=20.0
+pyTelegramBotAPI>=4.0.0       # для telebot
+python-telegram-bot>=20.0     # якщо колись перейдеш на PTB
 python-binance>=1.0.17
-flask
+flask                         # для майбутнього веб-інтерфейсу
