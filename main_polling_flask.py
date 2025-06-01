@@ -9,7 +9,7 @@ from telebot import TeleBot, types
 from binance.client import Client
 from daily_analysis import run_daily_analysis
 from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate
-from flask import request, jsonify dev
+from flask import request, jsonify
 
 load_dotenv(".env")
 
