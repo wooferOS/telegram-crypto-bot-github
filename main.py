@@ -1,18 +1,18 @@
-# 📦 main.py — Telegram GPT-бот для аналітики Binance
+# 📦 main.py — Telegram GPT-бот з Flask-сервером /health
 
 import os
 import json
 import logging
-from telebot import types
+import threading
 from datetime import datetime
 from dotenv import load_dotenv
+from flask import Flask
 from telebot import TeleBot, types
 from binance.client import Client
 from daily_analysis import run_daily_analysis
 
 # 🔐 Завантаження .env
-dotenv_path = os.path.join(os.path.dirname(__file__), ".env")
-load_dotenv(dotenv_path)
+load_dotenv(".env")
 
 # 🔑 Змінні середовища
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -23,6 +23,13 @@ BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 # 🤖 Telegram та Binance клієнти
 bot = TeleBot(TELEGRAM_TOKEN)
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+
+# 💻 Flask health-check сервер
+app = Flask(__name__)
+
+@app.route("/health")
+def health():
+    return "✅ OK", 200
 
 # 💰 Поточний бюджет
 budget = {"USDT": 100}
@@ -35,8 +42,7 @@ WHITELIST = [
     "ETCUSDT", "HBARUSDT", "VETUSDT", "RUNEUSDT", "INJUSDT", "OPUSDT",
     "ARBUSDT", "SUIUSDT", "STXUSDT", "TIAUSDT", "SEIUSDT", "1000PEPEUSDT"
 ]
-
-# 🧠 Завантаження сигналу
+# 🧠 Завантаження сигналів
 def load_signal():
     try:
         with open("signal.json", "r") as f:
@@ -49,6 +55,7 @@ def save_signal(signal):
         json.dump(signal, f)
 
 signal = load_signal()
+
 # ⌨️ Основна клавіатура
 def get_main_keyboard():
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -58,51 +65,26 @@ def get_main_keyboard():
     kb.row("🚫 Скасувати")
     return kb
 
-# 👋 Привітання та старт
+# 👋 Привітання
 @bot.message_handler(commands=["start", "menu"])
 def send_welcome(message):
     text = (
         "👋 Вітаю! Я *GPT-криптобот* для Binance.\n\n"
-        "Використовуйте кнопки нижче або наберіть команду вручну:\n"
-        "`/balance`, `/report`, `/confirm_buy`, `/confirm_sell`"
+        "Використовуйте кнопки або команди:\n"
+        "`/balance`, `/report`, `/confirm_buy`, `/confirm_sell`, `/set_budget`"
     )
     bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
-# 📋 Команда /menu
-@bot.message_handler(commands=["menu"])
-def show_menu(message):
-    bot.send_message(message.chat.id, "📍 Меню команд:", reply_markup=get_main_keyboard())
-
-# 📌 Команда /id — показати chat_id
 @bot.message_handler(commands=["id"])
 def show_id(message):
     bot.reply_to(message, f"Ваш chat ID: `{message.chat.id}`", parse_mode="Markdown")
-# 🎯 Обробка кнопок користувача
-@bot.message_handler(func=lambda m: True)
-def handle_buttons(message):
-    text = message.text
-    if text == "📊 Баланс":
-        send_balance(message)
-    elif text == "📈 Звіт":
-        send_report(message)
-    elif text == "✅ Підтвердити купівлю":
-        bot.send_message(message.chat.id, "✋ Оберіть монету для купівлі...")
-    elif text == "❌ Підтвердити продаж":
-        bot.send_message(message.chat.id, "✋ Оберіть монету для продажу...")
-    elif text == "🔄 Оновити":
-        send_report(message)
-    elif text == "🚫 Скасувати":
-        bot.send_message(message.chat.id, "❌ Дію скасовано.")
-    else:
-        bot.send_message(message.chat.id, "⚠️ Невідома команда. Напишіть /help або скористайтеся кнопками.")
 
-# 📊 Баланс акаунту
+# 📊 Баланс Binance
 def send_balance(message):
     try:
         balances = client.get_account()["balances"]
         response = "📊 *Ваш поточний баланс:*\n\n"
         total_usdt = 0
-
         for asset in balances:
             amount = float(asset["free"])
             if amount < 0.01:
@@ -115,13 +97,12 @@ def send_balance(message):
             value = amount * price
             total_usdt += value
             response += f"▫️ {symbol}: {amount:.4f} ≈ {value:.2f} USDT\n"
-
         response += f"\n💰 *Загальна вартість:* {total_usdt:.2f} USDT"
         bot.send_message(message.chat.id, response, parse_mode="Markdown")
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка: {str(e)}")
 
-# 📈 GPT-звіт по портфелю
+# 📈 GPT-звіт
 def send_report(message):
     try:
         bot.send_message(message.chat.id, "⏳ Формується GPT-звіт, зачекайте...")
@@ -143,7 +124,6 @@ def callback_inline(call):
                 "time": datetime.utcnow().isoformat()
             }
             save_signal(signal)
-
         elif call.data.startswith("confirmsell_"):
             pair = call.data.split("_")[1]
             bot.send_message(call.message.chat.id, f"✅ Ви підтвердили продаж {pair}")
@@ -171,7 +151,35 @@ def set_budget(message):
             bot.reply_to(message, "❗️ Приклад: `/set_budget 150`", parse_mode="Markdown")
     except Exception as e:
         bot.reply_to(message, f"❌ Помилка: {str(e)}")
-# 🚀 Запуск Telegram-бота
-if __name__ == "__main__":
-    print("🚀 Бот запущено!")
+
+# 🎯 Обробка кнопок користувача
+@bot.message_handler(func=lambda m: True)
+def handle_buttons(message):
+    text = message.text
+    if text == "📊 Баланс":
+        send_balance(message)
+    elif text == "📈 Звіт":
+        send_report(message)
+    elif text == "✅ Підтвердити купівлю":
+        bot.send_message(message.chat.id, "✋ Оберіть монету для купівлі...")
+    elif text == "❌ Підтвердити продаж":
+        bot.send_message(message.chat.id, "✋ Оберіть монету для продажу...")
+    elif text == "🔄 Оновити":
+        send_report(message)
+    elif text == "🚫 Скасувати":
+        bot.send_message(message.chat.id, "❌ Дію скасовано.")
+    else:
+        bot.send_message(message.chat.id, "⚠️ Невідома команда. Напишіть /help або скористайтеся кнопками.")
+
+# 🚀 Запуск Flask і Telegram polling паралельно
+def run_polling():
+    print("🤖 Telegram polling запущено...")
     bot.polling(none_stop=True)
+
+def run_flask():
+    print("🌐 Flask-сервер для /health запущено на порту 10000")
+    app.run(host="0.0.0.0", port=10000)
+
+if __name__ == "__main__":
+    threading.Thread(target=run_polling).start()
+    run_flask()
