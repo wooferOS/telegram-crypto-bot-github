@@ -4,10 +4,12 @@ import os
 import json
 import logging
 from datetime import datetime
+
 from dotenv import load_dotenv
 from telebot import TeleBot, types
 from binance.client import Client
-from daily_analysis import run_daily_analysis
+
+from daily_analysis import run_daily_analysis  # ✅ основна GPT-аналітика
 
 # 🔐 Завантаження .env
 dotenv_path = os.path.join(os.path.dirname(__file__), ".env")
