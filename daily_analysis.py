@@ -21,7 +21,7 @@ tg_bot = Bot(token=TELEGRAM_TOKEN)
 openai = OpenAI(api_key=OPENAI_API_KEY)
 
 SNAPSHOT_FILE = "balance_snapshot.json"
-EXCLUDED_ASSETS = ["USDT", "BUSD", "USDC"]
+EXCLUDED_ASSETS = ["BUSD", "USDC"]
 def get_binance_balance():
     try:
         account_info = client.get_account()
@@ -143,9 +143,9 @@ def run_daily_analysis():
             messages.append(
                 f"*{symbol}*\n"
                 f"Кількість: `{amount}`\n"
-                f"Ціна: `{price} USDT` | Середня: `{avg_price} USDT`\n"
-                f"📊 PnL: `{pnl} USDT` ({pnl_percent}%)\n"
-                f"💰 Вартість: `{usdt_value} USDT` / `{uah_value}₴`\n"
+                f"Ціна: `{price}` | Середня: `{avg_price}`\n"
+                f"📊 PnL: `{pnl}` ({pnl_percent}%)\n"
+                f"💰 Вартість: `{usdt_value}` / `{uah_value}₴`\n"
             )
 
             # Генерація рекомендації
