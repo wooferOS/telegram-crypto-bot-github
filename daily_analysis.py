@@ -7,7 +7,6 @@ from binance.client import Client
 from openai import OpenAI
 from telegram import Bot
 
-# Завантажити змінні середовища
 load_dotenv()
 
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
@@ -24,64 +23,46 @@ SNAPSHOT_FILE = "balance_snapshot.json"
 EXCLUDED_ASSETS = ["BUSD", "USDC"]
 def get_binance_balance():
     try:
-        account_info = client.get_account()
-        balances = {
-            item["asset"]: float(item["free"]) + float(item["locked"])
-            for item in account_info["balances"]
-            if float(item["free"]) + float(item["locked"]) > 0
+        balances = client.get_account()["balances"]
+        return {
+            asset["asset"]: float(asset["free"]) + float(asset["locked"])
+            for asset in balances
+            if float(asset["free"]) + float(asset["locked"]) > 0
         }
-        return balances
     except Exception as e:
-        print(f"❌ Binance Error: {e}")
+        print(f"❌ Binance Balance Error: {e}")
         return {}
 
 def get_current_prices():
     try:
-        prices = client.get_all_tickers()
-        return {item["symbol"]: float(item["price"]) for item in prices}
+        tickers = client.get_all_tickers()
+        return {t["symbol"]: float(t["price"]) for t in tickers}
     except Exception as e:
-        print(f"❌ Price Fetch Error: {e}")
+        print(f"❌ Binance Prices Error: {e}")
         return {}
 
 def get_usdt_to_uah_rate():
     try:
-        url = "https://api.binance.com/api/v3/ticker/price?symbol=USDTUAH"
-        response = requests.get(url)
-        return float(response.json().get("price", 0))
+        res = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=USDTUAH")
+        return float(res.json()["price"])
     except Exception as e:
-        print(f"❌ UAH Rate Error: {e}")
-        return 0
-
-def send_report_via_telegram(message):
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        payload = {
-            "chat_id": ADMIN_CHAT_ID,
-            "text": message,
-            "parse_mode": "Markdown"
-        }
-        requests.post(url, json=payload)
-    except Exception as e:
-        print(f"❌ Telegram Error: {e}")
+        print(f"❌ USDT Rate Error: {e}")
+        return None
 SNAPSHOT_FILE = "balance_snapshot.json"
 
 def load_previous_snapshot():
-    if not os.path.exists(SNAPSHOT_FILE):
-        return {}
     try:
         with open(SNAPSHOT_FILE, "r") as file:
             return json.load(file)
-    except Exception as e:
-        print(f"❌ Snapshot Load Error: {e}")
+    except:
         return {}
 
 def save_current_snapshot(balance_data, prices=None):
     snapshot = {}
     for symbol, amount in balance_data.items():
-        # Якщо ціни є — записуємо середню ціну
         if prices:
             price_key = f"{symbol}USDT"
-            price = prices.get(price_key, 1.0 if symbol == "USDT" else 0)
+            price = prices.get(price_key, 0)
             snapshot[symbol] = {
                 "amount": amount,
                 "avg_price": price
@@ -89,9 +70,8 @@ def save_current_snapshot(balance_data, prices=None):
         else:
             snapshot[symbol] = {
                 "amount": amount,
-                "avg_price": 1.0 if symbol == "USDT" else 0
+                "avg_price": 0
             }
-
     try:
         with open(SNAPSHOT_FILE, "w") as file:
             json.dump(snapshot, file, indent=2)
@@ -120,12 +100,10 @@ def run_daily_analysis():
         total_usdt = 0
         messages = []
         suggestions = []
-
         for symbol, amount in balance_data.items():
             if symbol in EXCLUDED_ASSETS:
                 continue
 
-            # 🔁 Додати USDT до звіту
             if symbol == "USDT":
                 total_usdt += amount
                 messages.append(
@@ -151,7 +129,6 @@ def run_daily_analysis():
             uah_value = round(usdt_value * rate_uah)
 
             total_usdt += usdt_value
-
             messages.append(
                 f"*{symbol}*\n"
                 f"Кількість: `{amount}`\n"
@@ -159,33 +136,21 @@ def run_daily_analysis():
                 f"📊 PnL: `{pnl}` ({pnl_percent}%)\n"
                 f"💰 Вартість: `{usdt_value}` USDT / `{uah_value}₴`\n"
             )
-        total_uah = round(total_usdt * rate_uah)
+            # 💡 Генерація інвестиційних порад
+            if pnl_percent < -5:
+                suggestions.append(f"🔻 *{symbol}* має значне падіння — розглянь можливість _продажу_.")
+            elif pnl_percent > 5:
+                suggestions.append(f"🟢 *{symbol}* показує ріст — розглянь можливість _фіксації прибутку_.")
+        # 📦 Додавання загальної інформації
+        messages.append(f"\n📦 *Загальна вартість портфеля:* `{round(total_usdt, 2)}` USDT ≈ `{round(total_usdt * rate_uah)}₴`")
 
-        summary = (
-            f"\n📦 *Загальна вартість портфеля:* `{round(total_usdt, 2)}` USDT ≈ `{total_uah}₴`\n"
-        )
-
-        full_report = "\n".join(messages) + summary
-        send_report_via_telegram(full_report)
-
-    except Exception as e:
-        error_message = f"❌ Помилка при виконанні щоденного аналізу: {e}"
-        print(error_message)
-        send_report_via_telegram(error_message)
-
-            # Генерація рекомендації
-            if pnl_percent > 3:
-                suggestions.append(f"📤 Продати {symbol} (PnL: {pnl_percent}%)")
-            elif pnl_percent < -3:
-                suggestions.append(f"📥 Купити {symbol} (PnL: {pnl_percent}%)")
-
-        report = "\n".join(messages)
-        summary = f"\n\n📦 Загальна вартість портфеля: `{round(total_usdt, 2)} USDT` ≈ `{round(total_usdt * rate_uah)}₴`\n"
+        # 📨 Формування повного звіту
+        final_message = "\n".join(messages)
         if suggestions:
-            summary += "\n📌 *Рекомендації:*\n" + "\n".join(suggestions)
+            final_message += "\n\n📈 *Рекомендації:*\n" + "\n".join(suggestions)
 
-        send_report_via_telegram(report + summary)
-
+        send_report_via_telegram(final_message)
     except Exception as e:
         send_report_via_telegram(f"❌ Помилка аналізу: {e}")
-        print(f"❌ Run Analysis Error: {e}")
+if __name__ == "__main__":
+    run_daily_analysis()
