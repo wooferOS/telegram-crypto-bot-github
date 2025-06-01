@@ -2,7 +2,7 @@ name: Daily Crypto Report
 
 on:
   schedule:
-    - cron: "0 6 * * *"  # Щодня о 09:00 за Києвом (UTC+3)
+    - cron: "0 6 * * *"   # Щодня о 09:00 за Києвом (UTC+3)
   workflow_dispatch:
 
 jobs:
