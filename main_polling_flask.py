@@ -7,12 +7,9 @@ from dotenv import load_dotenv
 from flask import Flask
 from telebot import TeleBot, types
 from binance.client import Client
-<<<<<<< HEAD
 from daily_analysis import run_daily_analysis
-=======
 from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate
-from flask import request, jsonify
->>>>>>> dev
+from flask import request, jsonify dev
 
 load_dotenv(".env")
 
@@ -94,7 +91,6 @@ def send_balance(message):
         response += f"\n💰 *Загальна вартість:* {total_usdt:.2f} USDT"
         prices = {item["symbol"]: float(item["price"]) for item in client.get_all_tickers()}
         rate_uah = get_usdt_to_uah_rate()
-
         total_usdt = 0
         response = "📊 *Ваш поточний баланс:*\n\n"
         for asset in balances:
@@ -203,7 +199,6 @@ def trigger_daily_analysis():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
->>>>>>> dev
 if __name__ == "__main__":
     threading.Thread(target=run_polling).start()
     run_flask()
