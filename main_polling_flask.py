@@ -7,7 +7,12 @@ from dotenv import load_dotenv
 from flask import Flask
 from telebot import TeleBot, types
 from binance.client import Client
+<<<<<<< HEAD
 from daily_analysis import run_daily_analysis
+=======
+from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate
+from flask import request, jsonify
+>>>>>>> dev
 
 load_dotenv(".env")
 
@@ -72,6 +77,7 @@ def show_id(message):
 def send_balance(message):
     try:
         balances = client.get_account()["balances"]
+<<<<<<< HEAD
         response = "📊 *Ваш поточний баланс:*\n\n"
         total_usdt = 0
         for asset in balances:
@@ -87,6 +93,32 @@ def send_balance(message):
             total_usdt += value
             response += f"▫️ {symbol}: {amount:.4f} ≈ {value:.2f} USDT\n"
         response += f"\n💰 *Загальна вартість:* {total_usdt:.2f} USDT"
+=======
+        prices = {item["symbol"]: float(item["price"]) for item in client.get_all_tickers()}
+        rate_uah = get_usdt_to_uah_rate()
+
+        total_usdt = 0
+        response = "📊 *Ваш поточний баланс:*\n\n"
+        for asset in balances:
+            free = float(asset["free"])
+            locked = float(asset["locked"])
+            amount = free + locked
+            if amount < 0.0001:
+                continue
+            symbol = asset["asset"]
+            if symbol in ["BNB", "BUSD", "USDC"]:  # Додай або зміни список виключень
+                continue
+            if symbol == "USDT":
+                value = amount
+            else:
+                price_key = f"{symbol}USDT"
+                price = prices.get(price_key)
+                if not price:
+                    continue
+                value = round(amount * price, 2)
+            total_usdt += value
+            response += f"▫️ {symbol}: {amount:.6f} ≈ {value:.2f} USDT\n"
+        response += f"\n💰 *Загальна вартість:* {total_usdt:.2f} USDT ≈ {round(total_usdt * rate_uah)}₴"
         bot.send_message(message.chat.id, response, parse_mode="Markdown")
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка: {str(e)}")
@@ -165,6 +197,17 @@ def run_flask():
     print("🌐 Flask-сервер для /health запущено на порту 10000")
     app.run(host="0.0.0.0", port=10000)
 
+<<<<<<< HEAD
+=======
+@app.route("/daily", methods=["POST"])
+def trigger_daily_analysis():
+    try:
+        run_daily_analysis()
+        return jsonify({"status": "ok", "message": "Аналіз запущено"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+>>>>>>> dev
 if __name__ == "__main__":
     threading.Thread(target=run_polling).start()
     run_flask()

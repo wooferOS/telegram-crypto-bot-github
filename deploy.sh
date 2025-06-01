@@ -1,12 +1,15 @@
 #!/bin/bash
 
-export $(grep -v '^#' /root/telegram-crypto-bot-github/.env | xargs)
+echo "📦 Оновлення Telegram-бота..."
 
+cd /root/telegram-crypto-bot-github || exit 1
 
-echo "📥 Отримую останні зміни з GitHub..."
-cd ~/telegram-crypto-bot-github || exit
-git pull origin master
+echo "🔄 Отримання останніх змін із GitHub..."
+git pull origin dev || exit 1
 
-echo "🔁 Перезапуск бота через systemd..."
+echo "🔁 Перезапуск systemd-сервісу..."
+sudo systemctl daemon-reexec
+sudo systemctl daemon-reload
 sudo systemctl restart crypto-bot
-sudo systemctl status crypto-bot --no-pager
+
+echo "✅ Бот успішно перезапущено!"
