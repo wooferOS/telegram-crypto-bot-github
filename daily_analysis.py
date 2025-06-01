@@ -77,6 +77,19 @@ def save_current_snapshot(balance_data, prices=None):
             json.dump(snapshot, file, indent=2)
     except Exception as e:
         print(f"❌ Snapshot Save Error: {e}")
+        
+def send_report_via_telegram(message: str):
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        payload = {
+            "chat_id": ADMIN_CHAT_ID,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+        requests.post(url, json=payload)
+    except Exception as e:
+        print(f"❌ Telegram Error: {e}")
+
 def run_daily_analysis():
     try:
         balance_data = get_binance_balance()
