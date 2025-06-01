@@ -3,6 +3,7 @@
 import os
 import json
 import logging
+from telebot import types
 from datetime import datetime
 from dotenv import load_dotenv
 from telebot import TeleBot, types
