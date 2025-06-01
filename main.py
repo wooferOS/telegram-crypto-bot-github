@@ -23,10 +23,10 @@ BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 bot = TeleBot(TELEGRAM_TOKEN)
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 
-# 💰 Поточний бюджет (оновлюється через /set_budget)
+# 💰 Поточний бюджет
 budget = {"USDT": 100}
 
-# ✅ Whitelist монет
+# ✅ Список дозволених монет
 WHITELIST = [
     "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT",
     "DOGEUSDT", "AVAXUSDT", "DOTUSDT", "TRXUSDT", "LINKUSDT", "MATICUSDT",
@@ -34,7 +34,8 @@ WHITELIST = [
     "ETCUSDT", "HBARUSDT", "VETUSDT", "RUNEUSDT", "INJUSDT", "OPUSDT",
     "ARBUSDT", "SUIUSDT", "STXUSDT", "TIAUSDT", "SEIUSDT", "1000PEPEUSDT"
 ]
-# 🧠 Завантаження та збереження сигналу
+
+# 🧠 Завантаження сигналу
 def load_signal():
     try:
         with open("signal.json", "r") as f:
@@ -47,7 +48,6 @@ def save_signal(signal):
         json.dump(signal, f)
 
 signal = load_signal()
-
 # ⌨️ Основна клавіатура
 def get_main_keyboard():
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -57,7 +57,7 @@ def get_main_keyboard():
     kb.row("🚫 Скасувати")
     return kb
 
-# 👋 /start або /menu
+# 👋 Привітання та старт
 @bot.message_handler(commands=["start", "menu"])
 def send_welcome(message):
     text = (
@@ -67,7 +67,16 @@ def send_welcome(message):
     )
     bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
-# 🎯 Обробка натискань на кнопки
+# 📋 Команда /menu
+@bot.message_handler(commands=["menu"])
+def show_menu(message):
+    bot.send_message(message.chat.id, "📍 Меню команд:", reply_markup=get_main_keyboard())
+
+# 📌 Команда /id — показати chat_id
+@bot.message_handler(commands=["id"])
+def show_id(message):
+    bot.reply_to(message, f"Ваш chat ID: `{message.chat.id}`", parse_mode="Markdown")
+# 🎯 Обробка кнопок користувача
 @bot.message_handler(func=lambda m: True)
 def handle_buttons(message):
     text = message.text
@@ -115,29 +124,12 @@ def send_balance(message):
 def send_report(message):
     try:
         bot.send_message(message.chat.id, "⏳ Формується GPT-звіт, зачекайте...")
-        run_daily_analysis()
+        report = run_daily_analysis()
+        if report:
+            bot.send_message(message.chat.id, report, parse_mode="Markdown")
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка при створенні звіту:\n{e}")
-# 🎯 Обробка натискань на кнопки
-@bot.message_handler(func=lambda m: True)
-def handle_buttons(message):
-    text = message.text
-    if text == "📊 Баланс":
-        send_balance(message)
-    elif text == "📈 Звіт":
-        send_report(message)
-    elif text == "✅ Підтвердити купівлю":
-        bot.send_message(message.chat.id, "✋ Оберіть монету для купівлі...")
-    elif text == "❌ Підтвердити продаж":
-        bot.send_message(message.chat.id, "✋ Оберіть монету для продажу...")
-    elif text == "🔄 Оновити":
-        send_report(message)
-    elif text == "🚫 Скасувати":
-        bot.send_message(message.chat.id, "❌ Дію скасовано.")
-    else:
-        bot.send_message(message.chat.id, "⚠️ Невідома команда. Напишіть /help або скористайтеся кнопками.")
-
-# ✅ Inline підтвердження покупки/продажу
+# ✅ Inline-підтвердження покупки/продажу
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     try:
@@ -163,7 +155,7 @@ def callback_inline(call):
     except Exception as e:
         bot.send_message(call.message.chat.id, f"❌ Помилка: {str(e)}")
 
-# 💰 /set_budget — встановити бюджет
+# 💰 /set_budget — встановлення бюджету
 @bot.message_handler(commands=["set_budget"])
 def set_budget(message):
     try:
@@ -178,18 +170,7 @@ def set_budget(message):
             bot.reply_to(message, "❗️ Приклад: `/set_budget 150`", parse_mode="Markdown")
     except Exception as e:
         bot.reply_to(message, f"❌ Помилка: {str(e)}")
-
-# 📌 /id — показати chat_id
-@bot.message_handler(commands=["id"])
-def show_id(message):
-    bot.reply_to(message, f"Ваш chat ID: `{message.chat.id}`", parse_mode="Markdown")
-
-# 📋 /menu — показати клавіатуру вручну
-@bot.message_handler(commands=["menu"])
-def show_menu(message):
-    bot.send_message(message.chat.id, "📍 Меню команд:", reply_markup=get_main_keyboard())
-
-# 🚀 Запуск бота
+# 🚀 Запуск Telegram-бота
 if __name__ == "__main__":
     print("🚀 Бот запущено!")
     bot.polling(none_stop=True)
