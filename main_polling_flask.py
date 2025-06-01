@@ -73,8 +73,11 @@ def show_id(message):
 def send_balance(message):
     try:
         balances = client.get_account()["balances"]
-        response = "📊 *Ваш поточний баланс:*\n\n"
+        prices = {item["symbol"]: float(item["price"]) for item in client.get_all_tickers()}
+        rate_uah = get_usdt_to_uah_rate()
+
         total_usdt = 0
+        response = "📊 *Ваш поточний баланс:*\n\n"
         for asset in balances:
             free = float(asset["free"])
             locked = float(asset["locked"])
@@ -82,18 +85,24 @@ def send_balance(message):
             if amount < 0.0001:
                 continue
             symbol = asset["asset"]
-            try:
-                ticker = client.get_symbol_ticker(symbol=f"{symbol}USDT")
-                price = float(ticker["price"])
-            except:
+            if symbol in ["BNB", "BUSD", "USDC"]:  # Додай або зміни список виключень
                 continue
-            value = round(amount * price, 2)
+            if symbol == "USDT":
+                value = amount
+            else:
+                price_key = f"{symbol}USDT"
+                price = prices.get(price_key)
+                if not price:
+                    continue
+                value = round(amount * price, 2)
             total_usdt += value
             response += f"▫️ {symbol}: {amount:.6f} ≈ {value:.2f} USDT\n"
-        response += f"\n💰 *Загальна вартість:* {total_usdt:.2f} USDT"
+        response += f"\n💰 *Загальна вартість:* {total_usdt:.2f} USDT ≈ {round(total_usdt * rate_uah)}₴"
         bot.send_message(message.chat.id, response, parse_mode="Markdown")
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка: {str(e)}")
+
+
 
 
 def send_report(message):
