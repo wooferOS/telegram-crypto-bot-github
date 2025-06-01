@@ -1,60 +1,87 @@
-# 🤖 GPT Binance Telegram Bot
+# 🧠 Telegram GPT Crypto Bot — Deployment Manual (Flask + Polling + systemd)
 
-Це інтелектуальний Telegram-бот для щоденної аналітики криптовалютного ринку через Binance API та OpenAI GPT-4.
+Цей проєкт — Telegram-бот із GPT-аналізом та автотрейдингом через Binance API.
 
----
+## 🚀 Основні можливості:
 
-## 📊 Можливості
-
-- Автоматичний аналіз ринку (топ-30 пар) двічі на день
-- Формування GPT-звітів із рекомендаціями купівлі/продажу
-- Telegram-команди для підтвердження дій
-- Підтримка кнопок, бюджету, історії, PNL
-- Повністю інтегрований із GitHub Actions та Binance
-- Автоматичне збереження історії угод (`trade_history.json`)
-- Встановлення Stop-Loss і Take-Profit через OCO після купівлі
-- Захист `.env` — файл не потрапляє у репозиторій
-- Щоденний аналіз автоматично о 09:00 та 20:00 через GitHub Actions
+- 🤖 Telegram бот із підтримкою GPT-4 аналізу
+- 📊 Щоденна аналітика ринку криптовалют
+- 🔁 Автотрейдинг через Binance API (купівля/продаж)
+- 💡 Генерація стоп-лосів, PNL, прогнозу прибутку
+- 🧩 Інтеграція з OpenAI, Telegram, Flask, GitHub Actions
+- 🔥 Підтримка polling + healthcheck `/health`
+- 🖥️ Автозапуск через systemd
 
 ---
 
-## 📁 Основні файли
+## 📁 Структура проєкту
+telegram-crypto-bot-github/
+├── main_polling_flask.py # Основний файл з polling + Flask
+├── daily_analysis.py # Щоденна GPT-аналітика ринку
+├── .env # Змінні середовища (токени, ключі)
+├── systemd/crypto-bot.service # systemd-сервіс для автозапуску
+├── README_DEPLOY.md # Цей файл
+├── deploy.sh # Bash-скрипт перезапуску бота
+├── .github/workflows/daily.yml # GitHub Actions для щоденного аналізу
+└── ...
 
-- `main.py` — логіка Telegram-бота
-- `daily_analysis.py` — GPT-звіт та whitelist-аналітика
-- `.env` — змінні середовища
-- `requirements.txt` — залежності
-- `README_DEPLOY.md` — повна інструкція для запуску
 
-## 🚀 Flask + Telegram polling режим
+---
 
-Бот працює у двох потоках:
+## 🔧 1. Змінні `.env` (приклад)
 
-- 🤖 Telegram-бот запускається через `bot.polling()`
-- 🌐 Flask-сервер відповідає на `/health` на порту `10000`
+```env
+TELEGRAM_TOKEN=7810...KA14
+ADMIN_CHAT_ID=465786073
+OPENAI_API_KEY=sk-proj-...
+BINANCE_API_KEY=XW1xhisEv...
+BINANCE_SECRET_KEY=zRpLELZr...
+SERVER_DOMAIN=https://188.166.27.248
+---
 
-Це дозволяє використовувати UptimeRobot для моніторингу живого стану бота.
+---
 
-### Запуск:
-Використовується файл:
+---
 
-🔄 Оновлення основного бота:
+## ⚙️ 2. Режим Flask + Polling
 
-- Додано `main_polling_flask.py` — запуск Telegram polling і Flask одночасно
-- Flask-сервер доступний на `http://188.166.27.248:10000/health`
-- Додано підтримку UptimeRobot моніторингу
-- Підтримується запуск через systemd (`ExecStart=/usr/bin/python3 main_polling_flask.py`)
-## 🚀 Режим Flask + Telegram polling
+### 🔁 Активні одночасно:
+- Flask (порт 10000, маршрут `/health`)
+- Telegram polling (`telebot.infinity_polling()`)
 
-Цей режим дозволяє одночасно запускати:
+> ❗ Не використовується Webhook — тільки polling.
 
-- 🤖 Telegram-бота (polling)
-- 🌐 Flask-сервер з `/health` для моніторингу
+---
 
-### 📌 Запуск
+## 🛠️ 3. Створення systemd-сервісу
 
-Запускається через файл:
-```bash
-main_polling_flask.py
+Файл: `systemd/crypto-bot.service`
 
+```ini
+[Unit]
+Description=Telegram GPT Crypto Bot
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /root/telegram-crypto-bot-github/main_polling_flask.py
+WorkingDirectory=/root/telegram-crypto-bot-github
+Restart=always
+RestartSec=10
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target
+
+sudo cp systemd/crypto-bot.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable crypto-bot
+sudo systemctl restart crypto-bot
+sudo systemctl status crypto-bot
+
+from flask import Flask
+app = Flask(__name__)
+
+@app.route("/health")
+def health():
+    return "OK", 200
 
