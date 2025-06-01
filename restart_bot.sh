@@ -1,6 +1,7 @@
 #!/bin/bash
 
-export $(cat /root/telegram-crypto-bot-github/.env | xargs)
+export $(grep -v '^#' /root/telegram-crypto-bot-github/.env | xargs)
+
 
 echo "🔁 Перезапуск Telegram GPT-бота..."
 sudo systemctl restart crypto-bot
