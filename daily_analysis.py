@@ -143,9 +143,9 @@ def run_daily_analysis():
             messages.append(
                 f"*{symbol}*\n"
                 f"Кількість: `{amount}`\n"
-                f"Ціна: `${price}` | Середня: `${avg_price}`\n"
-                f"📊 PnL: `${pnl}` ({pnl_percent}%)\n"
-                f"💰 Вартість: `${usdt_value}` / `{uah_value}₴`\n"
+                f"Ціна: `{price} USDT` | Середня: `{avg_price} USDT`\n"
+                f"📊 PnL: `{pnl} USDT` ({pnl_percent}%)\n"
+                f"💰 Вартість: `{usdt_value} USDT` / `{uah_value}₴`\n"
             )
 
             # Генерація рекомендації
@@ -155,7 +155,7 @@ def run_daily_analysis():
                 suggestions.append(f"📥 Купити {symbol} (PnL: {pnl_percent}%)")
 
         report = "\n".join(messages)
-        summary = f"\n\n📦 Загальна вартість портфеля: `${round(total_usdt, 2)}` ≈ `{round(total_usdt * rate_uah)}₴`\n"
+        summary = f"\n\n📦 Загальна вартість портфеля: `{round(total_usdt, 2)} USDT` ≈ `{round(total_usdt * rate_uah)}₴`\n"
         if suggestions:
             summary += "\n📌 *Рекомендації:*\n" + "\n".join(suggestions)
 
