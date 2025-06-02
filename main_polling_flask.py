@@ -184,15 +184,15 @@ def set_budget(message):
         bot.reply_to(message, f"❌ Помилка: {str(e)}")
 def send_report(message):
     try:
-        bot.send_message(message.chat.id, "⏳ Формується GPT-звіт, зачекайте...")
         result = run_daily_analysis()
-        report = result.get("report", "")
-        if report:
-            bot.send_message(message.chat.id, report, parse_mode="Markdown")
+        report_text = result.get("report", "")
+        if report_text:
+            bot.send_message(message.chat.id, report_text, parse_mode="Markdown")
         else:
-            bot.send_message(message.chat.id, "⚠️ Звіт порожній.")
+            bot.send_message(message.chat.id, "🔍 GPT-звіт не знайдено.")
     except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка при створенні звіту:\n{str(e)}")
+        bot.send_message(message.chat.id, f"❌ Помилка при надсиланні GPT-звіту:\n{str(e)}")
+
 
 @bot.message_handler(func=lambda m: True)
 def handle_buttons(message):
