@@ -34,9 +34,10 @@ def health():
 
 # 🕒 Планувальник щоденного прогнозу
 scheduler = BackgroundScheduler()
-scheduler.add_job(lambda: send_daily_forecast(), trigger="cron", hour=9, minute=0)
+scheduler.add_job(send_daily_forecast, trigger="cron", hour=9, minute=0)
 scheduler.start()
 print("⏰ APScheduler запущено — прогноз буде надсилатись щодня о 09:00")
+
 
 # 💰 Бюджет за замовчуванням
 budget = {"USDT": 100}
