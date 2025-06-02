@@ -11,6 +11,8 @@ from telebot import TeleBot, types
 from binance.client import Client
 from apscheduler.schedulers.background import BackgroundScheduler
 from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate
+from binance_api import get_current_portfolio
+from daily_analysis import get_historical_data
 
 # 🔐 Завантаження .env
 load_dotenv(".env")
@@ -225,10 +227,10 @@ def handle_zarobyty(message):
     print("🔥 /zarobyty отримано")
 
     try:
-        result = run_daily_analysis()
-        buy_list = result.get("to_buy", [])
-        sell_list = result.get("to_sell", [])
-        report_text = result.get("report", "")
+        current = get_current_portfolio()
+        historical = get_historical_data()
+        buy_list, sell_list, forecast = run_daily_analysis(current, historical)
+
 
         if not buy_list and not sell_list:
             bot.send_message(
