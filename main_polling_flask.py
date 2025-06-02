@@ -166,6 +166,10 @@ def place_safety_orders(symbol: str, action_type: str):
     except Exception as e:
         print(f"❌ Помилка встановлення стопів для {symbol}: {e}")
         return False
+@bot.callback_query_handler(func=lambda call: call.data == "test_callback")
+def handle_test_callback(call):
+    bot.answer_callback_query(call.id, "✅ Кнопка спрацювала!")
+    bot.send_message(call.message.chat.id, "🧪 Ви натиснули кнопку.")
 
 
 @bot.message_handler(commands=["set_budget"])
