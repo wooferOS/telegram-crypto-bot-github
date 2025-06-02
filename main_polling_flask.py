@@ -221,7 +221,7 @@ print("SELL LIST:", sell_list)
 
 @bot.message_handler(commands=["zarobyty"])
 def handle_zarobyty(message):
-    print("🔥 /zarobyty отримано")  # 👉 Для логування у терміналі
+    print("🔥 /zarobyty отримано")
 
     try:
         result = run_daily_analysis()
@@ -236,7 +236,6 @@ def handle_zarobyty(message):
             )
             return
 
-        # 🧠 Емоджі для токенів
         emoji_map = {
             "BTC": "₿", "ETH": "🌐", "BNB": "🔥", "SOL": "☀️", "XRP": "💧",
             "ADA": "🔷", "DOGE": "🐶", "AVAX": "🗻", "DOT": "🎯", "TRX": "💡",
@@ -252,22 +251,29 @@ def handle_zarobyty(message):
                     return f"{emoji_map[key]} {sym}"
             return sym
 
-        # 🧾 Формуємо текст
         summary = "💡 *GPT-прогноз на день:*\n\n"
+        markup = types.InlineKeyboardMarkup()
+
         if sell_list:
             summary += "🔻 *Рекомендовано продати:*\n"
-            summary += ", ".join(f"`{add_emoji(s)}`" for s in sell_list) + "\n\n"
+            summary += ", ".join(f"`{add_emoji(s)}`" for s in sell_list) + "\n"
+            for symbol in sell_list:
+                markup.add(types.InlineKeyboardButton(
+                    text=f"❌ Продати {symbol}",
+                    callback_data=f"confirmsell_{symbol}"
+                ))
+
         if buy_list:
-            summary += "🟢 *Рекомендовано купити:*\n"
-            summary += ", ".join(f"`{add_emoji(s)}`" for s in buy_list) + "\n\n"
-        summary += "📥 Натисніть кнопку для підтвердження дії."
+            summary += "\n🟢 *Рекомендовано купити:*\n"
+            summary += ", ".join(f"`{add_emoji(s)}`" for s in buy_list) + "\n"
+            for symbol in buy_list:
+                markup.add(types.InlineKeyboardButton(
+                    text=f"✅ Купити {symbol}",
+                    callback_data=f"confirmbuy_{symbol}"
+                ))
 
-        # 🔘 Кнопки
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton(
-            text=f"Test Button", callback_data="test_callback"))
+        summary += "\n📥 Натисніть кнопку для підтвердження дії."
 
-        # 📤 Відправка прогнозу
         bot.send_message(
             message.chat.id,
             summary,
@@ -275,13 +281,12 @@ def handle_zarobyty(message):
             reply_markup=markup
         )
 
-
-        # 🧠 Додатково — повний GPT-звіт
         if report_text:
             bot.send_message(message.chat.id, report_text, parse_mode="Markdown")
 
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка при генерації /zarobyty:\n{str(e)}")
+
 
 
 @bot.message_handler(commands=["stats"])
