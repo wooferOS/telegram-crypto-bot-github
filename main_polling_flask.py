@@ -182,6 +182,32 @@ def handle_buttons(message):
         bot.send_message(message.chat.id, "❌ Дію скасовано.")
     else:
         bot.send_message(message.chat.id, "⚠️ Невідома команда. Напишіть /help або скористайтеся кнопками.")
+        
+@bot.message_handler(commands=["zarobyty"])
+def handle_zarobyty(message):
+    try:
+        result = run_daily_analysis()
+        buy_list = result.get("buy", [])
+        sell_list = result.get("sell", [])
+        
+        if not buy_list and not sell_list:
+            bot.send_message(message.chat.id, "📉 На сьогодні немає активних рекомендацій для купівлі або продажу.")
+            return
+
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for symbol in sell_list:
+            markup.add(types.InlineKeyboardButton(f"Заробляємо: продати {symbol}", callback_data=f"confirmsell_{symbol}"))
+        for symbol in buy_list:
+            markup.add(types.InlineKeyboardButton(f"Заробляємо: купити {symbol}", callback_data=f"confirmbuy_{symbol}"))
+
+        bot.send_message(
+            message.chat.id,
+            "💡 *Що рекомендує GPT сьогодні:*\n\nНатисніть кнопку для підтвердження дії.",
+            parse_mode="Markdown",
+            reply_markup=markup
+        )
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Помилка при генерації /zarobyty:\n{str(e)}")
 
 def run_polling():
     print("🤖 Telegram polling запущено...")
