@@ -226,8 +226,8 @@ def handle_zarobyty(message):
 
     try:
         result = run_daily_analysis()
-        buy_list = result.get("buy", [])
-        sell_list = result.get("sell", [])
+        buy_list = result.get("to_buy", [])
+        sell_list = result.get("to_sell", [])
         report_text = result.get("report", "")
 
         if not buy_list and not sell_list:
