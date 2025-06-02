@@ -84,61 +84,6 @@ def send_welcome(message):
 def show_id(message):
     bot.reply_to(message, f"Ваш chat ID: `{message.chat.id}`", parse_mode="Markdown")
 
-def send_balance(message):
-    try:
-        balances = client.get_account()["balances"]
-        response = "📊 *Ваш поточний баланс:*\n\n"
-        total_usdt = 0
-        for asset in balances:
-            amount = float(asset["free"])
-            if amount < 0.01:
-                continue
-            symbol = asset["asset"]
-            try:
-                price = float(client.get_symbol_ticker(symbol=f"{symbol}USDT")["price"])
-            except:
-                continue
-            value = amount * price
-            total_usdt += value
-            response += f"▫️ {symbol}: {amount:.4f} ≈ {value:.2f} USDT\n"
-        response += f"\n💰 *Загальна вартість:* {total_usdt:.2f} USDT"
-        prices = {item["symbol"]: float(item["price"]) for item in client.get_all_tickers()}
-        rate_uah = get_usdt_to_uah_rate()
-        total_usdt = 0
-        response = "📊 *Ваш поточний баланс:*\n\n"
-        for asset in balances:
-            free = float(asset["free"])
-            locked = float(asset["locked"])
-            amount = free + locked
-            if amount < 0.0001:
-                continue
-            symbol = asset["asset"]
-            if symbol in ["BNB", "BUSD", "USDC"]:  # Додай або зміни список виключень
-                continue
-            if symbol == "USDT":
-                value = amount
-            else:
-                price_key = f"{symbol}USDT"
-                price = prices.get(price_key)
-                if not price:
-                    continue
-                value = round(amount * price, 2)
-            total_usdt += value
-            response += f"▫️ {symbol}: {amount:.6f} ≈ {value:.2f} USDT\n"
-        response += f"\n💰 *Загальна вартість:* {total_usdt:.2f} USDT ≈ {round(total_usdt * rate_uah)}₴"
-        bot.send_message(message.chat.id, response, parse_mode="Markdown")
-    except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка: {str(e)}")
-
-def send_report(message):
-    try:
-        bot.send_message(message.chat.id, "⏳ Формується GPT-звіт, зачекайте...")
-        report = run_daily_analysis()
-        if report:
-            bot.send_message(message.chat.id, report, parse_mode="Markdown")
-    except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка при створенні звіту:\n{e}")
-
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     try:
@@ -169,14 +114,13 @@ def callback_inline(call):
             })
             signal["history"] = history
             save_signal(signal)
-            
-# 🛡 Автоматичне встановлення стопів
-success = place_safety_orders(symbol, action_type)
-if success:
-    bot.send_message(call.message.chat.id, f"🛡 Стоп-лос/тейк-профіт встановлено для {symbol}.")
-else:
-    bot.send_message(call.message.chat.id, f"⚠️ Не вдалося встановити стопи для {symbol}.")
 
+            # 🛡 Автоматичне встановлення стопів
+            success = place_safety_orders(symbol, action_type)
+            if success:
+                bot.send_message(call.message.chat.id, f"🛡 Стоп-лос/тейк-профіт встановлено для {symbol}.")
+            else:
+                bot.send_message(call.message.chat.id, f"⚠️ Не вдалося встановити стопи для {symbol}.")
         else:
             bot.send_message(call.message.chat.id, "⚠️ Невідома дія.")
     except Exception as e:
