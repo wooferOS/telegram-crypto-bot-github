@@ -1,4 +1,4 @@
-# 📦 main.py — Telegram GPT-бот з Flask-сервером /health
+# 📦 main.py — Telegram GPT-криптобот із Flask, APScheduler та GPT-аналітикою
 
 import os
 import json
@@ -6,35 +6,42 @@ import logging
 import threading
 from datetime import datetime
 from dotenv import load_dotenv
-from flask import Flask
+from flask import Flask, request, jsonify
 from telebot import TeleBot, types
 from binance.client import Client
-from daily_analysis import run_daily_analysis
+from apscheduler.schedulers.background import BackgroundScheduler
+from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate
 
 # 🔐 Завантаження .env
 load_dotenv(".env")
 
-# 🔑 Змінні середовища
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+print(f"🧪 TELEGRAM_TOKEN loaded: {TELEGRAM_TOKEN[:10]}")  # Діагностика
+
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID"))
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 
-# 🤖 Telegram та Binance клієнти
+# 🤖 Telegram-бот і Binance API
 bot = TeleBot(TELEGRAM_TOKEN)
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
-
-# 💻 Flask health-check сервер
+# 🌐 Flask-сервер
 app = Flask(__name__)
 
 @app.route("/health")
 def health():
     return "✅ OK", 200
 
-# 💰 Поточний бюджет
+# 🕒 Планувальник щоденного прогнозу
+scheduler = BackgroundScheduler()
+scheduler.add_job(lambda: send_daily_forecast(), trigger="cron", hour=9, minute=0)
+scheduler.start()
+print("⏰ APScheduler запущено — прогноз буде надсилатись щодня о 09:00")
+
+# 💰 Бюджет за замовчуванням
 budget = {"USDT": 100}
 
-# ✅ Список дозволених монет
+# 📋 Базовий whitelist активів
 WHITELIST = [
     "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT",
     "DOGEUSDT", "AVAXUSDT", "DOTUSDT", "TRXUSDT", "LINKUSDT", "MATICUSDT",
@@ -65,19 +72,47 @@ def get_main_keyboard():
     kb.row("🚫 Скасувати")
     return kb
 
+# 📬 Щоденне надсилання прогнозу
+def send_daily_forecast():
+    try:
+        result = run_daily_analysis()
+        report = result.get("report", "")
+        if report:
+            bot.send_message(ADMIN_CHAT_ID, report, parse_mode="Markdown")
+            print("✅ Щоденний прогноз відправлено.")
+        else:
+            bot.send_message(ADMIN_CHAT_ID, "⚠️ Прогноз порожній.")
+    except Exception as e:
+        bot.send_message(ADMIN_CHAT_ID, f"❌ Помилка щоденного прогнозу:\n{e}")
 # 👋 Привітання
 @bot.message_handler(commands=["start", "menu"])
 def send_welcome(message):
     text = (
         "👋 Вітаю! Я *GPT-криптобот* для Binance.\n\n"
         "Використовуйте кнопки або команди:\n"
-        "`/balance`, `/report`, `/confirm_buy`, `/confirm_sell`, `/set_budget`"
+        "`/balance`, `/report`, `/confirm_buy`, `/confirm_sell`, `/set_budget`, `/zarobyty`, `/stats`"
     )
     bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
 @bot.message_handler(commands=["id"])
 def show_id(message):
     bot.reply_to(message, f"Ваш chat ID: `{message.chat.id}`", parse_mode="Markdown")
+
+# 💰 /set_budget — встановлення бюджету
+@bot.message_handler(commands=["set_budget"])
+def set_budget(message):
+    try:
+        parts = message.text.strip().split()
+        if len(parts) == 2:
+            amount = float(parts[1])
+            budget["USDT"] = amount
+            with open("budget.json", "w") as f:
+                json.dump(budget, f)
+            bot.reply_to(message, f"✅ Бюджет оновлено: {amount} USDT")
+        else:
+            bot.reply_to(message, "❗️ Приклад: `/set_budget 150`", parse_mode="Markdown")
+    except Exception as e:
+        bot.reply_to(message, f"❌ Помилка: {str(e)}")
 
 # 📊 Баланс Binance
 def send_balance(message):
@@ -106,53 +141,226 @@ def send_balance(message):
 def send_report(message):
     try:
         bot.send_message(message.chat.id, "⏳ Формується GPT-звіт, зачекайте...")
-        report = run_daily_analysis()
-        if report:
-            bot.send_message(message.chat.id, report, parse_mode="Markdown")
+        result = run_daily_analysis()
+        if result and "report" in result:
+            bot.send_message(message.chat.id, result["report"], parse_mode="Markdown")
+        else:
+            bot.send_message(message.chat.id, "❌ Не вдалося сформувати звіт.")
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка при створенні звіту:\n{e}")
-# ✅ Inline-підтвердження покупки/продажу
+# ✅ Inline-підтвердження покупки/продажу + стоп-ордери
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     try:
-        if call.data.startswith("confirmbuy_"):
-            pair = call.data.split("_")[1]
-            bot.send_message(call.message.chat.id, f"✅ Ви підтвердили купівлю {pair}")
-            signal["last_action"] = {
-                "type": "buy",
-                "pair": pair,
-                "time": datetime.utcnow().isoformat()
-            }
-            save_signal(signal)
-        elif call.data.startswith("confirmsell_"):
-            pair = call.data.split("_")[1]
-            bot.send_message(call.message.chat.id, f"✅ Ви підтвердили продаж {pair}")
-            signal["last_action"] = {
-                "type": "sell",
-                "pair": pair,
-                "time": datetime.utcnow().isoformat()
-            }
-            save_signal(signal)
-    except Exception as e:
-        bot.send_message(call.message.chat.id, f"❌ Помилка: {str(e)}")
+        if call.data.startswith("confirmbuy_") or call.data.startswith("confirmsell_"):
+            parts = call.data.split("_", 1)
+            if len(parts) != 2:
+                bot.send_message(call.message.chat.id, "⚠️ Невірний формат команди.")
+                return
 
-# 💰 /set_budget — встановлення бюджету
-@bot.message_handler(commands=["set_budget"])
-def set_budget(message):
-    try:
-        parts = message.text.strip().split()
-        if len(parts) == 2:
-            amount = float(parts[1])
-            budget["USDT"] = amount
-            with open("budget.json", "w") as f:
-                json.dump(budget, f)
-            bot.reply_to(message, f"✅ Бюджет оновлено: {amount} USDT")
+            action, symbol = parts[0], parts[1]
+            action_type = "buy" if action == "confirmbuy" else "sell"
+            verb = "купівлю" if action_type == "buy" else "продаж"
+
+            bot.send_message(call.message.chat.id, f"✅ Ви підтвердили {verb} {symbol}")
+
+            # 🧠 Збереження історії
+            timestamp = datetime.utcnow().isoformat()
+            signal["last_action"] = {
+                "type": action_type,
+                "pair": symbol,
+                "time": timestamp
+            }
+            history = signal.get("history", [])
+            history.append({
+                "type": action_type,
+                "pair": symbol,
+                "time": timestamp
+            })
+            signal["history"] = history
+            save_signal(signal)
+
+            # 🛡 Автоматичне встановлення стопів
+            success = place_safety_orders(symbol, action_type)
+            if success:
+                bot.send_message(call.message.chat.id, f"🛡 Стоп-лос/тейк-профіт встановлено для {symbol}.")
+            else:
+                bot.send_message(call.message.chat.id, f"⚠️ Не вдалося встановити стопи для {symbol}.")
         else:
-            bot.reply_to(message, "❗️ Приклад: `/set_budget 150`", parse_mode="Markdown")
+            bot.send_message(call.message.chat.id, "⚠️ Невідома дія.")
     except Exception as e:
-        bot.reply_to(message, f"❌ Помилка: {str(e)}")
+        bot.send_message(call.message.chat.id, f"❌ Помилка обробки кнопки: {str(e)}")
 
-# 🎯 Обробка кнопок користувача
+def place_safety_orders(symbol: str, action_type: str):
+    try:
+        # Отримуємо ринкову ціну
+        price_data = client.get_symbol_ticker(symbol=f"{symbol}USDT")
+        current_price = float(price_data["price"])
+
+        quantity = 10 / current_price  # 🔁 Тимчасово — $10 на одну угоду
+
+        # Розрахунок цілей
+        if action_type == "buy":
+            tp_price = round(current_price * 1.06, 4)
+            sl_price = round(current_price * 0.97, 4)
+            side = "SELL"
+        else:
+            tp_price = round(current_price * 0.94, 4)
+            sl_price = round(current_price * 1.03, 4)
+            side = "BUY"
+
+        # Створення OCO ордера
+        client.create_oco_order(
+            symbol=f"{symbol}USDT",
+            side=side,
+            quantity=round(quantity, 3),
+            price=str(tp_price),
+            stopPrice=str(sl_price),
+            stopLimitPrice=str(sl_price),
+            stopLimitTimeInForce='GTC'
+        )
+
+        print(f"✅ Стопи для {symbol} встановлені.")
+        return True
+    except Exception as e:
+        print(f"❌ Помилка встановлення стопів для {symbol}: {e}")
+        return False
+@bot.message_handler(commands=["zarobyty"])
+def handle_zarobyty(message):
+    print("🔥 /zarobyty отримано")
+
+    try:
+        result = run_daily_analysis()
+        buy_list = result.get("buy", [])
+        sell_list = result.get("sell", [])
+        report_text = result.get("report", "")
+
+        if not buy_list and not sell_list:
+            bot.send_message(
+                message.chat.id,
+                "📉 На сьогодні немає активних рекомендацій для купівлі або продажу."
+            )
+            return
+
+        emoji_map = {
+            "BTC": "₿", "ETH": "🌐", "BNB": "🔥", "SOL": "☀️", "XRP": "💧",
+            "ADA": "🔷", "DOGE": "🐶", "AVAX": "🗻", "DOT": "🎯", "TRX": "💡",
+            "LINK": "🔗", "MATIC": "🛡", "LTC": "🌕", "BCH": "🍀", "NEAR": "📡",
+            "FIL": "📁", "ICP": "🧠", "ETC": "⚡", "HBAR": "🌀", "INJ": "💉",
+            "VET": "✅", "RUNE": "⚓", "OP": "📈", "ARB": "🏹", "SUI": "💧",
+            "STX": "📦", "TIA": "🪙", "SEI": "🌊", "ATOM": "🌌", "1000PEPE": "🐸"
+        }
+
+        def add_emoji(sym):
+            for key in emoji_map:
+                if sym.startswith(key):
+                    return f"{emoji_map[key]} {sym}"
+            return sym
+
+        summary = "💡 *GPT-прогноз на день:*\n\n"
+        markup = types.InlineKeyboardMarkup()
+
+        if sell_list:
+            summary += "🔻 *Рекомендовано продати:*\n"
+            summary += ", ".join(f"`{add_emoji(s)}`" for s in sell_list) + "\n"
+            for symbol in sell_list:
+                markup.add(types.InlineKeyboardButton(
+                    text=f"❌ Продати {symbol}",
+                    callback_data=f"confirmsell_{symbol}"
+                ))
+
+        if buy_list:
+            summary += "\n🟢 *Рекомендовано купити:*\n"
+            summary += ", ".join(f"`{add_emoji(s)}`" for s in buy_list) + "\n"
+            for symbol in buy_list:
+                markup.add(types.InlineKeyboardButton(
+                    text=f"✅ Купити {symbol}",
+                    callback_data=f"confirmbuy_{symbol}"
+                ))
+
+        summary += "\n📥 Натисніть кнопку для підтвердження дії."
+
+        bot.send_message(
+            message.chat.id,
+            summary,
+            parse_mode="Markdown",
+            reply_markup=markup
+        )
+
+        if report_text:
+            bot.send_message(message.chat.id, report_text, parse_mode="Markdown")
+
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Помилка при генерації /zarobyty:\n{str(e)}")
+@bot.message_handler(commands=["stats"])
+def handle_stats(message):
+    try:
+        history = signal.get("history", [])
+        if not history:
+            bot.send_message(message.chat.id, "ℹ️ Історія порожня. Немає даних для обчислення.")
+            return
+
+        stats = {"buy": {}, "sell": {}}
+        for action in history:
+            symbol = action.get("pair")
+            action_type = action.get("type")
+            time_str = action.get("time")
+            if not symbol or not time_str:
+                continue
+            stats[action_type].setdefault(symbol, 0)
+            stats[action_type][symbol] += 1
+
+        text = "*📊 Статистика дій:*\n\n"
+        if stats["buy"]:
+            text += "🟢 *Куплено:*\n"
+            for sym, count in stats["buy"].items():
+                text += f"• {sym}: `{count}` разів\n"
+        if stats["sell"]:
+            text += "\n🔻 *Продано:*\n"
+            for sym, count in stats["sell"].items():
+                text += f"• {sym}: `{count}` разів\n"
+
+        total = sum(stats["buy"].values()) + sum(stats["sell"].values())
+        text += f"\n📈 *Загалом операцій:* `{total}`"
+
+        bot.send_message(message.chat.id, text, parse_mode="Markdown")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Помилка у /stats: {e}")
+@bot.message_handler(commands=["stats"])
+def handle_stats(message):
+    try:
+        history = signal.get("history", [])
+        if not history:
+            bot.send_message(message.chat.id, "ℹ️ Історія порожня. Немає даних для обчислення.")
+            return
+
+        stats = {"buy": {}, "sell": {}}
+        for action in history:
+            symbol = action.get("pair")
+            action_type = action.get("type")
+            time_str = action.get("time")
+            if not symbol or not time_str:
+                continue
+            stats[action_type].setdefault(symbol, 0)
+            stats[action_type][symbol] += 1
+
+        text = "*📊 Статистика дій:*\n\n"
+        if stats["buy"]:
+            text += "🟢 *Куплено:*\n"
+            for sym, count in stats["buy"].items():
+                text += f"• {sym}: `{count}` разів\n"
+        if stats["sell"]:
+            text += "\n🔻 *Продано:*\n"
+            for sym, count in stats["sell"].items():
+                text += f"• {sym}: `{count}` разів\n"
+
+        total = sum(stats["buy"].values()) + sum(stats["sell"].values())
+        text += f"\n📈 *Загалом операцій:* `{total}`"
+
+        bot.send_message(message.chat.id, text, parse_mode="Markdown")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"❌ Помилка у /stats: {e}")
+# 🎯 Обробка кнопок інтерфейсу
 @bot.message_handler(func=lambda m: True)
 def handle_buttons(message):
     text = message.text
@@ -170,16 +378,100 @@ def handle_buttons(message):
         bot.send_message(message.chat.id, "❌ Дію скасовано.")
     else:
         bot.send_message(message.chat.id, "⚠️ Невідома команда. Напишіть /help або скористайтеся кнопками.")
-
-# 🚀 Запуск Flask і Telegram polling паралельно
+# 🚀 Запуск Telegram polling
 def run_polling():
     print("🤖 Telegram polling запущено...")
     bot.polling(none_stop=True)
 
+# 🌐 Запуск Flask-сервера
 def run_flask():
-    print("🌐 Flask-сервер для /health запущено на порту 10000")
-    app.run(host="0.0.0.0", port=10000)
+    print("🌐 Flask-сервер для /health запущено на порту 10100")
+    app.run(host="0.0.0.0", port=10100)
 
+# 🛠 Ручний запуск аналізу (debug endpoint)
+@app.route("/run_analysis")
+def trigger_daily_analysis():
+    try:
+        run_daily_analysis()
+        return jsonify({"status": "ok", "message": "Аналіз запущено"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 if __name__ == "__main__":
     threading.Thread(target=run_polling).start()
     run_flask()
+    
+# 🧪 Обробка тестової inline-кнопки
+@bot.callback_query_handler(func=lambda call: call.data == "test_callback")
+def handle_test_callback(call):
+    bot.answer_callback_query(call.id, "✅ Кнопка спрацювала!")
+    bot.send_message(call.message.chat.id, "🧪 Ви натиснули кнопку.")
+
+# ✅ Діагностичне логування
+print("📦 Бот завантажено успішно.")
+
+# 🔢 Округлення кількості токенів до 3 знаків
+def round_quantity(amount: float) -> float:
+    return round(amount, 3)
+
+# 🧠 Безпечне оновлення історії (на випадок зовнішнього використання)
+def append_to_history(entry: dict):
+    history = signal.get("history", [])
+    history.append(entry)
+    signal["history"] = history
+    save_signal(signal)
+
+# 🆘 Fallback на неочікувані повідомлення
+@bot.message_handler(func=lambda m: True)
+def fallback_handler(message):
+    bot.send_message(message.chat.id, "⚠️ Невідома команда або дія. Напишіть /help або скористайтеся кнопками.")
+
+# 🔄 Функція для отримання курсу USDT → UAH (може бути використана у /balance або майбутніх звітах)
+# Ця функція імпортується з daily_analysis: get_usdt_to_uah_rate()
+
+# 📂 JSON-файли, які використовуються:
+# - signal.json → історія дій та остання дія
+# - budget.json → встановлений бюджет користувача
+# - balance_snapshot.json → збереження стану портфеля
+# 🧹 Заміна legacy:
+# Уся логіка з `main_polling_flask.py` перенесена до цього `main.py`.
+# Тепер цей файл підтримує:
+# - Telegram polling
+# - Flask healthcheck
+# - /zarobyty + /stats
+# - Автоматичне надсилання прогнозу через APScheduler
+# - OCO стоп-ордера
+# - Зберігання сигналів та історії
+
+# ✅ Рекомендовано видалити legacy-файл:
+# ➤ `main_polling_flask.py`
+
+# Виконати у терміналі:
+# rm main_polling_flask.py
+# ✅ Підсумок:
+# Цей `main.py` тепер єдина точка входу для Telegram-криптобота.
+# Він містить:
+# - Telegram-бот із усіма командами
+# - Flask-сервер для healthcheck та ручного запуску аналізу
+# - APScheduler для щоденного прогнозу
+# - Повна інтеграція з Binance + GPT
+
+# 🚀 Запуск через systemd:
+# Файл: /etc/systemd/system/crypto-bot.service
+
+# [Unit]
+# Description=Telegram GPT Crypto Bot
+# After=network.target
+
+# [Service]
+# WorkingDirectory=/root/telegram-crypto-bot-github
+# ExecStart=/usr/bin/python3 main.py
+# Restart=always
+# EnvironmentFile=/root/telegram-crypto-bot-github/.env
+
+# [Install]
+# WantedBy=multi-user.target
+
+# Потім:
+# sudo systemctl daemon-reload
+# sudo systemctl restart crypto-bot
+# sudo systemctl status crypto-bot
