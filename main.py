@@ -32,12 +32,6 @@ app = Flask(__name__)
 def health():
     return "✅ OK", 200
 
-# 🕒 Планувальник щоденного прогнозу
-scheduler = BackgroundScheduler()
-scheduler.add_job(send_daily_forecast, trigger="cron", hour=9, minute=0)
-scheduler.start()
-print("⏰ APScheduler запущено — прогноз буде надсилатись щодня о 09:00")
-
 
 # 💰 Бюджет за замовчуванням
 budget = {"USDT": 100}
@@ -368,8 +362,14 @@ def trigger_daily_analysis():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 if __name__ == "__main__":
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(send_daily_forecast, trigger="cron", hour=9, minute=0)
+    scheduler.start()
+    print("⏰ APScheduler запущено — прогноз буде надсилатись щодня о 09:00")
+
     threading.Thread(target=run_polling).start()
     run_flask()
+
     
 # 🧪 Обробка тестової inline-кнопки
 @bot.callback_query_handler(func=lambda call: call.data == "test_callback")
