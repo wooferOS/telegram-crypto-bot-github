@@ -336,6 +336,8 @@ def handle_buttons(message):
         send_balance(message)
     elif text == "📈 Звіт":
         send_report(message)
+    elif text == "🕘 Історія":
+        handle_stats(message)
     elif text == "✅ Підтвердити купівлю":
         bot.send_message(message.chat.id, "✋ Оберіть монету для купівлі...")
     elif text == "❌ Підтвердити продаж":
@@ -346,6 +348,7 @@ def handle_buttons(message):
         bot.send_message(message.chat.id, "❌ Дію скасовано.")
     else:
         bot.send_message(message.chat.id, "⚠️ Невідома команда. Напишіть /help або скористайтеся кнопками.")
+
 # 🚀 Запуск Telegram polling
 def run_polling():
     print("🤖 Telegram polling запущено...")
