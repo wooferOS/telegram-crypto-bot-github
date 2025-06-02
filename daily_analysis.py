@@ -18,6 +18,13 @@ HEADERS = {
     "Authorization": f"Bearer {OPENAI_API_KEY}",
 }
 
+def get_usdt_to_uah_rate() -> float:
+    url = "https://api.binance.com/api/v3/ticker/price?symbol=USDTUAH"
+    try:
+        response = requests.get(url)
+        return float(response.json()["price"])
+    except Exception:
+        return 40.0  # fallback
 
 def fetch_usdt_to_uah_rate():
     try:
