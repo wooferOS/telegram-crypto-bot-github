@@ -324,10 +324,10 @@ scheduler = BackgroundScheduler()
 scheduler.add_job(send_daily_forecast, trigger='cron', hour=9, minute=0)
 scheduler.start()
 print("⏰ APScheduler запущено — прогноз буде надсилатись щодня о 09:00")
+
 def run_flask():
-    print("🌐 Flask-сервер для /health запущено на порту 10000")
-    app.run(host="0.0.0.0", port=10000)
-@app.route("/daily", methods=["POST"])
+    print("🌐 Flask-сервер для /health запущено на порту 10100")
+    app.run(host="0.0.0.0", port=10100)
 
 def trigger_daily_analysis():
     try:
