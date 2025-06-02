@@ -3,6 +3,7 @@
 import os
 from binance.client import Client
 from binance.exceptions import BinanceAPIException
+from typing import Optional
 
 # Завантаження ключів із оточення
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
