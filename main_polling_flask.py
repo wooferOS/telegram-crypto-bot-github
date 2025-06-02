@@ -209,6 +209,8 @@ def handle_buttons(message):
 
 @bot.message_handler(commands=["zarobyty"])
 def handle_zarobyty(message):
+    print("🔥 /zarobyty отримано")  # 👉 Для логування у терміналі
+
     try:
         result = run_daily_analysis()
         buy_list = result.get("buy", [])
@@ -269,6 +271,7 @@ def handle_zarobyty(message):
 
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка при генерації /zarobyty:\n{str(e)}")
+
 
 @bot.message_handler(commands=["stats"])
 def handle_stats(message):
