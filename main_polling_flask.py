@@ -212,6 +212,8 @@ def handle_buttons(message):
     else:
         bot.send_message(message.chat.id, "⚠️ Невідома команда. Напишіть /help або скористайтеся кнопками.")
         
+print("BUY LIST:", buy_list)
+print("SELL LIST:", sell_list)
 
 @bot.message_handler(commands=["zarobyty"])
 def handle_zarobyty(message):
@@ -257,11 +259,9 @@ def handle_zarobyty(message):
         summary += "📥 Натисніть кнопку для підтвердження дії."
 
         # 🔘 Кнопки
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        for symbol in sell_list:
-            markup.add(types.InlineKeyboardButton(f"🔻 Продати {symbol}", callback_data=f"confirmsell_{symbol}"))
-        for symbol in buy_list:
-            markup.add(types.InlineKeyboardButton(f"🟢 Купити {symbol}", callback_data=f"confirmbuy_{symbol}"))
+        markup.add(types.InlineKeyboardButton(
+    text=f"Test Button", callback_data="test_callback"))
+
 
         # 📤 Відправка прогнозу
         bot.send_message(
