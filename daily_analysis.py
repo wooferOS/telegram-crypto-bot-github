@@ -5,6 +5,7 @@ import requests
 from aiogram import Bot
 from dotenv import load_dotenv
 from binance_api import get_current_portfolio
+from typing import Dict, List, Tuple, Optional
 
 load_dotenv()
 
