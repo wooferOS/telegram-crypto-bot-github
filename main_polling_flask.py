@@ -129,26 +129,30 @@ def send_report(message):
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     try:
-        if call.data.startswith("confirmbuy_"):
-            pair = call.data.split("_")[1]
-            bot.send_message(call.message.chat.id, f"✅ Ви підтвердили купівлю {pair}")
+        if call.data.startswith("confirmbuy_") or call.data.startswith("confirmsell_"):
+            parts = call.data.split("_", 1)
+            if len(parts) != 2:
+                bot.send_message(call.message.chat.id, "⚠️ Невірний формат команди.")
+                return
+
+            action, symbol = parts[0], parts[1]
+            action_type = "buy" if action == "confirmbuy" else "sell"
+            verb = "купівлю" if action_type == "buy" else "продаж"
+
+            bot.send_message(call.message.chat.id, f"✅ Ви підтвердили {verb} {symbol}")
+
             signal["last_action"] = {
-                "type": "buy",
-                "pair": pair,
+                "type": action_type,
+                "pair": symbol,
                 "time": datetime.utcnow().isoformat()
             }
             save_signal(signal)
-        elif call.data.startswith("confirmsell_"):
-            pair = call.data.split("_")[1]
-            bot.send_message(call.message.chat.id, f"✅ Ви підтвердили продаж {pair}")
-            signal["last_action"] = {
-                "type": "sell",
-                "pair": pair,
-                "time": datetime.utcnow().isoformat()
-            }
-            save_signal(signal)
+
+        else:
+            bot.send_message(call.message.chat.id, "⚠️ Невідома дія.")
     except Exception as e:
-        bot.send_message(call.message.chat.id, f"❌ Помилка: {str(e)}")
+        bot.send_message(call.message.chat.id, f"❌ Помилка обробки кнопки: {str(e)}")
+
 
 @bot.message_handler(commands=["set_budget"])
 def set_budget(message):
