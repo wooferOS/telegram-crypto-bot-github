@@ -2,34 +2,39 @@ import os
 import json
 import logging
 import threading
-from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
+from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
-from flask import Flask
+from flask import Flask, request, jsonify
 from telebot import TeleBot, types
 from binance.client import Client
-from daily_analysis import run_daily_analysis
 from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate
-from flask import request, jsonify
 
+# 📦 Завантаження змінних із .env
 load_dotenv(".env")
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+print(f"🧪 TELEGRAM_TOKEN loaded: {TELEGRAM_TOKEN[:10]}")  # ⬅️ Діагностика
+
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID"))
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 
+# 🤖 Telegram-бот і Binance API
 bot = TeleBot(TELEGRAM_TOKEN)
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 
+# 🌐 Flask-сервер для healthcheck
 app = Flask(__name__)
 
 @app.route("/health")
 def health():
     return "✅ OK", 200
 
+# 💰 Бюджет за замовчуванням
 budget = {"USDT": 100}
 
+# 📋 Базовий whitelist активів
 WHITELIST = [
     "BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT", "ADAUSDT",
     "DOGEUSDT", "AVAXUSDT", "DOTUSDT", "TRXUSDT", "LINKUSDT", "MATICUSDT",
@@ -37,6 +42,7 @@ WHITELIST = [
     "ETCUSDT", "HBARUSDT", "VETUSDT", "RUNEUSDT", "INJUSDT", "OPUSDT",
     "ARBUSDT", "SUIUSDT", "STXUSDT", "TIAUSDT", "SEIUSDT", "1000PEPEUSDT"
 ]
+
 
 def load_signal():
     try:
