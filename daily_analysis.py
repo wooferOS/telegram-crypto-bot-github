@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from binance_api import get_current_portfolio
 from typing import Dict, List, Tuple, Optional
 
+
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -25,6 +26,13 @@ def get_usdt_to_uah_rate() -> float:
         return float(response.json()["price"])
     except Exception:
         return 40.0  # fallback
+        
+def get_historical_data() -> Dict[str, float]:
+    try:
+        with open("historical_data.json", "r") as file:
+            return json.load(file)
+    except FileNotFoundError:
+        return {}
 
 def fetch_usdt_to_uah_rate():
     try:
