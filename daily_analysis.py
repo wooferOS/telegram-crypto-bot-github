@@ -1,196 +1,147 @@
 import os
 import json
-from datetime import datetime
-from dotenv import load_dotenv
+import openai
 import requests
-from binance.client import Client
-from openai import OpenAI
-from telegram import Bot
+from datetime import datetime, timedelta
 
-load_dotenv()
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
-BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+BINANCE_API_BASE = "https://api.binance.com"
+THRESHOLD_PNL_PERCENT = 1.0  # Мінімальний відсоток зміни для дії
 
-client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
-tg_bot = Bot(token=TELEGRAM_TOKEN)
-openai = OpenAI(api_key=OPENAI_API_KEY)
-
-SNAPSHOT_FILE = "balance_snapshot.json"
-EXCLUDED_ASSETS = ["BUSD", "USDC"]
-def get_binance_balance():
+def get_price(symbol: str) -> float:
     try:
-        balances = client.get_account()["balances"]
-        return {
-            asset["asset"]: float(asset["free"]) + float(asset["locked"])
-            for asset in balances
-            if float(asset["free"]) + float(asset["locked"]) > 0
-        }
+        response = requests.get(f"{BINANCE_API_BASE}/api/v3/ticker/price", params={"symbol": symbol})
+        return float(response.json()["price"])
     except Exception as e:
-        print(f"❌ Binance Balance Error: {e}")
+        print(f"❌ Error getting price for {symbol}: {e}")
+        return 0.0
+
+def load_previous_data(file_path: str = "daily_data.json") -> dict:
+    if os.path.exists(file_path):
+        with open(file_path, "r") as f:
+            return json.load(f)
+    return {}
+def save_data(data: dict, file_path: str = "daily_data.json"):
+    with open(file_path, "w") as f:
+        json.dump(data, f, indent=4)
+
+def get_current_balances():
+    # Це заглушка — замінити на реальні запити до Binance
+    return {
+        "BTC": {"amount": 0.1, "usdt_value": 6800},
+        "ETH": {"amount": 0.5, "usdt_value": 1800},
+        "USDT": {"amount": 1000, "usdt_value": 1000},
+    }
+
+def analyze_portfolio():
+    current_data = get_current_balances()
+    previous_data = load_previous_data()
+    report_lines = []
+    buy = []
+    sell = []
+    for asset, info in current_data.items():
+        current_value = info["usdt_value"]
+        prev_value = previous_data.get(asset, {}).get("usdt_value", current_value)
+        pnl = current_value - prev_value
+        pnl_percent = (pnl / prev_value) * 100 if prev_value != 0 else 0
+
+        line = f"{asset}: {pnl:+.2f} USDT ({pnl_percent:+.2f}%)"
+        report_lines.append(line)
+
+        if pnl_percent < -THRESHOLD_PNL_PERCENT:
+            sell.append(asset)
+        elif pnl_percent > THRESHOLD_PNL_PERCENT:
+            buy.append(asset)
+    date_str = datetime.utcnow().strftime("%Y-%m-%d")
+    report_header = f"📊 Звіт за {date_str}\n\n"
+    report_body = "\n".join(report_lines)
+
+    gpt_prompt = (
+        f"{report_header}{report_body}\n\n"
+        f"🔍 Проаналізуй зміни. Які активи варто продати? Які купити? "
+        f"Сформуй короткий прогноз із поясненням."
+    )
+
+    try:
+        gpt_response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Ти досвідчений криптоаналітик."},
+                {"role": "user", "content": gpt_prompt}
+            ],
+            temperature=0.7
+        )
+        gpt_result = gpt_response["choices"][0]["message"]["content"]
+    except Exception as e:
+        gpt_result = f"⚠️ GPT-звіт не сформовано: {e}"
+    result = {
+        "date": date_str,
+        "report": report_header + report_body,
+        "gpt_analysis": gpt_result,
+        "to_buy": buy,
+        "to_sell": sell,
+        "raw_data": current_data
+    }
+
+    save_data(current_data)
+    return result
+def run_daily_analysis() -> str:
+    analysis = analyze_portfolio()
+
+    text = (
+        f"{analysis['report']}\n\n"
+        f"🤖 GPT-прогноз:\n{analysis['gpt_analysis']}\n\n"
+        f"📈 Купити: {', '.join(analysis['to_buy']) if analysis['to_buy'] else 'нічого'}\n"
+        f"📉 Продати: {', '.join(analysis['to_sell']) if analysis['to_sell'] else 'нічого'}"
+    )
+
+    return text
+def send_daily_forecast(bot: Bot, chat_id: int):
+    try:
+        text = run_daily_analysis()
+        bot.send_message(chat_id=chat_id, text=text)
+    except Exception as e:
+        error_text = f"❌ Помилка під час формування прогнозу: {e}"
+        bot.send_message(chat_id=chat_id, text=error_text)
+import os
+import json
+from datetime import datetime
+from typing import Dict
+
+from binance_api import get_current_portfolio
+from aiogram import Bot
+import openai
+
+DATA_FILE = "daily_snapshot.json"
+THRESHOLD_PNL_PERCENT = 1.0  # Знижений поріг PnL до ±1%
+
+def load_previous_data() -> Dict:
+    if not os.path.exists(DATA_FILE):
         return {}
+    with open(DATA_FILE, "r") as f:
+        return json.load(f)
 
-def get_current_prices():
-    try:
-        tickers = client.get_all_tickers()
-        return {t["symbol"]: float(t["price"]) for t in tickers}
-    except Exception as e:
-        print(f"❌ Binance Prices Error: {e}")
-        return {}
+def save_data(data: Dict):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+def format_percent(pct: float) -> str:
+    sign = "+" if pct > 0 else ""
+    return f"{sign}{pct:.2f}%"
 
-def get_usdt_to_uah_rate():
-    try:
-        res = requests.get("https://api.binance.com/api/v3/ticker/price?symbol=USDTUAH")
-        return float(res.json()["price"])
-    except Exception as e:
-        print(f"❌ USDT Rate Error: {e}")
-        return None
-SNAPSHOT_FILE = "balance_snapshot.json"
-
-def load_previous_snapshot():
-    try:
-        with open(SNAPSHOT_FILE, "r") as file:
-            return json.load(file)
-    except:
-        return {}
-
-def save_current_snapshot(balance_data, prices=None):
-    snapshot = {}
-    for symbol, amount in balance_data.items():
-        if prices:
-            price_key = f"{symbol}USDT"
-            price = prices.get(price_key, 0)
-            snapshot[symbol] = {
-                "amount": amount,
-                "avg_price": price
-            }
-        else:
-            snapshot[symbol] = {
-                "amount": amount,
-                "avg_price": 0
-            }
-    try:
-        with open(SNAPSHOT_FILE, "w") as file:
-            json.dump(snapshot, file, indent=2)
-    except Exception as e:
-        print(f"❌ Snapshot Save Error: {e}")
-        
-def send_report_via_telegram(message: str) -> bool:
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        payload = {
-            "chat_id": ADMIN_CHAT_ID,
-            "text": message,
-            "parse_mode": "Markdown"
-        }
-        response = requests.post(url, json=payload, timeout=10)
-        if response.status_code != 200:
-            print(f"❌ Telegram API Error {response.status_code}: {response.text}")
-            return False
-        return True
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Telegram Request Exception: {e}")
-        return False
-    except Exception as e:
-        print(f"❌ Telegram Error: {e}")
-        return False
-
-def run_daily_analysis():
-    try:
-        balance_data = get_binance_balance()
-        if not balance_data:
-            send_report_via_telegram("❌ Неможливо отримати баланс з Binance.")
-            return
-
-        prices = get_current_prices()
-        if not prices:
-            send_report_via_telegram("❌ Неможливо отримати ціни з Binance.")
-            return
-
-        rate_uah = get_usdt_to_uah_rate()
-        if not rate_uah:
-            send_report_via_telegram("❌ Неможливо отримати курс USDT→UAH.")
-            return
-
-        previous_snapshot = load_previous_snapshot()
-        save_current_snapshot(balance_data, prices)
-
-        result = {
-            "report": "",
-            "buy": [],
-            "sell": []
-        }
-
-        total_usdt = 0
-        messages = []
-        suggestions = []
-
-        for symbol, amount in balance_data.items():
-            if symbol in EXCLUDED_ASSETS:
-                continue
-
-            if symbol == "USDT":
-                total_usdt += amount
-                messages.append(
-                    f"*{symbol}*\n"
-                    f"Кількість: `{amount}`\n"
-                    f"Ціна: `1.0` | Середня: `1.0`\n"
-                    f"📊 PnL: `0.0` (0.0%)\n"
-                    f"💰 Вартість: `{amount}` USDT / `{round(amount * rate_uah)}₴`\n"
-                )
-                continue
-
-            price_key = f"{symbol}USDT"
-            price = prices.get(price_key)
-            if not price:
-                continue
-
-            usdt_value = round(amount * price, 2)
-            snapshot_value = previous_snapshot.get(symbol, {})
-            avg_price = snapshot_value.get("avg_price", price) if isinstance(snapshot_value, dict) else price
-
-            pnl = round((price - avg_price) * amount, 2)
-            pnl_percent = round((pnl / (avg_price * amount)) * 100, 2) if avg_price else 0
-            uah_value = round(usdt_value * rate_uah)
-
-            total_usdt += usdt_value
-            messages.append(
-                f"*{symbol}*\n"
-                f"Кількість: `{amount}`\n"
-                f"Ціна: `{price}` | Середня: `{avg_price}`\n"
-                f"📊 PnL: `{pnl}` ({pnl_percent}%)\n"
-                f"💰 Вартість: `{usdt_value}` USDT / `{uah_value}₴`\n"
-            )
-
-            # 💡 Генерація інвестиційних порад та списків для дій
-            if pnl_percent < -5:
-                suggestions.append(
-                    f"🔻 *{symbol}* впав на `{abs(pnl_percent)}%` — можливо, варто *продати*, щоб зменшити втрати."
-                )
-                result["sell"].append(symbol)
-            elif pnl_percent > 5:
-                suggestions.append(
-                    f"🟢 *{symbol}* зріс на `{pnl_percent}%` — розглянь *фіксацію прибутку* через продаж."
-                )
-                result["buy"].append(symbol)
-
-        # 📦 Додавання загальної інформації
-        messages.append(f"\n📦 *Загальна вартість портфеля:* `{round(total_usdt, 2)}` USDT ≈ `{round(total_usdt * rate_uah)}₴`")
-
-        # 📨 Формування повного звіту
-        final_message = "\n".join(messages)
-        if suggestions:
-            final_message += "\n\n📈 *Рекомендації:*\n" + "\n".join(suggestions)
-
-        result["report"] = final_message
-        return result
-
-    except Exception as e:
-        return {"report": f"❌ Помилка аналізу: {e}", "buy": [], "sell": []}
-
-
+def format_currency(value: float, currency: str = "USDT") -> str:
+    if currency == "UAH":
+        return f"{value:,.2f}₴"
+    elif currency == "BTC":
+        return f"{value:.6f} BTC"
+    else:
+        return f"{value:,.2f} {currency}"
 if __name__ == "__main__":
-    run_daily_analysis()
+    class DummyBot:
+        def send_message(self, chat_id, text):
+            print(f"[Telegram] Chat ID: {chat_id}\n{text}\n")
+
+    # Приклад виклику для тестування локально
+    bot = DummyBot()
+    test_chat_id = 123456789  # Замінити на актуальний ID для реального бота
+    send_daily_forecast(bot, test_chat_id)
