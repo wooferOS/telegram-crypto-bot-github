@@ -78,7 +78,7 @@ def save_current_snapshot(balance_data, prices=None):
     except Exception as e:
         print(f"❌ Snapshot Save Error: {e}")
         
-def send_report_via_telegram(message: str):
+def send_report_via_telegram(message: str) -> bool:
     try:
         url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
         payload = {
@@ -86,9 +86,17 @@ def send_report_via_telegram(message: str):
             "text": message,
             "parse_mode": "Markdown"
         }
-        requests.post(url, json=payload)
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code != 200:
+            print(f"❌ Telegram API Error {response.status_code}: {response.text}")
+            return False
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Telegram Request Exception: {e}")
+        return False
     except Exception as e:
         print(f"❌ Telegram Error: {e}")
+        return False
 
 def run_daily_analysis():
     try:
@@ -149,11 +157,18 @@ def run_daily_analysis():
                 f"📊 PnL: `{pnl}` ({pnl_percent}%)\n"
                 f"💰 Вартість: `{usdt_value}` USDT / `{uah_value}₴`\n"
             )
-            # 💡 Генерація інвестиційних порад
-            if pnl_percent < -5:
-                suggestions.append(f"🔻 *{symbol}* має значне падіння — розглянь можливість _продажу_.")
-            elif pnl_percent > 5:
-                suggestions.append(f"🟢 *{symbol}* показує ріст — розглянь можливість _фіксації прибутку_.")
+            # 💡 Генерація інвестиційних порад та списків для дій
+if pnl_percent < -5:
+    suggestions.append(
+        f"🔻 *{symbol}* впав на `{abs(pnl_percent)}%` — можливо, варто *продати*, щоб зменшити втрати."
+    )
+    result["sell"].append(symbol)
+elif pnl_percent > 5:
+    suggestions.append(
+        f"🟢 *{symbol}* зріс на `{pnl_percent}%` — розглянь *фіксацію прибутку* через продаж."
+    )
+    result["buy"].append(symbol)
+
         # 📦 Додавання загальної інформації
         messages.append(f"\n📦 *Загальна вартість портфеля:* `{round(total_usdt, 2)}` USDT ≈ `{round(total_usdt * rate_uah)}₴`")
 
@@ -162,8 +177,9 @@ def run_daily_analysis():
         if suggestions:
             final_message += "\n\n📈 *Рекомендації:*\n" + "\n".join(suggestions)
 
-        send_report_via_telegram(final_message)
+        return result(final_message)
     except Exception as e:
-        send_report_via_telegram(f"❌ Помилка аналізу: {e}")
+        return result(f"❌ Помилка аналізу: {e}")
+
 if __name__ == "__main__":
     run_daily_analysis()
