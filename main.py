@@ -292,40 +292,7 @@ def handle_zarobyty(message):
 
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка при генерації /zarobyty:\n{str(e)}")
-@bot.message_handler(commands=["stats"])
-def handle_stats(message):
-    try:
-        history = signal.get("history", [])
-        if not history:
-            bot.send_message(message.chat.id, "ℹ️ Історія порожня. Немає даних для обчислення.")
-            return
 
-        stats = {"buy": {}, "sell": {}}
-        for action in history:
-            symbol = action.get("pair")
-            action_type = action.get("type")
-            time_str = action.get("time")
-            if not symbol or not time_str:
-                continue
-            stats[action_type].setdefault(symbol, 0)
-            stats[action_type][symbol] += 1
-
-        text = "*📊 Статистика дій:*\n\n"
-        if stats["buy"]:
-            text += "🟢 *Куплено:*\n"
-            for sym, count in stats["buy"].items():
-                text += f"• {sym}: `{count}` разів\n"
-        if stats["sell"]:
-            text += "\n🔻 *Продано:*\n"
-            for sym, count in stats["sell"].items():
-                text += f"• {sym}: `{count}` разів\n"
-
-        total = sum(stats["buy"].values()) + sum(stats["sell"].values())
-        text += f"\n📈 *Загалом операцій:* `{total}`"
-
-        bot.send_message(message.chat.id, text, parse_mode="Markdown")
-    except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка у /stats: {e}")
 @bot.message_handler(commands=["stats"])
 def handle_stats(message):
     try:
@@ -419,11 +386,6 @@ def append_to_history(entry: dict):
     history.append(entry)
     signal["history"] = history
     save_signal(signal)
-
-# 🆘 Fallback на неочікувані повідомлення
-@bot.message_handler(func=lambda m: True)
-def fallback_handler(message):
-    bot.send_message(message.chat.id, "⚠️ Невідома команда або дія. Напишіть /help або скористайтеся кнопками.")
 
 # 🔄 Функція для отримання курсу USDT → UAH (може бути використана у /balance або майбутніх звітах)
 # Ця функція імпортується з daily_analysis: get_usdt_to_uah_rate()
