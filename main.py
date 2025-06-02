@@ -72,15 +72,18 @@ def get_main_keyboard():
 # 📬 Щоденне надсилання прогнозу
 def send_daily_forecast():
     try:
-        result = run_daily_analysis()
-        report = result.get("report", "")
-        if report:
-            bot.send_message(ADMIN_CHAT_ID, report, parse_mode="Markdown")
+        current = get_current_portfolio()
+        historical = get_historical_data()
+        buy_list, sell_list, forecast = run_daily_analysis(current, historical)
+
+        if forecast:
+            bot.send_message(ADMIN_CHAT_ID, forecast, parse_mode="Markdown")
             print("✅ Щоденний прогноз відправлено.")
         else:
             bot.send_message(ADMIN_CHAT_ID, "⚠️ Прогноз порожній.")
     except Exception as e:
         bot.send_message(ADMIN_CHAT_ID, f"❌ Помилка щоденного прогнозу:\n{e}")
+
 # 👋 Привітання
 @bot.message_handler(commands=["start", "menu"])
 def send_welcome(message):
