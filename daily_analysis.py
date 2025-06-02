@@ -1,153 +1,182 @@
 import os
 import json
-import openai
+import datetime
 import requests
-from datetime import datetime, timedelta
 from aiogram import Bot
-
-
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-BINANCE_API_BASE = "https://api.binance.com"
-THRESHOLD_PNL_PERCENT = 1.0  # Мінімальний відсоток зміни для дії
-
-def get_price(symbol: str) -> float:
-    try:
-        response = requests.get(f"{BINANCE_API_BASE}/api/v3/ticker/price", params={"symbol": symbol})
-        return float(response.json()["price"])
-    except Exception as e:
-        print(f"❌ Error getting price for {symbol}: {e}")
-        return 0.0
-
-def load_previous_data(file_path: str = "daily_data.json") -> dict:
-    if os.path.exists(file_path):
-        with open(file_path, "r") as f:
-            return json.load(f)
-    return {}
-def save_data(data: dict, file_path: str = "daily_data.json"):
-    with open(file_path, "w") as f:
-        json.dump(data, f, indent=4)
-
-def get_current_balances():
-    # Це заглушка — замінити на реальні запити до Binance
-    return {
-        "BTC": {"amount": 0.1, "usdt_value": 6800},
-        "ETH": {"amount": 0.5, "usdt_value": 1800},
-        "USDT": {"amount": 1000, "usdt_value": 1000},
-    }
-
-def analyze_portfolio():
-    current_data = get_current_balances()
-    previous_data = load_previous_data()
-    report_lines = []
-    buy = []
-    sell = []
-    for asset, info in current_data.items():
-        current_value = info["usdt_value"]
-        prev_value = previous_data.get(asset, {}).get("usdt_value", current_value)
-        pnl = current_value - prev_value
-        pnl_percent = (pnl / prev_value) * 100 if prev_value != 0 else 0
-
-        line = f"{asset}: {pnl:+.2f} USDT ({pnl_percent:+.2f}%)"
-        report_lines.append(line)
-
-        if pnl_percent < -THRESHOLD_PNL_PERCENT:
-            sell.append(asset)
-        elif pnl_percent > THRESHOLD_PNL_PERCENT:
-            buy.append(asset)
-    date_str = datetime.utcnow().strftime("%Y-%m-%d")
-    report_header = f"📊 Звіт за {date_str}\n\n"
-    report_body = "\n".join(report_lines)
-
-    gpt_prompt = (
-        f"{report_header}{report_body}\n\n"
-        f"🔍 Проаналізуй зміни. Які активи варто продати? Які купити? "
-        f"Сформуй короткий прогноз із поясненням."
-    )
-
-    try:
-        gpt_response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "Ти досвідчений криптоаналітик."},
-                {"role": "user", "content": gpt_prompt}
-            ],
-            temperature=0.7
-        )
-        gpt_result = gpt_response["choices"][0]["message"]["content"]
-    except Exception as e:
-        gpt_result = f"⚠️ GPT-звіт не сформовано: {e}"
-    result = {
-        "date": date_str,
-        "report": report_header + report_body,
-        "gpt_analysis": gpt_result,
-        "to_buy": buy,
-        "to_sell": sell,
-        "raw_data": current_data
-    }
-
-    save_data(current_data)
-    return result
-def run_daily_analysis() -> str:
-    analysis = analyze_portfolio()
-
-    text = (
-        f"{analysis['report']}\n\n"
-        f"🤖 GPT-прогноз:\n{analysis['gpt_analysis']}\n\n"
-        f"📈 Купити: {', '.join(analysis['to_buy']) if analysis['to_buy'] else 'нічого'}\n"
-        f"📉 Продати: {', '.join(analysis['to_sell']) if analysis['to_sell'] else 'нічого'}"
-    )
-
-    return text
-def send_daily_forecast(bot: Bot, chat_id: int):
-    try:
-        text = run_daily_analysis()
-        bot.send_message(chat_id=chat_id, text=text)
-    except Exception as e:
-        error_text = f"❌ Помилка під час формування прогнозу: {e}"
-        bot.send_message(chat_id=chat_id, text=error_text)
-import os
-import json
-from datetime import datetime
-from typing import Dict
-
+from dotenv import load_dotenv
 from binance_api import get_current_portfolio
-from aiogram import Bot
-import openai
 
-DATA_FILE = "daily_snapshot.json"
-THRESHOLD_PNL_PERCENT = 1.0  # Знижений поріг PnL до ±1%
+load_dotenv()
 
-def load_previous_data() -> Dict:
-    if not os.path.exists(DATA_FILE):
-        return {}
-    with open(DATA_FILE, "r") as f:
-        return json.load(f)
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+THRESHOLD_PNL_PERCENT = 1.0  # ±1%
 
-def save_data(data: Dict):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f, indent=2)
-def format_percent(pct: float) -> str:
-    sign = "+" if pct > 0 else ""
-    return f"{sign}{pct:.2f}%"
-    
-def get_usdt_to_uah_rate() -> float:
-    # Приклад заглушки — встав свою логіку, або залиш тимчасово фіксоване значення
-    return 40.0
+HEADERS = {
+    "Content-Type": "application/json",
+    "Authorization": f"Bearer {OPENAI_API_KEY}",
+}
 
-def format_currency(value: float, currency: str = "USDT") -> str:
-    if currency == "UAH":
-        return f"{value:,.2f}₴"
-    elif currency == "BTC":
-        return f"{value:.6f} BTC"
-    else:
-        return f"{value:,.2f} {currency}"
+
+def fetch_usdt_to_uah_rate():
+    try:
+        response = requests.get(
+            "https://api.binance.com/api/v3/ticker/price?symbol=USDTRUB"
+        )
+        rate_rub = float(response.json()["price"])
+        # Перетворимо RUB → UAH орієнтовно (1 RUB ≈ 0.38 UAH)
+        return rate_rub * 0.38
+    except Exception as e:
+        print(f"[fetch_usdt_to_uah_rate] Error: {e}")
+        return 38.0
+def analyze_portfolio(portfolio):
+    analysis = []
+    total_initial_value = 0
+    total_current_value = 0
+
+    for asset in portfolio:
+        symbol = asset["symbol"]
+        initial_value = float(asset.get("initial_value", 0))
+        current_value = float(asset.get("current_value", 0))
+
+        if initial_value == 0:
+            continue
+
+        pnl_percent = ((current_value - initial_value) / initial_value) * 100
+        total_initial_value += initial_value
+        total_current_value += current_value
+
+        if abs(pnl_percent) >= THRESHOLD_PNL_PERCENT:
+            analysis.append(
+                {
+                    "symbol": symbol,
+                    "initial_value": initial_value,
+                    "current_value": current_value,
+                    "pnl_percent": round(pnl_percent, 2),
+                }
+            )
+
+    total_pnl_percent = (
+        ((total_current_value - total_initial_value) / total_initial_value) * 100
+        if total_initial_value > 0
+        else 0
+    )
+
+    return analysis, round(total_pnl_percent, 2)
+def format_analysis_report(analysis, total_pnl_percent, usdt_to_uah_rate):
+    if not analysis:
+        return "🤖 Усі активи стабільні, змін немає понад ±1%."
+
+    lines = ["📊 *Аналіз портфеля з відхиленням понад ±1%:*"]
+    for item in analysis:
+        change_emoji = "📈" if item["pnl_percent"] > 0 else "📉"
+        direction = "зросла" if item["pnl_percent"] > 0 else "знизилась"
+        usdt_change = item["current_value"] - item["initial_value"]
+        uah_change = usdt_change * usdt_to_uah_rate
+        lines.append(
+            f"{change_emoji} *{item['symbol']}*: {direction} на *{item['pnl_percent']}%*"
+            f" (≈ {round(usdt_change, 2)} USDT / ≈ {round(uah_change)} UAH)"
+        )
+
+    total_emoji = "✅" if total_pnl_percent > 0 else "⚠️" if total_pnl_percent < 0 else "➖"
+    lines.append(f"\n{total_emoji} *Загальний PnL*: {total_pnl_percent}%")
+
+    return "\n".join(lines)
+async def send_daily_forecast(bot: Bot, chat_id: int):
+    try:
+        # Отримати курс USDT/UAH
+        usdt_to_uah_rate = get_usdt_to_uah_rate()
+
+        # Отримати поточний портфель з Binance
+        current_portfolio = get_current_portfolio()
+
+        # Завантажити історичний портфель з БД
+        historical_portfolio = load_historical_portfolio()
+
+        # Зберегти поточний портфель у БД
+        save_current_portfolio(current_portfolio)
+
+        # Обробити щоденний аналіз
+        analysis, total_pnl_percent = run_daily_analysis(current_portfolio, historical_portfolio)
+
+        # Сформувати повідомлення
+        message_text = format_analysis_report(analysis, total_pnl_percent, usdt_to_uah_rate)
+
+        # Надіслати у Telegram
+        await bot.send_message(chat_id=chat_id, text=message_text, parse_mode="Markdown")
+
+    except Exception as e:
+        await bot.send_message(chat_id=chat_id, text=f"❌ Помилка щоденного аналізу: {e}")
+def run_daily_analysis(current: Dict[str, float], historical: Dict[str, float]) -> Tuple[List[Dict], float]:
+    """
+    Порівнює поточний та історичний портфель, обчислює PnL.
+    Повертає список активів з прибутками/збитками і загальний % змін.
+    """
+    analysis = []
+    total_initial_value = 0.0
+    total_current_value = 0.0
+
+    for asset, current_amount in current.items():
+        initial_amount = historical.get(asset, 0.0)
+
+        if initial_amount == 0.0 and current_amount == 0.0:
+            continue
+
+        price_change = current_amount - initial_amount
+        pnl_percent = (price_change / initial_amount) * 100 if initial_amount else 100.0
+
+        analysis.append({
+            'asset': asset,
+            'initial': round(initial_amount, 2),
+            'current': round(current_amount, 2),
+            'pnl_percent': round(pnl_percent, 2)
+        })
+
+        total_initial_value += initial_amount
+        total_current_value += current_amount
+
+    total_pnl_percent = ((total_current_value - total_initial_value) / total_initial_value) * 100 if total_initial_value else 0.0
+    return analysis, round(total_pnl_percent, 2)
+def format_analysis_report(analysis: List[Dict], total_pnl: float, usdt_to_uah: float) -> str:
+    """
+    Форматує звіт для Telegram-повідомлення.
+    """
+    report_lines = [
+        "📊 *Щоденний звіт по портфелю Binance*",
+        "",
+        f"💰 *Загальний результат:* `{total_pnl:+.2f}%`",
+        f"🇺🇸→🇺🇦 *Курс USDT до UAH:* `{usdt_to_uah:.2f}`",
+        "",
+        "*Деталі по активах:*"
+    ]
+
+    for entry in analysis:
+        asset = entry['asset']
+        initial = entry['initial']
+        current = entry['current']
+        pnl = entry['pnl_percent']
+        status_emoji = "🟢" if pnl > 1 else "🔴" if pnl < -1 else "⚪️"
+        report_lines.append(f"{status_emoji} `{asset}` — {pnl:+.2f}% (з {initial} до {current})")
+
+    return "\n".join(report_lines)
+async def send_daily_forecast(bot: Bot, chat_id: int):
+    """
+    Асинхронно виконує аналіз і надсилає звіт у Telegram.
+    """
+    try:
+        portfolio = get_current_portfolio()
+        if not portfolio:
+            await bot.send_message(chat_id, "❗️Не вдалося отримати дані з Binance.")
+            return
+
+        usdt_to_uah = get_usdt_to_uah_rate()
+        analysis = analyze_portfolio(portfolio)
+        total_pnl = sum(a['pnl_percent'] for a in analysis) / len(analysis) if analysis else 0.0
+
+        report = format_analysis_report(analysis, total_pnl, usdt_to_uah)
+        await bot.send_message(chat_id, report, parse_mode="Markdown")
+    except Exception as e:
+        await bot.send_message(chat_id, f"🚨 Помилка при генерації звіту: {e}")
 if __name__ == "__main__":
-    class DummyBot:
-        def send_message(self, chat_id, text):
-            print(f"[Telegram] Chat ID: {chat_id}\n{text}\n")
-
-    # Приклад виклику для тестування локально
-    bot = DummyBot()
-    test_chat_id = 123456789  # Замінити на актуальний ID для реального бота
-    send_daily_forecast(bot, test_chat_id)
+    # Це виконується лише якщо запускати daily_analysis.py напряму
+    print("Цей файл не призначений для прямого запуску.")
