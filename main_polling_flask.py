@@ -156,12 +156,53 @@ def callback_inline(call):
             })
             signal["history"] = history
             save_signal(signal)
+            
+# 🛡 Автоматичне встановлення стопів
+success = place_safety_orders(symbol, action_type)
+if success:
+    bot.send_message(call.message.chat.id, f"🛡 Стоп-лос/тейк-профіт встановлено для {symbol}.")
+else:
+    bot.send_message(call.message.chat.id, f"⚠️ Не вдалося встановити стопи для {symbol}.")
 
         else:
             bot.send_message(call.message.chat.id, "⚠️ Невідома дія.")
     except Exception as e:
         bot.send_message(call.message.chat.id, f"❌ Помилка обробки кнопки: {str(e)}")
 
+def place_safety_orders(symbol: str, action_type: str):
+    try:
+        # Отримуємо ринкову ціну
+        price_data = client.get_symbol_ticker(symbol=f"{symbol}USDT")
+        current_price = float(price_data["price"])
+
+        quantity = 10 / current_price  # 🔁 Тимчасово — $10 на одну угоду
+
+        # Розрахунок цілей
+        if action_type == "buy":
+            tp_price = round(current_price * 1.06, 4)
+            sl_price = round(current_price * 0.97, 4)
+            side = "SELL"
+        else:
+            tp_price = round(current_price * 0.94, 4)
+            sl_price = round(current_price * 1.03, 4)
+            side = "BUY"
+
+        # Створення OCO ордера
+        order = client.create_oco_order(
+            symbol=f"{symbol}USDT",
+            side=side,
+            quantity=round(quantity, 3),
+            price=str(tp_price),
+            stopPrice=str(sl_price),
+            stopLimitPrice=str(sl_price),
+            stopLimitTimeInForce='GTC'
+        )
+
+        print(f"✅ Стопи для {symbol} встановлені.")
+        return True
+    except Exception as e:
+        print(f"❌ Помилка встановлення стопів для {symbol}: {e}")
+        return False
 
 
 @bot.message_handler(commands=["set_budget"])
