@@ -354,7 +354,12 @@ def handle_stats(message):
 def run_polling():
     print("🤖 Telegram polling запущено...")
     bot.polling(none_stop=True)
-
+    
+# 🕒 Планувальник щоденного прогнозу
+scheduler = BackgroundScheduler()
+scheduler.add_job(send_daily_forecast, trigger='cron', hour=9, minute=0)
+scheduler.start()
+print("⏰ APScheduler запущено — прогноз буде надсилатись щодня о 09:00")
 def run_flask():
     print("🌐 Flask-сервер для /health запущено на порту 10000")
     app.run(host="0.0.0.0", port=10000)
@@ -366,11 +371,6 @@ def trigger_daily_analysis():
         return jsonify({"status": "ok", "message": "Аналіз запущено"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
-scheduler = BackgroundScheduler()
-scheduler.add_job(send_daily_forecast, trigger='cron', hour=9, minute=0)
-scheduler.start()
-print("⏰ APScheduler запущено — прогноз буде надсилатись щодня о 09:00")
 
 if __name__ == "__main__":
     threading.Thread(target=run_polling).start()
