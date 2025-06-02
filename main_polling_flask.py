@@ -238,31 +238,70 @@ def handle_buttons(message):
     else:
         bot.send_message(message.chat.id, "⚠️ Невідома команда. Напишіть /help або скористайтеся кнопками.")
         
+
 @bot.message_handler(commands=["zarobyty"])
 def handle_zarobyty(message):
     try:
         result = run_daily_analysis()
         buy_list = result.get("buy", [])
         sell_list = result.get("sell", [])
-        
+        report_text = result.get("report", "")
+
         if not buy_list and not sell_list:
-            bot.send_message(message.chat.id, "📉 На сьогодні немає активних рекомендацій для купівлі або продажу.")
+            bot.send_message(
+                message.chat.id,
+                "📉 На сьогодні немає активних рекомендацій для купівлі або продажу."
+            )
             return
 
+        # 🧠 Емоджі для токенів
+        emoji_map = {
+            "BTC": "₿", "ETH": "🌐", "BNB": "🔥", "SOL": "☀️", "XRP": "💧",
+            "ADA": "🔷", "DOGE": "🐶", "AVAX": "🗻", "DOT": "🎯", "TRX": "💡",
+            "LINK": "🔗", "MATIC": "🛡", "LTC": "🌕", "BCH": "🍀", "NEAR": "📡",
+            "FIL": "📁", "ICP": "🧠", "ETC": "⚡", "HBAR": "🌀", "INJ": "💉",
+            "VET": "✅", "RUNE": "⚓", "OP": "📈", "ARB": "🏹", "SUI": "💧",
+            "STX": "📦", "TIA": "🪙", "SEI": "🌊", "ATOM": "🌌", "1000PEPE": "🐸"
+        }
+
+        def add_emoji(sym):
+            for key in emoji_map:
+                if sym.startswith(key):
+                    return f"{emoji_map[key]} {sym}"
+            return sym
+
+        # 🧾 Формуємо текст
+        summary = "💡 *GPT-прогноз на день:*\n\n"
+        if sell_list:
+            summary += "🔻 *Рекомендовано продати:*\n"
+            summary += ", ".join(f"`{add_emoji(s)}`" for s in sell_list) + "\n\n"
+        if buy_list:
+            summary += "🟢 *Рекомендовано купити:*\n"
+            summary += ", ".join(f"`{add_emoji(s)}`" for s in buy_list) + "\n\n"
+        summary += "📥 Натисніть кнопку для підтвердження дії."
+
+        # 🔘 Кнопки
         markup = types.InlineKeyboardMarkup(row_width=1)
         for symbol in sell_list:
-            markup.add(types.InlineKeyboardButton(f"Заробляємо: продати {symbol}", callback_data=f"confirmsell_{symbol}"))
+            markup.add(types.InlineKeyboardButton(f"🔻 Продати {symbol}", callback_data=f"confirmsell_{symbol}"))
         for symbol in buy_list:
-            markup.add(types.InlineKeyboardButton(f"Заробляємо: купити {symbol}", callback_data=f"confirmbuy_{symbol}"))
+            markup.add(types.InlineKeyboardButton(f"🟢 Купити {symbol}", callback_data=f"confirmbuy_{symbol}"))
 
+        # 📤 Відправка прогнозу
         bot.send_message(
             message.chat.id,
-            "💡 *Що рекомендує GPT сьогодні:*\n\nНатисніть кнопку для підтвердження дії.",
+            summary,
             parse_mode="Markdown",
             reply_markup=markup
         )
+
+        # 🧠 Додатково — повний GPT-звіт
+        if report_text:
+            bot.send_message(message.chat.id, report_text, parse_mode="Markdown")
+
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка при генерації /zarobyty:\n{str(e)}")
+
 
 def run_polling():
     print("🤖 Telegram polling запущено...")
