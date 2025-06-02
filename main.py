@@ -343,6 +343,7 @@ def handle_buttons(message):
     else:
         bot.send_message(message.chat.id, "⚠️ Невідома команда. Напишіть /help або скористайтеся кнопками.")
 
+
 # 🚀 Запуск Telegram polling
 def run_polling():
     print("🤖 Telegram polling запущено...")
