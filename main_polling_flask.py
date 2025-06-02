@@ -259,9 +259,9 @@ def handle_zarobyty(message):
         summary += "📥 Натисніть кнопку для підтвердження дії."
 
         # 🔘 Кнопки
+        markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton(
-    text=f"Test Button", callback_data="test_callback"))
-
+            text=f"Test Button", callback_data="test_callback"))
 
         # 📤 Відправка прогнозу
         bot.send_message(
@@ -270,6 +270,7 @@ def handle_zarobyty(message):
             parse_mode="Markdown",
             reply_markup=markup
         )
+
 
         # 🧠 Додатково — повний GPT-звіт
         if report_text:
