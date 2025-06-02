@@ -130,6 +130,10 @@ def save_data(data: Dict):
 def format_percent(pct: float) -> str:
     sign = "+" if pct > 0 else ""
     return f"{sign}{pct:.2f}%"
+    
+def get_usdt_to_uah_rate() -> float:
+    # Приклад заглушки — встав свою логіку, або залиш тимчасово фіксоване значення
+    return 40.0
 
 def format_currency(value: float, currency: str = "USDT") -> str:
     if currency == "UAH":
