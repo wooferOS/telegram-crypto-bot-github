@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import threading
+from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 from dotenv import load_dotenv
 from flask import Flask
@@ -57,6 +58,18 @@ def get_main_keyboard():
     kb.row("❌ Підтвердити продаж", "🔄 Оновити")
     kb.row("🚫 Скасувати")
     return kb
+
+def send_daily_forecast():
+    try:
+        result = run_daily_analysis()
+        report = result.get("report", "")
+        if report:
+            bot.send_message(ADMIN_CHAT_ID, report, parse_mode="Markdown")
+            print("✅ Щоденний прогноз відправлено.")
+        else:
+            bot.send_message(ADMIN_CHAT_ID, "⚠️ Прогноз порожній.")
+    except Exception as e:
+        bot.send_message(ADMIN_CHAT_ID, f"❌ Помилка щоденного прогнозу:\n{e}")
 
 @bot.message_handler(commands=["start", "menu"])
 def send_welcome(message):
