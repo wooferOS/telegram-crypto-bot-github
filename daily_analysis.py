@@ -118,9 +118,16 @@ def run_daily_analysis():
         previous_snapshot = load_previous_snapshot()
         save_current_snapshot(balance_data, prices)
 
+        result = {
+            "report": "",
+            "buy": [],
+            "sell": []
+        }
+
         total_usdt = 0
         messages = []
         suggestions = []
+
         for symbol, amount in balance_data.items():
             if symbol in EXCLUDED_ASSETS:
                 continue
@@ -135,13 +142,13 @@ def run_daily_analysis():
                     f"💰 Вартість: `{amount}` USDT / `{round(amount * rate_uah)}₴`\n"
                 )
                 continue
+
             price_key = f"{symbol}USDT"
             price = prices.get(price_key)
             if not price:
                 continue
 
             usdt_value = round(amount * price, 2)
-
             snapshot_value = previous_snapshot.get(symbol, {})
             avg_price = snapshot_value.get("avg_price", price) if isinstance(snapshot_value, dict) else price
 
@@ -157,17 +164,18 @@ def run_daily_analysis():
                 f"📊 PnL: `{pnl}` ({pnl_percent}%)\n"
                 f"💰 Вартість: `{usdt_value}` USDT / `{uah_value}₴`\n"
             )
+
             # 💡 Генерація інвестиційних порад та списків для дій
-if pnl_percent < -5:
-    suggestions.append(
-        f"🔻 *{symbol}* впав на `{abs(pnl_percent)}%` — можливо, варто *продати*, щоб зменшити втрати."
-    )
-    result["sell"].append(symbol)
-elif pnl_percent > 5:
-    suggestions.append(
-        f"🟢 *{symbol}* зріс на `{pnl_percent}%` — розглянь *фіксацію прибутку* через продаж."
-    )
-    result["buy"].append(symbol)
+            if pnl_percent < -5:
+                suggestions.append(
+                    f"🔻 *{symbol}* впав на `{abs(pnl_percent)}%` — можливо, варто *продати*, щоб зменшити втрати."
+                )
+                result["sell"].append(symbol)
+            elif pnl_percent > 5:
+                suggestions.append(
+                    f"🟢 *{symbol}* зріс на `{pnl_percent}%` — розглянь *фіксацію прибутку* через продаж."
+                )
+                result["buy"].append(symbol)
 
         # 📦 Додавання загальної інформації
         messages.append(f"\n📦 *Загальна вартість портфеля:* `{round(total_usdt, 2)}` USDT ≈ `{round(total_usdt * rate_uah)}₴`")
@@ -177,9 +185,12 @@ elif pnl_percent > 5:
         if suggestions:
             final_message += "\n\n📈 *Рекомендації:*\n" + "\n".join(suggestions)
 
-        return result(final_message)
+        result["report"] = final_message
+        return result
+
     except Exception as e:
-        return result(f"❌ Помилка аналізу: {e}")
+        return {"report": f"❌ Помилка аналізу: {e}", "buy": [], "sell": []}
+
 
 if __name__ == "__main__":
     run_daily_analysis()
