@@ -141,17 +141,27 @@ def callback_inline(call):
 
             bot.send_message(call.message.chat.id, f"✅ Ви підтвердили {verb} {symbol}")
 
+            # 🧠 Збереження історії
+            timestamp = datetime.utcnow().isoformat()
             signal["last_action"] = {
                 "type": action_type,
                 "pair": symbol,
-                "time": datetime.utcnow().isoformat()
+                "time": timestamp
             }
+            history = signal.get("history", [])
+            history.append({
+                "type": action_type,
+                "pair": symbol,
+                "time": timestamp
+            })
+            signal["history"] = history
             save_signal(signal)
 
         else:
             bot.send_message(call.message.chat.id, "⚠️ Невідома дія.")
     except Exception as e:
         bot.send_message(call.message.chat.id, f"❌ Помилка обробки кнопки: {str(e)}")
+
 
 
 @bot.message_handler(commands=["set_budget"])
