@@ -81,19 +81,19 @@ def send_daily_forecast():
             return
 
         usdt_to_uah = get_usdt_to_uah_rate()
-if isinstance(analysis, list):
-    print("⚠️ analysis — список, перетворюємо в словник...")
-    analysis = {i: v for i, v in enumerate(analysis)}
 
-message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
+        if isinstance(analysis, list):
+            print("⚠️ analysis — список, перетворюємо в словник...")
+            analysis = {i: v for i, v in enumerate(analysis)}
 
-
-
+        message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
 
         bot.send_message(ADMIN_CHAT_ID, message_text, parse_mode="Markdown")
         print("✅ Щоденний прогноз відправлено.")
+
     except Exception as e:
         bot.send_message(ADMIN_CHAT_ID, f"❌ Помилка щоденного прогнозу:\n{e}")
+
 
 # 👋 Привітання
 @bot.message_handler(commands=["start", "menu"])
