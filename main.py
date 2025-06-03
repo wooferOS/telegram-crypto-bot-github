@@ -25,10 +25,14 @@ BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 
 # 🤖 Telegram-бот і Binance API
+import logging
+import telebot
+
+telebot.logger.setLevel(logging.DEBUG)
+
 bot = TeleBot(TELEGRAM_TOKEN)
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
-# 🌐 Flask-сервер
-app = Flask(__name__)
+
 
 @app.route("/health")
 def health():
