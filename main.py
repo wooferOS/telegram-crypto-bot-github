@@ -336,10 +336,13 @@ def trigger_daily_analysis():
     try:
         current = get_current_portfolio()
         historical = get_historical_data()
-        run_daily_analysis(current, historical)
-        return jsonify({"status": "ok", "message": "Аналіз запущено"}), 200
+        analysis, total_pnl = run_daily_analysis(current, historical)
+        usdt_to_uah = get_usdt_to_uah_rate()
+        message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
+        return jsonify({"status": "ok", "message": message_text}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
         
 if __name__ == "__main__":
     scheduler = BackgroundScheduler()
