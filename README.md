@@ -16,7 +16,7 @@
 
 ## 📁 Структура проєкту
 telegram-crypto-bot-github/
-├── main_polling_flask.py # Основний файл з polling + Flask
+├── main.py # Основний файл з polling + Flask
 ├── daily_analysis.py # Щоденна GPT-аналітика ринку
 ├── .env # Змінні середовища (токени, ключі)
 ├── systemd/crypto-bot.service # systemd-сервіс для автозапуску
@@ -63,7 +63,7 @@ Description=Telegram GPT Crypto Bot
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 /root/telegram-crypto-bot-github/main_polling_flask.py
+ExecStart=/usr/bin/python3 /root/telegram-crypto-bot-github/main.py
 WorkingDirectory=/root/telegram-crypto-bot-github
 Restart=always
 RestartSec=10
