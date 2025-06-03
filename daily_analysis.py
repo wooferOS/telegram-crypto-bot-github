@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 from binance_api import get_current_portfolio
 from typing import Dict, List, Tuple, Optional
 
-
 load_dotenv()
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
@@ -68,7 +67,6 @@ def run_daily_analysis(current: Dict[str, float], historical: Dict[str, float]) 
     total_pnl_percent = ((total_current_value - total_initial_value) / total_initial_value) * 100 if total_initial_value else 0.0
     return analysis, round(total_pnl_percent, 2)
 
-    
 def format_analysis_report(analysis: List[Dict], total_pnl: float, usdt_to_uah: float) -> str:
     """
     Форматує звіт для Telegram-повідомлення.
@@ -86,10 +84,10 @@ def format_analysis_report(analysis: List[Dict], total_pnl: float, usdt_to_uah: 
     ]
 
     for entry in analysis:
-        asset = entry['asset']
-        initial = entry['initial']
-        current = entry['current']
-        pnl = entry['pnl_percent']
+        asset = entry.get('asset', 'N/A')
+        initial = entry.get('initial', 0)
+        current = entry.get('current', 0)
+        pnl = entry.get('pnl_percent', 0.0)
         status_emoji = "🟢" if pnl > 1 else "🔴" if pnl < -1 else "⚪️"
         report_lines.append(f"{status_emoji} `{asset}` — {pnl:+.2f}% (з {initial} до {current})")
 
