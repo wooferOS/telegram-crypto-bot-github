@@ -63,6 +63,7 @@ def run_daily_analysis(current: Dict[str, float], historical: Dict[str, float]) 
 
     total_pnl_percent = ((total_current_value - total_initial_value) / total_initial_value) * 100 if total_initial_value else 0.0
     return analysis, round(total_pnl_percent, 2)
+    
 def format_analysis_report(analysis: List[Dict], total_pnl: float, usdt_to_uah: float) -> str:
     """
     Форматує звіт для Telegram-повідомлення.
@@ -85,6 +86,7 @@ def format_analysis_report(analysis: List[Dict], total_pnl: float, usdt_to_uah: 
         report_lines.append(f"{status_emoji} `{asset}` — {pnl:+.2f}% (з {initial} до {current})")
 
     return "\n".join(report_lines)
+
 
 if __name__ == "__main__":
     # Це виконується лише якщо запускати daily_analysis.py напряму
