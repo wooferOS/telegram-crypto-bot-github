@@ -336,17 +336,21 @@ def trigger_daily_analysis():
         current = get_current_portfolio()
         historical = get_historical_data()
 
-        # 🧪 Діагностика — вивід результату
+        print("🟡 BEFORE run_daily_analysis")
+
         result = run_daily_analysis(current, historical)
-        print(f"🧪 DEBUG run_daily_analysis result = {result}")
+
+        print(f"🟢 AFTER run_daily_analysis: {result}")
 
         analysis, total_pnl = result
         usdt_to_uah = get_usdt_to_uah_rate()
         message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
         return jsonify({"status": "ok", "message": message_text}), 200
+
     except Exception as e:
         print(f"❌ EXCEPTION in /run_analysis: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 
         
