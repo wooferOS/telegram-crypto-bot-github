@@ -87,7 +87,6 @@ def send_daily_forecast():
     except Exception as e:
         bot.send_message(ADMIN_CHAT_ID, f"❌ Помилка щоденного прогнозу:\n{e}")
 
-
 # 👋 Привітання
 @bot.message_handler(commands=["start", "menu"])
 def send_welcome(message):
