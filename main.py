@@ -78,7 +78,7 @@ def get_main_keyboard():
     return kb
 
 # 📬 Щоденне надсилання прогнозу
-def send_daily_forecast():
+def send_daily_forecast() -> None:
     try:
         current = get_current_portfolio()
         historical = get_historical_data()
