@@ -334,10 +334,13 @@ def run_flask():
 @app.route("/run_analysis")
 def trigger_daily_analysis():
     try:
-        run_daily_analysis()
+        current = get_current_portfolio()
+        historical = get_historical_data()
+        run_daily_analysis(current, historical)
         return jsonify({"status": "ok", "message": "Аналіз запущено"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+        
 if __name__ == "__main__":
     scheduler = BackgroundScheduler()
     scheduler.add_job(send_daily_forecast, trigger="cron", hour=9, minute=0)
