@@ -160,17 +160,24 @@ def send_report(message):
         bot.send_message(message.chat.id, "⏳ Формується GPT-звіт, зачекайте...")
         current = get_current_portfolio()
         historical = get_historical_data()
-        analysis, total_pnl = run_daily_analysis(current, historical)
+        
+        result = run_daily_analysis(current, historical)
+        if not isinstance(result, (list, tuple)) or len(result) != 2:
+            bot.send_message(message.chat.id, f"❗️ Некоректний результат GPT-аналізу: {result}")
+            return
+
+        analysis, total_pnl = result
         usdt_to_uah = get_usdt_to_uah_rate()
 
         if not isinstance(analysis, list) or not all(isinstance(v, dict) for v in analysis):
             bot.send_message(message.chat.id, f"❗️ Некоректні дані GPT-аналізу: {analysis}")
-            analysis = []
+            return
 
         report = format_analysis_report(analysis, total_pnl, usdt_to_uah)
         bot.send_message(message.chat.id, report, parse_mode="Markdown")
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка при створенні звіту:\n{e}")
+
 
 # ✅ Inline-підтвердження покупки/продажу + стоп-ордери
 @bot.callback_query_handler(func=lambda call: True)
@@ -299,8 +306,13 @@ def handle_stats(message):
             symbol = action.get("pair")
             action_type = action.get("type")
             time_str = action.get("time")
+
             if not symbol or not time_str:
                 continue
+
+            if action_type not in stats:
+                continue  # ⛔️ Пропускаємо, якщо тип дії не buy/sell
+
             stats[action_type].setdefault(symbol, 0)
             stats[action_type][symbol] += 1
 
@@ -318,8 +330,10 @@ def handle_stats(message):
         text += f"\n📈 *Загалом операцій:* `{total}`"
 
         bot.send_message(message.chat.id, text, parse_mode="Markdown")
+
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка у /stats: {e}")
+
 # 🎯 Обробка кнопок інтерфейсу
 @bot.message_handler(func=lambda m: True)
 def handle_buttons(message):
