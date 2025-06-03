@@ -156,6 +156,11 @@ def send_report(message):
         historical = get_historical_data()
         analysis, total_pnl = run_daily_analysis(current, historical)
         usdt_to_uah = get_usdt_to_uah_rate()
+
+        if isinstance(analysis, list):
+            print("⚠️ analysis — список, перетворюємо в словник...")
+            analysis = {i: v for i, v in enumerate(analysis)}
+
         report = format_analysis_report(analysis, total_pnl, usdt_to_uah)
         bot.send_message(message.chat.id, report, parse_mode="Markdown")
     except Exception as e:
