@@ -54,20 +54,21 @@ WHITELIST = [
     "ETCUSDT", "HBARUSDT", "VETUSDT", "RUNEUSDT", "INJUSDT", "OPUSDT",
     "ARBUSDT", "SUIUSDT", "STXUSDT", "TIAUSDT", "SEIUSDT", "1000PEPEUSDT"
 ]
+
 # 🧠 Завантаження сигналів
 def load_signal() -> dict:
-def save_signal(signal: dict) -> None:
     try:
         with open("signal.json", "r") as f:
             return json.load(f)
     except FileNotFoundError:
         return {}
 
-def save_signal(signal):
+def save_signal(signal: dict) -> None:
     with open("signal.json", "w") as f:
         json.dump(signal, f)
 
 signal = load_signal()
+
 
 # ⌨️ Основна клавіатура
 def get_main_keyboard() -> types.ReplyKeyboardMarkup:
