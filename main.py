@@ -55,7 +55,8 @@ WHITELIST = [
     "ARBUSDT", "SUIUSDT", "STXUSDT", "TIAUSDT", "SEIUSDT", "1000PEPEUSDT"
 ]
 # 🧠 Завантаження сигналів
-def load_signal():
+def load_signal() -> dict:
+def save_signal(signal: dict) -> None:
     try:
         with open("signal.json", "r") as f:
             return json.load(f)
@@ -69,7 +70,7 @@ def save_signal(signal):
 signal = load_signal()
 
 # ⌨️ Основна клавіатура
-def get_main_keyboard():
+def get_main_keyboard() -> types.ReplyKeyboardMarkup:
     kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
     kb.row("📊 Баланс", "📈 Звіт")
     kb.row("🕘 Історія", "✅ Підтвердити купівлю")
@@ -132,7 +133,7 @@ def set_budget(message):
         bot.reply_to(message, f"❌ Помилка: {str(e)}")
 
 # 📊 Баланс Binance
-def send_balance(message):
+def send_balance(message: types.Message) -> None:
     try:
         balances = client.get_account()["balances"]
         response = "📊 *Ваш поточний баланс:*\n\n"
@@ -155,7 +156,7 @@ def send_balance(message):
         bot.send_message(message.chat.id, f"❌ Помилка: {str(e)}")
 
 # 📈 GPT-звіт
-def send_report(message):
+def send_report(message: types.Message) -> None:
     try:
         bot.send_message(message.chat.id, "⏳ Формується GPT-звіт, зачекайте...")
         current = get_current_portfolio()
@@ -185,7 +186,7 @@ def send_report(message):
 
 # ✅ Inline-підтвердження покупки/продажу + стоп-ордери
 @bot.callback_query_handler(func=lambda call: True)
-def callback_inline(call):
+def callback_inline(call: types.CallbackQuery) -> None:
     try:
         if call.data.startswith("confirmbuy_") or call.data.startswith("confirmsell_"):
             parts = call.data.split("_", 1)
@@ -226,7 +227,7 @@ def callback_inline(call):
     except Exception as e:
         bot.send_message(call.message.chat.id, f"❌ Помилка обробки кнопки: {str(e)}")
 
-def place_safety_orders(symbol: str, action_type: str):
+def place_safety_orders(symbol: str, action_type: str) -> bool:
     try:
         # Отримуємо ринкову ціну
         price_data = client.get_symbol_ticker(symbol=f"{symbol}USDT")
@@ -262,7 +263,7 @@ def place_safety_orders(symbol: str, action_type: str):
         return False
         
 @bot.message_handler(commands=["zarobyty"])
-def handle_zarobyty(message):
+def handle_zarobyty(message: types.Message) -> None:
     print("🔥 /zarobyty отримано")
 
     try:
@@ -298,7 +299,7 @@ def handle_zarobyty(message):
         )
 
 @bot.message_handler(commands=["stats"])
-def handle_stats(message):
+def handle_stats(message: types.Message) -> None:
     try:
         history = signal.get("history", [])
         if not history:
@@ -340,7 +341,7 @@ def handle_stats(message):
 
 # 🎯 Обробка кнопок інтерфейсу
 @bot.message_handler(func=lambda m: True)
-def handle_buttons(message):
+def handle_buttons(message: types.Message) -> None:
     text = message.text
     if text == "📊 Баланс":
         send_balance(message)
@@ -361,14 +362,14 @@ def handle_buttons(message):
 
 
 # 🚀 Запуск Telegram polling
-def run_polling():
+def run_polling() -> None:
     print("🤖 Telegram polling запущено...")
     bot.polling(none_stop=True)
 
 
 # 🛠 Ручний запуск аналізу (debug endpoint)
 @app.route("/run_analysis")
-def trigger_daily_analysis():
+def trigger_daily_analysis() -> "Response":
     try:
         current = get_current_portfolio()
         historical = get_historical_data()
@@ -427,7 +428,7 @@ def round_quantity(amount: float) -> float:
     return round(amount, 3)
 
 # 🧠 Безпечне оновлення історії (на випадок зовнішнього використання)
-def append_to_history(entry: dict):
+def append_to_history(entry: dict) -> None:
     history = signal.get("history", [])
     history.append(entry)
     signal["history"] = history
