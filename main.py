@@ -74,7 +74,7 @@ def send_daily_forecast():
     try:
         current = get_current_portfolio()
         historical = get_historical_data()
-        buy_list, sell_list, forecast = run_daily_analysis(current, historical)
+        analysis, total_pnl = run_daily_analysis(current, historical)
 
         if forecast:
             bot.send_message(ADMIN_CHAT_ID, forecast, parse_mode="Markdown")
@@ -232,7 +232,7 @@ def handle_zarobyty(message):
     try:
         current = get_current_portfolio()
         historical = get_historical_data()
-        buy_list, sell_list, forecast = run_daily_analysis(current, historical)
+        analysis, total_pnl = run_daily_analysis(current, historical)
 
 
         if not buy_list and not sell_list:
@@ -291,7 +291,9 @@ def handle_zarobyty(message):
             bot.send_message(message.chat.id, report_text, parse_mode="Markdown")
 
     except Exception as e:
-        bot.send_message(message.chat.id, f"❌ Помилка при генерації /zarobyty:\n{str(e)}")
+        message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah_rate)
+        bot.send_message(message.chat.id, message_text, parse_mode="Markdown")
+
 
 @bot.message_handler(commands=["stats"])
 def handle_stats(message):
