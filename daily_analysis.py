@@ -33,7 +33,6 @@ def get_historical_data() -> Dict[str, float]:
     except FileNotFoundError:
         return {}
 
-THRESHOLD_PNL_PERCENT = 1.0  # або імпортуй, якщо вже є десь
 
 def run_daily_analysis(current: Dict[str, float], historical: Dict[str, float]) -> Tuple[List[Dict], float]:
     """
