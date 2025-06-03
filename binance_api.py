@@ -1,234 +1,158 @@
-# binance_api.py
-
 import os
-from binance.client import Client
-from binance.exceptions import BinanceAPIException
-from typing import Optional
+import time
+import hmac
+import hashlib
+import requests
+from typing import Dict, List, Tuple
 
-# Завантаження ключів із оточення
+from dotenv import load_dotenv
+
+load_dotenv()
+
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
-BINANCE_API_SECRET = os.getenv("BINANCE_API_SECRET")
+BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
+BINANCE_BASE_URL = "https://api.binance.com"
 
-# Ініціалізація клієнта Binance
-client = Client(BINANCE_API_KEY, BINANCE_API_SECRET)
+HEADERS = {
+    "X-MBX-APIKEY": BINANCE_API_KEY
+}
+def get_timestamp() -> int:
+    return int(time.time() * 1000)
 
-# Перевірка підключення
-def ping_binance():
+
+def sign_request(params: Dict[str, str]) -> Dict[str, str]:
+    query_string = "&".join([f"{k}={v}" for k, v in params.items()])
+    signature = hmac.new(
+        BINANCE_SECRET_KEY.encode("utf-8"),
+        query_string.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+    params["signature"] = signature
+    return params
+def get_headers() -> Dict[str, str]:
+    return {
+        "X-MBX-APIKEY": BINANCE_API_KEY
+    }
+
+
+def get_account_info() -> Optional[Dict]:
+    url = f"{BINANCE_BASE_URL}/api/v3/account"
+    params = {"timestamp": get_timestamp()}
+    signed_params = sign_request(params)
     try:
-        client.ping()
-        return True
-    except Exception as e:
-        print(f"❌ Binance ping failed: {e}")
-        return False
-# Отримати повний баланс акаунту
-def get_account_balances():
+        response = requests.get(url, headers=get_headers(), params=signed_params)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        print(f"[Binance] ❌ Error getting account info: {e}")
+        return None
+def get_prices() -> Dict[str, float]:
+    """
+    Отримує актуальні ціни всіх пар до USDT.
+    """
+    url = f"{BINANCE_BASE_URL}/api/v3/ticker/price"
     try:
-        balances = client.get_account()['balances']
-        return {b['asset']: float(b['free']) + float(b['locked']) for b in balances if float(b['free']) + float(b['locked']) > 0}
-    except BinanceAPIException as e:
-        print(f"❌ BinanceAPIException: {e}")
-        return {}
+        response = requests.get(url)
+        response.raise_for_status()
+        prices_raw = response.json()
+        prices = {
+            item["symbol"]: float(item["price"])
+            for item in prices_raw if item["symbol"].endswith("USDT")
+        }
+        return prices
     except Exception as e:
-        print(f"❌ Error getting account balances: {e}")
+        print(f"[Binance] ❌ Error fetching prices: {e}")
         return {}
-
-# Отримати баланс лише в USDT
-def get_usdt_balance():
-    balances = get_account_balances()
-    return balances.get('USDT', 0.0)
-# Отримати останні ціни всіх пар
-def get_all_prices():
+def get_balances() -> Dict[str, float]:
+    """
+    Отримує баланс по всіх монетах користувача.
+    """
     try:
-        prices = client.get_all_tickers()
-        return {p['symbol']: float(p['price']) for p in prices}
-    except BinanceAPIException as e:
-        print(f"❌ BinanceAPIException: {e}")
-        return {}
+        account = client.get_account()
+        balances = {}
+        for balance in account.get("balances", []):
+            asset = balance.get("asset")
+            free = float(balance.get("free", 0))
+            locked = float(balance.get("locked", 0))
+            total = free + locked
+            if total > 0:
+                balances[asset] = total
+        return balances
     except Exception as e:
-        print(f"❌ Error getting prices: {e}")
+        print(f"[Binance] ❌ Error fetching balances: {e}")
         return {}
-
-# Побудувати портфель у USDT
+def get_prices() -> Dict[str, float]:
+    """
+    Отримує актуальні ціни всіх пар до USDT.
+    """
+    try:
+        tickers = client.get_all_tickers()
+        prices = {}
+        for ticker in tickers:
+            symbol = ticker.get("symbol", "")
+            if symbol.endswith("USDT"):
+                asset = symbol.replace("USDT", "")
+                price = float(ticker.get("price", 0))
+                prices[asset] = price
+        return prices
+    except Exception as e:
+        print(f"[Binance] ❌ Error fetching prices: {e}")
+        return {}
 def get_current_portfolio() -> Dict[str, float]:
-    balances = get_account_balances()
-    prices = get_all_prices()
+    """
+    Повертає словник {symbol: value_in_usdt} лише для монет з ненульовим балансом.
+    """
+    balances = get_balances()
+    prices = get_prices()
     portfolio = {}
 
     for asset, amount in balances.items():
-        if asset == 'USDT':
-            portfolio['USDT'] = amount
+        if asset == "USDT":
+            portfolio[asset] = amount
+        elif asset in prices:
+            portfolio[asset] = round(amount * prices[asset], 4)
         else:
-            symbol = f"{asset}USDT"
-            price = prices.get(symbol)
-            if price:
-                value_usdt = amount * price
-                portfolio[asset] = value_usdt
+            print(f"[Binance] ⚠️ Немає ціни для {asset}, пропускаємо.")
 
     return portfolio
-
-# Отримати історію угод по символу
-def get_trade_history(symbol: str):
+def get_coin_price(symbol: str) -> Optional[float]:
+    """
+    Повертає поточну ціну монети в USDT.
+    """
+    url = f"{BINANCE_API_URL}/api/v3/ticker/price"
     try:
-        trades = client.get_my_trades(symbol=symbol)
-        return trades
-    except BinanceAPIException as e:
-        print(f"❌ BinanceAPIException (trades): {e}")
-        return []
+        response = requests.get(url, params={"symbol": f"{symbol}USDT"})
+        response.raise_for_status()
+        return float(response.json()["price"])
     except Exception as e:
-        print(f"❌ Error getting trade history: {e}")
-        return []
-
-# Підрахунок прибутку/збитку по символу
-def calculate_pnl(symbol: str):
-    trades = get_trade_history(symbol)
-    total_qty = 0.0
-    total_cost = 0.0
-    total_income = 0.0
-
-    for trade in trades:
-        qty = float(trade['qty'])
-        price = float(trade['price'])
-        commission = float(trade['commission'])
-
-        if trade['isBuyer']:
-            total_qty += qty
-            total_cost += qty * price + commission
-        else:
-            total_qty -= qty
-            total_income += qty * price - commission
-
-    realized_pnl = total_income - total_cost
-    return round(realized_pnl, 2)
-# Купити криптовалюту за маркет-ордером
-def market_buy(symbol: str, quote_quantity: float):
-    try:
-        order = client.order_market_buy(
-            symbol=symbol,
-            quoteOrderQty=round(quote_quantity, 2)
-        )
-        print(f"✅ Куплено {symbol} на {quote_quantity} USDT")
-        return order
-    except BinanceAPIException as e:
-        print(f"❌ BinanceAPIException (buy): {e}")
+        print(f"[Binance] ❌ Помилка при отриманні ціни {symbol}USDT:", e)
         return None
-    except Exception as e:
-        print(f"❌ Error placing buy order: {e}")
-        return None
-# Продати криптовалюту за маркет-ордером
-def market_sell(symbol: str, quantity: float):
+def get_symbol_precision(symbol: str) -> int:
+    """
+    Повертає точність кількості монет для символу (кількість десяткових знаків).
+    """
     try:
-        order = client.order_market_sell(
-            symbol=symbol,
-            quantity=round(quantity, 6)  # округлення для мінімальної точності
-        )
-        print(f"✅ Продано {symbol} у кількості {quantity}")
-        return order
-    except BinanceAPIException as e:
-        print(f"❌ BinanceAPIException (sell): {e}")
-        return None
+        exchange_info = requests.get(f"{BINANCE_API_URL}/api/v3/exchangeInfo").json()
+        for s in exchange_info.get("symbols", []):
+            if s["symbol"] == symbol:
+                for f in s["filters"]:
+                    if f["filterType"] == "LOT_SIZE":
+                        step_size = float(f["stepSize"])
+                        return abs(decimal.Decimal(str(step_size)).as_tuple().exponent)
     except Exception as e:
-        print(f"❌ Error placing sell order: {e}")
-        return None
-# Отримати історію ордерів для символу
-def get_order_history(symbol: str, limit: int = 10):
+        print(f"[Binance] ⚠️ Помилка при отриманні точності символу {symbol}: {e}")
+    return 2  # дефолт
+def get_last_price(symbol: str) -> float:
+    """
+    Отримує останню ціну для вказаного торгового символу з Binance.
+    """
     try:
-        orders = client.get_all_orders(symbol=symbol, limit=limit)
-        print(f"📜 Історія ордерів для {symbol} отримана")
-        return orders
-    except BinanceAPIException as e:
-        print(f"❌ BinanceAPIException (order history): {e}")
-        return []
+        url = f"{BINANCE_API_URL}/api/v3/ticker/price?symbol={symbol}"
+        response = requests.get(url, timeout=5)
+        data = response.json()
+        return float(data["price"])
     except Exception as e:
-        print(f"❌ Error getting order history: {e}")
-        return []
-# Отримати всі відкриті ордери
-def get_open_orders(symbol: str = None):
-    try:
-        if symbol:
-            orders = client.get_open_orders(symbol=symbol)
-        else:
-            orders = client.get_open_orders()
-        print(f"📂 Відкриті ордери отримані")
-        return orders
-    except BinanceAPIException as e:
-        print(f"❌ BinanceAPIException (open orders): {e}")
-        return []
-    except Exception as e:
-        print(f"❌ Error getting open orders: {e}")
-        return []
-
-# Скасувати ордер за ID
-def cancel_order(symbol: str, order_id: int):
-    try:
-        result = client.cancel_order(symbol=symbol, orderId=order_id)
-        print(f"🛑 Ордер {order_id} скасовано")
-        return result
-    except BinanceAPIException as e:
-        print(f"❌ BinanceAPIException (cancel): {e}")
-        return None
-    except Exception as e:
-        print(f"❌ Error cancelling order: {e}")
-        return None
-# Отримати мінімальні кроки для символу (кількість і ціна)
-def get_symbol_filters(symbol: str):
-    try:
-        info = client.get_symbol_info(symbol)
-        filters = {f['filterType']: f for f in info['filters']}
-        lot_size = float(filters['LOT_SIZE']['stepSize'])
-        price_tick = float(filters['PRICE_FILTER']['tickSize'])
-        return lot_size, price_tick
-    except Exception as e:
-        print(f"❌ Error getting symbol filters: {e}")
-        return 0.001, 0.01  # safe defaults
-
-# Округлення кількості згідно з правилами Binance
-def round_quantity(symbol: str, quantity: float) -> float:
-    lot_size, _ = get_symbol_filters(symbol)
-    rounded = math.floor(quantity / lot_size) * lot_size
-    return round(rounded, 8)
-
-# Округлення ціни згідно з правилами Binance
-def round_price(symbol: str, price: float) -> float:
-    _, price_tick = get_symbol_filters(symbol)
-    rounded = round(math.floor(price / price_tick) * price_tick, 8)
-    return rounded
-# Створення стоп-лосу
-def set_stop_loss(symbol: str, quantity: float, stop_price: float) -> Optional[str]:
-    try:
-        stop_price = round_price(symbol, stop_price)
-        quantity = round_quantity(symbol, quantity)
-
-        order = client.create_order(
-            symbol=symbol,
-            side=SIDE_SELL,
-            type=ORDER_TYPE_STOP_LOSS_LIMIT,
-            quantity=quantity,
-            stopPrice=stop_price,
-            price=stop_price * 0.99,  # трохи нижче
-            timeInForce=TIME_IN_FORCE_GTC
-        )
-        print(f"✅ Stop-loss set for {symbol}: {order}")
-        return order['orderId']
-    except Exception as e:
-        print(f"❌ Error setting stop-loss: {e}")
-        return None
-
-# Створення тейк-профіту
-def set_take_profit(symbol: str, quantity: float, target_price: float) -> Optional[str]:
-    try:
-        target_price = round_price(symbol, target_price)
-        quantity = round_quantity(symbol, quantity)
-
-        order = client.create_order(
-            symbol=symbol,
-            side=SIDE_SELL,
-            type=ORDER_TYPE_LIMIT,
-            quantity=quantity,
-            price=target_price,
-            timeInForce=TIME_IN_FORCE_GTC
-        )
-        print(f"✅ Take-profit set for {symbol}: {order}")
-        return order['orderId']
-    except Exception as e:
-        print(f"❌ Error setting take-profit: {e}")
-        return None
+        print(f"[Binance] ⚠️ Помилка при отриманні ціни {symbol}: {e}")
+        return 0.0
+if __name__ == "__main__":
+    print("Цей файл призначений для імпорту, а не для прямого запуску.")
