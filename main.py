@@ -256,13 +256,11 @@ def handle_zarobyty(message):
             return
 
         usdt_to_uah = get_usdt_to_uah_rate()
-if isinstance(analysis, list):
-    print("⚠️ analysis — список, перетворюємо в словник...")
-    analysis = {i: v for i, v in enumerate(analysis)}
+        if isinstance(analysis, list):
+            print("⚠️ analysis — список, перетворюємо в словник...")
+            analysis = {i: v for i, v in enumerate(analysis)}
 
-message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
-
-
+        message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
 
         bot.send_message(
             message.chat.id,
@@ -366,14 +364,12 @@ def trigger_daily_analysis():
         analysis, total_pnl = result
         usdt_to_uah = get_usdt_to_uah_rate()
 
-print(f"🧩 ANALYSIS TYPE: {type(analysis)}, VALUE: {analysis}")
-if isinstance(analysis, list):
-    print("⚠️ analysis — список, перетворюємо в словник...")
-    analysis = {i: v for i, v in enumerate(analysis)}
+        print(f"🧩 ANALYSIS TYPE: {type(analysis)}, VALUE: {analysis}")
+        if isinstance(analysis, list):
+            print("⚠️ analysis — список, перетворюємо в словник...")
+            analysis = {i: v for i, v in enumerate(analysis)}
 
-message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
-
-
+        message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
 
         return jsonify({"status": "ok", "message": message_text}), 200
 
