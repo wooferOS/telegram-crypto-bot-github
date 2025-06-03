@@ -13,7 +13,7 @@
 ## ⚙️ Структура проєкту
 
 telegram-crypto-bot-github/
-├── main_polling_flask.py # Основний бот з Flask + polling
+├── main.py # Основний бот з Flask + polling
 ├── daily_analysis.py # Щоденна GPT-аналітика
 ├── .env # Секрети (НЕ пушити)
 ├── deploy.sh # Швидкий деплой
