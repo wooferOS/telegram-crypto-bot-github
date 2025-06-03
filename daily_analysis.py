@@ -68,6 +68,9 @@ def format_analysis_report(analysis: List[Dict], total_pnl: float, usdt_to_uah: 
     """
     Форматує звіт для Telegram-повідомлення.
     """
+    if not analysis:
+        return "🤖 Усі активи стабільні, змін немає понад ±1%."
+
     report_lines = [
         "📊 *Щоденний звіт по портфелю Binance*",
         "",
@@ -86,6 +89,7 @@ def format_analysis_report(analysis: List[Dict], total_pnl: float, usdt_to_uah: 
         report_lines.append(f"{status_emoji} `{asset}` — {pnl:+.2f}% (з {initial} до {current})")
 
     return "\n".join(report_lines)
+
 
 
 if __name__ == "__main__":
