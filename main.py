@@ -4,9 +4,10 @@ import os
 import json
 import logging
 import threading
+import telebot
+from flask import Flask, request, jsonify
 from datetime import datetime
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify
 from telebot import TeleBot, types
 from binance.client import Client
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -18,26 +19,29 @@ from daily_analysis import get_historical_data
 load_dotenv(".env")
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-print(f"🧪 TELEGRAM_TOKEN loaded: {TELEGRAM_TOKEN[:10]}")  # Діагностика
+print(f"🧪 TELEGRAM_TOKEN loaded: {TELEGRAM_TOKEN[:10]}")
 
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID"))
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 
-# 🤖 Telegram-бот і Binance API
-import logging
-import telebot
-
+# 🔍 Увімкнення DEBUG логів TeleBot
 telebot.logger.setLevel(logging.DEBUG)
 
+# 🤖 Telegram-бот і Binance API
 bot = TeleBot(TELEGRAM_TOKEN)
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 
+# 🌐 Flask-сервер
+app = Flask(__name__)  # <--- ОЦЕ ДОДАЙ
+
+def run_flask():
+    print("🌐 Flask-сервер для /health запущено на порту 10100")
+    app.run(host="0.0.0.0", port=10100)
 
 @app.route("/health")
 def health():
     return "✅ OK", 200
-
 
 # 💰 Бюджет за замовчуванням
 budget = {"USDT": 100}
@@ -349,10 +353,6 @@ def run_polling():
     print("🤖 Telegram polling запущено...")
     bot.polling(none_stop=True)
 
-# 🌐 Запуск Flask-сервера
-def run_flask():
-    print("🌐 Flask-сервер для /health запущено на порту 10100")
-    app.run(host="0.0.0.0", port=10100)
 
 # 🛠 Ручний запуск аналізу (debug endpoint)
 @app.route("/run_analysis")
