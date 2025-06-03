@@ -166,6 +166,9 @@ def send_report(message):
             bot.send_message(message.chat.id, f"❗️ Некоректний результат GPT-аналізу: {result}")
             return
 
+        if not isinstance(current, dict) or not isinstance(historical, dict):
+            raise ValueError(f"❌ Поточні або історичні дані мають бути словниками (dict), але отримано: {type(current)} / {type(historical)}")
+
         analysis, total_pnl = result
         usdt_to_uah = get_usdt_to_uah_rate()
 
@@ -177,6 +180,7 @@ def send_report(message):
         bot.send_message(message.chat.id, report, parse_mode="Markdown")
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка при створенні звіту:\n{e}")
+
 
 
 # ✅ Inline-підтвердження покупки/продажу + стоп-ордери
