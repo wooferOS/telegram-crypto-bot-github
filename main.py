@@ -76,13 +76,17 @@ def send_daily_forecast():
         historical = get_historical_data()
         analysis, total_pnl = run_daily_analysis(current, historical)
 
-        if forecast:
-            bot.send_message(ADMIN_CHAT_ID, forecast, parse_mode="Markdown")
-            print("✅ Щоденний прогноз відправлено.")
-        else:
+        if not analysis:
             bot.send_message(ADMIN_CHAT_ID, "⚠️ Прогноз порожній.")
+            return
+
+        usdt_to_uah = get_usdt_to_uah_rate()
+        message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
+        bot.send_message(ADMIN_CHAT_ID, message_text, parse_mode="Markdown")
+        print("✅ Щоденний прогноз відправлено.")
     except Exception as e:
         bot.send_message(ADMIN_CHAT_ID, f"❌ Помилка щоденного прогнозу:\n{e}")
+
 
 # 👋 Привітання
 @bot.message_handler(commands=["start", "menu"])
@@ -141,13 +145,15 @@ def send_balance(message):
 def send_report(message):
     try:
         bot.send_message(message.chat.id, "⏳ Формується GPT-звіт, зачекайте...")
-        result = run_daily_analysis()
-        if result and "report" in result:
-            bot.send_message(message.chat.id, result["report"], parse_mode="Markdown")
-        else:
-            bot.send_message(message.chat.id, "❌ Не вдалося сформувати звіт.")
+        current = get_current_portfolio()
+        historical = get_historical_data()
+        analysis, total_pnl = run_daily_analysis(current, historical)
+        usdt_to_uah = get_usdt_to_uah_rate()
+        report = format_analysis_report(analysis, total_pnl, usdt_to_uah)
+        bot.send_message(message.chat.id, report, parse_mode="Markdown")
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка при створенні звіту:\n{e}")
+
 # ✅ Inline-підтвердження покупки/продажу + стоп-ордери
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
