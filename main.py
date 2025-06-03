@@ -11,9 +11,8 @@ from dotenv import load_dotenv
 from telebot import TeleBot, types
 from binance.client import Client
 from apscheduler.schedulers.background import BackgroundScheduler
-from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate
+from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate, get_historical_data, format_analysis_report
 from binance_api import get_current_portfolio
-from daily_analysis import get_historical_data
 
 # 🔐 Завантаження .env
 load_dotenv(".env")
