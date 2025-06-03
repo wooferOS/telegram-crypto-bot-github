@@ -90,9 +90,7 @@ def send_daily_forecast():
 
         usdt_to_uah = get_usdt_to_uah_rate()
 
-        if isinstance(analysis, list):
-            print("⚠️ analysis — список, перетворюємо в словник...")
-            analysis = {i: v for i, v in enumerate(analysis)}
+# Не перетворюй список на словник — це ламає логіку format_analysis_report
 
         message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
 
@@ -168,8 +166,6 @@ def send_report(message):
         if not isinstance(analysis, list) or not all(isinstance(v, dict) for v in analysis):
             bot.send_message(message.chat.id, f"❗️ Некоректні дані GPT-аналізу: {analysis}")
             analysis = []
-
-
 
         report = format_analysis_report(analysis, total_pnl, usdt_to_uah)
         bot.send_message(message.chat.id, report, parse_mode="Markdown")
@@ -275,8 +271,6 @@ def handle_zarobyty(message):
         if not isinstance(analysis, list) or not all(isinstance(v, dict) for v in analysis):
             bot.send_message(message.chat.id, f"❗️ Некоректні дані GPT-аналізу: {analysis}")
             analysis = []
-
-
 
         message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
 
