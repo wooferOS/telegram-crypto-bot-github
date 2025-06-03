@@ -340,7 +340,9 @@ def trigger_daily_analysis():
 
         result = run_daily_analysis(current, historical)
 
-        print(f"🟢 AFTER run_daily_analysis: {result}")
+        print(f"🟢 AFTER run_daily_analysis: type={type(result)}, value={result}")
+        if not isinstance(result, (list, tuple)) or len(result) != 2:
+            print("❗️ Некоректний формат result, очікується кортеж з 2 елементів (analysis, total_pnl)")
 
         analysis, total_pnl = result
         usdt_to_uah = get_usdt_to_uah_rate()
