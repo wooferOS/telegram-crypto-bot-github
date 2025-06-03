@@ -161,6 +161,10 @@ def send_report(message):
             print("⚠️ analysis — список, перетворюємо в словник...")
             analysis = {i: v for i, v in enumerate(analysis)}
 
+        if not isinstance(analysis, dict) or not all(isinstance(v, dict) for v in analysis.values()):
+            bot.send_message(message.chat.id, "❗️ Некоректні дані GPT-аналізу.")
+            return
+
         report = format_analysis_report(analysis, total_pnl, usdt_to_uah)
         bot.send_message(message.chat.id, report, parse_mode="Markdown")
     except Exception as e:
@@ -261,9 +265,14 @@ def handle_zarobyty(message):
             return
 
         usdt_to_uah = get_usdt_to_uah_rate()
+
         if isinstance(analysis, list):
             print("⚠️ analysis — список, перетворюємо в словник...")
             analysis = {i: v for i, v in enumerate(analysis)}
+
+        if not isinstance(analysis, dict) or not all(isinstance(v, dict) for v in analysis.values()):
+            bot.send_message(message.chat.id, "❗️ Некоректні дані GPT-аналізу.")
+            return
 
         message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
 
@@ -278,7 +287,6 @@ def handle_zarobyty(message):
             message.chat.id,
             f"❌ Помилка при генерації /zarobyty:\n{str(e)}"
         )
-
 
 @bot.message_handler(commands=["stats"])
 def handle_stats(message):
@@ -359,7 +367,6 @@ def trigger_daily_analysis():
         print(f"🧩 RESULT TYPE: {type(result)}")
         print(f"🧩 RESULT VALUE: {result}")
 
-
         print(f"🟢 AFTER run_daily_analysis...")
 
         if not isinstance(result, (list, tuple)) or len(result) != 2:
@@ -370,9 +377,13 @@ def trigger_daily_analysis():
         usdt_to_uah = get_usdt_to_uah_rate()
 
         print(f"🧩 ANALYSIS TYPE: {type(analysis)}, VALUE: {analysis}")
+
         if isinstance(analysis, list):
             print("⚠️ analysis — список, перетворюємо в словник...")
             analysis = {i: v for i, v in enumerate(analysis)}
+
+        if not isinstance(analysis, dict) or not all(isinstance(v, dict) for v in analysis.values()):
+            return jsonify({"status": "error", "message": "Некоректні дані GPT-аналізу"}), 500
 
         message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
 
@@ -381,8 +392,6 @@ def trigger_daily_analysis():
     except Exception as e:
         print(f"❌ EXCEPTION in /run_analysis: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
-
-
 
         
 if __name__ == "__main__":
