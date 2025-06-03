@@ -82,10 +82,12 @@ def send_daily_forecast():
 
         usdt_to_uah = get_usdt_to_uah_rate()
         if isinstance(analysis, list):
-        print("⚠️ analysis — список, перетворюємо в словник...")
-        analysis = {i: v for i, v in enumerate(analysis)}
+            print("⚠️ analysis — список, перетворюємо в словник...")
+            analysis = {i: v for i, v in enumerate(analysis)}
 
         message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
+
+
 
         bot.send_message(ADMIN_CHAT_ID, message_text, parse_mode="Markdown")
         print("✅ Щоденний прогноз відправлено.")
@@ -254,10 +256,11 @@ def handle_zarobyty(message):
 
         usdt_to_uah = get_usdt_to_uah_rate()
         if isinstance(analysis, list):
-        print("⚠️ analysis — список, перетворюємо в словник...")
-        analysis = {i: v for i, v in enumerate(analysis)}
+            print("⚠️ analysis — список, перетворюємо в словник...")
+            analysis = {i: v for i, v in enumerate(analysis)}
 
         message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
+
 
 
         bot.send_message(
@@ -353,18 +356,23 @@ def trigger_daily_analysis():
         print(f"🧩 RESULT VALUE: {result}")
 
 
-        print(f"🟢 AFTER run_daily_analysis: type={type(result)}, value={result}")
+        print(f"🟢 AFTER run_daily_analysis...")
+
         if not isinstance(result, (list, tuple)) or len(result) != 2:
             print("❗️ Некоректний формат result, очікується кортеж з 2 елементів (analysis, total_pnl)")
+            return jsonify({"status": "error", "message": "Некоректний формат результату run_daily_analysis"}), 500
 
         analysis, total_pnl = result
         usdt_to_uah = get_usdt_to_uah_rate()
+
         print(f"🧩 ANALYSIS TYPE: {type(analysis)}, VALUE: {analysis}")
         if isinstance(analysis, list):
-        print("⚠️ analysis — список, перетворюємо в словник...")
-        analysis = {i: v for i, v in enumerate(analysis)}
+            print("⚠️ analysis — список, перетворюємо в словник...")
+            analysis = {i: v for i, v in enumerate(analysis)}
 
         message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
+
+
 
         return jsonify({"status": "ok", "message": message_text}), 200
 
