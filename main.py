@@ -158,8 +158,9 @@ def send_report(message):
         usdt_to_uah = get_usdt_to_uah_rate()
 
         if not isinstance(analysis, list) or not all(isinstance(v, dict) for v in analysis):
-            bot.send_message(message.chat.id, "❗️ Некоректні дані GPT-аналізу.")
-            return
+            bot.send_message(message.chat.id, f"❗️ Некоректні дані GPT-аналізу: {analysis}")
+            analysis = []
+
 
 
         report = format_analysis_report(analysis, total_pnl, usdt_to_uah)
@@ -262,10 +263,11 @@ def handle_zarobyty(message):
             return
 
         usdt_to_uah = get_usdt_to_uah_rate()
-
+        
         if not isinstance(analysis, list) or not all(isinstance(v, dict) for v in analysis):
-            bot.send_message(message.chat.id, "❗️ Некоректні дані GPT-аналізу.")
-            return
+            bot.send_message(message.chat.id, f"❗️ Некоректні дані GPT-аналізу: {analysis}")
+            analysis = []
+
 
 
         message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
