@@ -339,6 +339,9 @@ def trigger_daily_analysis():
         print("🟡 BEFORE run_daily_analysis")
 
         result = run_daily_analysis(current, historical)
+        print(f"🧩 RESULT TYPE: {type(result)}")
+        print(f"🧩 RESULT VALUE: {result}")
+
 
         print(f"🟢 AFTER run_daily_analysis: type={type(result)}, value={result}")
         if not isinstance(result, (list, tuple)) or len(result) != 2:
@@ -346,6 +349,7 @@ def trigger_daily_analysis():
 
         analysis, total_pnl = result
         usdt_to_uah = get_usdt_to_uah_rate()
+        print(f"🧩 ANALYSIS TYPE: {type(analysis)}, VALUE: {analysis}")
         message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
         return jsonify({"status": "ok", "message": message_text}), 200
 
