@@ -33,6 +33,8 @@ def get_historical_data() -> Dict[str, float]:
     except FileNotFoundError:
         return {}
 
+THRESHOLD_PNL_PERCENT = 1.0  # або імпортуй, якщо вже є десь
+
 def run_daily_analysis(current: Dict[str, float], historical: Dict[str, float]) -> Tuple[List[Dict], float]:
     """
     Порівнює поточний та історичний портфель, обчислює PnL.
@@ -51,6 +53,9 @@ def run_daily_analysis(current: Dict[str, float], historical: Dict[str, float]) 
         price_change = current_amount - initial_amount
         pnl_percent = (price_change / initial_amount) * 100 if initial_amount else 100.0
 
+        if abs(pnl_percent) < THRESHOLD_PNL_PERCENT:
+            continue  # 🔽 Фільтруємо все менше ±1%
+
         analysis.append({
             'asset': asset,
             'initial': round(initial_amount, 2),
@@ -63,6 +68,7 @@ def run_daily_analysis(current: Dict[str, float], historical: Dict[str, float]) 
 
     total_pnl_percent = ((total_current_value - total_initial_value) / total_initial_value) * 100 if total_initial_value else 0.0
     return analysis, round(total_pnl_percent, 2)
+
     
 def format_analysis_report(analysis: List[Dict], total_pnl: float, usdt_to_uah: float) -> str:
     """
