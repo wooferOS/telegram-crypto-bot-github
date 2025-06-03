@@ -157,13 +157,10 @@ def send_report(message):
         analysis, total_pnl = run_daily_analysis(current, historical)
         usdt_to_uah = get_usdt_to_uah_rate()
 
-        if isinstance(analysis, list):
-            print("⚠️ analysis — список, перетворюємо в словник...")
-            analysis = {i: v for i, v in enumerate(analysis)}
-
-        if not isinstance(analysis, dict) or not all(isinstance(v, dict) for v in analysis.values()):
+        if not isinstance(analysis, list) or not all(isinstance(v, dict) for v in analysis):
             bot.send_message(message.chat.id, "❗️ Некоректні дані GPT-аналізу.")
             return
+
 
         report = format_analysis_report(analysis, total_pnl, usdt_to_uah)
         bot.send_message(message.chat.id, report, parse_mode="Markdown")
@@ -266,13 +263,10 @@ def handle_zarobyty(message):
 
         usdt_to_uah = get_usdt_to_uah_rate()
 
-        if isinstance(analysis, list):
-            print("⚠️ analysis — список, перетворюємо в словник...")
-            analysis = {i: v for i, v in enumerate(analysis)}
-
-        if not isinstance(analysis, dict) or not all(isinstance(v, dict) for v in analysis.values()):
+        if not isinstance(analysis, list) or not all(isinstance(v, dict) for v in analysis):
             bot.send_message(message.chat.id, "❗️ Некоректні дані GPT-аналізу.")
             return
+
 
         message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
 
@@ -378,12 +372,9 @@ def trigger_daily_analysis():
 
         print(f"🧩 ANALYSIS TYPE: {type(analysis)}, VALUE: {analysis}")
 
-        if isinstance(analysis, list):
-            print("⚠️ analysis — список, перетворюємо в словник...")
-            analysis = {i: v for i, v in enumerate(analysis)}
-
-        if not isinstance(analysis, dict) or not all(isinstance(v, dict) for v in analysis.values()):
+        if not isinstance(analysis, list) or not all(isinstance(v, dict) for v in analysis):
             return jsonify({"status": "error", "message": "Некоректні дані GPT-аналізу"}), 500
+
 
         message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
 
