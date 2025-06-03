@@ -49,29 +49,23 @@ def get_all_prices():
         return {}
 
 # Побудувати портфель у USDT
-def get_current_portfolio():
+def get_current_portfolio() -> Dict[str, float]:
     balances = get_account_balances()
     prices = get_all_prices()
-    portfolio = []
+    portfolio = {}
 
     for asset, amount in balances.items():
         if asset == 'USDT':
-            portfolio.append({
-                'asset': 'USDT',
-                'amount': amount,
-                'value_usdt': amount
-            })
+            portfolio['USDT'] = amount
         else:
             symbol = f"{asset}USDT"
             price = prices.get(symbol)
             if price:
                 value_usdt = amount * price
-                portfolio.append({
-                    'asset': asset,
-                    'amount': amount,
-                    'value_usdt': value_usdt
-                })
+                portfolio[asset] = value_usdt
+
     return portfolio
+
 # Отримати історію угод по символу
 def get_trade_history(symbol: str):
     try:
