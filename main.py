@@ -225,6 +225,7 @@ def place_safety_orders(symbol: str, action_type: str):
     except Exception as e:
         print(f"❌ Помилка встановлення стопів для {symbol}: {e}")
         return False
+        
 @bot.message_handler(commands=["zarobyty"])
 def handle_zarobyty(message):
     print("🔥 /zarobyty отримано")
@@ -234,65 +235,27 @@ def handle_zarobyty(message):
         historical = get_historical_data()
         analysis, total_pnl = run_daily_analysis(current, historical)
 
-
-        if not buy_list and not sell_list:
+        if not analysis:
             bot.send_message(
                 message.chat.id,
-                "📉 На сьогодні немає активних рекомендацій для купівлі або продажу."
+                "📉 На сьогодні немає активних змін понад ±1%."
             )
             return
 
-        emoji_map = {
-            "BTC": "₿", "ETH": "🌐", "BNB": "🔥", "SOL": "☀️", "XRP": "💧",
-            "ADA": "🔷", "DOGE": "🐶", "AVAX": "🗻", "DOT": "🎯", "TRX": "💡",
-            "LINK": "🔗", "MATIC": "🛡", "LTC": "🌕", "BCH": "🍀", "NEAR": "📡",
-            "FIL": "📁", "ICP": "🧠", "ETC": "⚡", "HBAR": "🌀", "INJ": "💉",
-            "VET": "✅", "RUNE": "⚓", "OP": "📈", "ARB": "🏹", "SUI": "💧",
-            "STX": "📦", "TIA": "🪙", "SEI": "🌊", "ATOM": "🌌", "1000PEPE": "🐸"
-        }
-
-        def add_emoji(sym):
-            for key in emoji_map:
-                if sym.startswith(key):
-                    return f"{emoji_map[key]} {sym}"
-            return sym
-
-        summary = "💡 *GPT-прогноз на день:*\n\n"
-        markup = types.InlineKeyboardMarkup()
-
-        if sell_list:
-            summary += "🔻 *Рекомендовано продати:*\n"
-            summary += ", ".join(f"`{add_emoji(s)}`" for s in sell_list) + "\n"
-            for symbol in sell_list:
-                markup.add(types.InlineKeyboardButton(
-                    text=f"❌ Продати {symbol}",
-                    callback_data=f"confirmsell_{symbol}"
-                ))
-
-        if buy_list:
-            summary += "\n🟢 *Рекомендовано купити:*\n"
-            summary += ", ".join(f"`{add_emoji(s)}`" for s in buy_list) + "\n"
-            for symbol in buy_list:
-                markup.add(types.InlineKeyboardButton(
-                    text=f"✅ Купити {symbol}",
-                    callback_data=f"confirmbuy_{symbol}"
-                ))
-
-        summary += "\n📥 Натисніть кнопку для підтвердження дії."
+        usdt_to_uah = get_usdt_to_uah_rate()
+        message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
 
         bot.send_message(
             message.chat.id,
-            summary,
-            parse_mode="Markdown",
-            reply_markup=markup
+            message_text,
+            parse_mode="Markdown"
         )
 
-        if report_text:
-            bot.send_message(message.chat.id, report_text, parse_mode="Markdown")
-
     except Exception as e:
-        message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah_rate)
-        bot.send_message(message.chat.id, message_text, parse_mode="Markdown")
+        bot.send_message(
+            message.chat.id,
+            f"❌ Помилка при генерації /zarobyty:\n{str(e)}"
+        )
 
 
 @bot.message_handler(commands=["stats"])
