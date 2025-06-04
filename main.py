@@ -57,6 +57,7 @@ WHITELIST = [
     "ARBUSDT", "SUIUSDT", "STXUSDT", "TIAUSDT", "SEIUSDT", "1000PEPEUSDT"
 ]
 
+
 # 🧠 Завантаження сигналів
 def load_signal() -> dict:
     try:
