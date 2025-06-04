@@ -16,7 +16,7 @@ from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate, get_histori
 from binance_api import get_current_portfolio
 from telebot import TeleBot, types
 from telegram_bot import bot, TELEGRAM_BOT_TOKEN
-
+from aiogram import Bot, Dispatcher, types
 
 # 🔐 Завантаження .env
 load_dotenv(".env")
@@ -104,6 +104,11 @@ def send_daily_forecast() -> None:
 
     except Exception as e:
         bot.send_message(CHAT_ID, f"❌ Помилка щоденного прогнозу:\n{e}")
+
+
+# Після створення бота
+bot = Bot(token=TELEGRAM_BOT_TOKEN)
+dp = Dispatcher(bot)
 
 
 # 👋 Привітання
