@@ -1,5 +1,3 @@
-import telebot.types as types
-from telegram_bot import bot, TELEGRAM_BOT_TOKEN
 # 📦 main.py — Telegram GPT-криптобот із Flask, APScheduler та GPT-аналітикою
 
 import os
@@ -7,6 +5,7 @@ import json
 import logging
 import threading
 import telebot
+import telebot.types as types
 from flask import Flask, request, jsonify
 from datetime import datetime
 from dotenv import load_dotenv
@@ -16,6 +15,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate, get_historical_data, format_analysis_report
 from binance_api import get_current_portfolio
 from telebot import TeleBot
+from telegram_bot import bot, TELEGRAM_BOT_TOKEN
 
 # 🔐 Завантаження .env
 load_dotenv(".env")
@@ -114,6 +114,20 @@ def send_welcome(message):
         "`/balance`, `/report`, `/confirm_buy`, `/confirm_sell`, `/set_budget`, `/zarobyty`, `/stats`"
     )
     bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
+    
+@dp.message_handler(commands=["zarobyty"])
+async def cmd_zarobyty(message: types.Message):
+    from daily_analysis import generate_zarobyty_report
+    from binance_api import get_full_asset_info  # або твоя функція отримання балансу й аналітики
+
+    # 🔍 Отримуємо дані для GPT-звіту (тут просто мокові — заміни на свою логіку)
+    data = get_full_asset_info()  # <-- ця функція повинна повертати словник у форматі, що очікує generate_zarobyty_report
+
+    # 🧠 Генеруємо звіт GPT
+    report_text, buttons = generate_zarobyty_report(data)
+
+    # 📤 Відправляємо звіт у Telegram
+    await message.answer(report_text, reply_markup=buttons, parse_mode="Markdown")
 
 @bot.message_handler(commands=["id"])
 def show_id(message):
