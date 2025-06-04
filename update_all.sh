@@ -32,6 +32,6 @@ sudo systemctl restart crypto-bot
 sudo systemctl status crypto-bot --no-pager
 
 # 📨 Надсилаємо повідомлення в Telegram
-python3 -c "import os, requests; text = '✅ Успішне оновлення Telegram GPT-бота!'; requests.post(f'https://api.telegram.org/bot{os.environ[\"TELEGRAM_TOKEN\"]}/sendMessage', data={'chat_id': os.environ['ADMIN_CHAT_ID'], 'text': text})"
+python3 -c "import os, requests; text = '✅ Успішне оновлення Telegram GPT-бота!'; requests.post(f'https://api.telegram.org/bot{os.environ[\"TELEGRAM_TOKEN\"]}/sendMessage', data={'chat_id': os.environ['CHAT_ID'], 'text': text})"
 
 echo "🚀 Готово!"

@@ -8,7 +8,7 @@ import telebot
 from flask import Flask, request, jsonify
 from datetime import datetime
 from dotenv import load_dotenv
-from telebot import TeleBot, types
+from telegram_bot import bot
 from binance.client import Client
 from apscheduler.schedulers.background import BackgroundScheduler
 from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate, get_historical_data, format_analysis_report
@@ -20,7 +20,7 @@ load_dotenv(".env")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 print(f"🧪 TELEGRAM_TOKEN loaded: {TELEGRAM_TOKEN[:10]}")
 
-ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID"))
+CHAT_ID = int(os.getenv("CHAT_ID"))
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 
@@ -86,7 +86,7 @@ def send_daily_forecast() -> None:
         analysis, total_pnl = run_daily_analysis(current, historical)
 
         if not analysis:
-            bot.send_message(ADMIN_CHAT_ID, "⚠️ Прогноз порожній.")
+            bot.send_message(CHAT_ID, "⚠️ Прогноз порожній.")
             return
 
         usdt_to_uah = get_usdt_to_uah_rate()
@@ -95,11 +95,11 @@ def send_daily_forecast() -> None:
 
         message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
 
-        bot.send_message(ADMIN_CHAT_ID, message_text, parse_mode="Markdown")
+        bot.send_message(CHAT_ID, message_text, parse_mode="Markdown")
         print("✅ Щоденний прогноз відправлено.")
 
     except Exception as e:
-        bot.send_message(ADMIN_CHAT_ID, f"❌ Помилка щоденного прогнозу:\n{e}")
+        bot.send_message(CHAT_ID, f"❌ Помилка щоденного прогнозу:\n{e}")
 
 
 # 👋 Привітання
@@ -338,6 +338,12 @@ def handle_stats(message: types.Message) -> None:
 
     except Exception as e:
         bot.send_message(message.chat.id, f"❌ Помилка у /stats: {e}")
+
+
+
+@bot.message_handler(commands=["id"])
+def get_chat_id(message):
+    bot.send_message(message.chat.id, f"Ваш chat.id: {message.chat.id}")
 
 # 🎯 Обробка кнопок інтерфейсу
 @bot.message_handler(func=lambda m: True)

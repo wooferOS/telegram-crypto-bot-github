@@ -20,7 +20,7 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
-ADMIN_CHAT_ID = os.getenv("ADMIN_CHAT_ID")
+CHAT_ID = os.getenv("CHAT_ID")
 DATA_PATH = "settings.json"
 
 # --- Ініціалізація ---
@@ -150,7 +150,7 @@ app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), fallback))
 
 # --- Старт бота ---
 async def run_bot():
-    await bot.send_message(chat_id=ADMIN_CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
+    await bot.send_message(chat_id=CHAT_ID, text="✅ Crypto Bot запущено з повним функціоналом")
     await app.run_polling()
 
 if __name__ == "__main__":

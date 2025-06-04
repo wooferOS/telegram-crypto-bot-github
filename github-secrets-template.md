@@ -5,7 +5,7 @@
 | Назва секрету       | Призначення                             |
 |----------------------|------------------------------------------|
 | `TELEGRAM_TOKEN`     | Токен Telegram-бота                     |
-| `ADMIN_CHAT_ID`      | ID адміністратора в Telegram            |
+| `CHAT_ID`      | ID адміністратора в Telegram            |
 | `OPENAI_API_KEY`     | GPT-ключ (OpenAI Platform)              |
 | `BINANCE_API_KEY`    | Ключ Binance API                        |
 | `BINANCE_SECRET_KEY` | Секретний ключ Binance                  |

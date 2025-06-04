@@ -5,6 +5,7 @@ import requests
 from dotenv import load_dotenv
 from binance_api import get_current_portfolio
 from typing import Dict, List, Tuple, Optional
+from telegram_bot import bot, CHAT_ID
 
 load_dotenv()
 
@@ -92,6 +93,23 @@ def format_analysis_report(analysis: List[Dict], total_pnl: float, usdt_to_uah: 
         report_lines.append(f"{status_emoji} `{asset}` — {pnl:+.2f}% (з {initial} до {current})")
 
     return "\n".join(report_lines)
+
+
+
+def daily_analysis_task():
+    current = get_current_portfolio()
+    historical = get_historical_data()
+    report = run_daily_analysis(current, historical)
+
+    if report:
+        try:
+            max_length = 4096
+            for i in range(0, len(report), max_length):
+                bot.send_message(CHAT_ID, report[i:i+max_length])
+        except Exception as e:
+            bot.send_message(CHAT_ID, f"❌ Помилка при надсиланні GPT-звіту:\n{e}")
+    else:
+        bot.send_message(CHAT_ID, "⚠️ GPT-звіт не створено.")
 
 
 
