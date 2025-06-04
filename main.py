@@ -12,10 +12,11 @@ from dotenv import load_dotenv
 from telegram_bot import bot
 from binance.client import Client
 from apscheduler.schedulers.background import BackgroundScheduler
-from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate, get_historical_data, format_analysis_report
+from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate, get_historical_data, format_analysis_report, generate_zarobyty_report
 from binance_api import get_current_portfolio
-from telebot import TeleBot
+from telebot import TeleBot, types
 from telegram_bot import bot, TELEGRAM_BOT_TOKEN
+
 
 # 🔐 Завантаження .env
 load_dotenv(".env")
@@ -280,40 +281,20 @@ def place_safety_orders(symbol: str, action_type: str) -> bool:
         return False
         
 @bot.message_handler(commands=["zarobyty"])
-def handle_zarobyty(message: types.Message) -> None:
-    print("🔥 /zarobyty отримано")
+def handle_zarobyty(message):
+    report = generate_zarobyty_report()
 
-    try:
-        current = get_current_portfolio()
-        historical = get_historical_data()
-        analysis, total_pnl = run_daily_analysis(current, historical)
+    # Генерація кнопок
+    markup = types.InlineKeyboardMarkup()
+    lines = report.splitlines()
+    for line in lines:
+        if line.startswith("→ /confirmbuy_") or line.startswith("→ /confirmsell_"):
+            command = line.replace("→ ", "")
+            token = command.split("_")[1]
+            button = types.InlineKeyboardButton(text=command, callback_data=command)
+            markup.add(button)
 
-        if not analysis:
-            bot.send_message(
-                message.chat.id,
-                "📉 На сьогодні немає активних змін понад ±1%."
-            )
-            return
-
-        usdt_to_uah = get_usdt_to_uah_rate()
-        
-        if not isinstance(analysis, list) or not all(isinstance(v, dict) for v in analysis):
-            bot.send_message(message.chat.id, f"❗️ Некоректні дані GPT-аналізу: {analysis}")
-            analysis = []
-
-        message_text = format_analysis_report(analysis, total_pnl, usdt_to_uah)
-
-        bot.send_message(
-            message.chat.id,
-            message_text,
-            parse_mode="Markdown"
-        )
-
-    except Exception as e:
-        bot.send_message(
-            message.chat.id,
-            f"❌ Помилка при генерації /zarobyty:\n{str(e)}"
-        )
+    bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode="Markdown")
 
 @bot.message_handler(commands=["stats"])
 def handle_stats(message: types.Message) -> None:
