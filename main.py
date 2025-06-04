@@ -268,7 +268,7 @@ def place_safety_orders(symbol: str, action_type: str) -> bool:
         return True
     except Exception as e:
         print(f"❌ Помилка встановлення стопів для {symbol}: {e}")
-        return False
+        return False 
         
 @bot.message_handler(commands=["zarobyty"])
 def handle_zarobyty(message):
