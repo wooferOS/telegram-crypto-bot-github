@@ -18,7 +18,6 @@ from telebot import TeleBot, types
 from telegram_bot import bot, TELEGRAM_BOT_TOKEN
 from aiogram import Bot, Dispatcher, types
 
-
 # 🔐 Завантаження .env
 load_dotenv(".env")
 
