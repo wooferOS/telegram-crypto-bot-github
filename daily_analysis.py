@@ -3,10 +3,11 @@ import json
 import datetime
 import requests
 from dotenv import load_dotenv
-from binance_api import get_current_portfolio
+from binance_api import get_current_portfolio, get_full_asset_info
 from typing import Dict, List, Tuple, Optional
 from telegram_bot import bot, CHAT_ID
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
 
 load_dotenv()
 
@@ -112,65 +113,46 @@ def daily_analysis_task():
     else:
         bot.send_message(CHAT_ID, "⚠️ GPT-звіт не створено.")
 
-def generate_zarobyty_report(data: dict) -> tuple[str, InlineKeyboardMarkup]:
-    import datetime
-    now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
-    report_lines = [f"📊 Звіт GPT-аналітики ({now})\n"]
+def generate_zarobyty_report():
+    data = get_full_asset_info()
 
-    # 💼 Баланс у USDT і ₴
-    report_lines.append("💼 Баланс:")
-    total_usdt = 0
-    for asset in data["balance"]:
-        amount = asset["amount"]
-        price = asset["price"]
-        usdt = round(amount * price, 2)
-        uah = round(usdt * data["usdt_to_uah"], 2)
-        report_lines.append(f"- {asset['symbol']}: {amount} → ≈ {usdt} USDT ≈ {uah}₴")
-        total_usdt += usdt
+    balances = "\n".join(
+        [f"- {b['symbol']}: {b['amount']} → ≈ {b['usdt_value']} USDT" for b in data["balances"]]
+    )
 
-    # 📉 Рекомендується продати
-    report_lines.append("\n📉 Рекомендується продати:")
-    sell_buttons = []
-    for asset in data["recommendations"]["sell"]:
-        symbol = asset["symbol"]
-        change = asset["change"]
-        report_lines.append(f"- 🔴 {symbol} — зміна {change}%\n→ /confirmsell_{symbol}")
-        sell_buttons.append([InlineKeyboardButton(f"🔴 Продати {symbol}", callback_data=f"/confirmsell_{symbol}")])
+    sell = "\n".join(
+        [f"- 🔴 {s['symbol']} — зміна {s['change_percent']}%\n→ /confirmsell_{s['symbol']}" for s in data["recommend_sell"]]
+    )
 
-    # 📈 Рекомендується купити
-    report_lines.append("\n📈 Рекомендується купити:")
-    buy_buttons = []
-    for asset in data["recommendations"]["buy"]:
-        symbol = asset["symbol"]
-        volume = asset["volume"]
-        change = asset["change"]
-        report_lines.append(f"- 🟢 {symbol} — обʼєм {volume} | зміна {change}%\n→ /confirmbuy_{symbol}")
-        buy_buttons.append([InlineKeyboardButton(f"🟢 Купити {symbol}", callback_data=f"/confirmbuy_{symbol}")])
+    buy = "\n".join(
+        [f"- 🟢 {b['symbol']} — обʼєм {b['volume']} | зміна {b['change_percent']}%\n→ /confirmbuy_{b['symbol']}" for b in data["recommend_buy"]]
+    )
 
-    # 📈 Очікуваний прибуток
-    profit = data.get("expected_profit", 0)
-    report_lines.append(f"\n📈 Очікуваний прибуток: ~{profit} USDT")
+    pnl = "\n".join([
+        f"{p['symbol']}: {p['prev_amount']} → {p['current_amount']} ({'+' if p['diff'] >= 0 else ''}{p['diff']}, {p['percent']}%)"
+        for p in data["pnl"]
+    ])
 
-    # 📈 ОЧІKУВАНИЙ ПРИБУТОК (детально)
-    if "profit_calc" in data:
-        report_lines.append("\n📈 ОЧІKУВАНИЙ ПРИБУТОК:")
-        for line in data["profit_calc"]:
-            report_lines.append(f"- {line}")
-        if "total_profit" in data:
-            report_lines.append(f"= Разом: {data['total_profit']}")
+    report = f"""📊 Звіт GPT-аналітики ({datetime.datetime.now().strftime('%d.%m.%Y %H:%M')})
 
-    # 🧠 Прогноз
-    if "forecast" in data:
-        report_lines.append(f"\n🧠 Прогноз: {data['forecast']}")
+💼 Баланс:
+{balances}
 
-    # 💾 Завершення
-    report_lines.append("💾 Усі дії збережено.")
+📉 Рекомендується продати:
+{sell}
 
-    # Обʼєднані кнопки
-    all_buttons = sell_buttons + buy_buttons
-    markup = InlineKeyboardMarkup(all_buttons)
+📈 Рекомендується купити:
+{buy}
 
-    return "\n".join(report_lines), markup
+📈 Очікуваний прибуток: ~{data['expected_profit']} USDT
+
+📈 ОЧІKУВАНИЙ ПРИБУТОК:
+{data['expected_profit_block']}
+
+🧠 Прогноз: {data['gpt_forecast']}
+💾 Усі дії збережено."""
+
+    return report
 
 
 if __name__ == "__main__":
