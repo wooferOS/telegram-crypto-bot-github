@@ -140,6 +140,31 @@ def get_symbol_precision(symbol: str) -> int:
         print(f"[Binance] ⚠️ Помилка при отриманні точності для {symbol}: {e}")
     
     return 2  # 🔁 Значення за замовчуванням
+
+def get_full_asset_info():
+    # ⚠️ Заміни нижче на справжній код
+    return {
+        "balances": [
+            {"symbol": "ADA", "amount": 15.3, "usdt_value": 10.25, "uah_value": 415.77},
+            {"symbol": "XRP", "amount": 9.99, "usdt_value": 21.35, "uah_value": 865.32},
+        ],
+        "pnl": [
+            {"symbol": "ADA", "prev_amount": 15.3, "current_amount": 15.3, "diff": 0.0, "percent": 0.0},
+            {"symbol": "XRP", "prev_amount": 10.0, "current_amount": 9.99, "diff": -0.01, "percent": -0.1},
+        ],
+        "recommend_sell": [
+            {"symbol": "ADA", "change_percent": -5.32},
+            {"symbol": "PEPE", "change_percent": -10.1}
+        ],
+        "recommend_buy": [
+            {"symbol": "LPTUSDT", "volume": 123456.0, "change_percent": 12.3},
+            {"symbol": "TRBUSDT", "volume": 98765.0, "change_percent": 18.4}
+        ],
+        "expected_profit": 14.77,
+        "expected_profit_block": "- Продаж ADA: + 7.2\n- Купівля TRX: + 2.3\n= Разом: + 9.5 (≈ +15%)",
+        "gpt_forecast": "ADA виглядає сильно, PEPE втрачає позиції.",
+    }
+
 # 📉 Отримання останньої ціни через ручний endpoint
 def get_last_price(symbol: str) -> float:
     """
