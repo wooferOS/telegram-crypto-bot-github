@@ -1,3 +1,5 @@
+import telebot.types as types
+from telegram_bot import bot, TELEGRAM_BOT_TOKEN
 # 📦 main.py — Telegram GPT-криптобот із Flask, APScheduler та GPT-аналітикою
 
 import os
@@ -13,12 +15,13 @@ from binance.client import Client
 from apscheduler.schedulers.background import BackgroundScheduler
 from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate, get_historical_data, format_analysis_report
 from binance_api import get_current_portfolio
+from telebot import TeleBot
 
 # 🔐 Завантаження .env
 load_dotenv(".env")
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-print(f"🧪 TELEGRAM_TOKEN loaded: {TELEGRAM_TOKEN[:10]}")
+# 🔕 Видалено токен debug print
 
 CHAT_ID = int(os.getenv("CHAT_ID"))
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
@@ -28,7 +31,7 @@ BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 telebot.logger.setLevel(logging.DEBUG)
 
 # 🤖 Telegram-бот і Binance API
-bot = TeleBot(TELEGRAM_TOKEN)
+bot = TeleBot(TELEGRAM_BOT_TOKEN)
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 
 # 🌐 Flask-сервер
