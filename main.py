@@ -108,7 +108,7 @@ def send_daily_forecast() -> None:
 
 # Після створення бота
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
-dp = Dispatcher(bot)
+dp = Dispatcher()
 dp.include_router(router)
 
 
