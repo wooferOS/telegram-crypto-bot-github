@@ -16,7 +16,6 @@ from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate, get_histori
 from binance_api import get_current_portfolio
 from telebot import TeleBot, types
 from telegram_bot import bot, TELEGRAM_BOT_TOKEN
-from aiogram import Bot, Dispatcher, types
 
 # 🔐 Завантаження .env
 load_dotenv(".env")
@@ -106,13 +105,6 @@ def send_daily_forecast() -> None:
         bot.send_message(CHAT_ID, f"❌ Помилка щоденного прогнозу:\n{e}")
 
 
-# Після створення бота
-bot = Bot(token=TELEGRAM_BOT_TOKEN)
-dp = Dispatcher()
-dp.include_router(router)
-
-
-
 # 👋 Привітання
 @bot.message_handler(commands=["start", "menu"])
 def send_welcome(message):
@@ -123,16 +115,6 @@ def send_welcome(message):
     )
     bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
     
-@dp.message_handler(commands=["zarobyty"])
-async def cmd_zarobyty(message: types.Message):
-    from daily_analysis import generate_zarobyty_report
-    from binance_api import get_full_asset_info  # або твоя функція отримання балансу й аналітики
-
-    # 🔍 Отримуємо дані для GPT-звіту (тут просто мокові — заміни на свою логіку)
-    data = get_full_asset_info()  # <-- ця функція повинна повертати словник у форматі, що очікує generate_zarobyty_report
-
-    # 🧠 Генеруємо звіт GPT
-    report_text, buttons = generate_zarobyty_report(data)
 
     # 📤 Відправляємо звіт у Telegram
     await message.answer(report_text, reply_markup=buttons, parse_mode="Markdown")
