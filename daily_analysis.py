@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from binance_api import get_current_portfolio
 from typing import Dict, List, Tuple, Optional
 from telegram_bot import bot, CHAT_ID
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 load_dotenv()
 
@@ -111,6 +112,65 @@ def daily_analysis_task():
     else:
         bot.send_message(CHAT_ID, "⚠️ GPT-звіт не створено.")
 
+def generate_zarobyty_report(data: dict) -> tuple[str, InlineKeyboardMarkup]:
+    import datetime
+    now = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
+    report_lines = [f"📊 Звіт GPT-аналітики ({now})\n"]
+
+    # 💼 Баланс у USDT і ₴
+    report_lines.append("💼 Баланс:")
+    total_usdt = 0
+    for asset in data["balance"]:
+        amount = asset["amount"]
+        price = asset["price"]
+        usdt = round(amount * price, 2)
+        uah = round(usdt * data["usdt_to_uah"], 2)
+        report_lines.append(f"- {asset['symbol']}: {amount} → ≈ {usdt} USDT ≈ {uah}₴")
+        total_usdt += usdt
+
+    # 📉 Рекомендується продати
+    report_lines.append("\n📉 Рекомендується продати:")
+    sell_buttons = []
+    for asset in data["recommendations"]["sell"]:
+        symbol = asset["symbol"]
+        change = asset["change"]
+        report_lines.append(f"- 🔴 {symbol} — зміна {change}%\n→ /confirmsell_{symbol}")
+        sell_buttons.append([InlineKeyboardButton(f"🔴 Продати {symbol}", callback_data=f"/confirmsell_{symbol}")])
+
+    # 📈 Рекомендується купити
+    report_lines.append("\n📈 Рекомендується купити:")
+    buy_buttons = []
+    for asset in data["recommendations"]["buy"]:
+        symbol = asset["symbol"]
+        volume = asset["volume"]
+        change = asset["change"]
+        report_lines.append(f"- 🟢 {symbol} — обʼєм {volume} | зміна {change}%\n→ /confirmbuy_{symbol}")
+        buy_buttons.append([InlineKeyboardButton(f"🟢 Купити {symbol}", callback_data=f"/confirmbuy_{symbol}")])
+
+    # 📈 Очікуваний прибуток
+    profit = data.get("expected_profit", 0)
+    report_lines.append(f"\n📈 Очікуваний прибуток: ~{profit} USDT")
+
+    # 📈 ОЧІKУВАНИЙ ПРИБУТОК (детально)
+    if "profit_calc" in data:
+        report_lines.append("\n📈 ОЧІKУВАНИЙ ПРИБУТОК:")
+        for line in data["profit_calc"]:
+            report_lines.append(f"- {line}")
+        if "total_profit" in data:
+            report_lines.append(f"= Разом: {data['total_profit']}")
+
+    # 🧠 Прогноз
+    if "forecast" in data:
+        report_lines.append(f"\n🧠 Прогноз: {data['forecast']}")
+
+    # 💾 Завершення
+    report_lines.append("💾 Усі дії збережено.")
+
+    # Обʼєднані кнопки
+    all_buttons = sell_buttons + buy_buttons
+    markup = InlineKeyboardMarkup(all_buttons)
+
+    return "\n".join(report_lines), markup
 
 
 if __name__ == "__main__":
