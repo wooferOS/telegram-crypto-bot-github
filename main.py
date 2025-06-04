@@ -116,9 +116,7 @@ def send_welcome(message):
     )
     bot.send_message(message.chat.id, text, parse_mode="Markdown", reply_markup=get_main_keyboard())
     
-
-    # 📤 Відправляємо звіт у Telegram
-    await message.answer(report_text, reply_markup=buttons, parse_mode="Markdown")
+# 📤 Відправляємо звіт у Telegram
 
 @bot.message_handler(commands=["id"])
 def show_id(message):
@@ -269,13 +267,17 @@ def place_safety_orders(symbol: str, action_type: str) -> bool:
     except Exception as e:
         print(f"❌ Помилка встановлення стопів для {symbol}: {e}")
         return False 
-        
-@bot.message_handler(commands=["zarobyty"])
-def handle_zarobyty(message):
-    from binance_api import get_full_asset_info
+
+
+
+
+@dp.message_handler(commands=["zarobyty"])
+async def handle_zarobyty(message: types.Message):
     data = get_full_asset_info()
     report_text, buttons = generate_zarobyty_report(data)
-    bot.send_message(message.chat.id, report_text, reply_markup=buttons, parse_mode="Markdown")
+
+    await message.answer(report_text, reply_markup=buttons, parse_mode="Markdown")
+
 
 
 @bot.message_handler(commands=["stats"])
