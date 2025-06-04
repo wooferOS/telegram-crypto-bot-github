@@ -271,19 +271,11 @@ def place_safety_orders(symbol: str, action_type: str) -> bool:
         
 @bot.message_handler(commands=["zarobyty"])
 def handle_zarobyty(message):
-    report = generate_zarobyty_report()
+    from binance_api import get_full_asset_info
+    data = get_full_asset_info()
+    report_text, buttons = generate_zarobyty_report(data)
+    bot.send_message(message.chat.id, report_text, reply_markup=buttons, parse_mode="Markdown")
 
-    # Генерація кнопок
-    markup = types.InlineKeyboardMarkup()
-    lines = report.splitlines()
-    for line in lines:
-        if line.startswith("→ /confirmbuy_") or line.startswith("→ /confirmsell_"):
-            command = line.replace("→ ", "")
-            token = command.split("_")[1]
-            button = types.InlineKeyboardButton(text=command, callback_data=command)
-            markup.add(button)
-
-    bot.send_message(message.chat.id, report, reply_markup=markup, parse_mode="Markdown")
 
 @bot.message_handler(commands=["stats"])
 def handle_stats(message: types.Message) -> None:
