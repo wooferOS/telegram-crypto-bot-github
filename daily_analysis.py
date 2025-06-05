@@ -5,6 +5,7 @@ import requests
 from dotenv import load_dotenv
 from binance_api import get_current_portfolio, get_full_asset_info
 from typing import Dict, List, Tuple, Optional
+from aiogram import Bot
 
 
 
@@ -96,7 +97,7 @@ def format_analysis_report(analysis: List[Dict], total_pnl: float, usdt_to_uah: 
 
 
 
-def daily_analysis_task(bot, chat_id: int) -> None:
+async def daily_analysis_task(bot: Bot, chat_id: int) -> None:
     """Run analysis and send formatted report via the provided bot."""
     current = get_current_portfolio()
     historical = get_historical_data()
@@ -106,11 +107,11 @@ def daily_analysis_task(bot, chat_id: int) -> None:
         try:
             rate = get_usdt_to_uah_rate()
             message = format_analysis_report(analysis, total_pnl, rate)
-            bot.send_message(chat_id, message)
+            await bot.send_message(chat_id, message)
         except Exception as e:
-            bot.send_message(chat_id, f"❌ Помилка при надсиланні GPT-звіту:\n{e}")
+            await bot.send_message(chat_id, f"❌ Помилка при надсиланні GPT-звіту:\n{e}")
     else:
-        bot.send_message(chat_id, "⚠️ GPT-звіт не створено.")
+        await bot.send_message(chat_id, "⚠️ GPT-звіт не створено.")
 
 def generate_zarobyty_report():
     data = get_full_asset_info()
