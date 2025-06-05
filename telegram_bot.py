@@ -5,35 +5,32 @@ from daily_analysis import generate_zarobyty_report
 
 load_dotenv()
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-bot = TeleBot(TELEGRAM_BOT_TOKEN)
+bot = TeleBot(BOT_TOKEN)
 
 
 @bot.message_handler(commands=["zarobyty"])
 def handle_zarobyty(message: types.Message) -> None:
-    """Send profit report with buy/sell buttons."""
-    report_text = generate_zarobyty_report()
+    """Send profit report with inline buy/sell buttons."""
+    report = generate_zarobyty_report()
 
     markup = types.InlineKeyboardMarkup()
-    markup.row(
-        types.InlineKeyboardButton("🟢 Купити ETH", callback_data="confirmbuy_ETH"),
-        types.InlineKeyboardButton("🔴 Продати BTC", callback_data="confirmsell_BTC"),
+    markup.add(
+        types.InlineKeyboardButton("Купити ETH", callback_data="buy_eth"),
+        types.InlineKeyboardButton("Продати BTC", callback_data="sell_btc"),
     )
+    bot.send_message(message.chat.id, report, reply_markup=markup)
 
-    bot.send_message(message.chat.id, report_text, reply_markup=markup)
 
-
-@bot.callback_query_handler(func=lambda call: True)
-def handle_callback(call: types.CallbackQuery) -> None:
-    data = call.data
-    if data.startswith("confirmbuy_") or data.startswith("confirmsell_"):
-        action, symbol = data.split("_", 1)
-        verb = "купівлю" if action == "confirmbuy" else "продаж"
-        bot.answer_callback_query(call.id, text="Підтверджено")
-        bot.send_message(call.message.chat.id, f"✅ Ви підтвердили {verb} {symbol}")
+@bot.callback_query_handler(func=lambda c: c.data in ("buy_eth", "sell_btc"))
+def handle_callbacks(call: types.CallbackQuery) -> None:
+    if call.data == "buy_eth":
+        text = "🟢 Купівля ETH підтверджена!"
     else:
-        bot.answer_callback_query(call.id, text="Невідома дія")
+        text = "🔴 Продаж BTC підтверджена!"
+    bot.answer_callback_query(call.id, text)
+    bot.send_message(call.message.chat.id, text)
 
 
 if __name__ == "__main__":
