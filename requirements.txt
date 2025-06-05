@@ -1,10 +1,5 @@
 openai>=1.0.0,<2.0.0
 requests>=2.25.0,<3.0.0
-pyTelegramBotAPI>=4.0.0,<5.0.0
-python-telegram-bot>=20.0,<21.0
+aiogram>=2.25,<3.0
 python-binance>=1.0.17,<2.0.0
 python-dotenv>=1.0.0,<2.0.0
-flask>=2.0.0,<3.0.0
-telebot>=0.0.4,<1.0.0
-apscheduler>=3.0.0,<4.0.0
-binance>=0.3.1,<1.0.0

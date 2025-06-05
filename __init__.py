@@ -1,4 +1,3 @@
-def hello_world():
-    print("hello world")
+from dotenv import load_dotenv
 
-hello_world()
+load_dotenv()
