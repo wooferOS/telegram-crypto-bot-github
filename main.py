@@ -5,22 +5,24 @@ import json
 import logging
 import threading
 import telebot
-from telebot import types
-from aiogram import Bot, Dispatcher
+from telebot import types as tb_types
+from aiogram import Bot, Dispatcher, types, executor
 from flask import Flask, request, jsonify
 from datetime import datetime
 from dotenv import load_dotenv
-from telegram_bot import bot, CHAT_ID
+load_dotenv(".env")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = int(os.getenv("CHAT_ID", "0"))
 
-# Initialize aiogram dispatcher
+# Initialize aiogram bot and dispatcher
+bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
 from binance.client import Client
 from apscheduler.schedulers.background import BackgroundScheduler
 from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate, get_historical_data, format_analysis_report, generate_zarobyty_report
 from binance_api import get_current_portfolio
 
-# 🔐 Завантаження .env
-load_dotenv(".env")
+# 🔐 Завантаження .env (завантажено вище)
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 
@@ -70,8 +72,8 @@ signal = load_signal()
 
 
 # ⌨️ Основна клавіатура
-def get_main_keyboard() -> types.ReplyKeyboardMarkup:
-    kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
+def get_main_keyboard() -> tb_types.ReplyKeyboardMarkup:
+    kb = tb_types.ReplyKeyboardMarkup(resize_keyboard=True)
     kb.row("📊 Баланс", "📈 Звіт")
     kb.row("🕘 Історія", "✅ Підтвердити купівлю")
     kb.row("❌ Підтвердити продаж", "🔄 Оновити")
@@ -135,7 +137,7 @@ def set_budget(message):
         bot.reply_to(message, f"❌ Помилка: {str(e)}")
 
 # 📊 Баланс Binance
-def send_balance(message: types.Message) -> None:
+def send_balance(message: tb_types.Message) -> None:
     try:
         balances = client.get_account()["balances"]
         response = "📊 *Ваш поточний баланс:*\n\n"
@@ -158,7 +160,7 @@ def send_balance(message: types.Message) -> None:
         bot.send_message(message.chat.id, f"❌ Помилка: {str(e)}")
 
 # 📈 GPT-звіт
-def send_report(message: types.Message) -> None:
+def send_report(message: tb_types.Message) -> None:
     try:
         bot.send_message(message.chat.id, "⏳ Формується GPT-звіт, зачекайте...")
         current = get_current_portfolio()
@@ -188,7 +190,7 @@ def send_report(message: types.Message) -> None:
 
 # ✅ Inline-підтвердження покупки/продажу + стоп-ордери
 @bot.callback_query_handler(func=lambda call: True)
-def callback_inline(call: types.CallbackQuery) -> None:
+def callback_inline(call: tb_types.CallbackQuery) -> None:
     try:
         if call.data.startswith("confirmbuy_") or call.data.startswith("confirmsell_"):
             parts = call.data.split("_", 1)
@@ -277,7 +279,7 @@ async def handle_zarobyty(message: types.Message):
 
 
 @bot.message_handler(commands=["stats"])
-def handle_stats(message: types.Message) -> None:
+def handle_stats(message: tb_types.Message) -> None:
     try:
         history = signal.get("history", [])
         if not history:
@@ -325,7 +327,7 @@ def get_chat_id(message):
 
 # 🎯 Обробка кнопок інтерфейсу
 @bot.message_handler(func=lambda m: True)
-def handle_buttons(message: types.Message) -> None:
+def handle_buttons(message: tb_types.Message) -> None:
     text = message.text
     if text == "📊 Баланс":
         send_balance(message)
@@ -348,7 +350,7 @@ def handle_buttons(message: types.Message) -> None:
 # 🚀 Запуск Telegram polling
 def run_polling() -> None:
     print("🤖 Telegram polling запущено...")
-    bot.polling(none_stop=True)
+    executor.start_polling(dp, skip_updates=True)
 
 
 # 🛠 Ручний запуск аналізу (debug endpoint)
@@ -388,16 +390,6 @@ def trigger_daily_analysis() -> "Response":
         return jsonify({"status": "error", "message": str(e)}), 500
 
         
-if __name__ == "__main__":
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(send_daily_forecast, trigger="cron", hour=9, minute=0)
-    scheduler.start()
-    print("⏰ APScheduler запущено — прогноз буде надсилатись щодня о 09:00")
-
-    threading.Thread(target=run_polling).start()
-    run_flask()
-
-    
 # 🧪 Обробка тестової inline-кнопки
 @bot.callback_query_handler(func=lambda call: call.data == "test_callback")
 def handle_test_callback(call):
@@ -468,3 +460,6 @@ def append_to_history(entry: dict) -> None:
 # sudo systemctl daemon-reload
 # sudo systemctl restart crypto-bot
 # sudo systemctl status crypto-bot
+
+if __name__ == "__main__":
+    executor.start_polling(dp, skip_updates=True)
