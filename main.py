@@ -271,10 +271,7 @@ def place_safety_orders(symbol: str, action_type: str) -> bool:
 
 @dp.message_handler(commands=["zarobyty"])
 async def handle_zarobyty(message: types.Message):
-    data = get_full_asset_info()
-    report_text, buttons = generate_zarobyty_report(data)
-
-    await message.answer(report_text, reply_markup=buttons, parse_mode="Markdown")
+    await message.answer("🔄 Генерую GPT-звіт... (тест)")
 
 
 
