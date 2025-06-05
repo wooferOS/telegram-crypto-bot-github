@@ -1,7 +1,7 @@
 """Telegram bot configuration and handlers."""
 
 import os
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, executor
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -19,5 +19,5 @@ dp = Dispatcher(bot)
 @dp.message_handler(commands=["zarobyty"])
 async def handle_zarobyty(message: types.Message) -> None:
     """Minimal handler responding that the bot works and sees .env."""
-    await message.answer("✅ Бот працює і бачить .env")
+    await message.answer("✅ Бот працює: /zarobyty активна")
 
