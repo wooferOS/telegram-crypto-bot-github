@@ -7,11 +7,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "PLACEHOLDER")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
 
-if not TELEGRAM_TOKEN:
-    raise RuntimeError("Missing TELEGRAM_TOKEN environment variable")
+if TELEGRAM_TOKEN == "PLACEHOLDER":
+    print("\u26a0\ufe0f Warning: TELEGRAM_TOKEN is empty. Make sure .env is loaded on server.")
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
@@ -36,6 +36,12 @@ async def handle_zarobyty(message: types.Message) -> None:
         InlineKeyboardButton("Підтвердити", callback_data="confirm")
     )
     await message.answer(report, reply_markup=keyboard)
+
+
+@dp.callback_query_handler(lambda c: c.data == "confirm")
+async def handle_confirm_callback(callback_query: types.CallbackQuery) -> None:
+    """Respond to inline confirmation button press."""
+    await callback_query.answer("Підтверджено ✅", show_alert=True)
 
 
 @dp.message_handler(commands=["stats"])
