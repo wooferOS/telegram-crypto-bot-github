@@ -18,6 +18,8 @@ dp = Dispatcher(bot)
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
+if ADMIN_CHAT_ID == 0:
+    print("⚠️ Warning: ADMIN_CHAT_ID is empty. Make sure .env is loaded on server.")
 
 
 @dp.message_handler(commands=["start"])
