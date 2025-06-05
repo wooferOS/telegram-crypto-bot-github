@@ -9,6 +9,9 @@ load_dotenv()
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = int(os.getenv("CHAT_ID", "0"))
 
+if not TELEGRAM_BOT_TOKEN:
+    raise RuntimeError("Missing TELEGRAM_BOT_TOKEN environment variable")
+
 bot = TeleBot(TELEGRAM_BOT_TOKEN)
 
 

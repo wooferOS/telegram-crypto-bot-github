@@ -17,7 +17,13 @@ BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 BINANCE_BASE_URL = "https://api.binance.com"
 
 # 🧩 Ініціалізація клієнта Binance
-client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+# ping=False запобігає зверненню до API під час ініціалізації, що
+# важливо для середовищ без інтернет-доступу
+client = Client(
+    api_key=BINANCE_API_KEY,
+    api_secret=BINANCE_SECRET_KEY,
+    ping=False,
+)
 # 🕒 Отримання поточного timestamp для підпису запитів
 def get_timestamp() -> int:
     return int(time.time() * 1000)
