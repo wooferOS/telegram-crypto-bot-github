@@ -1,18 +1,16 @@
 """Telegram bot configuration and handlers."""
 
 import os
+from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from dotenv import load_dotenv
 
-# Load environment variables before creating the bot
-load_dotenv()
-
+load_dotenv()  # обовʼязково ДО виклику os.getenv
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "PLACEHOLDER")
-ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
-
 if TELEGRAM_TOKEN == "PLACEHOLDER":
-    print("\u26a0\ufe0f Warning: TELEGRAM_TOKEN is empty. Make sure .env is loaded on server.")
+    print("⚠️ Warning: TELEGRAM_TOKEN is empty. Make sure .env is loaded on server.")
+
+ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
