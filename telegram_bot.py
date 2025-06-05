@@ -24,3 +24,13 @@ def handle_zarobyty(message):
     )
 
     bot.send_message(message.chat.id, report_text, reply_markup=markup)
+
+
+@bot.callback_query_handler(func=lambda call: True)
+def handle_inline_buttons(call: types.CallbackQuery) -> None:
+    if call.data == "confirmbuy_ETH":
+        bot.answer_callback_query(call.id)
+        bot.send_message(call.message.chat.id, "🟢 Купівля ETH підтверджена!")
+    elif call.data == "confirmsell_BTC":
+        bot.answer_callback_query(call.id)
+        bot.send_message(call.message.chat.id, "🔴 Продаж BTC підтверджена!")
