@@ -5,9 +5,9 @@ from aiogram.utils import executor
 
 load_dotenv()
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-if not TELEGRAM_TOKEN:
-    raise RuntimeError("Missing TELEGRAM_TOKEN environment variable")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "PLACEHOLDER")
+if TELEGRAM_TOKEN == "PLACEHOLDER":
+    print("\u26a0\ufe0f Warning: TELEGRAM_TOKEN is empty. Make sure .env is loaded on server.")
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
