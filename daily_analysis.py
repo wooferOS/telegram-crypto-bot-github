@@ -5,7 +5,8 @@ import requests
 from dotenv import load_dotenv
 from binance_api import get_current_portfolio, get_full_asset_info
 from typing import Dict, List, Tuple, Optional
-from aiogram import Bot, Dispatcher, types, executor
+from aiogram import Bot, Dispatcher, types
+from aiogram.utils import executor
 
 
 
