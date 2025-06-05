@@ -5,8 +5,8 @@ import requests
 from dotenv import load_dotenv
 from binance_api import get_current_portfolio, get_full_asset_info
 from typing import Dict, List, Tuple, Optional
-from aiogram import Bot, Dispatcher, types
-from aiogram.utils import executor
+from aiogram import Bot
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
 
@@ -154,6 +154,15 @@ def generate_zarobyty_report():
 💾 Усі дії збережено."""
 
     return report
+
+
+async def send_zarobyty_forecast(bot: Bot, chat_id: int) -> None:
+    """Send GPT forecast with confirmation button."""
+    report = generate_zarobyty_report()
+    keyboard = InlineKeyboardMarkup().add(
+        InlineKeyboardButton("Підтвердити", callback_data="confirm")
+    )
+    await bot.send_message(chat_id, report, reply_markup=keyboard)
 
 
 if __name__ == "__main__":
