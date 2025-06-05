@@ -6,10 +6,12 @@ import logging
 import threading
 import telebot
 from telebot import types
+from aiogram import Bot, Dispatcher
 from flask import Flask, request, jsonify
 from datetime import datetime
 from dotenv import load_dotenv
 from telegram_bot import bot, CHAT_ID
+dp = Dispatcher(bot)
 from binance.client import Client
 from apscheduler.schedulers.background import BackgroundScheduler
 from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate, get_historical_data, format_analysis_report, generate_zarobyty_report
