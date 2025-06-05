@@ -6,13 +6,13 @@ from daily_analysis import generate_zarobyty_report
 
 load_dotenv()
 
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = int(os.getenv("CHAT_ID", "0"))
 
-if not TELEGRAM_BOT_TOKEN:
-    raise RuntimeError("Missing TELEGRAM_BOT_TOKEN environment variable")
+if not TELEGRAM_TOKEN:
+    raise RuntimeError("Missing TELEGRAM_TOKEN environment variable")
 
-bot = TeleBot(TELEGRAM_BOT_TOKEN)
+bot = TeleBot(TELEGRAM_TOKEN)
 
 
 @bot.message_handler(commands=["zarobyty"])

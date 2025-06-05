@@ -3,10 +3,8 @@
 import os
 import json
 import logging
-import threading
 import telebot
-from telebot import types as tb_types
-from aiogram import Bot, Dispatcher, types, executor
+from telebot import TeleBot, types as tb_types
 from flask import Flask, request, jsonify
 from datetime import datetime
 from dotenv import load_dotenv
@@ -14,9 +12,8 @@ load_dotenv(".env")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = int(os.getenv("CHAT_ID", "0"))
 
-# Initialize aiogram bot and dispatcher
-bot = Bot(token=TELEGRAM_TOKEN)
-dp = Dispatcher(bot)
+# Initialize TeleBot
+bot = TeleBot(TELEGRAM_TOKEN)
 from binance.client import Client
 from apscheduler.schedulers.background import BackgroundScheduler
 from daily_analysis import run_daily_analysis, get_usdt_to_uah_rate, get_historical_data, format_analysis_report, generate_zarobyty_report
@@ -269,9 +266,9 @@ def place_safety_orders(symbol: str, action_type: str) -> bool:
 
 
 
-@dp.message_handler(commands=["zarobyty"])
-async def handle_zarobyty(message: types.Message):
-    await message.answer("🔄 Генерую GPT-звіт... (тест)")
+@bot.message_handler(commands=["zarobyty"])
+def handle_zarobyty(message: tb_types.Message) -> None:
+    bot.reply_to(message, "🔄 Генерую GPT-звіт... (тест)")
 
 
 
@@ -347,7 +344,7 @@ def handle_buttons(message: tb_types.Message) -> None:
 # 🚀 Запуск Telegram polling
 def run_polling() -> None:
     print("🤖 Telegram polling запущено...")
-    executor.start_polling(dp, skip_updates=True)
+    bot.infinity_polling()
 
 
 # 🛠 Ручний запуск аналізу (debug endpoint)
@@ -459,4 +456,4 @@ def append_to_history(entry: dict) -> None:
 # sudo systemctl status crypto-bot
 
 if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True)
+    bot.infinity_polling()
