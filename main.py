@@ -11,6 +11,8 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 from dotenv import load_dotenv
 from telegram_bot import bot, CHAT_ID
+
+# Initialize aiogram dispatcher
 dp = Dispatcher(bot)
 from binance.client import Client
 from apscheduler.schedulers.background import BackgroundScheduler
