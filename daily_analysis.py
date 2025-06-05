@@ -10,9 +10,11 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
 
-load_dotenv()
+load_dotenv(dotenv_path=os.path.expanduser("~/.env"))
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "PLACEHOLDER")
+if OPENAI_API_KEY == "PLACEHOLDER":
+    print("⚠️ Warning: OPENAI_API_KEY is empty. Make sure .env is loaded on server.")
 THRESHOLD_PNL_PERCENT = 1.0  # ±1%
 
 HEADERS = {
