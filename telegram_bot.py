@@ -1,13 +1,15 @@
 import os
 from telebot import TeleBot, types
 from dotenv import load_dotenv
+
 from daily_analysis import generate_zarobyty_report
 
 load_dotenv()
 
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+CHAT_ID = int(os.getenv("CHAT_ID", "0"))
 
-bot = TeleBot(BOT_TOKEN)
+bot = TeleBot(TELEGRAM_BOT_TOKEN)
 
 
 @bot.message_handler(commands=["zarobyty"])
