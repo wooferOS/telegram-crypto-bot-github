@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export $(grep -v '^#' /root/telegram-crypto-bot-github/.env | xargs)
+export $(grep -v '^#' /root/.env | xargs)
 
 
 echo "🔁 Перезапуск Telegram GPT-бота..."

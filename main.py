@@ -14,9 +14,21 @@ if os.getenv("TELEGRAM_TOKEN", "PLACEHOLDER") == "PLACEHOLDER":
 
 async def main():
     scheduler = AsyncIOScheduler(timezone="Europe/Kiev")
-    scheduler.add_job(daily_analysis_task, "cron", hour=8, minute=55, args=(bot, ADMIN_CHAT_ID))
-    scheduler.add_job(send_zarobyty_forecast, "cron", hour=9, minute=0, args=(bot, ADMIN_CHAT_ID))
-    await scheduler.start()
+    scheduler.add_job(
+        daily_analysis_task,
+        "cron",
+        hour=8,
+        minute=55,
+        args=(bot, ADMIN_CHAT_ID),
+    )
+    scheduler.add_job(
+        send_zarobyty_forecast,
+        "cron",
+        hour=9,
+        minute=0,
+        args=(bot, ADMIN_CHAT_ID),
+    )
+    scheduler.start()
     await dp.start_polling()
 
 
