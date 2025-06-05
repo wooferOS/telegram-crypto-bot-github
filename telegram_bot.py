@@ -3,17 +3,18 @@
 import os
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-load_dotenv()  # обовʼязково ДО виклику os.getenv
+load_dotenv()  # МАЄ стояти ДО os.getenv
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "PLACEHOLDER")
 if TELEGRAM_TOKEN == "PLACEHOLDER":
     print("⚠️ Warning: TELEGRAM_TOKEN is empty. Make sure .env is loaded on server.")
 
-ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
-
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
+
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
+ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
 
 
 @dp.message_handler(commands=["start"])
