@@ -1,87 +1,15 @@
-# 🧠 Telegram GPT Crypto Bot — Deployment Manual (Flask + Polling + systemd)
+# Telegram GPT Crypto Bot
 
-Цей проєкт — Telegram-бот із GPT-аналізом та автотрейдингом через Binance API.
+Simple Telegram bot that sends daily crypto reports and example trade alerts.
 
-## 🚀 Основні можливості:
+## Features
+- Daily portfolio report via `daily_analysis.py`.
+- Commands `/start`, `/zarobyty`, `/stats`, `/history`, `/statsday`, `/alerts_on`.
+- Tokens are loaded from `.env` using `python-dotenv`.
+- Works with `aiogram==2.25.2`.
+- Can be run with systemd using `systemd/crypto-bot.service`.
 
-- 🤖 Telegram бот із підтримкою GPT-4 аналізу
-- 📊 Щоденна аналітика ринку криптовалют
-- 🔁 Автотрейдинг через Binance API (купівля/продаж)
-- 💡 Генерація стоп-лосів, PNL, прогнозу прибутку
-- 🧩 Інтеграція з OpenAI, Telegram, Flask, GitHub Actions
-- 🔥 Підтримка polling + healthcheck `/health`
-- 🖥️ Автозапуск через systemd
-
----
-
-## 📁 Структура проєкту
-telegram-crypto-bot-github/
-├── main.py # Основний файл з polling + Flask
-├── daily_analysis.py # Щоденна GPT-аналітика ринку
-├── .env # Змінні середовища (токени, ключі)
-├── systemd/crypto-bot.service # systemd-сервіс для автозапуску
-├── README_DEPLOY.md # Цей файл
-├── deploy.sh # Bash-скрипт перезапуску бота
-├── .github/workflows/daily.yml # GitHub Actions для щоденного аналізу
-└── ...
-
-
----
-
-## 🔧 1. Змінні `.env` (приклад)
-
-```env
-TELEGRAM_TOKEN=7810...KA14
-CHAT_ID=465786073
-OPENAI_API_KEY=sk-proj-...
-BINANCE_API_KEY=XW1xhisEv...
-BINANCE_SECRET_KEY=zRpLELZr...
-SERVER_DOMAIN=https://188.166.27.248
----
-
----
-
----
-
-## ⚙️ 2. Режим Flask + Polling
-
-### 🔁 Активні одночасно:
-- Flask (порт 10000, маршрут `/health`)
-- Telegram polling (`telebot.infinity_polling()`)
-
-> ❗ Не використовується Webhook — тільки polling.
-
----
-
-## 🛠️ 3. Створення systemd-сервісу
-
-Файл: `systemd/crypto-bot.service`
-
-```ini
-[Unit]
-Description=Telegram GPT Crypto Bot
-After=network.target
-
-[Service]
-ExecStart=/usr/bin/python3 /root/telegram-crypto-bot-github/main.py
-WorkingDirectory=/root/telegram-crypto-bot-github
-Restart=always
-RestartSec=10
-Environment="PYTHONUNBUFFERED=1"
-
-[Install]
-WantedBy=multi-user.target
-
-sudo cp systemd/crypto-bot.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable crypto-bot
-sudo systemctl restart crypto-bot
-sudo systemctl status crypto-bot
-
-from flask import Flask
-app = Flask(__name__)
-
-@app.route("/health")
-def health():
-    return "OK", 200
-
+## Setup
+1. Install dependencies: `pip install -r requirements.txt`.
+2. Copy `.env.example` to `.env` and fill your secrets.
+3. Run `python3 main.py` or enable systemd service.
