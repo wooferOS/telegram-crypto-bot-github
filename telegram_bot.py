@@ -4,10 +4,13 @@ import os
 from dotenv import load_dotenv
 from aiogram import Bot, Dispatcher, types
 
-load_dotenv()  # МАЄ стояти ДО os.getenv
+load_dotenv(dotenv_path=os.path.expanduser("~/.env"))
+
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "PLACEHOLDER")
 if TELEGRAM_TOKEN == "PLACEHOLDER":
-    print("⚠️ Warning: TELEGRAM_TOKEN is empty. Make sure .env is loaded on server.")
+    print(
+        "⚠️ Warning: TELEGRAM_TOKEN is empty. Make sure .env is loaded on server."
+    )
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
