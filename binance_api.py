@@ -6,7 +6,6 @@ import logging
 import requests
 import decimal
 from typing import Dict, List, Optional
-import asyncio
 
 from dotenv import load_dotenv
 from binance.client import Client
@@ -100,7 +99,10 @@ def get_balances() -> Dict[str, float]:
         return {}
 
 
-async def get_binance_balances() -> Dict[str, Dict[str, float]]:
+def get_binance_balances() -> Dict[str, Dict[str, float]]:
+    import os
+    from binance.client import Client
+
     api_key = os.getenv("BINANCE_API_KEY")
     api_secret = os.getenv("BINANCE_SECRET_KEY")
     client = Client(api_key, api_secret)
