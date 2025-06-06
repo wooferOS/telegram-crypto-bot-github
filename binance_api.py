@@ -19,6 +19,7 @@ import requests
 from dotenv import load_dotenv
 from binance.client import Client
 from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET
+from binance.exceptions import BinanceAPIException
 
 
 logger = logging.getLogger(__name__)
@@ -120,28 +121,43 @@ def get_balances() -> Dict[str, float]:
     return balances
 
 
-def get_binance_balances() -> Dict[str, Dict[str, float]]:
-    """Return balances with their value in USDT."""
+def get_binance_balances() -> Dict[str, float]:
+    """Return available balances with automatic API diagnostics."""
 
     try:
-        account = client.get_account()
-        prices = client.get_all_tickers()
-        price_map = {p["symbol"]: float(p["price"]) for p in prices}
+        temp_client = Client(
+            os.getenv("BINANCE_API_KEY"),
+            os.getenv("BINANCE_SECRET_KEY"),
+            {"verify": True, "timeout": 20},
+        )
 
-        balances: Dict[str, Dict[str, float]] = {}
-        for b in account.get("balances", []):
-            asset = b["asset"]
-            free = float(b["free"])
-            if free > 0:
-                symbol = asset + "USDT"
-                usdt_value = free * price_map.get(symbol, 0)
-                balances[asset] = {
-                    "free": round(free, 6),
-                    "usdtValue": round(usdt_value, 2),
-                }
-        return balances
-    except Exception as e:
-        logger.error(f"{TELEGRAM_LOG_PREFIX} Помилка при отриманні балансу: {e}")
+        logging.debug(
+            f"[DEBUG] API: {os.getenv('BINANCE_API_KEY')[:8]}..., SECRET: {os.getenv('BINANCE_SECRET_KEY')[:8]}..."
+        )
+
+        try:
+            # Тестовий пінг до Binance
+            temp_client.ping()
+            logging.info("✅ Binance API доступний")
+
+            account = temp_client.get_account()
+            balances = {
+                asset["asset"]: float(asset["free"])
+                for asset in account["balances"]
+                if float(asset["free"]) > 0
+            }
+            return balances
+
+        except BinanceAPIException as e:
+            logging.error(f"📛 [BINANCE] Помилка при отриманні балансу: {e}")
+            if e.code == -2015:
+                logging.error(
+                    "❌ Можливо: (1) ключ недійсний, (2) немає прав, (3) IP не в whitelist."
+                )
+            raise e
+
+    except Exception as ex:  # pragma: no cover - diagnostics must not fail
+        logging.exception("❗ Невідома помилка при ініціалізації Binance клієнта")
         return {}
 
 
