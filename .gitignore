@@ -1,6 +1,5 @@
-.env
 
 # 🔒 Ігнорування секретних файлів
 .env
-systemd/crypto-bot.env
 crypto-bot.env
+systemd/crypto-bot.env
