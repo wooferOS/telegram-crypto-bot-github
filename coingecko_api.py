@@ -30,3 +30,24 @@ def get_coin_market_data(coin_id: str) -> Optional[Dict]:
         logger.error("CoinGecko request failed for %s: %s", coin_id, exc)
         return None
 
+
+
+def get_market_data(token: str) -> Optional[Dict]:
+    """Wrapper for fetching market data by token symbol."""
+    return get_coin_market_data(token.lower())
+
+
+def get_sentiment() -> Dict:
+    """Return simple market sentiment data."""
+    url = f"{BASE_URL}/global"
+    try:
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        data = resp.json().get("data", {})
+        return {
+            "market_cap_change": data.get("market_cap_change_percentage_24h_usd"),
+            "btc_dominance": data.get("market_cap_percentage", {}).get("btc"),
+        }
+    except Exception as exc:
+        logger.error("CoinGecko global sentiment failed: %s", exc)
+        return {}

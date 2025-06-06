@@ -39,3 +39,10 @@ def generate_stats_report() -> str:
     )
     return report
 
+
+
+def calculate_stats() -> Dict[str, float]:
+    """Return profit statistics for use in /stats command."""
+    week = _calculate_profit(_filter_trades(7))
+    month = _calculate_profit(_filter_trades(30))
+    return {"week_profit": week, "month_profit": month}

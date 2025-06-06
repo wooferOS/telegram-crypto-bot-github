@@ -48,3 +48,9 @@ async def check_daily_alerts(bot, chat_id: int) -> None:
     if updated:
         _save_alerts(alerts)
 
+
+
+def check_unconfirmed_actions() -> List[List[str]]:
+    """Return tokens from alerts that haven't been confirmed yet."""
+    alerts = _load_alerts()
+    return [alert.get("tokens", []) for alert in alerts if not alert.get("done")]

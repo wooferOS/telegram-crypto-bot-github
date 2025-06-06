@@ -35,3 +35,9 @@ def generate_investor_summary(balance: List[str], sells: List[str], buys: List[s
     messages = [{"role": "user", "content": prompt}]
     return call_chat_completion(messages)
 
+
+
+def generate_gpt_summary(prompt: str) -> str:
+    """Generate short GPT summary from provided text."""
+    messages = [{"role": "user", "content": prompt}]
+    return call_chat_completion(messages)
