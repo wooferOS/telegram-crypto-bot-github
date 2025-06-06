@@ -12,6 +12,7 @@ StandardOutput=journal
 StandardError=journal
 Environment=PYTHONUNBUFFERED=1
 EnvironmentFile=/root/telegram-crypto-bot-github/.env
+EnvironmentFile=/etc/systemd/system/crypto-bot.env
 
 [Install]
 WantedBy=multi-user.target
