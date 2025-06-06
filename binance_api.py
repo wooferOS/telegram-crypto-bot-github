@@ -35,25 +35,8 @@ BINANCE_BASE_URL = "https://api.binance.com"
 print(f"[DEBUG] API: {BINANCE_API_KEY[:6]}..., SECRET: {BINANCE_SECRET_KEY[:6]}...")
 
 
-class SafeBinanceClient(Client):
-    """Client that closes its HTTP session when garbage collected."""
-
-    def __del__(self) -> None:  # pragma: no cover - best effort cleanup
-        safe_close_client(self)
-
-
-def safe_close_client(client: Client) -> None:
-    """Close client session if present."""
-
-    try:
-        if getattr(client, "session", None):
-            client.session.close()
-    except Exception:  # pragma: no cover - cleanup must not fail
-        pass
-
-
-# Initialise global Binance client
-client = SafeBinanceClient(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+# Initialise global Binance client exactly as in Binance docs
+client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
 
 # ---------------------------------------------------------------------------
@@ -128,7 +111,6 @@ def get_binance_balances() -> Dict[str, float]:
         temp_client = Client(
             os.getenv("BINANCE_API_KEY"),
             os.getenv("BINANCE_SECRET_KEY"),
-            {"verify": True, "timeout": 20},
         )
 
         logging.debug(
