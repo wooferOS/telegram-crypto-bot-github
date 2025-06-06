@@ -275,6 +275,22 @@ def get_last_price(symbol: str) -> float:
     except Exception as e:
         logger.warning(f"{TELEGRAM_LOG_PREFIX} Помилка при отриманні останньої ціни {symbol}: {e}")
         return 0.0
+
+# 📊 Отримання цін за останні 24 години
+def get_price_history_24h(symbol: str) -> Optional[List[float]]:
+    """Return list of hourly close prices for the last 24 hours."""
+    try:
+        url = f"{BINANCE_BASE_URL}/api/v3/klines"
+        params = {"symbol": f"{symbol.upper()}USDT", "interval": "1h", "limit": 24}
+        response = requests.get(url, params=params, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        return [float(item[4]) for item in data]
+    except Exception as e:
+        logger.warning(
+            f"{TELEGRAM_LOG_PREFIX} Помилка при отриманні історії цін {symbol}: {e}"
+        )
+        return None
 # 📋 Приклад функції: перевірка, чи актив підтримується ботом
 def is_asset_supported(symbol: str, whitelist: Optional[List[str]] = None) -> bool:
     """
