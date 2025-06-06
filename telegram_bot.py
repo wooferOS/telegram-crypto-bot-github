@@ -3,8 +3,8 @@
 import os
 import logging
 from aiogram import Bot, Dispatcher, types
-from aiogram.utils import executor
 from aiogram.dispatcher.filters import Command
+from aiogram.utils import executor
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from daily_analysis import (
