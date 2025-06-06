@@ -51,3 +51,8 @@ def generate_history_report() -> str:
         lines.append(f"{dt} {item['symbol']} {item['side']} {item['qty']} @ {item['price']}")
     return "\U0001F4C3 \u0406\u0441\u0442\u043E\u0440\u0456\u044F \u0443\u0433\u043E\u0434:\n" + "\n".join(lines)
 
+
+
+def get_trade_history() -> List[Dict]:
+    """Return raw trade history list for /history command."""
+    return _load_history()
