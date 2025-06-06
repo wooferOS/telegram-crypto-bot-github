@@ -1,3 +1,5 @@
+"""Lightweight wrappers for a subset of the CoinGecko API."""
+
 import logging
 import requests
 from typing import Optional, Dict
@@ -33,21 +35,27 @@ def get_coin_market_data(coin_id: str) -> Optional[Dict]:
 
 
 def get_market_data(token: str) -> Optional[Dict]:
-    """Wrapper for fetching market data by token symbol."""
-    return get_coin_market_data(token.lower())
+    """Return 24h volume and price change for the given token."""
+    data = get_coin_market_data(token.lower())
+    if not data:
+        return None
+    return {"volume": data.get("volume_24h"), "change": data.get("change_24h")}
 
 
-def get_sentiment() -> Dict:
-    """Return simple market sentiment data."""
+def get_sentiment() -> str:
+    """Return 'Bullish', 'Neutral' or 'Bearish' based on market cap change."""
     url = f"{BASE_URL}/global"
     try:
         resp = requests.get(url, timeout=10)
         resp.raise_for_status()
-        data = resp.json().get("data", {})
-        return {
-            "market_cap_change": data.get("market_cap_change_percentage_24h_usd"),
-            "btc_dominance": data.get("market_cap_percentage", {}).get("btc"),
-        }
+        change = resp.json().get("data", {}).get(
+            "market_cap_change_percentage_24h_usd", 0
+        )
+        if change > 1:
+            return "Bullish"
+        if change < -1:
+            return "Bearish"
+        return "Neutral"
     except Exception as exc:
         logger.error("CoinGecko global sentiment failed: %s", exc)
-        return {}
+        return "Neutral"

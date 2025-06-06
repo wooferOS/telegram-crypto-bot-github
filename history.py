@@ -1,3 +1,5 @@
+"""Simple storage helpers for keeping trade history."""
+
 import json
 import os
 import logging
@@ -53,6 +55,10 @@ def generate_history_report() -> str:
 
 
 
-def get_trade_history() -> List[Dict]:
-    """Return raw trade history list for /history command."""
-    return _load_history()
+def get_trade_history() -> str:
+    """Return formatted trade history for the /history command."""
+    try:
+        return generate_history_report()
+    except Exception as exc:
+        logger.error("Failed to prepare trade history: %s", exc)
+        return "History unavailable."

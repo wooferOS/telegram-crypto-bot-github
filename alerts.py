@@ -1,3 +1,5 @@
+"""Utilities for storing and checking pending trading alerts."""
+
 import json
 import os
 import logging
