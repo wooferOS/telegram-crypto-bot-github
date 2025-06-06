@@ -6,6 +6,7 @@ import logging
 import requests
 import decimal
 from typing import Dict, List, Optional
+import asyncio
 
 from dotenv import load_dotenv
 from binance.client import Client
@@ -97,6 +98,33 @@ def get_balances() -> Dict[str, float]:
     except Exception as e:
         logger.error(f"{TELEGRAM_LOG_PREFIX} Помилка при отриманні балансу: {e}")
         return {}
+
+
+async def get_binance_balances() -> Dict[str, Dict[str, float]]:
+    api_key = os.getenv("BINANCE_API_KEY")
+    api_secret = os.getenv("BINANCE_SECRET_KEY")
+    client = Client(api_key, api_secret)
+
+    try:
+        account = client.get_account()
+        prices = client.get_all_tickers()
+        price_map = {p["symbol"]: float(p["price"]) for p in prices}
+
+        balances = {}
+        for b in account["balances"]:
+            asset = b["asset"]
+            free = float(b["free"])
+            if free > 0:
+                symbol = asset + "USDT"
+                usdt_value = free * price_map.get(symbol, 0)
+                balances[asset] = {"free": free, "usdtValue": round(usdt_value, 2)}
+        return balances
+    finally:
+        try:
+            if hasattr(client, "session") and client.session:
+                client.session.close()
+        except Exception:
+            pass
 # 💹 Отримання цін усіх монет до USDT
 def get_prices() -> Dict[str, float]:
     """
