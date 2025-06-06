@@ -24,13 +24,14 @@ if not BINANCE_API_KEY or not BINANCE_SECRET_KEY:
 BINANCE_BASE_URL = "https://api.binance.com"
 
 # 🧩 Ініціалізація клієнта Binance
-# ping=False запобігає зверненню до API під час ініціалізації, що
-# важливо для середовищ без інтернет-доступу
 client = Client(
     api_key=BINANCE_API_KEY,
     api_secret=BINANCE_SECRET_KEY,
-    ping=False,
 )
+try:
+    client.ping()
+except Exception as exc:  # pragma: no cover - network call
+    logger.debug(f"{TELEGRAM_LOG_PREFIX} Ping failed: {exc}")
 # 🕒 Отримання поточного timestamp для підпису запитів
 def get_timestamp() -> int:
     return int(time.time() * 1000)
