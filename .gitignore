@@ -3,3 +3,7 @@
 .env
 crypto-bot.env
 systemd/crypto-bot.env
+
+# 🔧 Ігнорування компільованих Python файлів
+*.pyc
+__pycache__/
