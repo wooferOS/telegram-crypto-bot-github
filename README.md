@@ -1,16 +1,42 @@
-# Telegram GPT Crypto Bot
+# 🤖 Telegram GPT Crypto Bot
 
-Simple Telegram bot that sends daily crypto reports and example trade alerts.
+## 📈 Що це таке?
+Це Telegram-бот із GPT-аналітикою для трейдингу криптовалютою. Він підключений до Binance API та автоматично:
+- аналізує ринок
+- формує щоденні звіти
+- прогнозує зміни
+- дозволяє купувати / продавати токени прямо через Telegram
 
-## Features
-- Daily portfolio report via `daily_analysis.py`.
-- Commands `/start`, `/zarobyty`, `/stats`, `/history`, `/statsday`, `/alerts_on`.
-- Tokens are loaded from `.env` (expected at `~/.env`) using `python-dotenv`.
-- Works with `aiogram==2.25.2`.
-- Can be run with systemd using `systemd/crypto-bot.service`.
+## 🔧 Основні можливості:
+- `/zarobyty` — аналітичний GPT-звіт з кнопками для дій
+- `/stats` — підсумок прибутку за тиждень/місяць
+- `/history` — історія угод
+- щоденний ранковий запуск аналізу (APScheduler / GitHub Actions)
+- автозапуск через `systemd`
+- інтеграція з Binance API та OpenAI API
 
-## Setup
-1. Install dependencies: `pip install -r requirements.txt`.
-2. Copy `.env.example` to `.env` and fill your secrets.
-3. Run `python3 main.py` or enable systemd service. Scheduler runs inside the
-   bot event loop via `asyncio.run(main())`.
+## 📦 Технічний стек:
+- Python 3.11
+- aiogram
+- Binance API
+- OpenAI (GPT-4)
+- Telegram Bot API
+- APScheduler
+- SQLite
+- Docker (опційно)
+
+## 📁 Файлова структура:
+- `main.py` — головна логіка Telegram-бота
+- `daily_analysis.py` — генерація щоденного прогнозу
+- `binance_api.py` — взаємодія з Binance
+- `run_daily_analysis.py` — запуск аналітики окремо
+- `systemd/crypto-bot.service` — сервіс для VPS
+- `.github/workflows/daily.yml` — автоматичний GitHub-запуск
+- `.env.example` — зразок конфігу
+- `reports/` — архів GPT-звітів
+
+## 🛠 Запуск:
+1. Клонуйте репозиторій:
+```bash
+git clone https://github.com/wooferOS/telegram-crypto-bot-github.git
+```
