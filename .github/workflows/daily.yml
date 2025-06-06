@@ -2,11 +2,13 @@ name: Daily Crypto Analysis
 
 on:
   schedule:
-    - cron: '59 8 * * *'  # 08:59 UTC (11:59 Київ)
+    - cron: '55 5 * * *'  # 08:55 Kyiv
+    - cron: '0 6 * * *'   # 09:00 Kyiv
   workflow_dispatch:
 
 jobs:
-  run-daily-analysis:
+  send-report:
+    if: github.event_name != 'schedule' || github.event.schedule == '55 5 * * *'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -22,7 +24,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run daily analysis
+      - name: Run daily report
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -30,4 +32,31 @@ jobs:
           BINANCE_SECRET_KEY: ${{ secrets.BINANCE_SECRET_KEY }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: |
-          python run_daily_analysis.py
+          python run_daily_analysis.py report
+
+  send-forecast:
+    if: github.event_name != 'schedule' || github.event.schedule == '0 6 * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run forecast
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
+          BINANCE_SECRET_KEY: ${{ secrets.BINANCE_SECRET_KEY }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: |
+          python run_daily_analysis.py forecast

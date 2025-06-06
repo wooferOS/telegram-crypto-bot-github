@@ -1,4 +1,10 @@
-# 🔁 Telegram логіка може бути винесена сюди з main.py
-# Наприклад: обробка кнопок, inline-меню, FSM-сценарії
+"""Basic Telegram bot instance for reuse across modules."""
 
-# Поки не використовується — тримаємо як заготовку
+import os
+from aiogram import Bot
+
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+bot = Bot(token=TELEGRAM_TOKEN)
+
+ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))

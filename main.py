@@ -1,7 +1,12 @@
 import logging
 import os
 from aiogram import Bot, Dispatcher, types, executor
-from daily_analysis import generate_zarobyty_report
+from daily_analysis import (
+    generate_zarobyty_report,
+    generate_history_report,
+    generate_stats_report,
+    generate_daily_stats_report,
+)
 from binance_api import place_market_order
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -18,8 +23,8 @@ async def start_cmd(message: types.Message):
 
 @dp.message_handler(commands=['zarobyty'])
 async def zarobyty_cmd(message: types.Message):
-    report = generate_zarobyty_report()
-    await message.reply(report, parse_mode='Markdown')
+    report, keyboard = generate_zarobyty_report()
+    await message.reply(report, parse_mode='Markdown', reply_markup=keyboard)
 
 @dp.callback_query_handler(lambda c: c.data.startswith('confirmbuy_'))
 async def confirm_buy(callback_query: types.CallbackQuery):
@@ -34,6 +39,26 @@ async def confirm_sell(callback_query: types.CallbackQuery):
     result = place_market_order(symbol=token, side="SELL", quantity=5)
     await bot.answer_callback_query(callback_query.id, text=f"Продаж {token} підтверджено.")
     await bot.send_message(callback_query.from_user.id, f"\U0001F534 Продано {token}: {result}")
+
+
+@dp.message_handler(commands=['history'])
+async def history_cmd(message: types.Message):
+    await message.reply(generate_history_report(), parse_mode='Markdown')
+
+
+@dp.message_handler(commands=['stats'])
+async def stats_cmd(message: types.Message):
+    await message.reply(generate_stats_report(), parse_mode='Markdown')
+
+
+@dp.message_handler(commands=['statsday'])
+async def statsday_cmd(message: types.Message):
+    await message.reply(generate_daily_stats_report(), parse_mode='Markdown')
+
+
+@dp.message_handler(commands=['alerts_on'])
+async def alerts_on_cmd(message: types.Message):
+    await message.reply('Щоденні сповіщення увімкнено.')
 
 if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True)

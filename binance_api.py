@@ -286,6 +286,25 @@ def get_price_history_24h(symbol: str) -> Optional[List[float]]:
             f"{TELEGRAM_LOG_PREFIX} Помилка при отриманні історії цін {symbol}: {e}"
         )
         return None
+
+
+def get_recent_trades(symbol: str = "BTCUSDT", limit: int = 5) -> List[Dict]:
+    """Return recent trades from Binance."""
+    try:
+        return client.get_my_trades(symbol=symbol, limit=limit)
+    except Exception as e:
+        logger.warning(
+            f"{TELEGRAM_LOG_PREFIX} Помилка при отриманні історії угод: {e}"
+        )
+        return []
+
+
+def get_portfolio_stats() -> Dict[str, float]:
+    """Return total portfolio value in USDT and UAH."""
+    portfolio = get_current_portfolio()
+    total_usdt = sum(portfolio.values())
+    total_uah = round(total_usdt * get_usdt_to_uah_rate(), 2)
+    return {"total_usdt": round(total_usdt, 4), "total_uah": total_uah}
 # 📋 Приклад функції: перевірка, чи актив підтримується ботом
 def is_asset_supported(symbol: str, whitelist: Optional[List[str]] = None) -> bool:
     """
