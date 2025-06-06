@@ -100,6 +100,7 @@ def get_balances() -> Dict[str, float]:
 
 
 def get_binance_balances() -> Dict[str, Dict[str, float]]:
+    """Return balances with USDT value using the Binance Spot API."""
     import os
     from binance.client import Client
 
@@ -112,7 +113,7 @@ def get_binance_balances() -> Dict[str, Dict[str, float]]:
         prices = client.get_all_tickers()
         price_map = {p["symbol"]: float(p["price"]) for p in prices}
 
-        balances = {}
+        balances: Dict[str, Dict[str, float]] = {}
         for b in account["balances"]:
             asset = b["asset"]
             free = float(b["free"])
