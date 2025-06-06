@@ -3,6 +3,7 @@
 import os
 import logging
 from aiogram import Bot, Dispatcher, types
+from aiogram.utils import executor
 from aiogram.filters import Command
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
