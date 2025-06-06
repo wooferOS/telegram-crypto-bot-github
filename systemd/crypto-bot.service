@@ -1,0 +1,16 @@
+[Unit]
+Description=Telegram Crypto Bot
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/telegram-crypto-bot-github
+ExecStart=/bin/sh -c "[ -x venv/bin/python ] && exec venv/bin/python main.py || exec /usr/bin/python3 main.py"
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/crypto-bot.log
+StandardError=append:/var/log/crypto-bot.log
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target
