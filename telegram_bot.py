@@ -4,7 +4,7 @@ import os
 import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.utils import executor
-from aiogram.filters import Command
+from aiogram.dispatcher.filters import Command
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from daily_analysis import (
@@ -34,7 +34,7 @@ async def start_cmd(message: types.Message):
     )
 
 
-@dp.message_handler(commands=["zarobyty"])
+@dp.message_handler(Command("zarobyty"))
 async def zarobyty_cmd(message: types.Message):
     report, keyboard = generate_zarobyty_report()
     await message.reply(report, parse_mode="Markdown", reply_markup=keyboard)
