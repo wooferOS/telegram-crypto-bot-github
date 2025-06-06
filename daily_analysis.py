@@ -1,172 +1,99 @@
 import os
-import json
-import datetime
-import requests
-from dotenv import load_dotenv
-from binance_api import get_current_portfolio, get_full_asset_info
-from typing import Dict, List, Tuple, Optional
+from datetime import datetime
 from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+from binance_api import (
+    get_usdt_balance,
+    get_token_balance,
+    get_symbol_price,
+    get_token_value_in_uah,
+)
+
+import openai
+
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+UAH_RATE = 39.2  # 1 USDT ~ 39.2 грн
+
+def generate_zarobyty_report() -> str:
+    """Return formatted Telegram report with market analysis."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    tokens = ["BTC", "ETH", "SOL", "XRP", "DOGE", "HBAR"]
+    usdt_balance = get_usdt_balance()
+    total_uah = round(usdt_balance * UAH_RATE, 2)
+
+    balances = []
+    sell_recommendations = []
+    buy_recommendations = []
+    expected_profit = 0.0
+
+    for token in tokens:
+        amount = get_token_balance(token)
+        price = get_symbol_price(token)
+        uah_value = round(amount * price * UAH_RATE, 2)
+        percent_change = round((price - price * 0.98) / price * 100, 2)
+
+        if amount > 0:
+            balances.append(f"\U0001f539 {token}: {amount:.4f} = ~{uah_value}\u20b4")
+        if percent_change < -1.0:
+            sell_recommendations.append(
+                f"\U0001f534 {token} ({percent_change}%) /confirmsell_{token}"
+            )
+        elif percent_change > 1.0:
+            buy_recommendations.append(
+                f"\U0001f7e2 {token} ({percent_change}%) /confirmbuy_{token}"
+            )
+            expected_profit += round(amount * price * 0.02, 2)
+
+    gpt_summary = call_gpt_summary(balances, sell_recommendations, buy_recommendations)
+
+    report = (
+        f"\ud83d\udcca \u0417\u0432\u0456\u0442 GPT-\u0430\u043d\u0430\u043b\u0456\u0442\u0438\u043a\u0438 ({now})\n\n"
+        "\ud83d\udcbc \u0411\u0430\u043b\u0430\u043d\u0441:\n"
+        + "\n".join(balances)
+        + f"\n\n\ud83d\udcb0 \u0417\u0430\u0433\u0430\u043b\u044c\u043d\u0438\u0439 \u0431\u0430\u043b\u0430\u043d\u0441: ~{total_uah}\u20b4\n\n"
+        "\ud83d\udcc9 \u0420\u0435\u043a\u043e\u043c\u0435\u043d\u0434\u0443\u0454\u0442\u044c\u0441\u044f \u043f\u0440\u043e\u0434\u0430\u0442\u0438:\n"
+        + "\n".join(sell_recommendations or ["\u041d\u0456\u0447\u043e\u0433\u043e"])
+        + "\n\n"
+        "\ud83d\udcc8 \u0420\u0435\u043a\u043e\u043c\u0435\u043d\u0434\u0443\u0454\u0442\u044c\u0441\u044f \u043a\u0443\u043f\u0438\u0442\u0438:\n"
+        + "\n".join(buy_recommendations or ["\u041d\u0456\u0447\u043e\u0433\u043e"])
+        + "\n\n"
+        f"\ud83d\udcc8 \u041e\u0447\u0456\u043a\u0443\u0432\u0430\u043d\u0438\u0439 \u043f\u0440\u0438\u0431\u0443\u0442\u043e\u043a: ~{expected_profit} USDT\n\n"
+        f"\ud83e\uddd0 \u041f\u0440\u043e\u0433\u043d\u043e\u0437 GPT:\n{gpt_summary}\n\n\ud83d\udcbe \u0423\u0441\u0456 \u0434\u0456\u0457 \u0437\u0431\u0435\u0440\u0435\u0436\u0435\u043d\u043e."
+    )
+
+    return report
 
 
-load_dotenv(dotenv_path=os.path.expanduser("~/.env"))
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "PLACEHOLDER")
-if OPENAI_API_KEY == "PLACEHOLDER":
-    print("⚠️ Warning: OPENAI_API_KEY is empty. Make sure .env is loaded on server.")
-THRESHOLD_PNL_PERCENT = 1.0  # ±1%
-
-HEADERS = {
-    "Content-Type": "application/json",
-    "Authorization": f"Bearer {OPENAI_API_KEY}",
-}
-
-def get_usdt_to_uah_rate() -> float:
-    url = "https://api.binance.com/api/v3/ticker/price?symbol=USDTUAH"
+def call_gpt_summary(balance, sells, buys):
+    """Use OpenAI to generate short investor summary."""
+    prompt = f"""
+\u0421\u0444\u043e\u0440\u043c\u0443\u0439 \u043a\u043e\u0440\u043e\u0442\u043a\u0438\u0439 \u0456\u043d\u0432\u0435\u0441\u0442\u043e\u0440\u0441\u044c\u043a\u0438\u0439 \u043f\u0440\u043e\u0433\u043d\u043e\u0437 \u043d\u0430 \u043e\u0441\u043d\u043e\u0432\u0456:\n\n\u0411\u0430\u043b\u0430\u043d\u0441:\n{balance}\n\n\u041f\u0440\u043e\u0434\u0430\u0442\u0438:\n{sells}\n\n\u041a\u0443\u043f\u0438\u0442\u0438:\n{buys}\n"""
     try:
-        response = requests.get(url)
-        return float(response.json()["price"])
-    except Exception:
-        return 40.0  # fallback
-        
-def get_historical_data() -> Dict[str, float]:
-    try:
-        with open("historical_data.json", "r") as file:
-            return json.load(file)
-    except FileNotFoundError:
-        return {}
-
-
-def run_daily_analysis(current: Dict[str, float], historical: Dict[str, float]) -> Tuple[List[Dict], float]:
-    """
-    Порівнює поточний та історичний портфель, обчислює PnL.
-    Повертає список активів з прибутками/збитками і загальний % змін.
-    """
-    analysis = []
-    total_initial_value = 0.0
-    total_current_value = 0.0
-
-    for asset, current_amount in current.items():
-        initial_amount = historical.get(asset, 0.0)
-
-        if initial_amount == 0.0 and current_amount == 0.0:
-            continue
-
-        price_change = current_amount - initial_amount
-        pnl_percent = (price_change / initial_amount) * 100 if initial_amount else 100.0
-
-        if abs(pnl_percent) < THRESHOLD_PNL_PERCENT:
-            continue  # 🔽 Фільтруємо все менше ±1%
-
-        analysis.append({
-            'asset': asset,
-            'initial': round(initial_amount, 2),
-            'current': round(current_amount, 2),
-            'pnl_percent': round(pnl_percent, 2)
-        })
-
-        total_initial_value += initial_amount
-        total_current_value += current_amount
-
-    total_pnl_percent = ((total_current_value - total_initial_value) / total_initial_value) * 100 if total_initial_value else 0.0
-    return analysis, round(total_pnl_percent, 2)
-
-def format_analysis_report(analysis: List[Dict], total_pnl: float, usdt_to_uah: float) -> str:
-    """
-    Форматує звіт для Telegram-повідомлення.
-    """
-    if not analysis:
-        return "🤖 Усі активи стабільні, змін немає понад ±1%."
-
-    report_lines = [
-        "📊 *Щоденний звіт по портфелю Binance*",
-        "",
-        f"💰 *Загальний результат:* `{total_pnl:+.2f}%`",
-        f"🇺🇸→🇺🇦 *Курс USDT до UAH:* `{usdt_to_uah:.2f}`",
-        "",
-        "*Деталі по активах:*"
-    ]
-
-    for entry in analysis:
-        asset = entry.get('asset', 'N/A')
-        initial = entry.get('initial', 0)
-        current = entry.get('current', 0)
-        pnl = entry.get('pnl_percent', 0.0)
-        status_emoji = "🟢" if pnl > 1 else "🔴" if pnl < -1 else "⚪️"
-        report_lines.append(f"{status_emoji} `{asset}` — {pnl:+.2f}% (з {initial} до {current})")
-
-    return "\n".join(report_lines)
-
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response["choices"][0]["message"]["content"].strip()
+    except Exception as e:  # pragma: no cover - network call
+        return f"[GPT Error] {e}"
 
 
 async def daily_analysis_task(bot: Bot, chat_id: int) -> None:
-    """Run analysis and send formatted report via the provided bot."""
-    current = get_current_portfolio()
-    historical = get_historical_data()
-    analysis, total_pnl = run_daily_analysis(current, historical)
-
-    if analysis:
-        try:
-            rate = get_usdt_to_uah_rate()
-            message = format_analysis_report(analysis, total_pnl, rate)
-            await bot.send_message(chat_id, message)
-        except Exception as e:
-            await bot.send_message(chat_id, f"❌ Помилка при надсиланні GPT-звіту:\n{e}")
-    else:
-        await bot.send_message(chat_id, "⚠️ GPT-звіт не створено.")
-
-def generate_zarobyty_report():
-    data = get_full_asset_info()
-
-    balances = "\n".join(
-        [f"- {b['symbol']}: {b['amount']} → ≈ {b['usdt_value']} USDT" for b in data["balances"]]
-    )
-
-    sell = "\n".join(
-        [f"- 🔴 {s['symbol']} — зміна {s['change_percent']}%\n→ /confirmsell_{s['symbol']}" for s in data["recommend_sell"]]
-    )
-
-    buy = "\n".join(
-        [f"- 🟢 {b['symbol']} — обʼєм {b['volume']} | зміна {b['change_percent']}%\n→ /confirmbuy_{b['symbol']}" for b in data["recommend_buy"]]
-    )
-
-    pnl = "\n".join([
-        f"{p['symbol']}: {p['prev_amount']} → {p['current_amount']} ({'+' if p['diff'] >= 0 else ''}{p['diff']}, {p['percent']}%)"
-        for p in data["pnl"]
-    ])
-
-    report = f"""📊 Звіт GPT-аналітики ({datetime.datetime.now().strftime('%d.%m.%Y %H:%M')})
-
-💼 Баланс:
-{balances}
-
-📉 Рекомендується продати:
-{sell}
-
-📈 Рекомендується купити:
-{buy}
-
-📈 Очікуваний прибуток: ~{data['expected_profit']} USDT
-
-📈 ОЧІKУВАНИЙ ПРИБУТОК:
-{data['expected_profit_block']}
-
-🧠 Прогноз: {data['gpt_forecast']}
-💾 Усі дії збережено."""
-
-    return report
+    """Generate report and send to Telegram chat."""
+    report = generate_zarobyty_report()
+    await bot.send_message(chat_id, report)
 
 
 async def send_zarobyty_forecast(bot: Bot, chat_id: int) -> None:
     """Send GPT forecast with confirmation button."""
     report = generate_zarobyty_report()
     keyboard = InlineKeyboardMarkup().add(
-        InlineKeyboardButton("Підтвердити", callback_data="confirm")
+        InlineKeyboardButton("\u041f\u0456\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u0438", callback_data="confirm")
     )
     await bot.send_message(chat_id, report, reply_markup=keyboard)
 
 
 if __name__ == "__main__":
-    # Це виконується лише якщо запускати daily_analysis.py напряму
-    print("Цей файл не призначений для прямого запуску.")
+    print("\u0426\u0435\u0439 \u0444\u0430\u0439\u043b \u043d\u0435 \u043f\u0440\u0438\u0437\u043d\u0430\u0447\u0435\u043d\u0438\u0439 \u0434\u043b\u044f \u043f\u0440\u044f\u043c\u043e\u0433\u043e \u0437\u0430\u043f\u0443\u0441\u043a\u0443.")
