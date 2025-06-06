@@ -1,9 +1,6 @@
-"""Load environment variables for package."""
+"""Package initialisation."""
 
 # Позначення Telegram GPT Bot як Python-пакету
 
-import os
-from dotenv import load_dotenv
-
-# Load .env from home directory if it exists
-load_dotenv(dotenv_path=os.path.expanduser("~/.env"))
+# Environment variables are loaded in individual modules
+# where required (for example ``binance_api.py``).

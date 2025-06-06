@@ -17,15 +17,10 @@ load_dotenv(dotenv_path=os.path.expanduser("~/.env"))
 TELEGRAM_LOG_PREFIX = "\ud83d\udce1 [BINANCE]"
 logger = logging.getLogger(__name__)
 
-BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "PLACEHOLDER")
-if BINANCE_API_KEY == "PLACEHOLDER":
-    logger.warning("⚠️ Warning: BINANCE_API_KEY is empty. Make sure .env is loaded on server.")
-
-BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY", "PLACEHOLDER")
-if BINANCE_SECRET_KEY == "PLACEHOLDER":
-    logger.warning(
-        "⚠️ Warning: BINANCE_SECRET_KEY is empty. Make sure .env is loaded on server."
-    )
+BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
+BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
+if not BINANCE_API_KEY or not BINANCE_SECRET_KEY:
+    logger.warning("⚠️ Binance API credentials are missing.")
 BINANCE_BASE_URL = "https://api.binance.com"
 
 # 🧩 Ініціалізація клієнта Binance
