@@ -11,7 +11,8 @@ RestartSec=5
 StandardOutput=journal
 StandardError=journal
 Environment=PYTHONUNBUFFERED=1
-EnvironmentFile=/root/telegram-crypto-bot-github/.env
+Environment=BINANCE_API_KEY=SwG2AFeVJ2pv11Q6WHiaceQGm5815Qqzj5GNgbv36pPnvvfZuYuMCg6lWAC37jfX
+Environment=BINANCE_SECRET_KEY=LdEqOMTXMgzsQrU5wUU47kt39VtNhPfykAApUfozgeHIYz2T0lYzzDK4kUuCX7UQ
 
 [Install]
 WantedBy=multi-user.target
