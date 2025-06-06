@@ -1,11 +1,9 @@
 #!/bin/bash
 
-# Exit immediately if a command exits with a non-zero status
-set -e
+# Simple update from GitHub without service restart
+# Convenient for previewing changes
 
-# Fetch latest code and reset to origin/dev
-git fetch origin
-git reset --hard origin/dev
-
-# Restart the systemd service
-sudo systemctl restart crypto-bot.service
+echo "📥 Оновлення коду з GitHub (гілка dev)..."
+cd ~/telegram-crypto-bot-github || exit
+git pull origin dev
+echo "✅ Готово!"
