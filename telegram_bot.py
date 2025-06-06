@@ -14,7 +14,7 @@ from daily_analysis import (
 )
 from history import generate_history_report
 from stats import generate_stats_report
-from binance_api import place_market_order
+from binance_api import place_market_order, get_price_history_24h
 from alerts import check_daily_alerts
 
 
@@ -69,6 +69,18 @@ async def stats_cmd(message: types.Message):
 @dp.message_handler(commands=["statsday"])
 async def statsday_cmd(message: types.Message):
     await message.reply(generate_daily_stats_report(), parse_mode="Markdown")
+
+
+@dp.message_handler(commands=["price24"])
+async def price24_cmd(message: types.Message):
+    """Send last 24h hourly prices for a token."""
+    token = message.get_args().split()[0].upper() if message.get_args() else "BTC"
+    prices = get_price_history_24h(token)
+    if not prices:
+        await message.reply(f"\u274C \u041d\u0435 \u043e\u0442\u0440\u0438\u043c\u0430\u043d\u043e \u0434\u0430\u043d\u0456 \u0434\u043b\u044f {token}.")
+        return
+    formatted = ", ".join(f"{p:.4f}" for p in prices)
+    await message.reply(f"\U0001F4C8 \u0426\u0456\u043D\u0438 {token} \u0437\u0430 24\u0433:\n{formatted}")
 
 
 @dp.message_handler(commands=["alerts_on"])
