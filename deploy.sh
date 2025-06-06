@@ -1,15 +1,18 @@
 #!/bin/bash
 
-echo "📦 Оновлення Telegram-бота..."
+LOGFILE="/var/log/crypto-bot-deploy.log"
+exec > >(tee -a "$LOGFILE") 2>&1
 
-cd /root/telegram-crypto-bot-github || exit 1
+echo "$(date '+%F %T') 🔄 [DEPLOY] Оновлення Telegram GPT Bot..."
+cd ~/telegram-crypto-bot-github || exit 1
 
-echo "🔄 Отримання останніх змін із GitHub..."
-git pull origin dev || exit 1
+echo "$(date '+%F %T') 📥 Підтягуємо останні зміни з GitHub..."
+git pull origin dev
 
-echo "🔁 Перезапуск systemd-сервісу..."
-sudo systemctl daemon-reexec
-sudo systemctl daemon-reload
-sudo systemctl restart crypto-bot
+echo "$(date '+%F %T') 🔁 Перезапуск systemd-сервісу..."
+sudo systemctl restart crypto-bot.service
 
-echo "✅ Бот успішно перезапущено!"
+echo "$(date '+%F %T') 📄 Перевірка статусу:"
+sudo systemctl status crypto-bot.service --no-pager
+
+echo "$(date '+%F %T') ✅ [DONE] Бот оновлено."
