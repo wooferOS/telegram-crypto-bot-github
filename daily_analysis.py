@@ -5,16 +5,17 @@ from typing import Tuple
 from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+from gpt_utils import generate_investor_summary
+from history import generate_history_report as history_report
+from stats import generate_stats_report as stats_report
+from alerts import record_forecast
+
 from binance_api import (
     get_usdt_balance,
     get_token_balance,
     get_symbol_price,
-    get_token_value_in_uah,
 )
 
-import openai
-
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 UAH_RATE = 39.2  # 1 USDT ~ 39.2 грн
 
@@ -62,6 +63,9 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
 
     gpt_summary = call_gpt_summary(balances, sell_recommendations, buy_recommendations)
 
+    # record tokens for alert if user doesn't act
+    record_forecast(buy_recommendations + sell_recommendations)
+
     report = (
         f"\ud83d\udcca \u0417\u0432\u0456\u0442 GPT-\u0430\u043d\u0430\u043b\u0456\u0442\u0438\u043a\u0438 ({now})\n\n"
         "\ud83d\udcbc \u0411\u0430\u043b\u0430\u043d\u0441:\n"
@@ -81,42 +85,18 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
 
 
 def call_gpt_summary(balance, sells, buys):
-    """Use OpenAI to generate short investor summary."""
-    prompt = f"""
-\u0421\u0444\u043e\u0440\u043c\u0443\u0439 \u043a\u043e\u0440\u043e\u0442\u043a\u0438\u0439 \u0456\u043d\u0432\u0435\u0441\u0442\u043e\u0440\u0441\u044c\u043a\u0438\u0439 \u043f\u0440\u043e\u0433\u043d\u043e\u0437 \u043d\u0430 \u043e\u0441\u043d\u043e\u0432\u0456:\n\n\u0411\u0430\u043b\u0430\u043d\u0441:\n{balance}\n\n\u041f\u0440\u043e\u0434\u0430\u0442\u0438:\n{sells}\n\n\u041a\u0443\u043f\u0438\u0442\u0438:\n{buys}\n"""
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response["choices"][0]["message"]["content"].strip()
-    except Exception as e:  # pragma: no cover - network call
-        return f"[GPT Error] {e}"
+    """Return short GPT investor summary."""
+    return generate_investor_summary(balance, sells, buys)
 
 
 def generate_history_report() -> str:
-    """Return text with recent trades."""
-    from binance_api import get_recent_trades
-
-    trades = get_recent_trades()
-    if not trades:
-        return "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u043e\u0442\u0440\u0438\u043c\u0430\u0442\u0438 \u0456\u0441\u0442\u043e\u0440\u0456\u044e \u0443\u0433\u043e\u0434."
-
-    lines = [
-        f"{t['symbol']} {t['side']} {t['qty']} @ {t['price']}" for t in trades
-    ]
-    return "\ud83d\udcc3 \u041e\u0441\u0442\u0430\u043d\u043d\u0456 \u0443\u0433\u043e\u0434\u0438:\n" + "\n".join(lines)
+    """Return text with stored trade history."""
+    return history_report()
 
 
 def generate_stats_report() -> str:
-    """Return portfolio statistics."""
-    from binance_api import get_portfolio_stats
-
-    stats = get_portfolio_stats()
-    return (
-        f"\ud83d\udcb0 \u0417\u0430\u0433\u0430\u043b\u044c\u043d\u0438\u0439 \u0431\u0430\u043b\u0430\u043d\u0441: {stats['total_usdt']} USDT"
-        f" (~{stats['total_uah']}\u20b4)"
-    )
+    """Return profit statistics."""
+    return stats_report()
 
 
 def generate_daily_stats_report() -> str:

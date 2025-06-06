@@ -3,10 +3,10 @@ import os
 from aiogram import Bot, Dispatcher, types, executor
 from daily_analysis import (
     generate_zarobyty_report,
-    generate_history_report,
-    generate_stats_report,
     generate_daily_stats_report,
 )
+from history import generate_history_report
+from stats import generate_stats_report
 from binance_api import place_market_order
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
