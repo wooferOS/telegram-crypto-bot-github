@@ -73,6 +73,26 @@ async def handle_history(message: types.Message) -> None:
     await message.answer("Історія дій тимчасово недоступна.")
 
 
+@dp.message_handler(commands=["price24"])
+async def handle_price24(message: types.Message) -> None:
+    """Send last 24h hourly prices for given symbol."""
+    args = message.get_args()
+    if not args:
+        await message.answer("Використання: /price24 <symbol>")
+        return
+
+    from binance_api import get_price_history_24h
+
+    symbol = args.split()[0].upper()
+    prices = get_price_history_24h(symbol)
+    if not prices:
+        await message.answer("Не вдалося отримати дані.")
+        return
+
+    lines = [f"{i+1}h: {p} USDT" for i, p in enumerate(prices)]
+    await message.answer(f"Ціни {symbol} за 24h:\n" + "\n".join(lines))
+
+
 @dp.message_handler(commands=["statsday"])
 async def handle_statsday(message: types.Message) -> None:
     await message.answer("Денна статистика тимчасово недоступна.")
