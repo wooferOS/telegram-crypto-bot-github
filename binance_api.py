@@ -2,23 +2,28 @@ import os
 import time
 import hmac
 import hashlib
+import logging
 import requests
 import decimal
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 from binance.client import Client
+from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET
 
 # 🔐 Завантаження змінних середовища
 load_dotenv(dotenv_path=os.path.expanduser("~/.env"))
 
+TELEGRAM_LOG_PREFIX = "\ud83d\udce1 [BINANCE]"
+logger = logging.getLogger(__name__)
+
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "PLACEHOLDER")
 if BINANCE_API_KEY == "PLACEHOLDER":
-    print("⚠️ Warning: BINANCE_API_KEY is empty. Make sure .env is loaded on server.")
+    logger.warning("⚠️ Warning: BINANCE_API_KEY is empty. Make sure .env is loaded on server.")
 
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY", "PLACEHOLDER")
 if BINANCE_SECRET_KEY == "PLACEHOLDER":
-    print(
+    logger.warning(
         "⚠️ Warning: BINANCE_SECRET_KEY is empty. Make sure .env is loaded on server."
     )
 BINANCE_BASE_URL = "https://api.binance.com"
@@ -61,7 +66,7 @@ def get_account_info() -> Optional[Dict]:
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
-        print(f"[Binance] ❌ Помилка при отриманні акаунта: {e}")
+        logger.error(f"{TELEGRAM_LOG_PREFIX} Помилка при отриманні акаунта: {e}")
         return None
 # 💰 Отримання балансу користувача
 def get_balances() -> Dict[str, float]:
@@ -80,7 +85,7 @@ def get_balances() -> Dict[str, float]:
                 balances[asset] = total
         return balances
     except Exception as e:
-        print(f"[Binance] ❌ Помилка при отриманні балансу: {e}")
+        logger.error(f"{TELEGRAM_LOG_PREFIX} Помилка при отриманні балансу: {e}")
         return {}
 # 💹 Отримання цін усіх монет до USDT
 def get_prices() -> Dict[str, float]:
@@ -98,7 +103,7 @@ def get_prices() -> Dict[str, float]:
                 prices[asset] = price
         return prices
     except Exception as e:
-        print(f"[Binance] ❌ Помилка при отриманні цін: {e}")
+        logger.error(f"{TELEGRAM_LOG_PREFIX} Помилка при отриманні цін: {e}")
         return {}
 # 🧾 Формування поточного портфеля в USDT
 def get_current_portfolio() -> Dict[str, float]:
@@ -115,9 +120,87 @@ def get_current_portfolio() -> Dict[str, float]:
         elif asset in prices:
             portfolio[asset] = round(amount * prices[asset], 4)
         else:
-            print(f"[Binance] ⚠️ Немає ціни для {asset}, пропускаємо.")
+            logger.warning(f"{TELEGRAM_LOG_PREFIX} Немає ціни для {asset}, пропускаємо.")
 
     return portfolio
+
+# --- Допоміжні функції для простішої інтеграції з Telegram-ботом ---
+
+def get_usdt_balance() -> float:
+    """Повертає доступний баланс USDT."""
+    try:
+        balances = client.get_asset_balance(asset="USDT")
+        return float(balances.get("free", 0.0))
+    except Exception as e:
+        logger.error(f"{TELEGRAM_LOG_PREFIX} Помилка отримання балансу USDT: {e}")
+        return 0.0
+
+
+def get_token_balance(symbol: str) -> float:
+    """Повертає баланс конкретного токена."""
+    try:
+        balances = client.get_asset_balance(asset=symbol.upper())
+        return float(balances.get("free", 0.0))
+    except Exception as e:
+        logger.error(f"{TELEGRAM_LOG_PREFIX} Баланс {symbol.upper()} недоступний: {e}")
+        return 0.0
+
+
+def get_symbol_price(symbol: str) -> float:
+    """Поточна ціна токена до USDT."""
+    try:
+        ticker = client.get_symbol_ticker(symbol=f"{symbol.upper()}USDT")
+        return float(ticker.get("price", 0.0))
+    except Exception as e:
+        logger.error(f"{TELEGRAM_LOG_PREFIX} Помилка ціни для {symbol}: {e}")
+        return 0.0
+
+
+def place_market_order(symbol: str, side: str, quantity: float):
+    """Виконує маркет-ордер купівлі або продажу."""
+    try:
+        order = client.create_order(
+            symbol=f"{symbol.upper()}USDT",
+            side=SIDE_BUY if side == "BUY" else SIDE_SELL,
+            type=ORDER_TYPE_MARKET,
+            quantity=quantity,
+        )
+        logger.info(f"{TELEGRAM_LOG_PREFIX} Ордер виконано: {order}")
+        return order
+    except Exception as e:
+        logger.error(f"{TELEGRAM_LOG_PREFIX} Помилка створення ордера: {e}")
+        return None
+
+
+def get_usdt_to_uah_rate() -> float:
+    """Повертає курс USDT до гривні."""
+    try:
+        ticker = client.get_symbol_ticker(symbol="USDTUAH")
+        return float(ticker.get("price", 39.2))
+    except Exception as e:
+        logger.warning(f"{TELEGRAM_LOG_PREFIX} Помилка отримання курсу UAH: {e}")
+        return 39.2
+
+
+def get_token_value_in_uah(symbol: str) -> float:
+    """Вартість токена у гривнях."""
+    price_usdt = get_symbol_price(symbol)
+    uah_rate = get_usdt_to_uah_rate()
+    return round(price_usdt * uah_rate, 2)
+
+
+def notify_telegram(message: str) -> None:
+    """Надсилає повідомлення адміну у Telegram, якщо токен та chat_id вказані."""
+    token = os.getenv("TELEGRAM_TOKEN")
+    chat_id = os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", ""))
+    if not token or not chat_id:
+        logger.debug(f"{TELEGRAM_LOG_PREFIX} Telegram credentials not set")
+        return
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    try:
+        requests.post(url, json={"chat_id": chat_id, "text": message}, timeout=5)
+    except Exception as e:
+        logger.warning(f"{TELEGRAM_LOG_PREFIX} Не вдалося надіслати повідомлення у Telegram: {e}")
 # 📈 Отримання поточної ціни активу
 def get_coin_price(symbol: str) -> Optional[float]:
     """
@@ -129,7 +212,7 @@ def get_coin_price(symbol: str) -> Optional[float]:
         response.raise_for_status()
         return float(response.json()["price"])
     except Exception as e:
-        print(f"[Binance] ❌ Помилка при отриманні ціни {symbol}USDT: {e}")
+        logger.error(f"{TELEGRAM_LOG_PREFIX} Помилка при отриманні ціни {symbol}USDT: {e}")
         return None
 # 🔢 Отримання точності символу
 def get_symbol_precision(symbol: str) -> int:
@@ -150,7 +233,7 @@ def get_symbol_precision(symbol: str) -> int:
                         step_size = float(f["stepSize"])
                         return abs(decimal.Decimal(str(step_size)).as_tuple().exponent)
     except Exception as e:
-        print(f"[Binance] ⚠️ Помилка при отриманні точності для {symbol}: {e}")
+        logger.warning(f"{TELEGRAM_LOG_PREFIX} Помилка при отриманні точності для {symbol}: {e}")
     
     return 2  # 🔁 Значення за замовчуванням
 
@@ -190,7 +273,7 @@ def get_last_price(symbol: str) -> float:
         data = response.json()
         return float(data["price"])
     except Exception as e:
-        print(f"[Binance] ⚠️ Помилка при отриманні останньої ціни {symbol}: {e}")
+        logger.warning(f"{TELEGRAM_LOG_PREFIX} Помилка при отриманні останньої ціни {symbol}: {e}")
         return 0.0
 # 📋 Приклад функції: перевірка, чи актив підтримується ботом
 def is_asset_supported(symbol: str, whitelist: Optional[List[str]] = None) -> bool:
@@ -207,8 +290,8 @@ def is_asset_supported(symbol: str, whitelist: Optional[List[str]] = None) -> bo
     return symbol.upper() in whitelist
 # 🧪 Перевірка роботи модуля
 if __name__ == "__main__":
-    print("🔧 Binance API модуль запущено напряму.")
-    print("➡️ Поточний портфель:")
+    logger.info("🔧 Binance API модуль запущено напряму.")
+    logger.info("➡️ Поточний портфель:")
     portfolio = get_current_portfolio()
     for asset, value in portfolio.items():
-        print(f"• {asset}: ${value:.2f}")
+        logger.info(f"• {asset}: ${value:.2f}")
