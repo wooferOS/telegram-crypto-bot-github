@@ -11,6 +11,22 @@ from dotenv import load_dotenv
 from binance.client import Client
 from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET
 
+
+def safe_close_client(client: Client) -> None:
+    """Safely close Binance client HTTP session."""
+    try:
+        if hasattr(client, "session") and client.session:
+            client.session.close()
+    except Exception:
+        pass
+
+
+class SafeBinanceClient(Client):
+    """Binance Client with safe session cleanup on deletion."""
+
+    def __del__(self) -> None:
+        safe_close_client(self)
+
 # 🔐 Завантаження змінних середовища
 load_dotenv(dotenv_path=os.path.expanduser("~/.env"))
 
@@ -25,9 +41,11 @@ BINANCE_BASE_URL = "https://api.binance.com"
 
 # 🧩 Ініціалізація клієнта Binance без обов'язкового ping
 try:
-    client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY, ping=False)
+    client = SafeBinanceClient(
+        api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY, ping=False
+    )
 except TypeError:
-    client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+    client = SafeBinanceClient(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 # 🕒 Отримання поточного timestamp для підпису запитів
 def get_timestamp() -> int:
     return int(time.time() * 1000)
