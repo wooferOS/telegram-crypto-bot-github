@@ -126,30 +126,28 @@ def get_balances() -> Dict[str, float]:
 
 
 def get_binance_balances() -> Dict[str, Dict[str, float]]:
-    """Return balances with their value in USDT using a transient client."""
+    """Return balances with their value in USDT."""
 
-    api_key = os.getenv("BINANCE_API_KEY")
-    api_secret = os.getenv("BINANCE_SECRET_KEY")
-    temp_client = Client(api_key, api_secret)
     try:
-        account = temp_client.get_account()
-        prices = temp_client.get_all_tickers()
+        account = client.get_account()
+        prices = client.get_all_tickers()
         price_map = {p["symbol"]: float(p["price"]) for p in prices}
 
-        result: Dict[str, Dict[str, float]] = {}
+        balances: Dict[str, Dict[str, float]] = {}
         for b in account.get("balances", []):
             asset = b["asset"]
             free = float(b["free"])
             if free > 0:
-                symbol = f"{asset}USDT"
+                symbol = asset + "USDT"
                 usdt_value = free * price_map.get(symbol, 0)
-                result[asset] = {
+                balances[asset] = {
                     "free": round(free, 6),
                     "usdtValue": round(usdt_value, 2),
                 }
-        return result
-    finally:
-        safe_close_client(temp_client)
+        return balances
+    except Exception as e:
+        logger.error(f"{TELEGRAM_LOG_PREFIX} Помилка при отриманні балансу: {e}")
+        return {}
 
 
 def get_prices() -> Dict[str, float]:
