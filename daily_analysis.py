@@ -1,5 +1,7 @@
 import os
 from datetime import datetime
+from typing import Tuple
+
 from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
@@ -16,8 +18,9 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 UAH_RATE = 39.2  # 1 USDT ~ 39.2 грн
 
-def generate_zarobyty_report() -> str:
-    """Return formatted Telegram report with market analysis."""
+
+def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
+    """Return formatted Telegram report with market analysis and buttons."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     tokens = ["BTC", "ETH", "SOL", "XRP", "DOGE", "HBAR"]
     usdt_balance = get_usdt_balance()
@@ -27,6 +30,7 @@ def generate_zarobyty_report() -> str:
     sell_recommendations = []
     buy_recommendations = []
     expected_profit = 0.0
+    keyboard = InlineKeyboardMarkup(row_width=2)
 
     for token in tokens:
         amount = get_token_balance(token)
@@ -38,11 +42,21 @@ def generate_zarobyty_report() -> str:
             balances.append(f"\U0001f539 {token}: {amount:.4f} = ~{uah_value}\u20b4")
         if percent_change < -1.0:
             sell_recommendations.append(
-                f"\U0001f534 {token} ({percent_change}%) /confirmsell_{token}"
+                f"\U0001f534 {token} ({percent_change}%)"
+            )
+            keyboard.insert(
+                InlineKeyboardButton(
+                    f"Sell {token}", callback_data=f"confirmsell_{token}"
+                )
             )
         elif percent_change > 1.0:
             buy_recommendations.append(
-                f"\U0001f7e2 {token} ({percent_change}%) /confirmbuy_{token}"
+                f"\U0001f7e2 {token} ({percent_change}%)"
+            )
+            keyboard.insert(
+                InlineKeyboardButton(
+                    f"Buy {token}", callback_data=f"confirmbuy_{token}"
+                )
             )
             expected_profit += round(amount * price * 0.02, 2)
 
@@ -63,7 +77,7 @@ def generate_zarobyty_report() -> str:
         f"\ud83e\uddd0 \u041f\u0440\u043e\u0433\u043d\u043e\u0437 GPT:\n{gpt_summary}\n\n\ud83d\udcbe \u0423\u0441\u0456 \u0434\u0456\u0457 \u0437\u0431\u0435\u0440\u0435\u0436\u0435\u043d\u043e."
     )
 
-    return report
+    return report, keyboard
 
 
 def call_gpt_summary(balance, sells, buys):
@@ -80,18 +94,45 @@ def call_gpt_summary(balance, sells, buys):
         return f"[GPT Error] {e}"
 
 
+def generate_history_report() -> str:
+    """Return text with recent trades."""
+    from binance_api import get_recent_trades
+
+    trades = get_recent_trades()
+    if not trades:
+        return "\u041d\u0435 \u0432\u0434\u0430\u043b\u043e\u0441\u044f \u043e\u0442\u0440\u0438\u043c\u0430\u0442\u0438 \u0456\u0441\u0442\u043e\u0440\u0456\u044e \u0443\u0433\u043e\u0434."
+
+    lines = [
+        f"{t['symbol']} {t['side']} {t['qty']} @ {t['price']}" for t in trades
+    ]
+    return "\ud83d\udcc3 \u041e\u0441\u0442\u0430\u043d\u043d\u0456 \u0443\u0433\u043e\u0434\u0438:\n" + "\n".join(lines)
+
+
+def generate_stats_report() -> str:
+    """Return portfolio statistics."""
+    from binance_api import get_portfolio_stats
+
+    stats = get_portfolio_stats()
+    return (
+        f"\ud83d\udcb0 \u0417\u0430\u0433\u0430\u043b\u044c\u043d\u0438\u0439 \u0431\u0430\u043b\u0430\u043d\u0441: {stats['total_usdt']} USDT"
+        f" (~{stats['total_uah']}\u20b4)"
+    )
+
+
+def generate_daily_stats_report() -> str:
+    """Alias for daily stats (currently same as stats)."""
+    return generate_stats_report()
+
+
 async def daily_analysis_task(bot: Bot, chat_id: int) -> None:
     """Generate report and send to Telegram chat."""
-    report = generate_zarobyty_report()
-    await bot.send_message(chat_id, report)
+    report, keyboard = generate_zarobyty_report()
+    await bot.send_message(chat_id, report, reply_markup=keyboard)
 
 
 async def send_zarobyty_forecast(bot: Bot, chat_id: int) -> None:
     """Send GPT forecast with confirmation button."""
-    report = generate_zarobyty_report()
-    keyboard = InlineKeyboardMarkup().add(
-        InlineKeyboardButton("\u041f\u0456\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u0438", callback_data="confirm")
-    )
+    report, keyboard = generate_zarobyty_report()
     await bot.send_message(chat_id, report, reply_markup=keyboard)
 
 
