@@ -7,7 +7,7 @@ from typing import List, Dict
 
 import openai
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 logger = logging.getLogger(__name__)
 
 
@@ -15,8 +15,8 @@ def call_chat_completion(messages: List[Dict[str, str]], model: str = "gpt-4", r
     """Call OpenAI chat completion with basic retry logic."""
     for attempt in range(retries):
         try:
-            response = openai.ChatCompletion.create(model=model, messages=messages)
-            return response["choices"][0]["message"]["content"].strip()
+            response = client.chat.completions.create(model=model, messages=messages)
+            return response.choices[0].message.content.strip()
         except Exception as exc:  # pragma: no cover - network call
             logger.warning("GPT error on attempt %s: %s", attempt + 1, exc)
             if attempt < retries - 1:

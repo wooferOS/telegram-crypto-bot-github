@@ -1,6 +1,8 @@
+import asyncio
 import logging
 import os
-from aiogram import Bot, Dispatcher, types, executor
+from aiogram import Bot, Dispatcher, Router, F, types
+from aiogram.filters import Command
 from daily_analysis import (
     generate_zarobyty_report,
     generate_daily_stats_report,
@@ -11,54 +13,61 @@ from binance_api import place_market_order
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = Bot(token=TELEGRAM_TOKEN)
-dp = Dispatcher(bot)
+router = Router()
+dp = Dispatcher()
+dp.include_router(router)
 
 logging.basicConfig(level=logging.INFO)
 
-@dp.message_handler(commands=['start'])
+@router.message(Command("start"))
 async def start_cmd(message: types.Message):
     await message.reply(
         "\U0001F44B Вітаю! Я GPT-бот для криптотрейдингу. Використовуйте команду /zarobyty для щоденного звіту."
     )
 
-@dp.message_handler(commands=['zarobyty'])
+@router.message(Command("zarobyty"))
 async def zarobyty_cmd(message: types.Message):
     report, keyboard = generate_zarobyty_report()
     await message.reply(report, parse_mode='Markdown', reply_markup=keyboard)
 
-@dp.callback_query_handler(lambda c: c.data.startswith('confirmbuy_'))
+@router.callback_query(F.data.startswith("confirmbuy_"))
 async def confirm_buy(callback_query: types.CallbackQuery):
     token = callback_query.data.replace('confirmbuy_', '')
     result = place_market_order(symbol=token, side="BUY", quantity=5)
-    await bot.answer_callback_query(callback_query.id, text=f"Купівля {token} підтверджена.")
-    await bot.send_message(callback_query.from_user.id, f"\U0001F7E2 Куплено {token}: {result}")
+    await callback_query.answer(f"Купівля {token} підтверджена.")
+    await callback_query.message.answer(f"\U0001F7E2 Куплено {token}: {result}")
 
-@dp.callback_query_handler(lambda c: c.data.startswith('confirmsell_'))
+@router.callback_query(F.data.startswith("confirmsell_"))
 async def confirm_sell(callback_query: types.CallbackQuery):
     token = callback_query.data.replace('confirmsell_', '')
     result = place_market_order(symbol=token, side="SELL", quantity=5)
-    await bot.answer_callback_query(callback_query.id, text=f"Продаж {token} підтверджено.")
-    await bot.send_message(callback_query.from_user.id, f"\U0001F534 Продано {token}: {result}")
+    await callback_query.answer(f"Продаж {token} підтверджено.")
+    await callback_query.message.answer(f"\U0001F534 Продано {token}: {result}")
 
 
-@dp.message_handler(commands=['history'])
+@router.message(Command("history"))
 async def history_cmd(message: types.Message):
     await message.reply(generate_history_report(), parse_mode='Markdown')
 
 
-@dp.message_handler(commands=['stats'])
+@router.message(Command("stats"))
 async def stats_cmd(message: types.Message):
     await message.reply(generate_stats_report(), parse_mode='Markdown')
 
 
-@dp.message_handler(commands=['statsday'])
+@router.message(Command("statsday"))
 async def statsday_cmd(message: types.Message):
     await message.reply(generate_daily_stats_report(), parse_mode='Markdown')
 
 
-@dp.message_handler(commands=['alerts_on'])
+@router.message(Command("alerts_on"))
 async def alerts_on_cmd(message: types.Message):
     await message.reply('Щоденні сповіщення увімкнено.')
 
+async def main() -> None:
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
+
+
 if __name__ == '__main__':
-    executor.start_polling(dp, skip_updates=True)
+    asyncio.run(main())

@@ -23,15 +23,11 @@ if not BINANCE_API_KEY or not BINANCE_SECRET_KEY:
     logger.warning("⚠️ Binance API credentials are missing.")
 BINANCE_BASE_URL = "https://api.binance.com"
 
-# 🧩 Ініціалізація клієнта Binance
-client = Client(
-    api_key=BINANCE_API_KEY,
-    api_secret=BINANCE_SECRET_KEY,
-)
+# 🧩 Ініціалізація клієнта Binance без обов'язкового ping
 try:
-    client.ping()
-except Exception as exc:  # pragma: no cover - network call
-    logger.debug(f"{TELEGRAM_LOG_PREFIX} Ping failed: {exc}")
+    client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY, ping=False)
+except TypeError:
+    client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 # 🕒 Отримання поточного timestamp для підпису запитів
 def get_timestamp() -> int:
     return int(time.time() * 1000)
