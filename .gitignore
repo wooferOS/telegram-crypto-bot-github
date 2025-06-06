@@ -1,25 +1,36 @@
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-*.db
+*.py[cod]
+*$py.class
 
-# Віртуальні середовища
-env/
+# Virtual environment
 venv/
-
-# Логи
-*.log
-logs/
-daily.log
-
-# Звіти GPT
-reports/
-*.md.save
-
-# Змінні середовища
 .env
+.env.*
+*.sqlite3
 
-# Telegram кеш
-.notified
+# Logs and reports
+*.log
+log/
+logrotate/
+*.gz
+*.zip
+*.tgz
+/var/log/crypto-bot.log
+/reports/
+*.md
+
+# System and OS files
+.DS_Store
+Thumbs.db
+
+# Editor-specific
+.vscode/
+.idea/
+*.swp
+
+# Compiled binary
+*.so
+
+# Backup files
+*~
