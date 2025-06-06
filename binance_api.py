@@ -31,6 +31,8 @@ BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 BINANCE_BASE_URL = "https://api.binance.com"
 
+print(f"[DEBUG] API: {BINANCE_API_KEY[:6]}..., SECRET: {BINANCE_SECRET_KEY[:6]}...")
+
 
 class SafeBinanceClient(Client):
     """Client that closes its HTTP session when garbage collected."""
@@ -49,15 +51,8 @@ def safe_close_client(client: Client) -> None:
         pass
 
 
-# Initialise global client without performing a ping on creation
-try:
-    client = SafeBinanceClient(
-        api_key=BINANCE_API_KEY,
-        api_secret=BINANCE_SECRET_KEY,
-        ping=False,
-    )
-except TypeError:  # older binance package
-    client = SafeBinanceClient(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+# Initialise global Binance client
+client = SafeBinanceClient(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 
 
 # ---------------------------------------------------------------------------
