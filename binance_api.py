@@ -119,7 +119,10 @@ def get_binance_balances() -> Dict[str, Dict[str, float]]:
             if free > 0:
                 symbol = asset + "USDT"
                 usdt_value = free * price_map.get(symbol, 0)
-                balances[asset] = {"free": free, "usdtValue": round(usdt_value, 2)}
+                balances[asset] = {
+                    "free": round(free, 6),
+                    "usdtValue": round(usdt_value, 2),
+                }
         return balances
     finally:
         try:
