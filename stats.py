@@ -1,3 +1,5 @@
+"""Helpers for calculating profit statistics for the bot."""
+
 import logging
 from datetime import datetime, timedelta
 from typing import List, Dict
@@ -41,8 +43,15 @@ def generate_stats_report() -> str:
 
 
 
-def calculate_stats() -> Dict[str, float]:
-    """Return profit statistics for use in /stats command."""
+def calculate_stats() -> str:
+    """Return day, week and month profit summary for Telegram."""
+    day = _calculate_profit(_filter_trades(1))
     week = _calculate_profit(_filter_trades(7))
     month = _calculate_profit(_filter_trades(30))
-    return {"week_profit": week, "month_profit": month}
+    rate = get_usdt_to_uah_rate()
+    return (
+        "\U0001F4C8 \u041F\u0456\u0434\u0441\u0443\u043C\u043E\u043A:\n"
+        f"\u0414\u0435\u043D\u044C: {day:.2f} USDT (~{day * rate:.2f}\u20B4)\n"
+        f"\u0422\u0438\u0436\u0434\u0435\u043D\u044C: {week:.2f} USDT (~{week * rate:.2f}\u20B4)\n"
+        f"\u041C\u0456\u0441\u044F\u0446\u044C: {month:.2f} USDT (~{month * rate:.2f}\u20B4)"
+    )
