@@ -1,5 +1,7 @@
 """Load environment variables for package."""
 
+# Позначення Telegram GPT Bot як Python-пакету
+
 import os
 from dotenv import load_dotenv
 
