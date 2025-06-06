@@ -1,6 +1,7 @@
-openai>=1.0.0,<2.0.0
-requests>=2.25.0,<3.0.0
-aiogram==2.25.2
-python-binance>=1.0.17,<2.0.0
-python-dotenv>=1.0.0,<2.0.0
-apscheduler>=3.9.0,<4.0.0
+python-binance==1.0.17
+openai==1.14.2
+aiogram==2.25.1
+requests==2.31.0
+APScheduler==3.10.4
+python-dotenv==1.0.1
+pytz==2024.1
