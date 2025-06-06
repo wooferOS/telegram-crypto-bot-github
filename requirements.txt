@@ -1,6 +1,6 @@
 python-binance>=1.0.17
 openai>=1.14.2
-aiogram>=2.25.1
+aiogram>=3.4.1
 requests>=2.31.0
 APScheduler>=3.10.4
 python-dotenv>=1.0.1
