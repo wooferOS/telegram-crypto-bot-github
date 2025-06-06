@@ -2,7 +2,7 @@
 
 import os
 import logging
-from aiogram import Bot, Dispatcher, Router, types, F
+from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -21,27 +21,25 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
 
 bot = Bot(token=TELEGRAM_TOKEN)
-router = Router()
-dp = Dispatcher()
-dp.include_router(router)
+dp = Dispatcher(bot)
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 
 
-@router.message(Command("start"))
+@dp.message_handler(commands=["start"])
 async def start_cmd(message: types.Message):
     await message.reply(
         "\U0001F44B Вітаю! Я GPT-бот для криптотрейдингу. Використовуйте команду /zarobyty для щоденного звіту."
     )
 
 
-@router.message(Command("zarobyty"))
+@dp.message_handler(commands=["zarobyty"])
 async def zarobyty_cmd(message: types.Message):
     report, keyboard = generate_zarobyty_report()
     await message.reply(report, parse_mode="Markdown", reply_markup=keyboard)
 
 
-@router.callback_query(F.data.startswith("confirmbuy_"))
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith("confirmbuy_"))
 async def confirm_buy(callback_query: types.CallbackQuery):
     token = callback_query.data.replace("confirmbuy_", "")
     result = place_market_order(symbol=token, side="BUY", quantity=5)
@@ -49,7 +47,7 @@ async def confirm_buy(callback_query: types.CallbackQuery):
     await callback_query.message.answer(f"\U0001F7E2 Куплено {token}: {result}")
 
 
-@router.callback_query(F.data.startswith("confirmsell_"))
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith("confirmsell_"))
 async def confirm_sell(callback_query: types.CallbackQuery):
     token = callback_query.data.replace("confirmsell_", "")
     result = place_market_order(symbol=token, side="SELL", quantity=5)
@@ -57,22 +55,22 @@ async def confirm_sell(callback_query: types.CallbackQuery):
     await callback_query.message.answer(f"\U0001F534 Продано {token}: {result}")
 
 
-@router.message(Command("history"))
+@dp.message_handler(commands=["history"])
 async def history_cmd(message: types.Message):
     await message.reply(generate_history_report(), parse_mode="Markdown")
 
 
-@router.message(Command("stats"))
+@dp.message_handler(commands=["stats"])
 async def stats_cmd(message: types.Message):
     await message.reply(generate_stats_report(), parse_mode="Markdown")
 
 
-@router.message(Command("statsday"))
+@dp.message_handler(commands=["statsday"])
 async def statsday_cmd(message: types.Message):
     await message.reply(generate_daily_stats_report(), parse_mode="Markdown")
 
 
-@router.message(Command("alerts_on"))
+@dp.message_handler(commands=["alerts_on"])
 async def alerts_on_cmd(message: types.Message):
     await message.reply("Щоденні сповіщення увімкнено.")
 
