@@ -6,11 +6,11 @@ from aiogram import Bot, Dispatcher, types
 
 load_dotenv(dotenv_path=os.path.expanduser("~/.env"))
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "PLACEHOLDER")
-if TELEGRAM_TOKEN == "PLACEHOLDER":
-    print(
-        "⚠️ Warning: TELEGRAM_TOKEN is empty. Make sure .env is loaded on server."
-    )
+TELEGRAM_TOKEN = os.getenv(
+    "TELEGRAM_TOKEN", "7885000778:AAE9VsogpVzr5VR-HvufUGgSnp4Fif1_yG8"
+)
+if TELEGRAM_TOKEN == "7885000778:AAE9VsogpVzr5VR-HvufUGgSnp4Fif1_yG8":
+    print("⚠️ Warning: .env not loaded. This is expected in Codex.")
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
@@ -52,6 +52,20 @@ async def handle_confirm_callback(callback_query: types.CallbackQuery) -> None:
 @dp.message_handler(commands=["stats"])
 async def handle_stats(message: types.Message) -> None:
     await message.answer("Статистика тимчасово недоступна.")
+
+
+@dp.message_handler(commands=["balance"])
+async def handle_balance(message: types.Message) -> None:
+    """Show current portfolio balances."""
+    from binance_api import get_current_portfolio
+
+    portfolio = get_current_portfolio()
+    if not portfolio:
+        await message.answer("Баланс недоступний.")
+        return
+
+    lines = [f"{asset}: {amount} USDT" for asset, amount in portfolio.items()]
+    await message.answer("\n".join(lines))
 
 
 @dp.message_handler(commands=["history"])
