@@ -2,8 +2,9 @@ name: Daily GPT Market Analysis
 
 on:
   schedule:
-    - cron: '0 6 * * *'   # 09:00 Kyiv (UTC+3)
-    - cron: '0 17 * * *'  # 20:00 Kyiv
+    # щоденний звіт о 08:55 та прогноз о 09:00 (Kyiv UTC+3)
+    - cron: '55 5 * * *'  # 08:55 Kyiv
+    - cron: '0 6 * * *'   # 09:00 Kyiv
   workflow_dispatch:
 jobs:
   run:

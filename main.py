@@ -10,6 +10,7 @@ from flask import Flask
 from telebot import TeleBot, types
 from binance.client import Client
 from daily_analysis import run_daily_analysis
+from binance_api import create_market_order
 
 # 🔐 Завантаження .env
 load_dotenv(".env")
@@ -42,6 +43,7 @@ WHITELIST = [
     "ETCUSDT", "HBARUSDT", "VETUSDT", "RUNEUSDT", "INJUSDT", "OPUSDT",
     "ARBUSDT", "SUIUSDT", "STXUSDT", "TIAUSDT", "SEIUSDT", "1000PEPEUSDT"
 ]
+DEFAULT_PAIR = "BTCUSDT"
 # 🧠 Завантаження сигналів
 def load_signal():
     try:
@@ -78,6 +80,45 @@ def send_welcome(message):
 @bot.message_handler(commands=["id"])
 def show_id(message):
     bot.reply_to(message, f"Ваш chat ID: `{message.chat.id}`", parse_mode="Markdown")
+
+# /zarobyty — швидкі кнопки купити/продати
+@bot.message_handler(commands=["zarobyty"])
+def zarobyty(message):
+    kb = types.InlineKeyboardMarkup()
+    kb.add(
+        types.InlineKeyboardButton("Купити", callback_data=f"confirmbuy_{DEFAULT_PAIR}"),
+        types.InlineKeyboardButton("Продати", callback_data=f"confirmsell_{DEFAULT_PAIR}")
+    )
+    bot.send_message(message.chat.id, "Виберіть дію:", reply_markup=kb)
+
+# /history — останні дії
+@bot.message_handler(commands=["history"])
+def show_history(message):
+    try:
+        history = json.load(open("history.json"))
+    except Exception:
+        history = []
+    text = "\n".join(history[-10:]) if history else "Немає історії"
+    bot.send_message(message.chat.id, text)
+
+# /stats — поточна статистика
+@bot.message_handler(commands=["stats"])
+def stats(message):
+    send_balance(message)
+
+# /statsday — щоденний звіт
+@bot.message_handler(commands=["statsday"])
+def statsday(message):
+    send_report(message)
+
+# /alerts_on — заглушка для сповіщень
+alerts_enabled = False
+
+@bot.message_handler(commands=["alerts_on"])
+def alerts_on(message):
+    global alerts_enabled
+    alerts_enabled = True
+    bot.reply_to(message, "📢 Сповіщення увімкнено")
 
 # 📊 Баланс Binance
 def send_balance(message):
@@ -121,8 +162,14 @@ def callback_inline(call):
             signal["last_action"] = {
                 "type": "buy",
                 "pair": pair,
-                "time": datetime.utcnow().isoformat()
+                "time": datetime.utcnow().isoformat(),
             }
+            history = []
+            if os.path.exists("history.json"):
+                history = json.load(open("history.json"))
+            history.append(f"BUY {pair} {datetime.utcnow().isoformat()}")
+            json.dump(history, open("history.json", "w"))
+            create_market_order(symbol=pair, side="BUY", quantity=0.001)
             save_signal(signal)
         elif call.data.startswith("confirmsell_"):
             pair = call.data.split("_")[1]
@@ -130,8 +177,14 @@ def callback_inline(call):
             signal["last_action"] = {
                 "type": "sell",
                 "pair": pair,
-                "time": datetime.utcnow().isoformat()
+                "time": datetime.utcnow().isoformat(),
             }
+            history = []
+            if os.path.exists("history.json"):
+                history = json.load(open("history.json"))
+            history.append(f"SELL {pair} {datetime.utcnow().isoformat()}")
+            json.dump(history, open("history.json", "w"))
+            create_market_order(symbol=pair, side="SELL", quantity=0.001)
             save_signal(signal)
     except Exception as e:
         bot.send_message(call.message.chat.id, f"❌ Помилка: {str(e)}")

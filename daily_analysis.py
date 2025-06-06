@@ -162,6 +162,21 @@ def run_daily_analysis():
         if suggestions:
             final_message += "\n\n📈 *Рекомендації:*\n" + "\n".join(suggestions)
 
+        # GPT короткий прогноз
+        try:
+            forecast_resp = openai.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "Ти криптоаналітик."},
+                    {"role": "user", "content": "Дай короткий прогноз ринку BTC та ETH на сьогодні у 2 реченнях."}
+                ],
+                max_tokens=60,
+            )
+            forecast = forecast_resp.choices[0].message.content.strip()
+            final_message += f"\n\n🧠 *Прогноз GPT:* {forecast}"
+        except Exception as e:
+            final_message += f"\n\n❌ Прогноз недоступний: {e}"
+
         send_report_via_telegram(final_message)
     except Exception as e:
         send_report_via_telegram(f"❌ Помилка аналізу: {e}")
