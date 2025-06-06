@@ -1,35 +1,39 @@
+import logging
 import os
-from dotenv import load_dotenv
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from aiogram.utils import executor
+from aiogram import Bot, Dispatcher, types, executor
+from daily_analysis import generate_zarobyty_report
+from binance_api import place_market_order
 
-from telegram_bot import bot, dp, ADMIN_CHAT_ID  # registers handlers
-from daily_analysis import daily_analysis_task, send_zarobyty_forecast
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+bot = Bot(token=TELEGRAM_TOKEN)
+dp = Dispatcher(bot)
 
-load_dotenv(dotenv_path=os.path.expanduser("~/.env"))
+logging.basicConfig(level=logging.INFO)
 
-if os.getenv("TELEGRAM_TOKEN", "PLACEHOLDER") == "PLACEHOLDER":
-    print("⚠️ Warning: .env not loaded. This is expected in Codex.")
-
-
-async def on_startup(dp):
-    scheduler = AsyncIOScheduler(timezone="Europe/Kiev")
-    scheduler.add_job(
-        daily_analysis_task,
-        "cron",
-        hour=8,
-        minute=55,
-        args=(bot, ADMIN_CHAT_ID),
+@dp.message_handler(commands=['start'])
+async def start_cmd(message: types.Message):
+    await message.reply(
+        "\U0001F44B Вітаю! Я GPT-бот для криптотрейдингу. Використовуйте команду /zarobyty для щоденного звіту."
     )
-    scheduler.add_job(
-        send_zarobyty_forecast,
-        "cron",
-        hour=9,
-        minute=0,
-        args=(bot, ADMIN_CHAT_ID),
-    )
-    scheduler.start()
 
+@dp.message_handler(commands=['zarobyty'])
+async def zarobyty_cmd(message: types.Message):
+    report = generate_zarobyty_report()
+    await message.reply(report, parse_mode='Markdown')
 
-if __name__ == "__main__":
-    executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
+@dp.callback_query_handler(lambda c: c.data.startswith('confirmbuy_'))
+async def confirm_buy(callback_query: types.CallbackQuery):
+    token = callback_query.data.replace('confirmbuy_', '')
+    result = place_market_order(symbol=token, side="BUY", quantity=5)
+    await bot.answer_callback_query(callback_query.id, text=f"Купівля {token} підтверджена.")
+    await bot.send_message(callback_query.from_user.id, f"\U0001F7E2 Куплено {token}: {result}")
+
+@dp.callback_query_handler(lambda c: c.data.startswith('confirmsell_'))
+async def confirm_sell(callback_query: types.CallbackQuery):
+    token = callback_query.data.replace('confirmsell_', '')
+    result = place_market_order(symbol=token, side="SELL", quantity=5)
+    await bot.answer_callback_query(callback_query.id, text=f"Продаж {token} підтверджено.")
+    await bot.send_message(callback_query.from_user.id, f"\U0001F534 Продано {token}: {result}")
+
+if __name__ == '__main__':
+    executor.start_polling(dp, skip_updates=True)
