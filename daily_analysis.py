@@ -45,6 +45,12 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
 
     for token in portfolio_tokens:
         amount = get_token_balance(token)
+        if token == "USDT":
+            # \u0414\u043e\u0434\u0430\u0454\u043c\u043e \u0442\u0456\u043b\u044c\u043a\u0438 \u0434\u043e \u0431\u0430\u043b\u0430\u043d\u0441\u0443, \u043d\u0435 \u043f\u0435\u0440\u0435\u0432\u0456\u0440\u044f\u0454\u043c\u043e \u0437\u043c\u0456\u043d\u0438 \u0446\u0456\u043d\u0438
+            uah_value = round(amount * UAH_RATE, 2)
+            total_uah += uah_value
+            balances.append(f"{token}: {amount:.2f} \u2248 ~{uah_value:,.2f}\u20b4")
+            continue
         if amount == 0:
             continue
 
