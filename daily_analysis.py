@@ -74,16 +74,20 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
                 )
             )
         elif percent_change < -1.0:
+            invest_amount = 5.0  # USDT
+            target_price = round(price * 1.02, 4)
+            stop_price = round(price * 0.98, 4)
+
             buy_recommendations.append(
-                f"\U0001f7e2 {token} ({percent_change}%)"
+                f"\U0001f7e2 {token}: \u0456\u043d\u0432\u0435\u0441\u0442\u0443\u0432\u0430\u0442\u0438 {invest_amount:.2f} USDT (\u0446\u0456\u043b\u044c: {target_price}, \u0441\u0442\u043e\u043f: {stop_price})"
             )
+
             buttons.append(
                 InlineKeyboardButton(
                     text=f"\U0001F7E2 \u041A\u0443\u043F\u0438\u0442\u0438 {token}",
                     callback_data=f"confirmbuy_{token}"
                 )
             )
-            expected_profit += round(amount * price * 0.02, 2)
 
     keyboard.add(*buttons)
     gpt_summary = call_gpt_summary(balances, sell_recommendations, buy_recommendations)
