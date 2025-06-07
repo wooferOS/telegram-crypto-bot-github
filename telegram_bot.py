@@ -15,12 +15,10 @@ from stats import generate_stats_report
 from binance_api import place_market_order, get_price_history_24h
 from alerts import check_daily_alerts
 
-
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
 
 bot = Bot(token=TELEGRAM_TOKEN)
-
 scheduler = AsyncIOScheduler(timezone="UTC")
 
 
@@ -83,26 +81,27 @@ def register_handlers(dp: Dispatcher) -> None:
         token = message.get_args().split()[0].upper() if message.get_args() else "BTC"
         prices = get_price_history_24h(token)
         if not prices:
-            await message.reply(f"\u274C \u041d\u0435 \u043e\u0442\u0440\u0438\u043c\u0430\u043d\u043e \u0434\u0430\u043d\u0456 \u0434\u043b\u044f {token}.")
+            await message.reply(f"❌ Не отримано дані для {token}.")
             return
         formatted = ", ".join(f"{p:.4f}" for p in prices)
-        await message.reply(f"\U0001F4C8 \u0426\u0456\u043d\u0438 {token} \u0437\u0430 24\u0433:\n{formatted}")
+        await message.reply(f"📈 Ціни {token} за 24г:\n{formatted}")
 
     async def alerts_on_cmd(message: types.Message) -> None:
         await message.reply("Щоденні сповіщення увімкнено.")
 
+    # Message handlers
     dp.register_message_handler(start_cmd, commands=["start"])
     dp.register_message_handler(zarobyty_cmd, Command("zarobyty"))
-    dp.register_callback_query_handler(
-        confirm_buy, lambda c: c.data and c.data.startswith("confirmbuy_")
-    )
-    dp.register_callback_query_handler(
-        confirm_sell, lambda c: c.data and c.data.startswith("confirmsell_")
-    )
     dp.register_message_handler(history_cmd, commands=["history"])
     dp.register_message_handler(stats_cmd, commands=["stats"])
     dp.register_message_handler(statsday_cmd, commands=["statsday"])
     dp.register_message_handler(price24_cmd, commands=["price24"])
     dp.register_message_handler(alerts_on_cmd, commands=["alerts_on"])
 
-
+    # Inline button handlers
+    dp.register_callback_query_handler(
+        confirm_buy, lambda c: c.data and c.data.startswith("confirmbuy_")
+    )
+    dp.register_callback_query_handler(
+        confirm_sell, lambda c: c.data and c.data.startswith("confirmsell_")
+    )
