@@ -14,6 +14,7 @@ from binance_api import (
     get_usdt_balance,
     get_token_balance,
     get_symbol_price,
+    get_all_tokens_with_balance,
 )
 
 
@@ -24,22 +25,7 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
     """Return formatted Telegram report with market analysis and buttons."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     # Отримуємо всі токени з балансу
-    portfolio_tokens = [
-        "USDT",
-        "ADA",
-        "DOGE",
-        "PEPE",
-        "1000SATS",
-        "NOT",
-        "TRX",
-        "GFT",
-        "AMB",
-        "XRP",
-        "BTC",
-        "ETH",
-        "SOL",
-        "HBAR",
-    ]
+    portfolio_tokens = get_all_tokens_with_balance()
     balances = []
     total_uah = 0.0
 
