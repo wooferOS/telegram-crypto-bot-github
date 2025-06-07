@@ -18,6 +18,7 @@ from binance_api import (
     get_account_info,
     client,
     get_real_pnl_data,
+    get_price_history_24h,
 )
 
 
@@ -67,6 +68,36 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
                     callback_data=f"confirmsell_{token}"
                 )
             )
+
+    for token, data in pnl_data.items():
+        if token == "USDT":
+            continue
+
+        history = get_price_history_24h(token)
+        if not history or len(history) < 2:
+            continue
+
+        max_price = max(history)
+        current_price = data["current_price"]
+
+        drop_percent = round((max_price - current_price) / max_price * 100, 2)
+        if drop_percent >= 3.0:
+            invest_amount = 5.0  # USDT
+            target_price = round(current_price * 1.02, 6)
+            stop_price = round(current_price * 0.98, 6)
+
+            buy_recommendations.append(
+                f"\U0001F7E2 {token}: \u0456\u043d\u0432\u0435\u0441\u0442\u0443\u0432\u0430\u0442\u0438 {invest_amount:.2f} USDT (\u0446\u0456\u043b\u044c: {target_price}, \u0441\u0442\u043e\u043f: {stop_price})"
+            )
+
+            buttons.append(
+                InlineKeyboardButton(
+                    text=f"\U0001F7E2 \u041A\u0443\u043F\u0438\u0442\u0438 {token}",
+                    callback_data=f"confirmbuy_{token}"
+                )
+            )
+
+            expected_profit += round(invest_amount * 0.02, 2)
 
     keyboard.add(*buttons)
     gpt_summary = call_gpt_summary(balances, sell_recommendations, buy_recommendations)
