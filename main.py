@@ -1,10 +1,7 @@
 import logging
 from aiogram import Dispatcher
 from aiogram.utils import executor
-from telegram_bot import bot, setup_scheduler, register_handlers
-
-dp = Dispatcher(bot)
-
+from telegram_bot import dp, bot, setup_scheduler, register_handlers
 
 logging.basicConfig(level=logging.INFO)
 

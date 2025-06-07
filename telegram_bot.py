@@ -20,6 +20,7 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
 
 bot = Bot(token=TELEGRAM_TOKEN)
+dp = Dispatcher(bot)
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 
