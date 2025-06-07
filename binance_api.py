@@ -16,7 +16,6 @@ import decimal
 from typing import Dict, List, Optional
 
 import requests
-from dotenv import load_dotenv
 from binance.client import Client
 from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET
 from binance.exceptions import BinanceAPIException
@@ -24,9 +23,6 @@ from binance.exceptions import BinanceAPIException
 
 logger = logging.getLogger(__name__)
 TELEGRAM_LOG_PREFIX = "\ud83d\udce1 [BINANCE]"
-
-# Load environment variables from ~/.env if present
-load_dotenv(os.path.expanduser("~/.env"))
 
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
