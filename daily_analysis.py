@@ -17,6 +17,7 @@ from binance_api import (
     get_all_tokens_with_balance,
     get_account_info,
     client,
+    get_real_pnl_data,
 )
 
 
@@ -54,40 +55,16 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
     buttons = []
     keyboard = InlineKeyboardMarkup(row_width=2)
 
-    for token in tokens:
-        amount = get_token_balance(token)
-        if token == "USDT":
-            continue
-        price = get_symbol_price(token)
-        uah_value = round(amount * price * UAH_RATE, 2)
-        # \u041f\u0441\u0435\u0432\u0434\u043e-\u0456\u0441\u0442\u043e\u0440\u0438\u0447\u043d\u0430 \u0446\u0456\u043d\u0430 \u0434\u043b\u044f \u0434\u0435\u043c\u043e\u043d\u0441\u0442\u0440\u0430\u0446\u0456\u0457
-        purchase_price = price * 0.98  # \u2b06\ufe0f \u0437\u0430\u043c\u0456\u043d\u0438\u0442\u0438 \u043d\u0430 \u0440\u0435\u0430\u043b\u044c\u043d\u0443 \u0456\u0441\u0442\u043e\u0440\u0438\u0447\u043d\u0443, \u043a\u043e\u043b\u0438 \u0431\u0443\u0434\u0435 \u0433\u043e\u0442\u043e\u0432\u0430
-        if purchase_price == 0:
-            continue
-
-        percent_change = round((price - purchase_price) / purchase_price * 100, 2)
-
-        if percent_change > 1.0:
-            sell_recommendations.append(f"\U0001f534 {token}: {amount:.2f} (\u2191 {percent_change}%)")
+    pnl_data = get_real_pnl_data()
+    for token, data in pnl_data.items():
+        if data["pnl_percent"] > 1.0:
+            sell_recommendations.append(
+                f"\U0001F534 {token}: {data['amount']:.2f} (\u2191 {data['pnl_percent']:.2f}%)"
+            )
             buttons.append(
                 InlineKeyboardButton(
                     text=f"\U0001F534 \u041F\u0440\u043E\u0434\u0430\u0442\u0438 {token}",
                     callback_data=f"confirmsell_{token}"
-                )
-            )
-        elif percent_change < -1.0:
-            invest_amount = 5.0  # USDT
-            target_price = round(price * 1.02, 4)
-            stop_price = round(price * 0.98, 4)
-
-            buy_recommendations.append(
-                f"\U0001f7e2 {token}: \u0456\u043d\u0432\u0435\u0441\u0442\u0443\u0432\u0430\u0442\u0438 {invest_amount:.2f} USDT (\u0446\u0456\u043b\u044c: {target_price}, \u0441\u0442\u043e\u043f: {stop_price})"
-            )
-
-            buttons.append(
-                InlineKeyboardButton(
-                    text=f"\U0001F7E2 \u041A\u0443\u043F\u0438\u0442\u0438 {token}",
-                    callback_data=f"confirmbuy_{token}"
                 )
             )
 
@@ -121,46 +98,6 @@ def call_gpt_summary(balance, sells, buys):
     """Return short GPT investor summary."""
     return generate_investor_summary(balance, sells, buys)
 
-
-def get_real_pnl_data() -> Dict[str, Dict[str, float]]:
-    """Return real-time PnL data from Binance (current vs avg price)."""
-    account = get_account_info()
-    result: Dict[str, Dict[str, float]] = {}
-    if not account:
-        return result
-
-    for pos in account.get("balances", []):
-        asset = pos["asset"]
-        amount = float(pos.get("free", 0))
-        if amount == 0 or asset == "USDT":
-            continue
-
-        try:
-            trades = client.get_my_trades(symbol=f"{asset}USDT", limit=5)
-            if not trades:
-                continue
-
-            total_cost = sum(float(t["price"]) * float(t["qty"]) for t in trades)
-            total_qty = sum(float(t["qty"]) for t in trades)
-
-            if total_qty == 0:
-                continue
-
-            avg_price = total_cost / total_qty
-            current_price = get_symbol_price(asset)
-            pnl_percent = round((current_price - avg_price) / avg_price * 100, 2)
-
-            result[asset] = {
-                "amount": amount,
-                "avg_price": round(avg_price, 6),
-                "current_price": current_price,
-                "pnl_percent": pnl_percent,
-            }
-
-        except Exception as exc:  # pragma: no cover - network errors
-            print(f"[PNL] \u041f\u0440\u043e\u043f\u0443\u0449\u0435\u043d\u043e {asset}: {exc}")
-
-    return result
 
 
 def generate_history_report() -> str:
