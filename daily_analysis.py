@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from pytz import timezone
 from typing import Tuple, Dict
 
 from aiogram import Bot
@@ -28,8 +29,8 @@ UAH_RATE = 39.2  # 1 USDT ~ 39.2 грн
 
 def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
     """Return formatted Telegram report with market analysis and buttons."""
-    from datetime import datetime
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    kyiv_time = datetime.now(timezone("Europe/Kyiv"))
+    now = kyiv_time.strftime("%Y-%m-%d %H:%M:%S")
     # Отримуємо всі токени з балансу
     portfolio_tokens = get_all_tokens_with_balance()
     balances = []
