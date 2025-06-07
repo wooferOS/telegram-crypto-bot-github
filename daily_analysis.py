@@ -28,7 +28,8 @@ UAH_RATE = 39.2  # 1 USDT ~ 39.2 грн
 
 def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
     """Return formatted Telegram report with market analysis and buttons."""
-    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    from datetime import datetime
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     # Отримуємо всі токени з балансу
     portfolio_tokens = get_all_tokens_with_balance()
     balances = []
@@ -114,7 +115,7 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
     record_forecast(buy_recommendations + sell_recommendations)
 
     report = (
-        f"\ud83d\udcca \u0417\u0432\u0456\u0442 GPT-\u0430\u043d\u0430\u043b\u0456\u0442\u0438\u043a\u0438 ({now})\n\n"
+        f"📊 Звіт GPT-аналітики ({now})\n\n"
         "💰 *Баланс:*\n"
         + "\n".join(balances)
         + f"\n\n*Загалом:* ~{total_uah:,.2f}₴\n\n"
