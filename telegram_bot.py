@@ -106,3 +106,20 @@ def setup_scheduler() -> None:
     )
     scheduler.start()
 
+
+def register_handlers(dp: Dispatcher) -> None:
+    """Explicitly register all bot handlers."""
+    dp.register_message_handler(start_cmd, commands=["start"])
+    dp.register_message_handler(zarobyty_cmd, Command("zarobyty"))
+    dp.register_callback_query_handler(
+        confirm_buy, lambda c: c.data and c.data.startswith("confirmbuy_")
+    )
+    dp.register_callback_query_handler(
+        confirm_sell, lambda c: c.data and c.data.startswith("confirmsell_")
+    )
+    dp.register_message_handler(history_cmd, commands=["history"])
+    dp.register_message_handler(stats_cmd, commands=["stats"])
+    dp.register_message_handler(statsday_cmd, commands=["statsday"])
+    dp.register_message_handler(price24_cmd, commands=["price24"])
+    dp.register_message_handler(alerts_on_cmd, commands=["alerts_on"])
+
