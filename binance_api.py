@@ -388,6 +388,47 @@ def get_recent_trades(symbol: str = "BTCUSDT", limit: int = 5) -> List[Dict[str,
         return []
 
 
+def get_real_pnl_data() -> Dict[str, Dict[str, float]]:
+    """Return real-time PnL data from Binance (current vs avg price)."""
+    account = get_account_info()
+    result: Dict[str, Dict[str, float]] = {}
+    if not account:
+        return result
+
+    for pos in account.get("balances", []):
+        asset = pos["asset"]
+        amount = float(pos.get("free", 0))
+        if amount == 0 or asset == "USDT":
+            continue
+
+        try:
+            trades = client.get_my_trades(symbol=f"{asset}USDT", limit=5)
+            if not trades:
+                continue
+
+            total_cost = sum(float(t["price"]) * float(t["qty"]) for t in trades)
+            total_qty = sum(float(t["qty"]) for t in trades)
+
+            if total_qty == 0:
+                continue
+
+            avg_price = total_cost / total_qty
+            current_price = get_symbol_price(asset)
+            pnl_percent = round((current_price - avg_price) / avg_price * 100, 2)
+
+            result[asset] = {
+                "amount": amount,
+                "avg_price": round(avg_price, 6),
+                "current_price": current_price,
+                "pnl_percent": pnl_percent,
+            }
+
+        except Exception as exc:  # pragma: no cover - network errors
+            logger.warning("%s PnL skip %s: %s", TELEGRAM_LOG_PREFIX, asset, exc)
+
+    return result
+
+
 def get_portfolio_stats() -> Dict[str, float]:
     """Return total portfolio value both in USDT and UAH."""
 
