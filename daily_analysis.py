@@ -19,6 +19,7 @@ from binance_api import (
     client,
     get_real_pnl_data,
     get_price_history_24h,
+    get_usdt_to_uah_rate,
 )
 
 
@@ -97,12 +98,12 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
                 )
             )
 
-            expected_profit += round(invest_amount * 0.02, 2)
+            expected_profit += invest_amount * 0.02
 
     keyboard.add(*buttons)
     gpt_summary = call_gpt_summary(balances, sell_recommendations, buy_recommendations)
 
-    uah_profit = round(expected_profit * UAH_RATE, 2)
+    uah_profit = round(expected_profit * get_usdt_to_uah_rate(), 2)
 
     # record tokens for alert if user doesn't act
     record_forecast(buy_recommendations + sell_recommendations)
@@ -117,8 +118,10 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
         + "\n\n"
         "\ud83d\udcc8 \u0420\u0435\u043a\u043e\u043c\u0435\u043d\u0434\u0443\u0454\u0442\u044c\u0441\u044f \u043a\u0443\u043f\u0438\u0442\u0438:\n"
         + "\n".join(buy_recommendations or ["\u041d\u0456\u0447\u043e\u0433\u043e"])
-        + "\n\n"
-        f"\ud83d\udcca \u041e\u0447\u0456\u043a\u0443\u0432\u0430\u043d\u0438\u0439 \u043f\u0440\u0438\u0431\u0443\u0442\u043e\u043a: ~{expected_profit:.2f} USDT \u2248 ~{uah_profit:.2f}\u20b4\n\n"
+    )
+
+    report += (
+        f"\n\n\ud83d\udcca \u041e\u0447\u0456\u043a\u0443\u0432\u0430\u043d\u0438\u0439 \u043f\u0440\u0438\u0431\u0443\u0442\u043e\u043a: ~{expected_profit:.2f} USDT \u2248 ~{uah_profit:.2f}\u20b4\n\n"
         f"\ud83e\uddd0 \u041f\u0440\u043e\u0433\u043d\u043e\u0437 GPT:\n{gpt_summary}\n\n\ud83d\udcbe \u0423\u0441\u0456 \u0434\u0456\u0457 \u0437\u0431\u0435\u0440\u0435\u0436\u0435\u043d\u043e."
     )
 
