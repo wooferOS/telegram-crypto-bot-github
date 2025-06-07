@@ -31,6 +31,7 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
     sell_recommendations = []
     buy_recommendations = []
     expected_profit = 0.0
+    buttons = []
     keyboard = InlineKeyboardMarkup(row_width=2)
 
     for token in tokens:
@@ -45,22 +46,25 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
             sell_recommendations.append(
                 f"\U0001f534 {token} ({percent_change}%)"
             )
-            keyboard.insert(
+            buttons.append(
                 InlineKeyboardButton(
-                    f"Sell {token}", callback_data=f"confirmsell_{token}"
+                    text=f"\U0001F534 \u041F\u0440\u043E\u0434\u0430\u0442\u0438 {token}",
+                    callback_data=f"confirmsell_{token}"
                 )
             )
         elif percent_change > 1.0:
             buy_recommendations.append(
                 f"\U0001f7e2 {token} ({percent_change}%)"
             )
-            keyboard.insert(
+            buttons.append(
                 InlineKeyboardButton(
-                    f"Buy {token}", callback_data=f"confirmbuy_{token}"
+                    text=f"\U0001F7E2 \u041A\u0443\u043F\u0438\u0442\u0438 {token}",
+                    callback_data=f"confirmbuy_{token}"
                 )
             )
             expected_profit += round(amount * price * 0.02, 2)
 
+    keyboard.add(*buttons)
     gpt_summary = call_gpt_summary(balances, sell_recommendations, buy_recommendations)
 
     # record tokens for alert if user doesn't act
