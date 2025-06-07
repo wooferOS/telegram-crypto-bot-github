@@ -5,3 +5,6 @@ crypto-bot.env
 systemd/crypto-bot.env
 *.pyc
 __pycache__/
+env
+*.env
+/etc/crypto-bot.env
