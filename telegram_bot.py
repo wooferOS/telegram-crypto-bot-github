@@ -32,10 +32,13 @@ async def start_cmd(message: types.Message):
         "\U0001F44B Вітаю! Я GPT-бот для криптотрейдингу. Використовуйте команду /zarobyty для щоденного звіту."
     )
 
+def clean_surrogates(text):
+    return text.encode('utf-16', 'surrogatepass').decode('utf-16', 'ignore')
 
 @dp.message_handler(Command("zarobyty"))
 async def zarobyty_cmd(message: types.Message):
     report, keyboard = generate_zarobyty_report()
+    report = clean_surrogates(report)
     await message.reply(report, parse_mode="Markdown", reply_markup=keyboard)
 
 
