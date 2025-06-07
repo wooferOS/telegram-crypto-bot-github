@@ -2,7 +2,7 @@
 
 import os
 from aiogram import Bot, Dispatcher, types
-from aiogram.dispatcher.filters import Command
+from aiogram.dispatcher.filters import Command, Text
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from daily_analysis import (
@@ -120,5 +120,9 @@ def register_handlers(dp: Dispatcher) -> None:
     dp.register_message_handler(menu_balance_cmd, commands=["Баланс"])
     dp.register_message_handler(menu_report_cmd, commands=["Звіт"])
     dp.register_message_handler(menu_history_cmd, commands=["Історія"])
+
+    dp.register_message_handler(zarobyty_cmd, Text(equals="\U0001F4CA Звіт"))
+    dp.register_message_handler(stats_cmd, Text(equals="\U0001F4B0 Баланс"))
+    dp.register_message_handler(history_cmd, Text(equals="\U0001F553 Історія"))
 
 
