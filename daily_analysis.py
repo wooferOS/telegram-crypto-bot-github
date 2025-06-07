@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Tuple
+from typing import Tuple, Dict
 
 from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -15,6 +15,8 @@ from binance_api import (
     get_token_balance,
     get_symbol_price,
     get_all_tokens_with_balance,
+    get_account_info,
+    client,
 )
 
 
@@ -118,6 +120,47 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
 def call_gpt_summary(balance, sells, buys):
     """Return short GPT investor summary."""
     return generate_investor_summary(balance, sells, buys)
+
+
+def get_real_pnl_data() -> Dict[str, Dict[str, float]]:
+    """Return real-time PnL data from Binance (current vs avg price)."""
+    account = get_account_info()
+    result: Dict[str, Dict[str, float]] = {}
+    if not account:
+        return result
+
+    for pos in account.get("balances", []):
+        asset = pos["asset"]
+        amount = float(pos.get("free", 0))
+        if amount == 0 or asset == "USDT":
+            continue
+
+        try:
+            trades = client.get_my_trades(symbol=f"{asset}USDT", limit=5)
+            if not trades:
+                continue
+
+            total_cost = sum(float(t["price"]) * float(t["qty"]) for t in trades)
+            total_qty = sum(float(t["qty"]) for t in trades)
+
+            if total_qty == 0:
+                continue
+
+            avg_price = total_cost / total_qty
+            current_price = get_symbol_price(asset)
+            pnl_percent = round((current_price - avg_price) / avg_price * 100, 2)
+
+            result[asset] = {
+                "amount": amount,
+                "avg_price": round(avg_price, 6),
+                "current_price": current_price,
+                "pnl_percent": pnl_percent,
+            }
+
+        except Exception as exc:  # pragma: no cover - network errors
+            print(f"[PNL] \u041f\u0440\u043e\u043f\u0443\u0449\u0435\u043d\u043e {asset}: {exc}")
+
+    return result
 
 
 def generate_history_report() -> str:
