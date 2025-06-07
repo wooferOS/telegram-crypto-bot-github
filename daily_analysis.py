@@ -68,6 +68,8 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
 
     for token in tokens:
         amount = get_token_balance(token)
+        if token == "USDT":
+            continue
         price = get_symbol_price(token)
         uah_value = round(amount * price * UAH_RATE, 2)
         percent_change = round((price - price * 0.98) / price * 100, 2)
