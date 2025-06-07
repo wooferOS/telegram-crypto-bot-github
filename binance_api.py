@@ -410,6 +410,19 @@ def is_asset_supported(symbol: str, whitelist: Optional[List[str]] = None) -> bo
     return symbol.upper() in whitelist
 
 
+def get_all_tokens_with_balance(threshold: float = 0.00001) -> list:
+    """Return list of all tokens with non-zero balance"""
+    info = get_account_info()
+    tokens = []
+
+    for asset in info.get("balances", []):
+        free = float(asset.get("free", 0))
+        if free > threshold:
+            tokens.append(asset["asset"])
+
+    return tokens
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     logger.info("🔧 Binance API модуль запущено напряму.")
