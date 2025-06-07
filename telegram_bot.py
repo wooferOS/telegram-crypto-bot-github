@@ -105,4 +105,19 @@ def register_handlers(dp: Dispatcher) -> None:
     dp.register_message_handler(price24_cmd, commands=["price24"])
     dp.register_message_handler(alerts_on_cmd, commands=["alerts_on"])
 
+    async def menu_balance_cmd(message: types.Message) -> None:
+        await message.reply(generate_history_report(), parse_mode="Markdown")
+
+    async def menu_report_cmd(message: types.Message) -> None:
+        report, keyboard = generate_zarobyty_report()
+        report = clean_surrogates(report)
+        await message.reply(report, parse_mode="Markdown", reply_markup=keyboard)
+
+    async def menu_history_cmd(message: types.Message) -> None:
+        await message.reply(generate_stats_report(), parse_mode="Markdown")
+
+    dp.register_message_handler(menu_balance_cmd, commands=["Баланс"])
+    dp.register_message_handler(menu_report_cmd, commands=["Звіт"])
+    dp.register_message_handler(menu_history_cmd, commands=["Історія"])
+
 
