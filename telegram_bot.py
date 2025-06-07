@@ -26,7 +26,6 @@ dp = Dispatcher(bot)
 scheduler = AsyncIOScheduler(timezone="UTC")
 
 
-@dp.message_handler(commands=["start"])
 async def start_cmd(message: types.Message):
     await message.reply(
         "\U0001F44B Вітаю! Я GPT-бот для криптотрейдингу. Використовуйте команду /zarobyty для щоденного звіту."
@@ -35,14 +34,12 @@ async def start_cmd(message: types.Message):
 def clean_surrogates(text):
     return text.encode('utf-16', 'surrogatepass').decode('utf-16', 'ignore')
 
-@dp.message_handler(Command("zarobyty"))
 async def zarobyty_cmd(message: types.Message):
     report, keyboard = generate_zarobyty_report()
     report = clean_surrogates(report)
     await message.reply(report, parse_mode="Markdown", reply_markup=keyboard)
 
 
-@dp.callback_query_handler(lambda c: c.data and c.data.startswith("confirmbuy_"))
 async def confirm_buy(callback_query: types.CallbackQuery):
     token = callback_query.data.replace("confirmbuy_", "")
     result = place_market_order(symbol=token, side="BUY", quantity=5)
@@ -50,7 +47,6 @@ async def confirm_buy(callback_query: types.CallbackQuery):
     await callback_query.message.answer(f"\U0001F7E2 Куплено {token}: {result}")
 
 
-@dp.callback_query_handler(lambda c: c.data and c.data.startswith("confirmsell_"))
 async def confirm_sell(callback_query: types.CallbackQuery):
     token = callback_query.data.replace("confirmsell_", "")
     result = place_market_order(symbol=token, side="SELL", quantity=5)
@@ -58,22 +54,18 @@ async def confirm_sell(callback_query: types.CallbackQuery):
     await callback_query.message.answer(f"\U0001F534 Продано {token}: {result}")
 
 
-@dp.message_handler(commands=["history"])
 async def history_cmd(message: types.Message):
     await message.reply(generate_history_report(), parse_mode="Markdown")
 
 
-@dp.message_handler(commands=["stats"])
 async def stats_cmd(message: types.Message):
     await message.reply(generate_stats_report(), parse_mode="Markdown")
 
 
-@dp.message_handler(commands=["statsday"])
 async def statsday_cmd(message: types.Message):
     await message.reply(generate_daily_stats_report(), parse_mode="Markdown")
 
 
-@dp.message_handler(commands=["price24"])
 async def price24_cmd(message: types.Message):
     """Send last 24h hourly prices for a token."""
     token = message.get_args().split()[0].upper() if message.get_args() else "BTC"
@@ -85,7 +77,6 @@ async def price24_cmd(message: types.Message):
     await message.reply(f"\U0001F4C8 \u0426\u0456\u043D\u0438 {token} \u0437\u0430 24\u0433:\n{formatted}")
 
 
-@dp.message_handler(commands=["alerts_on"])
 async def alerts_on_cmd(message: types.Message):
     await message.reply("Щоденні сповіщення увімкнено.")
 
