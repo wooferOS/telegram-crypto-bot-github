@@ -53,13 +53,14 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
     tokens = portfolio_tokens
     sell_recommendations = []
     buy_recommendations = []
+    held_tokens = []
     expected_profit = 0.0
     buttons = []
     keyboard = InlineKeyboardMarkup(row_width=2)
 
     pnl_data = get_real_pnl_data()
     for token, data in pnl_data.items():
-        if data["pnl_percent"] > 1.0:
+        if data["pnl_percent"] > 1.0 and len(buy_recommendations) > 0:
             sell_recommendations.append(
                 f"\U0001F534 {token}: {data['amount']:.2f} (\u2191 {data['pnl_percent']:.2f}%)"
             )
@@ -68,6 +69,10 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
                     text=f"\U0001F534 \u041F\u0440\u043E\u0434\u0430\u0442\u0438 {token}",
                     callback_data=f"confirmsell_{token}"
                 )
+            )
+        else:
+            held_tokens.append(
+                f"\U0001F512 {token}: {data['amount']:.2f} (\u2191 {data['pnl_percent']:.2f}%) \u2014 \u0443\u0442\u0440\u0438\u043c\u0443\u0454\u043c\u043e, \u043e\u0447\u0456\u043a\u0443\u0454\u043c\u043e \u0440\u0456\u0441\u0442"
             )
 
     for token, data in pnl_data.items():
@@ -101,7 +106,7 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
             expected_profit += invest_amount * 0.02
 
     keyboard.add(*buttons)
-    gpt_summary = call_gpt_summary(balances, sell_recommendations, buy_recommendations)
+    gpt_summary = call_gpt_summary(balances, sell_recommendations, buy_recommendations + held_tokens)
 
     uah_profit = round(expected_profit * get_usdt_to_uah_rate(), 2)
 
