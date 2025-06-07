@@ -58,19 +58,22 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
             continue
         price = get_symbol_price(token)
         uah_value = round(amount * price * UAH_RATE, 2)
-        percent_change = round((price - price * 0.98) / price * 100, 2)
+        # \u041f\u0441\u0435\u0432\u0434\u043e-\u0456\u0441\u0442\u043e\u0440\u0438\u0447\u043d\u0430 \u0446\u0456\u043d\u0430 \u0434\u043b\u044f \u0434\u0435\u043c\u043e\u043d\u0441\u0442\u0440\u0430\u0446\u0456\u0457
+        purchase_price = price * 0.98  # \u2b06\ufe0f \u0437\u0430\u043c\u0456\u043d\u0438\u0442\u0438 \u043d\u0430 \u0440\u0435\u0430\u043b\u044c\u043d\u0443 \u0456\u0441\u0442\u043e\u0440\u0438\u0447\u043d\u0443, \u043a\u043e\u043b\u0438 \u0431\u0443\u0434\u0435 \u0433\u043e\u0442\u043e\u0432\u0430
+        if purchase_price == 0:
+            continue
 
-        if percent_change < -1.0:
-            sell_recommendations.append(
-                f"\U0001f534 {token} ({percent_change}%)"
-            )
+        percent_change = round((price - purchase_price) / purchase_price * 100, 2)
+
+        if percent_change > 1.0:
+            sell_recommendations.append(f"\U0001f534 {token}: {amount:.2f} (\u2191 {percent_change}%)")
             buttons.append(
                 InlineKeyboardButton(
                     text=f"\U0001F534 \u041F\u0440\u043E\u0434\u0430\u0442\u0438 {token}",
                     callback_data=f"confirmsell_{token}"
                 )
             )
-        elif percent_change > 1.0:
+        elif percent_change < -1.0:
             buy_recommendations.append(
                 f"\U0001f7e2 {token} ({percent_change}%)"
             )
