@@ -13,7 +13,7 @@ from binance_api import (
     get_recent_trades as get_my_trades,
     get_top_tokens,
 )
-from gpt import ask_gpt
+from gpt_utils import ask_gpt
 from utils import convert_to_uah, calculate_rr, calculate_indicators, get_sector, analyze_btc_correlation
 from keyboards import zarobyty_keyboard
 
