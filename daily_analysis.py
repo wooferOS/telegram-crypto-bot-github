@@ -11,6 +11,7 @@ from binance_api import (
     get_price_history,
     get_klines,
     get_my_trades,
+    get_top_tokens,
 )
 from gpt import ask_gpt
 from utils import convert_to_uah, calculate_rr, calculate_indicators, get_sector, analyze_btc_correlation
@@ -57,8 +58,12 @@ def generate_zarobyty_report():
 
     sell_recommendations = [t for t in token_data if t['pnl'] > 1.0]
 
+    symbols_from_balance = set(t['symbol'].upper() for t in token_data)
+    market_symbols = set(s.upper() for s in get_top_tokens(limit=50))
+    symbols_to_analyze = symbols_from_balance.union(market_symbols)
+
     buy_candidates = []
-    for symbol in ["GFT", "PEPE", "DOGE", "1000SATS", "NOT", "ADA", "TRX", "AMB"]:
+    for symbol in symbols_to_analyze:
         price = get_token_price(symbol)
         klines = get_klines(symbol)
         indicators = calculate_indicators(klines)
