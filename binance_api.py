@@ -438,16 +438,66 @@ def get_portfolio_stats() -> Dict[str, float]:
     return {"total_usdt": round(total_usdt, 4), "total_uah": total_uah}
 
 
+def get_all_spot_symbols() -> List[str]:
+    """Return list of all tradable spot symbols (USDT pairs)."""
+
+    url = f"{BINANCE_BASE_URL}/api/v3/exchangeInfo"
+    try:
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        info = resp.json()
+        return [
+            s["baseAsset"]
+            for s in info.get("symbols", [])
+            if s.get("quoteAsset") == "USDT" and s.get("status") == "TRADING"
+        ]
+    except Exception as exc:
+        logger.warning(
+            "%s Помилка при отриманні списку токенів: %s",
+            TELEGRAM_LOG_PREFIX,
+            exc,
+        )
+        return []
+
+
+def get_top_tokens(limit: int = 50) -> List[str]:
+    """Return top tokens by 24h volume."""
+
+    url = f"{BINANCE_BASE_URL}/api/v3/ticker/24hr"
+    try:
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+        filtered = [
+            item
+            for item in data
+            if str(item.get("symbol", "")).endswith("USDT")
+        ]
+        sorted_tokens = sorted(
+            filtered,
+            key=lambda x: float(x.get("quoteVolume", 0)),
+            reverse=True,
+        )
+        return [
+            item["symbol"].replace("USDT", "")
+            for item in sorted_tokens[:limit]
+        ]
+    except Exception as exc:
+        logger.warning(
+            "%s Помилка при отриманні топ токенів: %s",
+            TELEGRAM_LOG_PREFIX,
+            exc,
+        )
+        return []
+
+
 def is_asset_supported(symbol: str, whitelist: Optional[List[str]] = None) -> bool:
     """Check whether a symbol is supported by the bot."""
 
     if whitelist is None:
-        whitelist = [
-            "BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "DOGE", "AVAX", "DOT",
-            "TRX", "LINK", "MATIC", "LTC", "BCH", "ATOM", "NEAR", "FIL",
-            "ICP", "ETC", "HBAR", "VET", "RUNE", "INJ", "OP", "ARB", "SUI",
-            "STX", "TIA", "SEI", "1000PEPE",
-        ]
+        whitelist = get_all_spot_symbols()
+
+    whitelist = [s.upper() for s in whitelist]
     return symbol.upper() in whitelist
 
 
