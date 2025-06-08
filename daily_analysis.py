@@ -78,6 +78,14 @@ def generate_zarobyty_report():
             indicators.get("EMA_5", 0) > indicators.get("EMA_8", 0) > indicators.get("EMA_13", 0)
         )
 
+        # ✅ Smart Buy Filter:
+        # - RSI < 30 (перепроданість)
+        # - MACD == 'bullish' (сигнал на розворот)
+        # - RR > 2.0 (співвідношення прибуток/ризик)
+        # - Volume > average (підтвердження сили тренду)
+        # - EMA 5 > EMA 8 > EMA 13 (ап-тренд)
+        # - Не біля resistance (опір)
+        # - BTC correlation < 0.5 (незалежність)
         if (
             indicators["RSI"] < 30
             and indicators["MACD"] == "bullish"
