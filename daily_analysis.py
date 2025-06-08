@@ -7,7 +7,7 @@ import statistics
 
 from binance_api import (
     get_binance_balances,
-    get_token_price,
+    get_symbol_price,
     get_price_history,
     get_klines,
     get_my_trades,
@@ -29,7 +29,7 @@ def generate_zarobyty_report():
         if symbol == "USDT" or amount == 0:
             continue
 
-        price = get_token_price(symbol)
+        price = get_symbol_price(symbol)
         uah_value = convert_to_uah(price * amount)
         price_history = get_price_history(symbol)
         klines = get_klines(symbol)
@@ -64,7 +64,7 @@ def generate_zarobyty_report():
 
     buy_candidates = []
     for symbol in symbols_to_analyze:
-        price = get_token_price(symbol)
+        price = get_symbol_price(symbol)
         klines = get_klines(symbol)
         indicators = calculate_indicators(klines)
         rr = calculate_rr(klines)
