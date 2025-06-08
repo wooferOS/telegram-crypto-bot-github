@@ -1,196 +1,116 @@
-import os
-from datetime import datetime
-from pytz import timezone
-from typing import Tuple, Dict, List, Optional
+# ✅ Еталонна логіка GPT-звіту /zarobyty (v2.0) — повна реалізація
+# Мета: максимізувати прибуток за добу, діючи в рамках поточного балансу Binance
 
-from aiogram import Bot
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-
-from gpt_utils import generate_investor_summary
-from history import generate_history_report as history_report
-from stats import generate_stats_report as stats_report
-from alerts import record_forecast
+import datetime
+import pytz
 
 from binance_api import (
-    get_usdt_balance,
-    get_token_balance,
-    get_symbol_price,
-    get_all_tokens_with_balance,
-    get_account_info,
-    client,
-    get_real_pnl_data,
-    get_price_history_24h,
-    get_usdt_to_uah_rate,
+    get_binance_balances,
+    get_token_price,
+    get_price_history,
+    get_klines,
+    get_my_trades,
 )
+from gpt import ask_gpt
+from utils import convert_to_uah, calculate_rr, calculate_indicators, get_sector, analyze_btc_correlation
+from keyboards import zarobyty_keyboard
 
 
-UAH_RATE = 39.2  # 1 USDT ~ 39.2 грн
+def generate_zarobyty_report():
+    balances = get_binance_balances()
+    usdt_balance = balances.get("USDT", 0)
 
+    token_data = []
+    now = datetime.datetime.now(pytz.timezone("Europe/Kyiv"))
 
-def calculate_rsi(prices: List[float], period: int = 14) -> Optional[float]:
-    """Return RSI value for a list of prices."""
-    if len(prices) <= period:
-        return None
-    gains = [max(0, prices[i] - prices[i - 1]) for i in range(1, period + 1)]
-    losses = [max(0, prices[i - 1] - prices[i]) for i in range(1, period + 1)]
-    average_gain = sum(gains) / period
-    average_loss = sum(losses) / period
-    if average_loss == 0:
-        return 100
-    rs = average_gain / average_loss
-    return 100 - (100 / (1 + rs))
-
-
-def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
-    """Return formatted Telegram report with market analysis and buttons."""
-    kyiv_time = datetime.now(timezone("Europe/Kyiv"))
-    now = kyiv_time.strftime("%Y-%m-%d %H:%M:%S")
-    # Отримуємо всі токени з балансу
-    portfolio_tokens = get_all_tokens_with_balance()
-    balances = []
-    total_uah = 0.0
-
-    for token in portfolio_tokens:
-        amount = get_token_balance(token)
-        if token == "USDT":
-            # \u0414\u043e\u0434\u0430\u0454\u043c\u043e \u0442\u0456\u043b\u044c\u043a\u0438 \u0434\u043e \u0431\u0430\u043b\u0430\u043d\u0441\u0443, \u043d\u0435 \u043f\u0435\u0440\u0435\u0432\u0456\u0440\u044f\u0454\u043c\u043e \u0437\u043c\u0456\u043d\u0438 \u0446\u0456\u043d\u0438
-            uah_value = round(amount * UAH_RATE, 2)
-            total_uah += uah_value
-            balances.append(f"{token}: {amount:.2f} \u2248 ~{uah_value:,.2f}\u20b4")
-            continue
-        if amount == 0:
+    for symbol, amount in balances.items():
+        if symbol == "USDT" or amount == 0:
             continue
 
-        price = get_symbol_price(token)
-        uah_value = round(amount * price * UAH_RATE, 2)
-        total_uah += uah_value
+        price = get_token_price(symbol)
+        uah_value = convert_to_uah(price * amount)
+        price_history = get_price_history(symbol)
+        klines = get_klines(symbol)
+        trades = get_my_trades(symbol)
 
-        balances.append(f"{token}: {amount:.2f} ≈ ~{uah_value:,.2f}₴")
-    tokens = portfolio_tokens
-    sell_recommendations = []
-    buy_recommendations = []
-    held_tokens = []
-    expected_profit = 0.0
-    buttons = []
-    keyboard = InlineKeyboardMarkup(row_width=2)
+        indicators = calculate_indicators(klines)
+        average_buy_price = sum([t['price'] * t['qty'] for t in trades]) / sum([t['qty'] for t in trades]) if trades else price
+        pnl_percent = ((price - average_buy_price) / average_buy_price) * 100
+        rr = calculate_rr(klines)
+        volume_24h = price_history.get("quoteVolume", 0)
+        sector = get_sector(symbol)
+        btc_corr = analyze_btc_correlation(symbol)
 
-    pnl_data = get_real_pnl_data()
-    for token, data in pnl_data.items():
-        if data["pnl_percent"] > 1.0 and len(buy_recommendations) > 0:
-            sell_recommendations.append(
-                f"\U0001F534 {token}: {data['amount']:.2f} (\u2191 {data['pnl_percent']:.2f}%)"
-            )
-            buttons.append(
-                InlineKeyboardButton(
-                    text=f"\U0001F534 \u041F\u0440\u043E\u0434\u0430\u0442\u0438 {token}",
-                    callback_data=f"confirmsell_{token}"
-                )
-            )
-        else:
-            held_tokens.append(
-                f"\U0001F512 {token}: {data['amount']:.2f} (\u2191 {data['pnl_percent']:.2f}%) \u2014 \u0443\u0442\u0440\u0438\u043c\u0443\u0454\u043c\u043e, \u043e\u0447\u0456\u043a\u0443\u0454\u043c\u043e \u0440\u0456\u0441\u0442"
-            )
+        token_data.append({
+            "symbol": symbol,
+            "amount": amount,
+            "uah_value": round(uah_value, 2),
+            "price": price,
+            "pnl": round(pnl_percent, 2),
+            "rr": rr,
+            "indicators": indicators,
+            "volume": volume_24h,
+            "sector": sector,
+            "btc_corr": btc_corr
+        })
 
-    for token, data in pnl_data.items():
-        if token == "USDT":
-            continue
+    sell_recommendations = [t for t in token_data if t['pnl'] > 1.0]
 
-        history = get_price_history_24h(token)
-        if not history or len(history) < 2:
-            continue
+    buy_candidates = []
+    for symbol in ["GFT", "PEPE", "DOGE", "1000SATS", "NOT", "ADA", "TRX", "AMB"]:
+        price = get_token_price(symbol)
+        klines = get_klines(symbol)
+        indicators = calculate_indicators(klines)
+        rr = calculate_rr(klines)
+        sector = get_sector(symbol)
+        volume = get_price_history(symbol).get("quoteVolume", 0)
+        btc_corr = analyze_btc_correlation(symbol)
 
-        max_price = max(history)
-        current_price = data["current_price"]
+        if indicators["RSI"] < 30 and indicators["MACD"] == "bullish" and rr > 2 and volume > 0 and btc_corr < 0.5:
+            stop_price = round(price * 0.97, 4)
+            buy_candidates.append({
+                "symbol": symbol,
+                "price": price,
+                "stop": stop_price,
+                "rr": rr,
+                "volume": volume,
+                "sector": sector,
+                "rsi": indicators["RSI"],
+                "macd": indicators["MACD"]
+            })
 
-        drop_percent = round((max_price - current_price) / max_price * 100, 2)
-        rsi = calculate_rsi(history[-15:])
-        rsi_note = ""
-        if rsi is not None:
-            if rsi < 30:
-                rsi_note = f" RSI: {rsi:.1f} \U0001F7E2 (\u043F\u0435\u0440\u0435\u043F\u0440\u043E\u0434\u0430\u043D\u0438\u0439)"
-            elif rsi > 70:
-                rsi_note = f" RSI: {rsi:.1f} \U0001F534 (\u043F\u0435\u0440\u0435\u043A\u0443\u043F\u043B\u0435\u043D\u0438\u0439)"
-            else:
-                rsi_note = f" RSI: {rsi:.1f}"
+    report_lines = []
+    report_lines.append(f"🕒 Звіт сформовано: {now.strftime('%Y-%m-%d %H:%M:%S')} (Kyiv)")
+    report_lines.append("\n💰 Баланс:")
+    for t in token_data:
+        report_lines.append(f"{t['symbol']}: {t['amount']} ≈ ~{t['uah_value']}₴")
 
-        if drop_percent >= 3.0 and (rsi is None or rsi < 70):
-            invest_amount = 5.0  # USDT
-            target_price = round(current_price * 1.02, 6)
-            stop_price = round(current_price * 0.98, 6)
+    total_uah = round(sum([t['uah_value'] for t in token_data]) + convert_to_uah(usdt_balance), 2)
+    report_lines.append(f"\nЗагальний баланс: {total_uah}₴")
+    report_lines.append("⸻")
 
-            buy_recommendations.append(
-                f"\U0001F7E2 {token}: \u0456\u043d\u0432\u0435\u0441\u0442\u0443\u0432\u0430\u0442\u0438 {invest_amount:.2f} USDT (\u0446\u0456\u043b\u044c: {target_price}, \u0441\u0442\u043e\u043f: {stop_price}){rsi_note}"
-            )
+    if sell_recommendations:
+        report_lines.append("💸 Рекомендується продати:")
+        for t in sell_recommendations:
+            report_lines.append(f"{t['symbol']}: {t['amount']} ≈ ~{t['uah_value']}₴ (PnL = {t['pnl']}%)")
+    else:
+        report_lines.append("Наразі немає прибуткових активів для продажу")
+    report_lines.append("⸻")
 
-            buttons.append(
-                InlineKeyboardButton(
-                    text=f"\U0001F7E2 \u041A\u0443\u043F\u0438\u0442\u0438 {token}",
-                    callback_data=f"confirmbuy_{token}"
-                )
-            )
+    if buy_candidates:
+        report_lines.append("📈 Рекомендується купити:")
+        for b in buy_candidates:
+            report_lines.append(f"{b['symbol']}: інвестувати {round(usdt_balance / len(buy_candidates), 2)} USDT (стоп: {b['stop']})\nRR = {b['rr']:.2f}, RSI = {b['rsi']:.1f}, MACD = {b['macd']}, Обсяг = {int(b['volume'])}, Сектор = {b['sector']}, BTC Corr = {b['btc_corr']:.2f}")
+    else:
+        report_lines.append("Наразі немає активів, що відповідають умовам Smart Buy Filter")
+    report_lines.append("⸻")
 
-            expected_profit += invest_amount * 0.02
+    expected_profit_usdt = round((sum([b['rr'] for b in buy_candidates]) / len(buy_candidates)) * (usdt_balance / 100) if buy_candidates else 0, 2)
+    expected_profit_uah = convert_to_uah(expected_profit_usdt)
+    report_lines.append(f"💹 Очікуваний прибуток: {expected_profit_usdt} USDT ≈ ~{expected_profit_uah}₴ за 24г")
+    report_lines.append("⸻")
 
-    keyboard.add(*buttons)
-    gpt_summary = call_gpt_summary(balances, sell_recommendations, buy_recommendations + held_tokens)
+    summary = ask_gpt("Сформуй короткий інвест-звіт на 24г для крипто-портфеля", context="\n".join(report_lines))
+    report_lines.append(f"🧠 Прогноз GPT:\n{summary}")
 
-    uah_profit = round(expected_profit * get_usdt_to_uah_rate(), 2)
-
-    # record tokens for alert if user doesn't act
-    record_forecast(buy_recommendations + sell_recommendations)
-
-    report = (
-        f"📊 Звіт GPT-аналітики ({now})\n\n"
-        "💰 *Баланс:*\n"
-        + "\n".join(balances)
-        + f"\n\n*Загалом:* ~{total_uah:,.2f}₴\n\n"
-        "\ud83d\udcc9 \u0420\u0435\u043a\u043e\u043c\u0435\u043d\u0434\u0443\u0454\u0442\u044c\u0441\u044f \u043f\u0440\u043e\u0434\u0430\u0442\u0438:\n"
-        + "\n".join(sell_recommendations or ["\u041d\u0456\u0447\u043e\u0433\u043e"])
-        + "\n\n"
-        "\ud83d\udcc8 \u0420\u0435\u043a\u043e\u043c\u0435\u043d\u0434\u0443\u0454\u0442\u044c\u0441\u044f \u043a\u0443\u043f\u0438\u0442\u0438:\n"
-        + "\n".join(buy_recommendations or ["\u041d\u0456\u0447\u043e\u0433\u043e"])
-    )
-
-    report += (
-        f"\n\n\ud83d\udcca \u041e\u0447\u0456\u043a\u0443\u0432\u0430\u043d\u0438\u0439 \u043f\u0440\u0438\u0431\u0443\u0442\u043e\u043a: ~{expected_profit:.2f} USDT \u2248 ~{uah_profit:.2f}\u20b4\n\n"
-        f"\ud83e\uddd0 \u041f\u0440\u043e\u0433\u043d\u043e\u0437 GPT:\n{gpt_summary}\n\n\ud83d\udcbe \u0423\u0441\u0456 \u0434\u0456\u0457 \u0437\u0431\u0435\u0440\u0435\u0436\u0435\u043d\u043e."
-    )
-
-    return report, keyboard
-
-
-def call_gpt_summary(balance, sells, buys):
-    """Return short GPT investor summary."""
-    return generate_investor_summary(balance, sells, buys)
-
-
-
-def generate_history_report() -> str:
-    """Return text with stored trade history."""
-    return history_report()
-
-
-def generate_stats_report() -> str:
-    """Return profit statistics."""
-    return stats_report()
-
-
-def generate_daily_stats_report() -> str:
-    """Alias for daily stats (currently same as stats)."""
-    return generate_stats_report()
-
-
-async def daily_analysis_task(bot: Bot, chat_id: int) -> None:
-    """Generate report and send to Telegram chat."""
-    report, keyboard = generate_zarobyty_report()
-    await bot.send_message(chat_id, report, reply_markup=keyboard)
-
-
-async def send_zarobyty_forecast(bot: Bot, chat_id: int) -> None:
-    """Send GPT forecast with confirmation button."""
-    report, keyboard = generate_zarobyty_report()
-    await bot.send_message(chat_id, report, reply_markup=keyboard)
-
-
-if __name__ == "__main__":
-    print("\u0426\u0435\u0439 \u0444\u0430\u0439\u043b \u043d\u0435 \u043f\u0440\u0438\u0437\u043d\u0430\u0447\u0435\u043d\u0438\u0439 \u0434\u043b\u044f \u043f\u0440\u044f\u043c\u043e\u0433\u043e \u0437\u0430\u043f\u0443\u0441\u043a\u0443.")
+    return "\n".join(report_lines), zarobyty_keyboard(buy_candidates, sell_recommendations)
