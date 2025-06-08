@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 from pytz import timezone
-from typing import Tuple, Dict
+from typing import Tuple, Dict, List, Optional
 
 from aiogram import Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -25,6 +25,20 @@ from binance_api import (
 
 
 UAH_RATE = 39.2  # 1 USDT ~ 39.2 грн
+
+
+def calculate_rsi(prices: List[float], period: int = 14) -> Optional[float]:
+    """Return RSI value for a list of prices."""
+    if len(prices) <= period:
+        return None
+    gains = [max(0, prices[i] - prices[i - 1]) for i in range(1, period + 1)]
+    losses = [max(0, prices[i - 1] - prices[i]) for i in range(1, period + 1)]
+    average_gain = sum(gains) / period
+    average_loss = sum(losses) / period
+    if average_loss == 0:
+        return 100
+    rs = average_gain / average_loss
+    return 100 - (100 / (1 + rs))
 
 
 def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
@@ -89,13 +103,23 @@ def generate_zarobyty_report() -> Tuple[str, InlineKeyboardMarkup]:
         current_price = data["current_price"]
 
         drop_percent = round((max_price - current_price) / max_price * 100, 2)
-        if drop_percent >= 3.0:
+        rsi = calculate_rsi(history[-15:])
+        rsi_note = ""
+        if rsi is not None:
+            if rsi < 30:
+                rsi_note = f" RSI: {rsi:.1f} \U0001F7E2 (\u043F\u0435\u0440\u0435\u043F\u0440\u043E\u0434\u0430\u043D\u0438\u0439)"
+            elif rsi > 70:
+                rsi_note = f" RSI: {rsi:.1f} \U0001F534 (\u043F\u0435\u0440\u0435\u043A\u0443\u043F\u043B\u0435\u043D\u0438\u0439)"
+            else:
+                rsi_note = f" RSI: {rsi:.1f}"
+
+        if drop_percent >= 3.0 and (rsi is None or rsi < 70):
             invest_amount = 5.0  # USDT
             target_price = round(current_price * 1.02, 6)
             stop_price = round(current_price * 0.98, 6)
 
             buy_recommendations.append(
-                f"\U0001F7E2 {token}: \u0456\u043d\u0432\u0435\u0441\u0442\u0443\u0432\u0430\u0442\u0438 {invest_amount:.2f} USDT (\u0446\u0456\u043b\u044c: {target_price}, \u0441\u0442\u043e\u043f: {stop_price})"
+                f"\U0001F7E2 {token}: \u0456\u043d\u0432\u0435\u0441\u0442\u0443\u0432\u0430\u0442\u0438 {invest_amount:.2f} USDT (\u0446\u0456\u043b\u044c: {target_price}, \u0441\u0442\u043e\u043f: {stop_price}){rsi_note}"
             )
 
             buttons.append(
