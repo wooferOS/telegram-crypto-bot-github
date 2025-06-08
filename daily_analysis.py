@@ -10,7 +10,7 @@ from binance_api import (
     get_symbol_price,
     get_price_history_24h as get_price_history,
     get_price_history_24h as get_klines,
-    get_my_trades,
+    get_recent_trades as get_my_trades,
     get_top_tokens,
 )
 from gpt import ask_gpt
@@ -33,7 +33,7 @@ def generate_zarobyty_report():
         uah_value = convert_to_uah(price * amount)
         price_history = get_price_history(symbol)
         klines = get_klines(symbol)
-        trades = get_my_trades(symbol)
+        trades = get_my_trades(f"{symbol}USDT")
 
         indicators = calculate_indicators(klines)
         average_buy_price = sum([t['price'] * t['qty'] for t in trades]) / sum([t['qty'] for t in trades]) if trades else price
