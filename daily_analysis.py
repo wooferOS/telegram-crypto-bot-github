@@ -9,7 +9,7 @@ from binance_api import (
     get_binance_balances,
     get_symbol_price,
     get_price_history_24h as get_price_history,
-    get_klines,
+    get_price_history_24h as get_klines,
     get_my_trades,
     get_top_tokens,
 )
