@@ -3,6 +3,7 @@
 
 import datetime
 import pytz
+import statistics
 
 from binance_api import (
     get_binance_balances,
@@ -63,20 +64,28 @@ def generate_zarobyty_report():
         indicators = calculate_indicators(klines)
         rr = calculate_rr(klines)
         sector = get_sector(symbol)
-        volume = get_price_history(symbol).get("quoteVolume", 0)
+        price_stats = get_price_history(symbol)
+        volume = price_stats.get("quoteVolume", 0)
+        volumes = [float(k[5]) for k in klines]
+        avg_volume = statistics.fmean(volumes[-20:]) if volumes else 0
         btc_corr = analyze_btc_correlation(symbol)
 
         support = indicators.get("support")
         resistance = indicators.get("resistance")
         is_near_resistance = price >= resistance * 0.98 if resistance else False
 
+        ema_uptrend = (
+            indicators.get("EMA_5", 0) > indicators.get("EMA_8", 0) > indicators.get("EMA_13", 0)
+        )
+
         if (
             indicators["RSI"] < 30
             and indicators["MACD"] == "bullish"
             and rr > 2
-            and volume > 0
+            and volume > avg_volume
             and btc_corr < 0.5
             and not is_near_resistance
+            and ema_uptrend
         ):
             stop_price = round(price * 0.97, 4)
             buy_candidates.append({
@@ -114,8 +123,9 @@ def generate_zarobyty_report():
     if buy_candidates:
         report_lines.append("📈 Рекомендується купити:")
         for b in buy_candidates:
+            indicators = calculate_indicators(get_klines(b['symbol']))
             report_lines.append(
-                f"{b['symbol']}: інвестувати {round(usdt_balance / len(buy_candidates), 2)} USDT (стоп: {b['stop']})\nRR = {b['rr']:.2f}, RSI = {b['rsi']:.1f}, MACD = {b['macd']}, Обсяг = {int(b['volume'])}, Сектор = {b['sector']}, BTC Corr = {b['btc_corr']:.2f}, Підтримка = {int(b['support'])}, Опір = {int(b['resistance'])}"
+                f"{b['symbol']}: інвестувати {round(usdt_balance / len(buy_candidates), 2)} USDT (стоп: {b['stop']})\nRR = {b['rr']:.2f}, RSI = {b['rsi']:.1f}, MACD = {b['macd']}, Обсяг = {int(b['volume'])}, Сектор = {b['sector']}, BTC Corr = {b['btc_corr']:.2f}, Підтримка = {int(b['support'])}, Опір = {int(b['resistance'])}\nEMA 5/8/13 = {indicators['EMA_5']:.4f} / {indicators['EMA_8']:.4f} / {indicators['EMA_13']:.4f}"
             )
     else:
         report_lines.append("Наразі немає активів, що відповідають умовам Smart Buy Filter")
