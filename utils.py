@@ -41,8 +41,21 @@ def _ema(values: List[float], period: int) -> List[float]:
 def calculate_indicators(klines: List[List[float]]) -> Dict[str, float]:
     """Calculate basic indicators for token."""
     closes = [float(k[4]) for k in klines]
+
+    ema5 = _ema(closes, 5)[-1] if closes else 0.0
+    ema8 = _ema(closes, 8)[-1] if closes else 0.0
+    ema13 = _ema(closes, 13)[-1] if closes else 0.0
+
     if len(closes) < 26:
-        return {"RSI": 50.0, "MACD": "neutral", "support": closes[-1], "resistance": closes[-1]}
+        return {
+            "RSI": 50.0,
+            "MACD": "neutral",
+            "support": closes[-1] if closes else 0.0,
+            "resistance": closes[-1] if closes else 0.0,
+            "EMA_5": ema5,
+            "EMA_8": ema8,
+            "EMA_13": ema13,
+        }
 
     # RSI
     gains = []
@@ -66,7 +79,15 @@ def calculate_indicators(klines: List[List[float]]) -> Dict[str, float]:
     support = min(float(k[3]) for k in klines[-20:])
     resistance = max(float(k[2]) for k in klines[-20:])
 
-    return {"RSI": rsi, "MACD": macd, "support": support, "resistance": resistance}
+    return {
+        "RSI": rsi,
+        "MACD": macd,
+        "support": support,
+        "resistance": resistance,
+        "EMA_5": ema5,
+        "EMA_8": ema8,
+        "EMA_13": ema13,
+    }
 
 
 def get_sector(symbol: str) -> str:
