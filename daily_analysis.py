@@ -66,7 +66,18 @@ def generate_zarobyty_report():
         volume = get_price_history(symbol).get("quoteVolume", 0)
         btc_corr = analyze_btc_correlation(symbol)
 
-        if indicators["RSI"] < 30 and indicators["MACD"] == "bullish" and rr > 2 and volume > 0 and btc_corr < 0.5:
+        support = indicators.get("support")
+        resistance = indicators.get("resistance")
+        is_near_resistance = price >= resistance * 0.98 if resistance else False
+
+        if (
+            indicators["RSI"] < 30
+            and indicators["MACD"] == "bullish"
+            and rr > 2
+            and volume > 0
+            and btc_corr < 0.5
+            and not is_near_resistance
+        ):
             stop_price = round(price * 0.97, 4)
             buy_candidates.append({
                 "symbol": symbol,
@@ -76,7 +87,10 @@ def generate_zarobyty_report():
                 "volume": volume,
                 "sector": sector,
                 "rsi": indicators["RSI"],
-                "macd": indicators["MACD"]
+                "macd": indicators["MACD"],
+                "btc_corr": btc_corr,
+                "support": support,
+                "resistance": resistance
             })
 
     report_lines = []
@@ -100,7 +114,9 @@ def generate_zarobyty_report():
     if buy_candidates:
         report_lines.append("📈 Рекомендується купити:")
         for b in buy_candidates:
-            report_lines.append(f"{b['symbol']}: інвестувати {round(usdt_balance / len(buy_candidates), 2)} USDT (стоп: {b['stop']})\nRR = {b['rr']:.2f}, RSI = {b['rsi']:.1f}, MACD = {b['macd']}, Обсяг = {int(b['volume'])}, Сектор = {b['sector']}, BTC Corr = {b['btc_corr']:.2f}")
+            report_lines.append(
+                f"{b['symbol']}: інвестувати {round(usdt_balance / len(buy_candidates), 2)} USDT (стоп: {b['stop']})\nRR = {b['rr']:.2f}, RSI = {b['rsi']:.1f}, MACD = {b['macd']}, Обсяг = {int(b['volume'])}, Сектор = {b['sector']}, BTC Corr = {b['btc_corr']:.2f}, Підтримка = {int(b['support'])}, Опір = {int(b['resistance'])}"
+            )
     else:
         report_lines.append("Наразі немає активів, що відповідають умовам Smart Buy Filter")
     report_lines.append("⸻")
