@@ -13,7 +13,7 @@ from daily_analysis import (
 )
 from history import generate_history_report
 from stats import generate_stats_report
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from binance_api import place_market_order, get_price_history_24h, place_sell_order
 from alerts import check_daily_alerts
 
@@ -182,5 +182,34 @@ def register_handlers(dp: Dispatcher) -> None:
     dp.register_message_handler(zarobyty_cmd, Text(contains="Звіт", ignore_case=True))
     dp.register_message_handler(stats_cmd, Text(contains="Баланс", ignore_case=True))
     dp.register_message_handler(history_cmd, Text(contains="Історія", ignore_case=True))
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith("buy:"))
+async def handle_buy_callback(callback_query: CallbackQuery):
+    symbol = callback_query.data.split(":")[1]
+    await callback_query.message.answer(
+        f"🟢 Ви впевнені, що хочете купити {symbol}? Натисніть кнопку нижче для підтвердження.",
+        reply_markup=InlineKeyboardMarkup().add(
+            InlineKeyboardButton(f"✅ Купити {symbol}", callback_data=f"confirm_buy:{symbol}"),
+            InlineKeyboardButton("❌ Скасувати", callback_data="cancel")
+        )
+    )
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith("sell:"))
+async def handle_sell_callback(callback_query: CallbackQuery):
+    symbol = callback_query.data.split(":")[1]
+    await callback_query.message.answer(
+        f"🔴 Ви впевнені, що хочете продати {symbol}? Натисніть кнопку нижче для підтвердження.",
+        reply_markup=InlineKeyboardMarkup().add(
+            InlineKeyboardButton(f"✅ Продати {symbol}", callback_data=f"confirm_sell:{symbol}"),
+            InlineKeyboardButton("❌ Скасувати", callback_data="cancel")
+        )
+    )
+
+
+@dp.callback_query_handler(lambda c: c.data == "cancel")
+async def handle_cancel(callback_query: CallbackQuery):
+    await callback_query.message.answer("❌ Дію скасовано.")
 
 
