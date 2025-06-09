@@ -365,12 +365,20 @@ async def handle_take_profit_callback(callback_query: types.CallbackQuery):
         target_profit_percent = 10  # фіксація прибутку при +10%
         take_profit_price = round(current_price * (1 + target_profit_percent / 100), 6)
         balance = get_token_balance(token)
+
+        if balance <= 0:
+            await callback_query.message.answer(
+                f"⚠️ Баланс {token} = 0. Ордер не створено."
+            )
+            return
+
         result = place_stop_limit_sell_order(token, balance, take_profit_price)
         await callback_query.message.answer(
-            f"📉 Ордер на фіксацію прибутку встановлено: {balance} {token} при {take_profit_price}"
+            f"📉 Ордер на фіксацію прибутку встановлено:\n"
+            f"{balance} {token} при {take_profit_price}"
         )
     except Exception as e:
         await callback_query.message.answer(
-            f"❌ Не вдалося встановити take profit для {token}: {e}"
+            f"❌ Помилка при створенні take profit для {token}:\n{e}"
         )
 
