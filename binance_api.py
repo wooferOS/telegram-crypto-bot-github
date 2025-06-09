@@ -317,27 +317,22 @@ def place_limit_sell(symbol: str, quantity: float) -> dict:
         return {"success": False, "error": str(exc)}
 
 
-def place_limit_sell_order(symbol: str, quantity: float, price: float) -> dict:
-    """Place a LIMIT SELL order at a specific price."""
+def place_limit_sell_order(symbol: str, quantity: float, price: float):
+    """Place a standard LIMIT SELL order with GTC time in force."""
     try:
         order = client.create_order(
-            symbol=symbol.upper(),
-            side="SELL",
-            type="LIMIT",
-            timeInForce="GTC",
-            quantity=round(quantity, 6),
-            price=str(round(price, 6)),
+            symbol=symbol,
+            side=SIDE_SELL,
+            type=ORDER_TYPE_LIMIT,
+            timeInForce=TIME_IN_FORCE_GTC,
+            quantity=round(quantity, 5),
+            price=str(price),
         )
-        return {"success": True, "order": order}
-    except Exception as exc:  # pragma: no cover - network errors
-        logger.error(
-            "%s Failed to place limit sell order for %s at %s: %s",
-            TELEGRAM_LOG_PREFIX,
-            symbol,
-            price,
-            exc,
-        )
-        return {"success": False, "error": str(exc)}
+        return order
+    except BinanceAPIException as e:
+        raise Exception(f"Binance API error: {e.message}")
+    except Exception as e:
+        raise Exception(f"Unexpected error: {str(e)}")
 
 
 def place_take_profit_order(
