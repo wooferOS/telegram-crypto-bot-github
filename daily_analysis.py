@@ -4,6 +4,7 @@
 import datetime
 import pytz
 import statistics
+import logging
 
 from binance_api import (
     get_binance_balances,
@@ -16,6 +17,8 @@ from binance_api import (
 from gpt_utils import ask_gpt
 from utils import convert_to_uah, calculate_rr, calculate_indicators, get_sector, analyze_btc_correlation
 from keyboards import zarobyty_keyboard
+
+logger = logging.getLogger(__name__)
 
 
 def generate_zarobyty_report():
@@ -68,7 +71,7 @@ def generate_zarobyty_report():
     market_symbols = set(s.upper() for s in get_top_tokens(limit=50))
     symbols_to_analyze = symbols_from_balance.union(market_symbols)
 
-    buy_candidates = []
+    enriched_tokens = []
     for symbol in symbols_to_analyze:
         price = get_symbol_price(symbol)
         klines = get_klines(symbol)
@@ -76,56 +79,48 @@ def generate_zarobyty_report():
         rr = calculate_rr(klines)
         sector = get_sector(symbol)
         price_stats = get_price_history(symbol)
-        volume = 0
+        volume_24h = 0
         if (
             isinstance(price_stats, list)
             and len(price_stats) > 0
             and isinstance(price_stats[0], (list, tuple))
         ):
-            volume = sum(float(k[5]) for k in price_stats if len(k) > 5)
+            volume_24h = sum(float(k[5]) for k in price_stats if len(k) > 5)
         volumes = [float(k[5]) for k in klines]
         avg_volume = statistics.fmean(volumes[-20:]) if volumes else 0
+        volume_change = volume_24h - avg_volume
         btc_corr = analyze_btc_correlation(symbol)
+        ema_trend = indicators.get("EMA_5", 0) > indicators.get("EMA_8", 0) > indicators.get("EMA_13", 0)
 
-        support = indicators.get("support")
-        resistance = indicators.get("resistance")
-        is_near_resistance = price >= resistance * 0.98 if resistance else False
-
-        ema_uptrend = (
-            indicators.get("EMA_5", 0) > indicators.get("EMA_8", 0) > indicators.get("EMA_13", 0)
-        )
-
-        # ✅ Smart Buy Filter:
-        # - RSI < 30 (перепроданість)
-        # - MACD == 'bullish' (сигнал на розворот)
-        # - RR > 2.0 (співвідношення прибуток/ризик)
-        # - Volume > average (підтвердження сили тренду)
-        # - EMA 5 > EMA 8 > EMA 13 (ап-тренд)
-        # - Не біля resistance (опір)
-        # - BTC correlation < 0.5 (незалежність)
-        if (
-            indicators["RSI"] < 30
-            and indicators["MACD"] == "bullish"
-            and rr > 2
-            and volume > avg_volume
-            and btc_corr < 0.5
-            and not is_near_resistance
-            and ema_uptrend
-        ):
-            stop_price = round(price * 0.97, 4)
-            buy_candidates.append({
+        enriched_tokens.append(
+            {
                 "symbol": symbol,
                 "price": price,
-                "stop": stop_price,
-                "rr": rr,
-                "volume": volume,
+                "risk_reward": rr,
                 "sector": sector,
-                "rsi": indicators["RSI"],
-                "macd": indicators["MACD"],
                 "btc_corr": btc_corr,
-                "support": support,
-                "resistance": resistance
-            })
+                "volume_change_24h": volume_change,
+                "indicators": {
+                    "rsi": indicators["RSI"],
+                    "macd_signal": indicators["MACD"],
+                    "ema_trend": ema_trend,
+                },
+            }
+        )
+
+    # Пошук кандидатів на купівлю
+    buy_candidates = filter_adaptive_smart_buy(enriched_tokens)
+
+    if not buy_candidates:
+        logger.warning("⚠️ Немає ідеальних кандидатів, шукаємо альтернативи...")
+        buy_candidates = filter_fallback_best_candidates(enriched_tokens)
+
+    recommended_buys = []
+    for token in buy_candidates:
+        price = token["price"]
+        symbol = token["symbol"]
+        stop_price = price * 0.97  # 3% нижче — умовний стоп
+        recommended_buys.append(f"{symbol}: Купити на 10 USDT, стоп ≈ {round(stop_price, 4)}")
 
     report_lines = []
     report_lines.append(f"🕒 Звіт сформовано: {now.strftime('%Y-%m-%d %H:%M:%S')} (Kyiv)")
@@ -147,16 +142,13 @@ def generate_zarobyty_report():
 
     if buy_candidates:
         report_lines.append("📈 Рекомендується купити:")
-        for b in buy_candidates:
-            indicators = calculate_indicators(get_klines(b['symbol']))
-            report_lines.append(
-                f"{b['symbol']}: інвестувати {round(usdt_balance / len(buy_candidates), 2)} USDT (стоп: {b['stop']})\nRR = {b['rr']:.2f}, RSI = {b['rsi']:.1f}, MACD = {b['macd']}, Обсяг = {int(b['volume'])}, Сектор = {b['sector']}, BTC Corr = {b['btc_corr']:.2f}, Підтримка = {int(b['support'])}, Опір = {int(b['resistance'])}\nEMA 5/8/13 = {indicators['EMA_5']:.4f} / {indicators['EMA_8']:.4f} / {indicators['EMA_13']:.4f}"
-            )
+        for rec in recommended_buys:
+            report_lines.append(rec)
     else:
         report_lines.append("Наразі немає активів, що відповідають умовам Smart Buy Filter")
     report_lines.append("⸻")
 
-    expected_profit_usdt = round((sum([b['rr'] for b in buy_candidates]) / len(buy_candidates)) * (usdt_balance / 100) if buy_candidates else 0, 2)
+    expected_profit_usdt = round((sum([b.get('risk_reward', 0) for b in buy_candidates]) / len(buy_candidates)) * (usdt_balance / 100) if buy_candidates else 0, 2)
     expected_profit_uah = convert_to_uah(expected_profit_usdt)
     report_lines.append(f"💹 Очікуваний прибуток: {expected_profit_usdt} USDT ≈ ~{expected_profit_uah}₴ за 24г")
     report_lines.append("⸻")
