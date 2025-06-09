@@ -14,6 +14,7 @@ from daily_analysis import (
 from history import generate_history_report
 from stats import generate_stats_report
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.utils.callback_data import CallbackData
 from binance_api import (
     place_market_order,
     get_price_history_24h,
@@ -29,9 +30,12 @@ from binance_api import (
     get_token_price,
     get_token_balance,
     get_usdt_balance,
+    get_real_pnl_data,
+    place_limit_sell,
 )
 from alerts import check_daily_alerts
 
+take_profit_cb = CallbackData("tp", "symbol", "amount")
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
@@ -86,6 +90,25 @@ async def handle_take_profit_new(callback_query: CallbackQuery) -> None:
         )
 
 
+@dp.callback_query_handler(take_profit_cb.filter())
+async def take_profit_callback_handler(
+    callback_query: types.CallbackQuery, callback_data: dict
+) -> None:
+    symbol = callback_data["symbol"]
+    amount = float(callback_data["amount"])
+
+    try:
+        result = place_limit_sell(symbol, amount)
+        await callback_query.message.answer(
+            f"✅ Ордер на фіксацію прибутку для {symbol} відправлено!\n{result}"
+        )
+    except Exception as e:
+        await callback_query.message.answer(
+            f"❌ Помилка при виставленні ордера: {e}"
+        )
+    await callback_query.answer()
+
+
 @dp.callback_query_handler(
     lambda c: c.data and (c.data.startswith("buy:") or c.data.startswith("sell:"))
 )
@@ -138,7 +161,7 @@ def register_handlers(dp: Dispatcher) -> None:
         )
 
     async def zarobyty_cmd(message: types.Message) -> None:
-        report, keyboard = generate_zarobyty_report()
+        report, _ = generate_zarobyty_report()
         if not report:
             await message.answer(
                 "⚠️ Звіт наразі недоступний. Спробуйте пізніше."
@@ -147,10 +170,21 @@ def register_handlers(dp: Dispatcher) -> None:
         logger.info("Zarobyty report:\n%s", report)
         print("✅ Звіт сформовано:", report[:200])
         report = clean_surrogates(report)
-        if keyboard is None:
-            await message.answer(report, parse_mode="Markdown")
-        else:
-            await message.answer(report, parse_mode="Markdown", reply_markup=keyboard)
+
+        pnl_data = get_real_pnl_data()
+        profitable_to_sell = {
+            sym: data for sym, data in pnl_data.items() if data.get("pnl_percent", 0) > 0
+        }
+
+        keyboard = InlineKeyboardMarkup(row_width=1)
+        for symbol, data in profitable_to_sell.items():
+            btn = InlineKeyboardButton(
+                text=f"Фіксувати прибуток {symbol}",
+                callback_data=take_profit_cb.new(symbol=symbol, amount=str(data["amount"]))
+            )
+            keyboard.add(btn)
+
+        await message.answer(report, parse_mode="Markdown", reply_markup=keyboard)
 
     async def confirm_buy(callback_query: types.CallbackQuery) -> None:
         token = callback_query.data.replace("confirmbuy_", "")
