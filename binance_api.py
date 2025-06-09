@@ -759,3 +759,23 @@ if __name__ == "__main__":
     logger.info("➡️ Поточний портфель:")
     for asset, value in get_current_portfolio().items():
         logger.info("• %s: $%.2f", asset, value)
+
+
+def place_limit_sell_order(symbol: str, quantity: float, price: float) -> dict:
+    """
+    Виставляє лімітний ордер на продаж з ціною Take Profit.
+    """
+    try:
+        response = client.create_order(
+            symbol=symbol,
+            side=Client.SIDE_SELL,
+            type=Client.ORDER_TYPE_LIMIT,
+            timeInForce=Client.TIME_IN_FORCE_GTC,
+            quantity=round(quantity, 5),
+            price=str(price)
+        )
+        logger.info(f"✅ Виставлено лімітний ордер на продаж {symbol} по {price}")
+        return response
+    except BinanceAPIException as e:
+        logger.error(f"❌ Помилка при виставленні TP ордера для {symbol}: {e}")
+        return {"error": str(e)}
