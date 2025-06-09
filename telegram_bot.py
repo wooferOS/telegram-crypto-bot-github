@@ -32,6 +32,7 @@ from binance_api import (
     get_usdt_balance,
     get_real_pnl_data,
     place_limit_sell,
+    place_limit_sell_order,
 )
 from alerts import check_daily_alerts
 
@@ -380,15 +381,25 @@ async def handle_sell_callback(callback_query: types.CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data.startswith("buy_"))
 async def handle_buy_callback(callback_query: types.CallbackQuery):
     token = callback_query.data.split("_", 1)[1]
+    usdt_amount = 10  # сума покупки в USDT (можна зробити динамічною)
+    symbol = f"{token}USDT"
     try:
-        amount = 10  # сума покупки в USDT (можна зробити динамічною)
-        result = buy_token_market(token, amount)
-        await callback_query.message.answer(
-            f"✅ Куплено {result['executedQty']} {token} за {result['cummulativeQuoteQty']} USDT"
+        buy_result = buy_token_market(token, usdt_amount)
+        avg_price = float(buy_result["fills"][0]["price"])
+        quantity = float(buy_result["executedQty"])
+
+        take_profit_price = round(avg_price * 1.1, 5)
+        place_limit_sell_order(symbol, quantity, take_profit_price)
+
+        await bot.answer_callback_query(callback_query.id)
+        await bot.send_message(
+            callback_query.from_user.id,
+            f"✅ Куплено {quantity} {token} по {avg_price}.\n"
+            f"📈 Take Profit ордер виставлено по {take_profit_price}."
         )
     except Exception as e:
-        await callback_query.message.answer(
-            f"❌ Помилка при купівлі {token}: {e}"
+        await bot.send_message(
+            callback_query.from_user.id, f"❌ Помилка купівлі {token}: {str(e)}"
         )
 
 
