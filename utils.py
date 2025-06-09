@@ -128,3 +128,18 @@ def get_risk_reward_ratio(price: float, stop_loss: float, take_profit: float) ->
     if risk <= 0:
         return 0
     return round(reward / risk, 2)
+
+
+def get_correlation_with_btc(asset_closes: list, btc_closes: list) -> float:
+    """
+    Розрахунок кореляції токена з BTC за списками цін
+    """
+    if len(asset_closes) != len(btc_closes) or len(asset_closes) == 0:
+        return 1.0  # Максимальна кореляція за замовчуванням
+    mean_asset = sum(asset_closes) / len(asset_closes)
+    mean_btc = sum(btc_closes) / len(btc_closes)
+    numerator = sum((a - mean_asset) * (b - mean_btc) for a, b in zip(asset_closes, btc_closes))
+    denominator = (sum((a - mean_asset) ** 2 for a in asset_closes) * sum((b - mean_btc) ** 2 for b in btc_closes)) ** 0.5
+    if denominator == 0:
+        return 1.0
+    return round(numerator / denominator, 2)
