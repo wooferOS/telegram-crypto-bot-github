@@ -33,6 +33,7 @@ from binance_api import (
     get_real_pnl_data,
     place_limit_sell,
     place_limit_sell_order,
+    market_buy_symbol_by_amount,
     place_take_profit_order,
     place_stop_loss_order,
 )
@@ -420,31 +421,32 @@ async def handle_sell_callback(callback_query: types.CallbackQuery):
         await callback_query.message.answer(
             f"❌ Помилка при продажу {token}: {e}"
         )
-
-
 @dp.callback_query_handler(lambda c: c.data.startswith("buy_"))
 async def handle_buy_callback(callback_query: types.CallbackQuery):
-    token = callback_query.data.split("_", 1)[1]
-    usdt_amount = 10  # сума покупки в USDT (можна зробити динамічною)
-    symbol = f"{token}USDT"
+    token = callback_query.data.split("_", 1)[1].upper()
+    amount_in_usdt = 10
     try:
-        buy_result = buy_token_market(token, usdt_amount)
-        avg_price = float(buy_result["fills"][0]["price"])
-        quantity = float(buy_result["executedQty"])
-
-        take_profit_price = round(avg_price * 1.1, 5)
-        place_limit_sell_order(symbol, quantity, take_profit_price)
-
-        await bot.answer_callback_query(callback_query.id)
-        await bot.send_message(
-            callback_query.from_user.id,
-            f"✅ Куплено {quantity} {token} по {avg_price}.\n"
-            f"📈 Take Profit ордер виставлено по {take_profit_price}."
+        order = market_buy_symbol_by_amount(token, amount_in_usdt)
+        price = float(order["fills"][0]["price"]) if "fills" in order and order["fills"] else None
+        if not price:
+            await callback_query.message.answer(f"❌ Купівля {token} не вдалася: немає ціни виконання")
+            return
+        quantity = float(order.get("executedQty", 0))
+        symbol = f"{token}USDT"
+        take_profit_price = round(price * 1.15, 8)
+        stop_loss_price = round(price * 0.93, 8)
+        place_take_profit_order(symbol, quantity=quantity, take_profit_price=take_profit_price)
+        place_stop_loss_order(symbol, quantity=quantity, stop_price=stop_loss_price)
+        await callback_query.message.answer(
+            f"✅ Куплено {token} на ~{amount_in_usdt} USDT за {price} USDT\n"
+            f"🎯 Встановлено Take Profit: {take_profit_price}\n"
+            f"🛑 Встановлено Stop Loss: {stop_loss_price}"
         )
     except Exception as e:
-        await bot.send_message(
-            callback_query.from_user.id, f"❌ Помилка купівлі {token}: {str(e)}"
-        )
+        await callback_query.message.answer(f"❌ Помилка при купівлі {token}: {e}")
+
+
+
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith("takeprofit_"))
