@@ -26,7 +26,14 @@ logger = logging.getLogger(__name__)
 
 def generate_zarobyty_report():
     balances = get_binance_balances()
-    usdt_balance = balances.get("USDT", {}).get("free", 0)
+    usdt_info = balances.get("USDT", {})
+    usdt_balance = (
+        usdt_info["free"]
+        if isinstance(usdt_info, dict) and "free" in usdt_info
+        else usdt_info
+        if isinstance(usdt_info, (int, float))
+        else 0.0
+    )
     if usdt_balance is None:
         usdt_balance = 0
 
