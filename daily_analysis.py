@@ -185,3 +185,46 @@ async def send_zarobyty_forecast(bot, chat_id: int) -> None:
 
 def generate_daily_stats_report() -> str:
     return "⏳ Щоденний звіт тимчасово недоступний."
+
+
+# Adaptive filters for selecting buy candidates
+from utils import calculate_indicators, get_risk_reward_ratio, get_correlation_with_btc
+
+
+def filter_adaptive_smart_buy(candidates):
+    filtered = []
+    for token in candidates:
+        rsi = token.get("indicators", {}).get("rsi", 50)
+        macd_signal = token.get("indicators", {}).get("macd_signal", "neutral")
+        rr = token.get("risk_reward", 0)
+        corr = token.get("btc_corr", 1)
+        vol_change = token.get("volume_change_24h", 0)
+        ema_trend = token.get("indicators", {}).get("ema_trend", False)
+
+        strong_signals = sum(
+            [
+                rsi < 40,
+                macd_signal == "bullish",
+                rr >= 1.5,
+                corr < 0.7,
+                vol_change > 0,
+                ema_trend,
+            ]
+        )
+
+        if strong_signals >= 2:
+            filtered.append(token)
+    return filtered
+
+
+def filter_fallback_best_candidates(candidates, max_results=3):
+    sorted_candidates = sorted(
+        candidates,
+        key=lambda x: (
+            x.get("risk_reward", 0),
+            -x.get("indicators", {}).get("rsi", 50),
+            x.get("volume_change_24h", 0),
+        ),
+        reverse=True,
+    )
+    return sorted_candidates[:max_results]
