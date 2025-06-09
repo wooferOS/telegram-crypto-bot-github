@@ -17,7 +17,13 @@ from typing import Dict, List, Optional
 
 import requests
 from binance.client import Client
-from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET
+from binance.enums import (
+    SIDE_BUY,
+    SIDE_SELL,
+    ORDER_TYPE_MARKET,
+    ORDER_TYPE_LIMIT,
+    TIME_IN_FORCE_GTC,
+)
 from binance.exceptions import BinanceAPIException
 
 
@@ -236,6 +242,15 @@ def place_market_order(symbol: str, side: str, quantity: float) -> Optional[Dict
             quantity=quantity,
         )
         logger.info("%s Ордер виконано: %s", TELEGRAM_LOG_PREFIX, order)
+
+        if side.upper() == "BUY" and order and order.get("status") == "FILLED":
+            executed_price = float(order["fills"][0]["price"])
+            place_take_profit_order(
+                symbol=f"{symbol.upper()}USDT",
+                quantity=quantity,
+                current_price=executed_price,
+            )
+
         return order
     except Exception as exc:
         logger.error("%s Помилка створення ордера: %s", TELEGRAM_LOG_PREFIX, exc)
@@ -258,6 +273,36 @@ def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
     except Exception as e:  # pragma: no cover - network errors
         print(f"[ERROR] Failed to place take profit order for {symbol}: {e}")
         return False
+
+
+def place_take_profit_order(
+    symbol: str,
+    quantity: float,
+    current_price: float,
+    profit_percent: float = 10.0,
+) -> Optional[Dict[str, object]]:
+    """Встановлює ордер Take Profit після покупки."""
+
+    take_profit_price = round(current_price * (1 + profit_percent / 100), 8)
+
+    try:
+        response = client.create_order(
+            symbol=symbol,
+            side=SIDE_SELL,
+            type=ORDER_TYPE_LIMIT,
+            quantity=quantity,
+            timeInForce=TIME_IN_FORCE_GTC,
+            price=str(take_profit_price),
+        )
+        logger.info(
+            f"\u2705 Take Profit ордер створено для {symbol} на ціні {take_profit_price}"
+        )
+        return response
+    except BinanceAPIException as e:
+        logger.error(
+            f"\u274c Помилка при створенні Take Profit ордера для {symbol}: {e}"
+        )
+        return None
 
 
 def create_take_profit_order(symbol: str, quantity: float, target_price: float) -> dict:
