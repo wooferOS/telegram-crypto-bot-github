@@ -14,6 +14,8 @@ from binance_api import (
     get_recent_trades as get_my_trades,
     get_top_tokens,
     get_usdt_to_uah_rate,
+    place_market_order,
+    place_limit_sell_order,
 )
 from gpt_utils import ask_gpt
 from utils import convert_to_uah, calculate_rr, calculate_indicators, get_sector, analyze_btc_correlation
@@ -21,6 +23,30 @@ from coingecko_api import get_sentiment
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 logger = logging.getLogger(__name__)
+
+
+def execute_buy_order(symbol: str, amount_usdt: float):
+    try:
+        price = get_symbol_price(symbol)
+        quantity = round(amount_usdt / price, 5)
+        buy_order = place_market_order(symbol, "BUY", amount_usdt)
+        if not buy_order or (isinstance(buy_order, dict) and "error" in buy_order):
+            logger.warning(f"⚠️ Купівля {symbol} не виконана")
+            return
+
+        logger.info(f"✅ Куплено {quantity} {symbol} по ринку")
+
+        target_profit_percent = 10
+        take_profit_price = round(price * (1 + target_profit_percent / 100), 5)
+
+        tp_order = place_limit_sell_order(f"{symbol.upper()}USDT", quantity, take_profit_price)
+        if isinstance(tp_order, dict) and tp_order.get("error"):
+            logger.warning(f"⚠️ TP для {symbol} не виставлено")
+        else:
+            logger.info(f"✅ TP для {symbol}: {take_profit_price}")
+
+    except Exception as e:
+        logger.error(f"❌ Помилка під час покупки {symbol}: {e}")
 
 
 def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup]:
