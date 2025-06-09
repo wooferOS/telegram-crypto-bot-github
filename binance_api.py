@@ -457,22 +457,6 @@ def place_limit_sell(symbol: str, quantity: float) -> dict:
         return {"success": False, "error": str(exc)}
 
 
-def place_limit_sell_order(symbol: str, quantity: float, price: float):
-    """Place a standard LIMIT SELL order with GTC time in force."""
-    try:
-        order = client.create_order(
-            symbol=symbol,
-            side=SIDE_SELL,
-            type=ORDER_TYPE_LIMIT,
-            timeInForce=TIME_IN_FORCE_GTC,
-            quantity=round(quantity, 5),
-            price=str(price),
-        )
-        return order
-    except BinanceAPIException as e:
-        raise Exception(f"Binance API error: {e.message}")
-    except Exception as e:
-        raise Exception(f"Unexpected error: {str(e)}")
 
 
 def place_take_profit_order(
