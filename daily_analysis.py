@@ -207,6 +207,12 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup]:
                 callback_data=f"buy:{token['symbol']}"
             )
         )
+        keyboard.insert(
+            InlineKeyboardButton(
+                text=f"\U0001F6D2 \u041A\u0443\u043F\u0438\u0442\u0438 {token['symbol']}",
+                callback_data=f"smartbuy_{token['symbol']}"
+            )
+        )
 
     for token in token_data:
         if token['pnl'] > 10:
