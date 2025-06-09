@@ -376,6 +376,19 @@ def get_price_history_24h(symbol: str) -> Optional[List[float]]:
         return None
 
 
+def get_candlestick_klines(symbol: str, interval: str = "1h", limit: int = 100) -> List[List[float]]:
+    """Return raw candlestick klines for a symbol."""
+    url = f"{BINANCE_BASE_URL}/api/v3/klines"
+    params = {"symbol": f"{symbol.upper()}USDT", "interval": interval, "limit": limit}
+    try:
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:  # pragma: no cover - network errors
+        logger.warning("❌ Klines error for %s: %s", symbol, e)
+        return []
+
+
 def get_recent_trades(symbol: str = "BTCUSDT", limit: int = 5) -> List[Dict[str, object]]:
     """Return recent trades from Binance."""
 
