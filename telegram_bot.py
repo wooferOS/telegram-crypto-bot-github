@@ -25,8 +25,10 @@ from binance_api import (
     sell_token_market,
     buy_token_market,
     place_stop_limit_sell_order,
+    place_stop_limit_buy_order,
     get_token_price,
     get_token_balance,
+    get_usdt_balance,
 )
 from alerts import check_daily_alerts
 
@@ -391,5 +393,43 @@ async def handle_take_profit_callback(callback_query: types.CallbackQuery):
     except Exception as e:
         await callback_query.message.answer(
             f"❌ Помилка при створенні take profit для {token}:\n{e}"
+        )
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith("smartbuy_"))
+async def handle_smart_buy_callback(callback_query: types.CallbackQuery):
+    token = callback_query.data.split("_", 1)[1]
+    try:
+        price_data = get_token_price(token)
+        current_price = float(price_data["price"])
+        stop_price = round(current_price * 0.99, 6)
+        usdt_to_use = 10
+
+        usdt_balance = get_usdt_balance()
+        if usdt_balance < usdt_to_use:
+            await callback_query.message.answer("⚠️ Недостатньо USDT для купівлі.")
+            return
+
+        quantity = round(usdt_to_use / stop_price, 2)
+
+        result = place_stop_limit_buy_order(
+            symbol=token,
+            quantity=quantity,
+            stop_price=stop_price,
+            limit_price=stop_price,
+        )
+
+        if result.get("orderId"):
+            await callback_query.message.answer(
+                f"🛒 Ордер на купівлю створено:\n{quantity} {token} при {stop_price}"
+            )
+        else:
+            await callback_query.message.answer(
+                f"⚠️ Не вдалося створити ордер на купівлю {token}.\n{result}"
+            )
+
+    except Exception as e:
+        await callback_query.message.answer(
+            f"❌ Помилка при створенні ордера на {token}:\n{e}"
         )
 
