@@ -23,6 +23,7 @@ from binance_api import (
     create_take_profit_order,
     get_open_orders,
     sell_token_market,
+    buy_token_market,
 )
 from alerts import check_daily_alerts
 
@@ -334,5 +335,20 @@ async def handle_sell_callback(callback_query: types.CallbackQuery):
     except Exception as e:
         await callback_query.message.answer(
             f"❌ Помилка при продажу {token}: {e}"
+        )
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith("buy_"))
+async def handle_buy_callback(callback_query: types.CallbackQuery):
+    token = callback_query.data.split("_", 1)[1]
+    try:
+        amount = 10  # сума покупки в USDT (можна зробити динамічною)
+        result = buy_token_market(token, amount)
+        await callback_query.message.answer(
+            f"✅ Куплено {result['executedQty']} {token} за {result['cummulativeQuoteQty']} USDT"
+        )
+    except Exception as e:
+        await callback_query.message.answer(
+            f"❌ Помилка при купівлі {token}: {e}"
         )
 
