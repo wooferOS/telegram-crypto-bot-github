@@ -36,6 +36,8 @@ from binance_api import (
     market_buy_symbol_by_amount,
     place_take_profit_order,
     place_stop_loss_order,
+    place_take_profit_order_auto,
+    place_stop_loss_order_auto,
 )
 from alerts import check_daily_alerts
 
@@ -239,10 +241,34 @@ def register_handlers(dp: Dispatcher) -> None:
         await message.answer(report, parse_mode="Markdown", reply_markup=keyboard)
 
     async def confirm_buy(callback_query: types.CallbackQuery) -> None:
-        token = callback_query.data.replace("confirmbuy_", "")
+        token = callback_query.data.replace("confirmbuy_", "").upper()
         result = place_market_order(symbol=token, side="BUY", usdt_amount=5)
         await callback_query.answer(f"Купівля {token} підтверджена.")
-        await callback_query.message.answer(f"\U0001F7E2 Куплено {token}: {result}")
+
+        if not result or (isinstance(result, dict) and result.get("error")):
+            await callback_query.message.answer(
+                f"❌ Помилка покупки {token}: {result.get('error') if isinstance(result, dict) else 'Unknown error'}"
+            )
+            return
+
+        await callback_query.message.answer(
+            f"\U0001F7E2 Куплено {token}. Ставимо автоматичні ордери..."
+        )
+
+        price = get_current_price(token)
+        take_profit_price = round(price * 1.10, 6)
+        stop_loss_price = round(price * 0.95, 6)
+
+        tp = place_take_profit_order_auto(token, target_price=take_profit_price)
+        sl = place_stop_loss_order_auto(token, stop_price=stop_loss_price)
+
+        await callback_query.message.answer(
+            "\uD83C\uDF1F \u0412\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D\u043E:"\
+            f"\nTake Profit: {take_profit_price} USDT"\
+            f"\nStop Loss: {stop_loss_price} USDT"\
+            f"\n{'✅ TP OK' if isinstance(tp, dict) and tp.get('orderId') else '❌ TP Error'} | "\
+            f"{'✅ SL OK' if isinstance(sl, dict) and sl.get('orderId') else '❌ SL Error'}"
+        )
 
     async def confirm_sell(callback_query: types.CallbackQuery) -> None:
         token = callback_query.data.replace("confirmsell_", "")
