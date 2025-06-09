@@ -391,6 +391,31 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
         logger.error(f"\u274c Помилка при ринковій купівлі {symbol}: {str(e)}")
         return {"status": "error", "message": str(e)}
 
+
+def market_sell(symbol: str, quantity: float) -> dict:
+    """Виконує ринковий продаж криптовалюти на вказану кількість."""
+
+    try:
+        order = client.order_market_sell(
+            symbol=symbol,
+            quantity=round(quantity, 6),
+        )
+
+        executed_qty = order["executedQty"]
+        logger.info(
+            f"\u2705 Продано {executed_qty} {symbol}. Ордер ID: {order['orderId']}"
+        )
+        return {
+            "status": "success",
+            "order_id": order["orderId"],
+            "symbol": symbol,
+            "executedQty": executed_qty,
+        }
+
+    except BinanceAPIException as e:
+        logger.error(f"\u274c Помилка при ринковому продажі {symbol}: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
 def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
     """Place a limit sell order on Binance."""
 
