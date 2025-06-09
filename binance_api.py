@@ -279,6 +279,32 @@ def create_take_profit_order(symbol: str, quantity: float, target_price: float) 
         return {"success": False, "error": str(e)}
 
 
+def place_stop_limit_buy_order(
+    symbol: str, quantity: float, stop_price: float, limit_price: float
+) -> dict:
+    """Create STOP_LIMIT BUY order on Binance."""
+
+    try:
+        order = client.create_order(
+            symbol=f"{symbol.upper()}USDT",
+            side="BUY",
+            type="STOP_LOSS_LIMIT",
+            timeInForce="GTC",
+            quantity=round(quantity, 6),
+            price=str(round(limit_price, 6)),
+            stopPrice=str(round(stop_price, 6)),
+        )
+        return order
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.error(
+            "%s Не вдалося створити STOP_LIMIT BUY для %s: %s",
+            TELEGRAM_LOG_PREFIX,
+            symbol,
+            exc,
+        )
+        return {"error": str(exc)}
+
+
 def place_stop_limit_sell_order(
     symbol: str, quantity: float, stop_price: float, limit_price: float
 ) -> dict:
