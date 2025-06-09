@@ -83,9 +83,18 @@ def register_handlers(dp: Dispatcher) -> None:
 
     async def zarobyty_cmd(message: types.Message) -> None:
         report, keyboard = generate_zarobyty_report()
+        if not report:
+            await message.answer(
+                "⚠️ Звіт наразі недоступний. Спробуйте пізніше."
+            )
+            return
         logger.info("Zarobyty report:\n%s", report)
+        print("✅ Звіт сформовано:", report[:200])
         report = clean_surrogates(report)
-        await message.answer(report, parse_mode="Markdown", reply_markup=keyboard)
+        if keyboard is None:
+            await message.answer(report, parse_mode="Markdown")
+        else:
+            await message.answer(report, parse_mode="Markdown", reply_markup=keyboard)
 
     async def confirm_buy(callback_query: types.CallbackQuery) -> None:
         token = callback_query.data.replace("confirmbuy_", "")
