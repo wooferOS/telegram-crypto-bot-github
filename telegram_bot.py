@@ -49,6 +49,7 @@ from binance_api import (
     cancel_order,
     update_tp_sl_order,
     get_active_orders,
+    get_binance_balances,
 )
 from alerts import check_daily_alerts
 
@@ -721,7 +722,9 @@ async def edit_order_callback(callback_query: types.CallbackQuery) -> None:
 
 
 async def show_balance(message: types.Message):
-    await message.answer("\U0001F4B0 Баланс за токенами:\n\U0001F504 Завантажується...")
+    balances = get_binance_balances()
+    lines = [f"{sym}: {amount}" for sym, amount in balances.items()]
+    await message.answer("\U0001F4B0 Баланс за токенами:\n" + "\n".join(lines))
 
 
 async def show_price_chart(message: types.Message):
@@ -729,7 +732,8 @@ async def show_price_chart(message: types.Message):
 
 
 async def show_all_assets(message: types.Message):
-    await message.answer("\U0001F4E6 Всі активи на балансі:\n\U0001F504 Завантажується...")
+    balances = get_binance_balances()
+    await message.answer("\U0001F4E6 Всі активи на балансі:\n" + ", ".join(balances.keys()))
 
 
 async def show_gpt_forecast(message: types.Message):
