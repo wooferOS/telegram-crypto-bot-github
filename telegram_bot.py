@@ -22,6 +22,7 @@ from binance_api import (
     market_sell,
     create_take_profit_order,
     get_open_orders,
+    sell_token_market,
 )
 from alerts import check_daily_alerts
 
@@ -321,4 +322,17 @@ async def open_orders_cmd(message: types.Message) -> None:
     except Exception as e:  # pragma: no cover - network errors
         await message.answer(f"⚠️ Помилка при отриманні ордерів: {e}")
 
+
+@dp.callback_query_handler(lambda c: c.data.startswith("sell_"))
+async def handle_sell_callback(callback_query: types.CallbackQuery):
+    token = callback_query.data.split("_", 1)[1]
+    try:
+        result = sell_token_market(token)
+        await callback_query.message.answer(
+            f"✅ Продано {result['executedQty']} {token} за {result['cummulativeQuoteQty']} USDT"
+        )
+    except Exception as e:
+        await callback_query.message.answer(
+            f"❌ Помилка при продажу {token}: {e}"
+        )
 
