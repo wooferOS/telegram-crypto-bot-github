@@ -839,3 +839,54 @@ def place_limit_sell_order(symbol: str, quantity: float, price: float) -> dict:
     except BinanceAPIException as e:
         logger.error(f"❌ Помилка при виставленні TP ордера для {symbol}: {e}")
         return {"error": str(e)}
+
+
+def place_take_profit_order_auto(symbol: str, quantity: float | None = None, target_price: float = 0.0) -> dict:
+    """Виставляє Take Profit ордер із автоматичним розрахунком кількості."""
+
+    try:
+        if quantity is None:
+            balance = get_token_balance(symbol.replace("USDT", ""))
+            quantity = round(balance * 0.99, 5)
+
+        params = {
+            "symbol": symbol.upper() if symbol.upper().endswith("USDT") else symbol.upper() + "USDT",
+            "side": "SELL",
+            "type": "LIMIT",
+            "quantity": quantity,
+            "price": str(target_price),
+            "timeInForce": "GTC",
+        }
+        signed_params = sign_request(params)
+        response = requests.post(
+            f"{BINANCE_BASE_URL}/api/v3/order", headers=get_headers(), params=signed_params
+        )
+        return response.json()
+    except Exception as e:  # pragma: no cover - network errors
+        return {"error": str(e)}
+
+
+def place_stop_loss_order_auto(symbol: str, quantity: float | None = None, stop_price: float = 0.0) -> dict:
+    """Виставляє Stop Loss ордер із автоматичним розрахунком кількості."""
+
+    try:
+        if quantity is None:
+            balance = get_token_balance(symbol.replace("USDT", ""))
+            quantity = round(balance * 0.99, 5)
+
+        params = {
+            "symbol": symbol.upper() if symbol.upper().endswith("USDT") else symbol.upper() + "USDT",
+            "side": "SELL",
+            "type": "STOP_LOSS_LIMIT",
+            "quantity": quantity,
+            "stopPrice": str(stop_price),
+            "price": str(stop_price),
+            "timeInForce": "GTC",
+        }
+        signed_params = sign_request(params)
+        response = requests.post(
+            f"{BINANCE_BASE_URL}/api/v3/order", headers=get_headers(), params=signed_params
+        )
+        return response.json()
+    except Exception as e:  # pragma: no cover - network errors
+        return {"error": str(e)}
