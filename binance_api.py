@@ -365,6 +365,32 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
     except Exception as exc:
         raise Exception(f"Unexpected error: {exc}")
 
+def market_buy(symbol: str, usdt_amount: float) -> dict:
+    """Ринкова купівля ``symbol`` на вказану суму в USDT."""
+
+    try:
+        price_data = client.get_symbol_ticker(symbol=symbol)
+        current_price = float(price_data["price"])
+
+        quantity = round(usdt_amount / current_price, 6)
+
+        order = client.order_market_buy(symbol=symbol, quantity=quantity)
+
+        logger.info(
+            f"\u2705 Куплено {quantity} {symbol} на {usdt_amount} USDT. Ордер ID: {order['orderId']}"
+        )
+        return {
+            "status": "success",
+            "order_id": order["orderId"],
+            "symbol": symbol,
+            "executedQty": order["executedQty"],
+            "price": current_price,
+        }
+
+    except BinanceAPIException as e:
+        logger.error(f"\u274c Помилка при ринковій купівлі {symbol}: {str(e)}")
+        return {"status": "error", "message": str(e)}
+
 def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
     """Place a limit sell order on Binance."""
 
