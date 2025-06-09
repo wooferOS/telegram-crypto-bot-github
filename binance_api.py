@@ -235,7 +235,7 @@ def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
     """Place a limit sell order on Binance."""
 
     try:
-        client.create_order(
+        order = client.create_order(
             symbol=symbol.upper() + "USDT",
             side="SELL",
             type="LIMIT",
@@ -245,7 +245,7 @@ def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
         )
         return True
     except Exception as e:  # pragma: no cover - network errors
-        print(f"[ERROR] Failed to place sell order: {e}")
+        print(f"[ERROR] Failed to place take profit order for {symbol}: {e}")
         return False
 
 

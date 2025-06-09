@@ -36,7 +36,7 @@ async def handle_take_profit(callback_query: CallbackQuery) -> None:
         result = place_sell_order(symbol=symbol, quantity=quantity, price=price)
         if result:
             await callback_query.message.answer(
-                f"✅ Ордер на продажу {symbol} за {price} встановлено (кількість: {quantity})"
+                f"✅ Ордер на продажу {symbol} по {price} встановлено. Кількість: {quantity}"
             )
         else:
             await callback_query.message.answer(
