@@ -33,6 +33,8 @@ from binance_api import (
     get_real_pnl_data,
     place_limit_sell,
     place_limit_sell_order,
+    place_take_profit_order,
+    place_stop_loss_order,
 )
 from alerts import check_daily_alerts
 
@@ -44,6 +46,54 @@ ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# TP/SL order controls helpers
+# ---------------------------------------------------------------------------
+
+def get_order_controls(symbol: str, qty: float, current_price: float) -> InlineKeyboardMarkup:
+    """Створити кнопки для виставлення Take Profit та Stop Loss."""
+
+    keyboard = InlineKeyboardMarkup(row_width=2)
+    tp_button = InlineKeyboardButton(
+        text="\U0001F4C8 \u0412\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u0438 TP",
+        callback_data=f"set_tp|{symbol}|{qty}|{current_price}"
+    )
+    sl_button = InlineKeyboardButton(
+        text="\U0001F6E1\ufe0f \u0412\u0441\u0442\u0430\u043D\u043E\u0432\u0438\u0442\u0438 SL",
+        callback_data=f"set_sl|{symbol}|{qty}|{current_price}"
+    )
+    keyboard.add(tp_button, sl_button)
+    return keyboard
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith("set_tp|"))
+async def callback_set_tp(call: types.CallbackQuery) -> None:
+    """Обробник кнопки Take Profit."""
+
+    _, symbol, qty, price = call.data.split("|")
+    tp_price = round(float(price) * 1.10, 6)
+    try:
+        place_take_profit_order(symbol=symbol, quantity=float(qty), take_profit_price=tp_price)
+        await call.message.answer(f"\u2705 TP ордер виставлено: {symbol} \u2192 {tp_price}")
+    except Exception as e:  # pragma: no cover - network errors
+        await call.message.answer(f"\u274C \u041F\u043E\u043C\u0438\u043B\u043A\u0430 TP: {e}")
+    await call.answer()
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith("set_sl|"))
+async def callback_set_sl(call: types.CallbackQuery) -> None:
+    """Обробник кнопки Stop Loss."""
+
+    _, symbol, qty, price = call.data.split("|")
+    sl_price = round(float(price) * 0.95, 6)
+    try:
+        place_stop_loss_order(symbol=symbol, quantity=float(qty), stop_price=sl_price)
+        await call.message.answer(f"\u2705 SL ордер виставлено: {symbol} \u2192 {sl_price}")
+    except Exception as e:  # pragma: no cover - network errors
+        await call.message.answer(f"\u274C \u041F\u043E\u043C\u0438\u043B\u043A\u0430 SL: {e}")
+    await call.answer()
 
 
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith("take_profit:"))
@@ -307,16 +357,10 @@ async def handle_confirm_buy(callback_query: CallbackQuery):
             if quantity:
                 price = quote_qty / quantity
 
-        keyboard = InlineKeyboardMarkup(row_width=2)
-        keyboard.add(
-            InlineKeyboardButton(
-                "\U0001F4C8 Встановити Take Profit",
-                callback_data=f"take_profit_{symbol}:{quantity}:{price}",
-            ),
-            InlineKeyboardButton("\U0001F6AB Без фіксації", callback_data="cancel_take_profit"),
-        )
+        keyboard = get_order_controls(f"{symbol.upper()}USDT", quantity, price)
         await callback_query.message.answer(
-            "\U0001F3AF Встановити фіксацію прибутку?", reply_markup=keyboard
+            "\U0001F4CA Встановити TP або SL?",
+            reply_markup=keyboard,
         )
     except Exception as e:  # pragma: no cover - network errors
         await callback_query.message.answer(
