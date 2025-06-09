@@ -154,13 +154,13 @@ def register_handlers(dp: Dispatcher) -> None:
 
     async def confirm_buy(callback_query: types.CallbackQuery) -> None:
         token = callback_query.data.replace("confirmbuy_", "")
-        result = place_market_order(symbol=token, side="BUY", quantity=5)
+        result = place_market_order(symbol=token, side="BUY", usdt_amount=5)
         await callback_query.answer(f"Купівля {token} підтверджена.")
         await callback_query.message.answer(f"\U0001F7E2 Куплено {token}: {result}")
 
     async def confirm_sell(callback_query: types.CallbackQuery) -> None:
         token = callback_query.data.replace("confirmsell_", "")
-        result = place_market_order(symbol=token, side="SELL", quantity=5)
+        result = place_market_order(symbol=token, side="SELL", usdt_amount=5)
         await callback_query.answer(f"Продаж {token} підтверджено.")
         await callback_query.message.answer(f"\U0001F534 Продано {token}: {result}")
 
