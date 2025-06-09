@@ -169,3 +169,7 @@ async def daily_analysis_task(bot, chat_id: int) -> None:
 async def send_zarobyty_forecast(bot, chat_id: int) -> None:
     """Placeholder for forecast sending."""
     await bot.send_message(chat_id, "\u23F3 \u0424\u0443\u043D\u043A\u0446\u0456\u044F \u043F\u0440\u043E\u0433\u043D\u043E\u0437\u0443 \u043D\u0435 \u0440\u0435\u0430\u043B\u0456\u0437\u043E\u0432\u0430\u043D\u0430.")
+
+
+def generate_daily_stats_report() -> str:
+    return "⏳ Щоденний звіт тимчасово недоступний."
