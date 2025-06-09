@@ -517,6 +517,33 @@ def get_open_orders(symbol: str | None = None) -> list:
         return []
 
 
+def cancel_order(order_id: int, symbol: str = "USDTBTC") -> bool:
+    """Cancel an existing order by ID."""
+    try:
+        response = client.cancel_order(symbol=symbol, orderId=order_id)
+        return response.get("status") == "CANCELED"
+    except Exception as e:
+        logger.error("[ERROR] cancel_order: %s", e)
+        return False
+
+
+def update_tp_sl_order(order_id: int, price: float, symbol: str) -> bool:
+    """Update TP/SL order price."""
+    try:
+        client.cancel_order(symbol=symbol, orderId=order_id)
+        client.create_order(
+            symbol=symbol,
+            side=SIDE_SELL,
+            type=ORDER_TYPE_LIMIT,
+            quantity=0,
+            price=str(price),
+        )
+        return True
+    except Exception as e:
+        logger.error("[ERROR] update_tp_sl_order: %s", e)
+        return False
+
+
 def get_usdt_to_uah_rate() -> float:
     """Return USDT to UAH conversion rate."""
 
