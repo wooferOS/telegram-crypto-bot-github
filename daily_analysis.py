@@ -16,6 +16,8 @@ from binance_api import (
     get_usdt_to_uah_rate,
     place_market_order,
     place_limit_sell_order,
+    get_open_orders,
+    update_tp_sl_order,
 )
 from gpt_utils import ask_gpt
 from utils import convert_to_uah, calculate_rr, calculate_indicators, get_sector, analyze_btc_correlation
@@ -23,6 +25,37 @@ from coingecko_api import get_sentiment
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 logger = logging.getLogger(__name__)
+
+
+def _maybe_update_orders(symbol: str, new_tp: float, new_sl: float) -> bool:
+    """Check existing TP/SL for ``symbol`` and update if price changed."""
+
+    pair = f"{symbol.upper()}USDT"
+    orders = get_open_orders(pair)
+    if not orders:
+        return False
+
+    tp_price = None
+    sl_price = None
+    for o in orders:
+        if o.get("side") == "SELL" and o.get("type") == "LIMIT":
+            tp_price = float(o.get("price", 0))
+        if o.get("side") == "SELL" and o.get("type") == "STOP_LOSS_LIMIT":
+            sl_price = float(o.get("stopPrice", 0))
+
+    if tp_price is None and sl_price is None:
+        return False
+
+    update_needed = False
+    if tp_price is not None and abs(tp_price - new_tp) / tp_price > 0.015:
+        update_needed = True
+    if sl_price is not None and abs(sl_price - new_sl) / sl_price > 0.015:
+        update_needed = True
+
+    if update_needed:
+        update_tp_sl_order(symbol, new_tp, new_sl)
+        return True
+    return False
 
 
 def execute_buy_order(symbol: str, amount_usdt: float):
@@ -49,7 +82,7 @@ def execute_buy_order(symbol: str, amount_usdt: float):
         logger.error(f"❌ Помилка під час покупки {symbol}: {e}")
 
 
-def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup]:
+def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
     """Return daily profit report text and keyboard."""
     balances = get_binance_balances()
     usdt_balance = balances.get("USDT", 0)
@@ -166,11 +199,19 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup]:
         remaining -= amount
 
     recommended_buys = []
+    updates: list[tuple[str, float, float]] = []
     for token in buy_plan:
         price = token["price"]
         symbol = token["symbol"]
         stop_price = price * 0.97  # 3% нижче — умовний стоп
-        recommended_buys.append(f"{symbol}: Купити на {token['amount_usdt']} USDT, стоп ≈ {round(stop_price, 4)}")
+        recommended_buys.append(
+            f"{symbol}: Купити на {token['amount_usdt']} USDT, стоп ≈ {round(stop_price, 4)}"
+        )
+
+        tp_price = round(price * 1.10, 6)
+        sl_price = round(price * 0.95, 6)
+        if _maybe_update_orders(symbol, tp_price, sl_price):
+            updates.append((f"{symbol.upper()}USDT", tp_price, sl_price))
 
     report_lines = []
     report_lines.append(f"🕒 Звіт сформовано: {now.strftime('%Y-%m-%d %H:%M:%S')} (Kyiv)")
@@ -249,7 +290,7 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup]:
                 )
             ])
 
-    return report, keyboard
+    return report, keyboard, updates
 
 
 
@@ -259,8 +300,14 @@ def generate_daily_stats_report() -> str:
 
 
 async def daily_analysis_task(bot, chat_id: int) -> None:
-    """Placeholder scheduled task."""
-    await bot.send_message(chat_id, generate_daily_stats_report())
+    """Run daily analysis and notify about TP/SL updates."""
+    report, _, updates = generate_zarobyty_report()
+    await bot.send_message(chat_id, report)
+    for symbol, tp_price, sl_price in updates:
+        await bot.send_message(
+            chat_id,
+            f"\u267B\ufe0f Ордер оновлено: {symbol} — новий TP: {tp_price}, SL: {sl_price}"
+        )
 
 
 async def send_zarobyty_forecast(bot, chat_id: int) -> None:

@@ -527,21 +527,28 @@ def cancel_order(order_id: int, symbol: str = "USDTBTC") -> bool:
         return False
 
 
-def update_tp_sl_order(order_id: int, price: float, symbol: str) -> bool:
-    """Update TP/SL order price."""
-    try:
-        client.cancel_order(symbol=symbol, orderId=order_id)
-        client.create_order(
-            symbol=symbol,
-            side=SIDE_SELL,
-            type=ORDER_TYPE_LIMIT,
-            quantity=0,
-            price=str(price),
-        )
-        return True
-    except Exception as e:
-        logger.error("[ERROR] update_tp_sl_order: %s", e)
-        return False
+def update_tp_sl_order(symbol: str, new_tp: float, new_sl: float) -> Dict[str, int] | None:
+    """Update existing TP/SL orders for ``symbol`` with new prices.
+
+    This helper cancels any current TP/SL orders and places new ones with the
+    provided prices. It returns dictionary with the new order IDs or ``None`` if
+    placement failed.
+    """
+
+    pair = symbol.upper() if symbol.upper().endswith("USDT") else f"{symbol.upper()}USDT"
+    # Cancel existing TP/SL orders
+    for order in get_open_orders(pair):
+        if order.get("side") == "SELL" and order.get("type") in {"LIMIT", "STOP_LOSS_LIMIT"}:
+            cancel_order(order.get("orderId"), pair)
+
+    tp = place_take_profit_order_auto(pair, target_price=new_tp)
+    sl = place_stop_loss_order_auto(pair, stop_price=new_sl)
+
+    if isinstance(tp, dict) and isinstance(sl, dict) and tp.get("orderId") and sl.get("orderId"):
+        return {"tp": tp.get("orderId"), "sl": sl.get("orderId")}
+
+    logger.error("[ERROR] update_tp_sl_order: failed to place TP/SL for %s", symbol)
+    return None
 
 
 def get_usdt_to_uah_rate() -> float:
