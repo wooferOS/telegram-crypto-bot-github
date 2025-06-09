@@ -1044,3 +1044,7 @@ def place_stop_loss_order_auto(symbol: str, quantity: float | None = None, stop_
         return response.json()
     except Exception as e:  # pragma: no cover - network errors
         return {"error": str(e)}
+
+# Alias для сумісності з існуючим кодом
+sell_token_market = market_sell
+
