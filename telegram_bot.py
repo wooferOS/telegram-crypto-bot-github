@@ -425,6 +425,16 @@ def register_handlers(dp: Dispatcher) -> None:
     dp.register_message_handler(show_gpt_forecast, Text(contains="Прогноз GPT", ignore_case=True))
     dp.register_message_handler(show_support, Text(contains="Підтримка", ignore_case=True))
 
+    # Additional registrations
+    dp.register_message_handler(start_cmd, commands=["start"])
+    dp.register_message_handler(zarobyty_cmd, commands=["zarobyty"])
+    dp.register_message_handler(zarobyty_cmd, Text(contains="Заробити", ignore_case=True))
+    dp.register_callback_query_handler(confirm_buy, lambda c: c.data.startswith("confirmbuy_"))
+
+    dp.register_message_handler(show_balance, commands=["balance"])
+    dp.register_message_handler(show_all_assets, commands=["all_assets"])
+    dp.register_message_handler(show_support, commands=["support"])
+
 
 @dp.callback_query_handler(lambda c: c.data.startswith("buy:"))
 async def handle_buy_callback(callback_query: CallbackQuery):
