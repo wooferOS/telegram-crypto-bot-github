@@ -19,12 +19,13 @@ from gpt_utils import ask_gpt
 from utils import convert_to_uah, calculate_rr, calculate_indicators, get_sector, analyze_btc_correlation
 from coingecko_api import get_sentiment
 from keyboards import zarobyty_keyboard
-from aiogram.types import InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 logger = logging.getLogger(__name__)
 
 
-def generate_zarobyty_report():
+def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup]:
+    """Return daily profit report text and keyboard."""
     balances = get_binance_balances()
     usdt_balance = balances.get("USDT", 0)
     if usdt_balance is None:
