@@ -8,7 +8,7 @@ import statistics
 from binance_api import (
     get_binance_balances,
     get_symbol_price,
-    get_price_history_24h as get_price_history,
+    get_candlestick_klines as get_price_history,
     get_candlestick_klines as get_klines,
     get_recent_trades as get_my_trades,
     get_top_tokens,
@@ -39,7 +39,13 @@ def generate_zarobyty_report():
         average_buy_price = sum([float(t['price']) * float(t['qty']) for t in trades]) / sum([float(t['qty']) for t in trades]) if trades else price
         pnl_percent = ((price - average_buy_price) / average_buy_price) * 100
         rr = calculate_rr(klines)
-        volume_24h = price_history.get("quoteVolume", 0)
+        volume_24h = 0
+        if (
+            isinstance(price_history, list)
+            and len(price_history) > 0
+            and isinstance(price_history[0], (list, tuple))
+        ):
+            volume_24h = sum(float(k[5]) for k in price_history if len(k) > 5)
         sector = get_sector(symbol)
         btc_corr = analyze_btc_correlation(symbol)
 
@@ -70,7 +76,13 @@ def generate_zarobyty_report():
         rr = calculate_rr(klines)
         sector = get_sector(symbol)
         price_stats = get_price_history(symbol)
-        volume = price_stats.get("quoteVolume", 0)
+        volume = 0
+        if (
+            isinstance(price_stats, list)
+            and len(price_stats) > 0
+            and isinstance(price_stats[0], (list, tuple))
+        ):
+            volume = sum(float(k[5]) for k in price_stats if len(k) > 5)
         volumes = [float(k[5]) for k in klines]
         avg_volume = statistics.fmean(volumes[-20:]) if volumes else 0
         btc_corr = analyze_btc_correlation(symbol)
