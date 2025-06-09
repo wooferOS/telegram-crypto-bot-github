@@ -20,6 +20,7 @@ from binance_api import (
     place_sell_order,
     market_buy,
     market_sell,
+    create_take_profit_order,
 )
 from alerts import check_daily_alerts
 
@@ -53,6 +54,27 @@ async def handle_take_profit(callback_query: CallbackQuery) -> None:
     except Exception as e:  # pragma: no cover - log errors only
         await callback_query.message.answer(
             f"⚠️ Помилка під час фіксації прибутку: {e}"
+        )
+
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith("take_profit_"))
+async def handle_take_profit_new(callback_query: CallbackQuery) -> None:
+    _, symbol, quantity, buy_price = callback_query.data.split(":")
+    quantity = float(quantity)
+    buy_price = float(buy_price)
+    target_profit_percent = 10
+    target_price = round(buy_price * (1 + target_profit_percent / 100), 8)
+
+    result = create_take_profit_order(symbol, quantity, target_price)
+    if result["success"]:
+        await bot.send_message(
+            callback_query.from_user.id,
+            f"✅ Ордер на фіксацію прибутку {symbol} встановлено за ціною {target_price}",
+        )
+    else:
+        await bot.send_message(
+            callback_query.from_user.id,
+            f"❌ Помилка при встановленні Take Profit: {result['error']}",
         )
 
 
@@ -219,6 +241,11 @@ async def handle_cancel(callback_query: CallbackQuery):
     await callback_query.message.answer("❌ Дію скасовано.")
 
 
+@dp.callback_query_handler(lambda c: c.data == "cancel_take_profit")
+async def handle_cancel_take_profit(callback_query: CallbackQuery) -> None:
+    await callback_query.message.answer("🚫 Фіксацію прибутку скасовано.")
+
+
 @dp.callback_query_handler(lambda c: c.data.startswith("confirm_buy:"))
 async def handle_confirm_buy(callback_query: CallbackQuery):
     symbol = callback_query.data.split(":")[1]
@@ -227,6 +254,26 @@ async def handle_confirm_buy(callback_query: CallbackQuery):
         result = market_buy(symbol, usdt_amount)
         await callback_query.message.answer(
             f"🟢 Купівля {symbol.upper()} на {usdt_amount} USDT успішна!\n\n{result}"
+        )
+
+        quantity = 0.0
+        price = 0.0
+        if isinstance(result, dict):
+            quantity = float(result.get("executedQty", 0))
+            quote_qty = float(result.get("cummulativeQuoteQty", 0))
+            if quantity:
+                price = quote_qty / quantity
+
+        keyboard = InlineKeyboardMarkup(row_width=2)
+        keyboard.add(
+            InlineKeyboardButton(
+                "\U0001F4C8 Встановити Take Profit",
+                callback_data=f"take_profit_{symbol}:{quantity}:{price}",
+            ),
+            InlineKeyboardButton("\U0001F6AB Без фіксації", callback_data="cancel_take_profit"),
+        )
+        await callback_query.message.answer(
+            "\U0001F3AF Встановити фіксацію прибутку?", reply_markup=keyboard
         )
     except Exception as e:  # pragma: no cover - network errors
         await callback_query.message.answer(
