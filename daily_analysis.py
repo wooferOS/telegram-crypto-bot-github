@@ -36,7 +36,7 @@ def generate_zarobyty_report():
         trades = get_my_trades(f"{symbol}USDT")
 
         indicators = calculate_indicators(klines)
-        average_buy_price = sum([t['price'] * t['qty'] for t in trades]) / sum([t['qty'] for t in trades]) if trades else price
+        average_buy_price = sum([float(t['price']) * float(t['qty']) for t in trades]) / sum([float(t['qty']) for t in trades]) if trades else price
         pnl_percent = ((price - average_buy_price) / average_buy_price) * 100
         rr = calculate_rr(klines)
         volume_24h = price_history.get("quoteVolume", 0)
