@@ -220,6 +220,12 @@ def get_symbol_price(symbol: str) -> float:
         return 0.0
 
 
+def get_current_price(symbol: str) -> float:
+    """Return current market price for a symbol."""
+
+    return get_symbol_price(symbol)
+
+
 def get_token_price(symbol: str) -> dict:
     """Return token price with symbol."""
 
@@ -231,19 +237,25 @@ def get_token_price(symbol: str) -> dict:
         return {"symbol": symbol.upper(), "price": "0"}
 
 
-def place_market_order(symbol: str, side: str, quantity: float) -> Optional[Dict[str, object]]:
-    """Execute a market order to buy or sell."""
+def place_market_order(symbol: str, side: str, usdt_amount: float) -> Optional[Dict[str, object]]:
+    """Execute a market order on a USDT amount and set Take Profit on buy."""
 
     try:
+        price = get_current_price(symbol)
+        if not price:
+            return None
+
+        quantity = round(usdt_amount / price, 6)
+
         order = client.create_order(
             symbol=f"{symbol.upper()}USDT",
             side=SIDE_BUY if side.upper() == "BUY" else SIDE_SELL,
             type=ORDER_TYPE_MARKET,
             quantity=quantity,
         )
-        logger.info("%s Ордер виконано: %s", TELEGRAM_LOG_PREFIX, order)
+        logger.info("%s Ордер %s виконано: %s", TELEGRAM_LOG_PREFIX, side, order)
 
-        if side.upper() == "BUY" and order and order.get("status") == "FILLED":
+        if side.upper() == "BUY" and order.get("status") == "FILLED":
             executed_price = float(order["fills"][0]["price"])
             place_take_profit_order(
                 symbol=f"{symbol.upper()}USDT",
@@ -252,8 +264,15 @@ def place_market_order(symbol: str, side: str, quantity: float) -> Optional[Dict
             )
 
         return order
-    except Exception as exc:
-        logger.error("%s Помилка створення ордера: %s", TELEGRAM_LOG_PREFIX, exc)
+
+    except BinanceAPIException as e:
+        logger.error(
+            "%s \u274c Помилка при створенні ордера %s для %s: %s",
+            TELEGRAM_LOG_PREFIX,
+            side,
+            symbol,
+            e,
+        )
         return None
 
 
