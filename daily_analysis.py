@@ -16,6 +16,7 @@ from binance_api import (
 )
 from gpt_utils import ask_gpt
 from utils import convert_to_uah, calculate_rr, calculate_indicators, get_sector, analyze_btc_correlation
+from coingecko_api import get_sentiment
 from keyboards import zarobyty_keyboard
 
 logger = logging.getLogger(__name__)
@@ -153,8 +154,16 @@ def generate_zarobyty_report():
     report_lines.append(f"💹 Очікуваний прибуток: {expected_profit_usdt} USDT ≈ ~{expected_profit_uah}₴ за 24г")
     report_lines.append("⸻")
 
-    summary = ask_gpt("Сформуй короткий інвест-звіт на 24г для крипто-портфеля", context="\n".join(report_lines))
-    report_lines.append(f"🧠 Прогноз GPT:\n{summary}")
+    market_trend = get_sentiment()
+    summary_data = {
+        "balance": f"{total_uah}₴",
+        "recommended_sell": ", ".join([t["symbol"] for t in sell_recommendations]) or "Немає",
+        "recommended_buy": "; ".join(recommended_buys) or "Немає",
+        "profit": f"{expected_profit_uah}₴",
+        "market_trend": market_trend,
+    }
+    gpt_forecast = ask_gpt(summary_data)
+    report_lines.append(f"🧠 Прогноз GPT:\n{gpt_forecast}")
 
     return "\n".join(report_lines), zarobyty_keyboard(buy_candidates, sell_recommendations)
 
