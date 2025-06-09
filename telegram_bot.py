@@ -418,6 +418,11 @@ def register_handlers(dp: Dispatcher) -> None:
 
     dp.register_message_handler(zarobyty_cmd, Text(contains="Звіт", ignore_case=True))
     dp.register_message_handler(zarobyty_cmd, Text(contains="Заробити", ignore_case=True))
+    dp.register_message_handler(show_balance, Text(contains="Баланс", ignore_case=True))
+    dp.register_message_handler(show_all_assets, Text(contains="Всі активи", ignore_case=True))
+    dp.register_message_handler(show_price_chart, Text(contains="Графік", ignore_case=True))
+    dp.register_message_handler(show_gpt_forecast, Text(contains="Прогноз GPT", ignore_case=True))
+    dp.register_message_handler(show_support, Text(contains="Підтримка", ignore_case=True))
     dp.register_message_handler(stats_cmd, Text(contains="Баланс", ignore_case=True))
     dp.register_message_handler(history_cmd, Text(contains="Історія", ignore_case=True))
 
@@ -717,27 +722,22 @@ async def edit_order_callback(callback_query: types.CallbackQuery) -> None:
     )
 
 
-@dp.message_handler(Text(contains="Баланс"))
 async def show_balance(message: types.Message):
     await message.answer("\U0001F4B0 Баланс за токенами:\n\U0001F504 Завантажується...")
 
 
-@dp.message_handler(Text(contains="Графік"))
-async def show_chart(message: types.Message):
+async def show_price_chart(message: types.Message):
     await message.answer("\U0001F4C8 Введіть токен: /price24 BTC")
 
 
-@dp.message_handler(Text(contains="Всі активи"))
-async def show_assets(message: types.Message):
+async def show_all_assets(message: types.Message):
     await message.answer("\U0001F4E6 Всі активи на балансі:\n\U0001F504 Завантажується...")
 
 
-@dp.message_handler(Text(contains="Прогноз GPT"))
 async def show_gpt_forecast(message: types.Message):
     await message.answer("\U0001F9E0 GPT прогноз:\n(Підтягується з останнього звіту...)")
 
 
-@dp.message_handler(Text(contains="Підтримка"))
 async def show_support(message: types.Message):
     await message.answer("\U0001F9D1\u200d\U0001F4BB Пишіть адміну: @your_admin_username")
 
