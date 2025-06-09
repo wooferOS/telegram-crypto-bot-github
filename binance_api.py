@@ -13,6 +13,8 @@ import hmac
 import hashlib
 import logging
 import decimal
+import json
+from datetime import datetime
 from typing import Dict, List, Optional
 
 import requests
@@ -34,6 +36,33 @@ TELEGRAM_LOG_PREFIX = "\ud83d\udce1 [BINANCE]"
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 BINANCE_BASE_URL = "https://api.binance.com"
+
+# File used to log TP/SL updates
+LOG_FILE = "tp_sl_log.json"
+
+
+def log_tp_sl_change(symbol: str, action: str, tp: float, sl: float) -> None:
+    """Append TP/SL change information to ``LOG_FILE``."""
+
+    log_data = {
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "symbol": symbol,
+        "action": action,
+        "take_profit": tp,
+        "stop_loss": sl,
+    }
+
+    if os.path.exists(LOG_FILE):
+        with open(LOG_FILE, "r", encoding="utf-8") as f:
+            history = json.load(f)
+    else:
+        history = []
+
+    history.append(log_data)
+
+    with open(LOG_FILE, "w", encoding="utf-8") as f:
+        json.dump(history, f, indent=2)
+
 
 print(f"[DEBUG] API: {BINANCE_API_KEY[:6]}..., SECRET: {BINANCE_SECRET_KEY[:6]}...")
 
