@@ -317,6 +317,29 @@ def place_limit_sell(symbol: str, quantity: float) -> dict:
         return {"success": False, "error": str(exc)}
 
 
+def place_limit_sell_order(symbol: str, quantity: float, price: float) -> dict:
+    """Place a LIMIT SELL order at a specific price."""
+    try:
+        order = client.create_order(
+            symbol=symbol.upper(),
+            side="SELL",
+            type="LIMIT",
+            timeInForce="GTC",
+            quantity=round(quantity, 6),
+            price=str(round(price, 6)),
+        )
+        return {"success": True, "order": order}
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.error(
+            "%s Failed to place limit sell order for %s at %s: %s",
+            TELEGRAM_LOG_PREFIX,
+            symbol,
+            price,
+            exc,
+        )
+        return {"success": False, "error": str(exc)}
+
+
 def place_take_profit_order(
     symbol: str,
     quantity: float,
