@@ -24,6 +24,9 @@ from binance_api import (
     get_open_orders,
     sell_token_market,
     buy_token_market,
+    place_stop_limit_sell_order,
+    get_token_price,
+    get_token_balance,
 )
 from alerts import check_daily_alerts
 
@@ -350,5 +353,24 @@ async def handle_buy_callback(callback_query: types.CallbackQuery):
     except Exception as e:
         await callback_query.message.answer(
             f"❌ Помилка при купівлі {token}: {e}"
+        )
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith("takeprofit_"))
+async def handle_take_profit_callback(callback_query: types.CallbackQuery):
+    token = callback_query.data.split("_", 1)[1]
+    try:
+        price_data = get_token_price(token)
+        current_price = float(price_data["price"])
+        target_profit_percent = 10  # фіксація прибутку при +10%
+        take_profit_price = round(current_price * (1 + target_profit_percent / 100), 6)
+        balance = get_token_balance(token)
+        result = place_stop_limit_sell_order(token, balance, take_profit_price)
+        await callback_query.message.answer(
+            f"📉 Ордер на фіксацію прибутку встановлено: {balance} {token} при {take_profit_price}"
+        )
+    except Exception as e:
+        await callback_query.message.answer(
+            f"❌ Не вдалося встановити take profit для {token}: {e}"
         )
 
