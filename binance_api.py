@@ -256,12 +256,15 @@ def place_market_order(symbol: str, side: str, usdt_amount: float) -> Optional[D
         logger.info("%s Ордер %s виконано: %s", TELEGRAM_LOG_PREFIX, side, order)
 
         if side.upper() == "BUY" and order.get("status") == "FILLED":
-            executed_price = float(order["fills"][0]["price"])
-            place_take_profit_order(
-                symbol=f"{symbol.upper()}USDT",
-                quantity=quantity,
-                current_price=executed_price,
-            )
+            # Встановлення Take Profit (TP) після покупки
+            executed_qty = float(order.get("executedQty", quantity))
+            if current_price := get_symbol_price(symbol):
+                take_profit_price = round(current_price * 1.10, 5)
+                place_limit_sell_order(
+                    f"{symbol.upper()}USDT",
+                    executed_qty,
+                    take_profit_price,
+                )
 
         return order
 
