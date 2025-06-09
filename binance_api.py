@@ -268,6 +268,24 @@ def create_take_profit_order(symbol: str, quantity: float, target_price: float) 
         return {"success": False, "error": str(e)}
 
 
+def get_open_orders(symbol: str | None = None) -> list:
+    """Return all open orders using a signed HTTP request."""
+
+    endpoint = "/api/v3/openOrders"
+    params: Dict[str, object] = {"timestamp": get_timestamp()}
+    if symbol:
+        params["symbol"] = symbol.upper()
+    signed_params = sign_request(params)
+    url = f"{BINANCE_BASE_URL}{endpoint}"
+    try:
+        resp = requests.get(url, headers=get_headers(), params=signed_params, timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.warning("%s Не вдалося отримати відкриті ордери: %s", TELEGRAM_LOG_PREFIX, exc)
+        return []
+
+
 def get_usdt_to_uah_rate() -> float:
     """Return USDT to UAH conversion rate."""
 
