@@ -21,6 +21,7 @@ from binance_api import (
     market_buy,
     market_sell,
     create_take_profit_order,
+    get_open_orders,
 )
 from alerts import check_daily_alerts
 
@@ -293,5 +294,31 @@ async def handle_confirm_sell(callback_query: CallbackQuery):
         await callback_query.message.answer(
             f"❌ Помилка при продажу {symbol.upper()}: {str(e)}"
         )
+
+
+@dp.message_handler(commands=["orders"])
+async def open_orders_cmd(message: types.Message) -> None:
+    """Respond with currently open Binance orders."""
+    try:
+        orders = get_open_orders()
+        if not orders:
+            await message.answer("ℹ️ Немає відкритих ордерів.")
+            return
+
+        text = "📋 Відкриті ордери Binance:\n"
+        for o in orders:
+            symbol = o.get("symbol", "")
+            side = o.get("side", "")
+            order_type = o.get("type", "")
+            price = o.get("price", "")
+            qty = o.get("origQty", "")
+            status = o.get("status", "")
+            text += (
+                f"\n{symbol} | {side} | {order_type} | 💵 Ціна: {price} | К-сть: {qty} | Статус: {status}"
+            )
+
+        await message.answer(text)
+    except Exception as e:  # pragma: no cover - network errors
+        await message.answer(f"⚠️ Помилка при отриманні ордерів: {e}")
 
 
