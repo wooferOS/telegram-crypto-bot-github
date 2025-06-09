@@ -108,7 +108,21 @@ async def check_tp_sl_execution() -> None:
 
 # Reply keyboard with main actions
 menu = ReplyKeyboardMarkup(resize_keyboard=True)
-menu.add(KeyboardButton("\U0001F4C8 Заробити"), KeyboardButton("\U0001F4CB Змінити ордери"))
+menu.row(
+    KeyboardButton("\U0001F4C8 Заробити"),
+    KeyboardButton("\U0001F4CB Змінити ордери")
+)
+menu.row(
+    KeyboardButton("\U0001F4CA Баланс"),
+    KeyboardButton("\U0001F4E6 Всі активи")
+)
+menu.row(
+    KeyboardButton("\U0001F4C8 Графік"),
+    KeyboardButton("\U0001F9E0 Прогноз GPT")
+)
+menu.row(
+    KeyboardButton("\U0001F9D1\u200d\U0001F4BB Підтримка")
+)
 
 
 # ---------------------------------------------------------------------------
@@ -700,4 +714,29 @@ async def edit_order_callback(callback_query: types.CallbackQuery) -> None:
     await callback_query.answer(
         f"Редагування {symbol} поки не реалізовано.", show_alert=True
     )
+
+
+@dp.message_handler(Text(contains="Баланс"))
+async def show_balance(message: types.Message):
+    await message.answer("\U0001F4B0 Баланс за токенами:\n\U0001F504 Завантажується...")
+
+
+@dp.message_handler(Text(contains="Графік"))
+async def show_chart(message: types.Message):
+    await message.answer("\U0001F4C8 Введіть токен: /price24 BTC")
+
+
+@dp.message_handler(Text(contains="Всі активи"))
+async def show_assets(message: types.Message):
+    await message.answer("\U0001F4E6 Всі активи на балансі:\n\U0001F504 Завантажується...")
+
+
+@dp.message_handler(Text(contains="Прогноз GPT"))
+async def show_gpt_forecast(message: types.Message):
+    await message.answer("\U0001F9E0 GPT прогноз:\n(Підтягується з останнього звіту...)")
+
+
+@dp.message_handler(Text(contains="Підтримка"))
+async def show_support(message: types.Message):
+    await message.answer("\U0001F9D1\u200d\U0001F4BB Пишіть адміну: @your_admin_username")
 
