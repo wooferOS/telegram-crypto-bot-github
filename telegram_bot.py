@@ -49,6 +49,26 @@ async def handle_take_profit(callback_query: CallbackQuery) -> None:
             f"⚠️ Помилка під час фіксації прибутку: {e}"
         )
 
+
+@dp.callback_query_handler(
+    lambda c: c.data and (c.data.startswith("buy:") or c.data.startswith("sell:"))
+)
+async def handle_trade_action(callback_query: CallbackQuery) -> None:
+    """Notify user about buy/sell actions."""
+    action, symbol = callback_query.data.split(":")
+
+    if action == "buy":
+        await callback_query.answer(
+            f"🟢 Купівля {symbol} (в розробці)", show_alert=False
+        )
+    elif action == "sell":
+        await callback_query.answer(
+            f"🔴 Продаж {symbol} (в розробці)", show_alert=False
+        )
+
+    # Optional log
+    print(f"[BUTTON ACTION] User requested to {action.upper()} {symbol}")
+
 scheduler = AsyncIOScheduler(timezone="UTC")
 
 
