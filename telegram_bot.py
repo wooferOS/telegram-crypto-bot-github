@@ -12,7 +12,8 @@ from daily_analysis import (
 )
 from history import generate_history_report
 from stats import generate_stats_report
-from binance_api import place_market_order, get_price_history_24h
+from aiogram.types import CallbackQuery
+from binance_api import place_market_order, get_price_history_24h, place_sell_order
 from alerts import check_daily_alerts
 
 
@@ -21,6 +22,30 @@ ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
+
+
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith("take_profit:"))
+async def handle_take_profit(callback_query: CallbackQuery) -> None:
+    """Handle take profit button presses."""
+
+    try:
+        _, symbol, quantity_str, price_str = callback_query.data.split(":")
+        quantity = float(quantity_str)
+        price = float(price_str)
+
+        result = place_sell_order(symbol=symbol, quantity=quantity, price=price)
+        if result:
+            await callback_query.message.answer(
+                f"✅ Ордер на продажу {symbol} за {price} встановлено (кількість: {quantity})"
+            )
+        else:
+            await callback_query.message.answer(
+                f"❌ Не вдалося встановити ордер на {symbol}"
+            )
+    except Exception as e:  # pragma: no cover - log errors only
+        await callback_query.message.answer(
+            f"⚠️ Помилка під час фіксації прибутку: {e}"
+        )
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 
@@ -70,6 +95,7 @@ def register_handlers(dp: Dispatcher) -> None:
         result = place_market_order(symbol=token, side="SELL", quantity=5)
         await callback_query.answer(f"Продаж {token} підтверджено.")
         await callback_query.message.answer(f"\U0001F534 Продано {token}: {result}")
+
 
     async def history_cmd(message: types.Message) -> None:
         await message.reply(generate_history_report(), parse_mode="Markdown")

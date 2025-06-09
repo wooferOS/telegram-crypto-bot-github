@@ -18,6 +18,7 @@ from gpt_utils import ask_gpt
 from utils import convert_to_uah, calculate_rr, calculate_indicators, get_sector, analyze_btc_correlation
 from coingecko_api import get_sentiment
 from keyboards import zarobyty_keyboard
+from aiogram.types import InlineKeyboardButton
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,7 @@ def generate_zarobyty_report():
         token_data.append({
             "symbol": symbol,
             "amount": amount,
+            "quantity": amount,
             "uah_value": round(uah_value, 2),
             "price": price,
             "pnl": round(pnl_percent, 2),
@@ -165,7 +167,18 @@ def generate_zarobyty_report():
     gpt_forecast = ask_gpt(summary_data)
     report_lines.append(f"🧠 Прогноз GPT:\n{gpt_forecast}")
 
-    return "\n".join(report_lines), zarobyty_keyboard(buy_candidates, sell_recommendations)
+    keyboard = zarobyty_keyboard(buy_candidates, sell_recommendations)
+    for token in token_data:
+        if token['pnl'] > 10:
+            take_profit_price = round(token['price'] * 1.05, 5)
+            keyboard.inline_keyboard.append([
+                InlineKeyboardButton(
+                    text=f"🎯 Фіксувати прибуток ({token['symbol']})",
+                    callback_data=f"take_profit:{token['symbol']}:{token['quantity']}:{take_profit_price}"
+                )
+            ])
+
+    return "\n".join(report_lines), keyboard
 
 
 
