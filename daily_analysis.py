@@ -18,7 +18,6 @@ from binance_api import (
 from gpt_utils import ask_gpt
 from utils import convert_to_uah, calculate_rr, calculate_indicators, get_sector, analyze_btc_correlation
 from coingecko_api import get_sentiment
-from keyboards import zarobyty_keyboard
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 logger = logging.getLogger(__name__)
@@ -189,7 +188,26 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup]:
     gpt_forecast = ask_gpt(summary_data)
     report_lines.append(f"🧠 Прогноз GPT:\n{gpt_forecast}")
 
-    keyboard = zarobyty_keyboard(buy_plan, sell_recommendations)
+    report = "\n".join(report_lines)
+
+    keyboard = InlineKeyboardMarkup(row_width=2)
+
+    for token in sell_recommendations:
+        keyboard.insert(
+            InlineKeyboardButton(
+                text=f"Продати {token['symbol']}",
+                callback_data=f"sell:{token['symbol']}"
+            )
+        )
+
+    for token in buy_plan:
+        keyboard.insert(
+            InlineKeyboardButton(
+                text=f"Купити {token['symbol']}",
+                callback_data=f"buy:{token['symbol']}"
+            )
+        )
+
     for token in token_data:
         if token['pnl'] > 10:
             take_profit_price = round(token['price'] * 1.05, 5)
@@ -200,7 +218,7 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup]:
                 )
             ])
 
-    return "\n".join(report_lines), keyboard
+    return report, keyboard
 
 
 
