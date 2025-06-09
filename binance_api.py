@@ -210,6 +210,42 @@ def get_token_balance(symbol: str) -> float:
         return 0.0
 
 
+def get_account_balances() -> Dict[str, Dict[str, str]]:
+    """Return mapping of assets to their free and locked amounts."""
+
+    try:
+        account = client.get_account()
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.error("%s Не вдалося отримати баланси акаунта: %s", TELEGRAM_LOG_PREFIX, exc)
+        return {}
+
+    balances: Dict[str, Dict[str, str]] = {}
+    for bal in account.get("balances", []):
+        balances[bal.get("asset", "")] = {
+            "free": bal.get("free", "0"),
+            "locked": bal.get("locked", "0"),
+        }
+
+    return balances
+
+
+def get_asset_quantity(symbol: str) -> float:
+    """Return available quantity for ``symbol`` using account balances."""
+
+    asset = symbol.replace("USDT", "").upper()
+    balances = get_account_balances()
+    return float(balances.get(asset, {}).get("free", 0))
+
+
+def cancel_all_orders(symbol: str) -> None:
+    """Cancel all open orders for ``symbol``."""
+
+    try:
+        client.cancel_open_orders(symbol=symbol)
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.error("❌ Не вдалося скасувати ордери для %s: %s", symbol, exc)
+
+
 def get_symbol_price(symbol: str) -> float:
     """Return current price of token to USDT."""
 
@@ -527,22 +563,16 @@ def cancel_order(order_id: int, symbol: str = "USDTBTC") -> bool:
         return False
 
 
-def update_tp_sl_order(symbol: str, new_tp: float, new_sl: float) -> Dict[str, int] | None:
-    """Update existing TP/SL orders for ``symbol`` with new prices.
-
-    This helper cancels any current TP/SL orders and places new ones with the
-    provided prices. It returns dictionary with the new order IDs or ``None`` if
-    placement failed.
-    """
+def update_tp_sl_order(symbol: str, new_tp_price: float, new_sl_price: float) -> Dict[str, int] | None:
+    """Refresh TP/SL orders for ``symbol`` with new prices."""
 
     pair = symbol.upper() if symbol.upper().endswith("USDT") else f"{symbol.upper()}USDT"
-    # Cancel existing TP/SL orders
-    for order in get_open_orders(pair):
-        if order.get("side") == "SELL" and order.get("type") in {"LIMIT", "STOP_LOSS_LIMIT"}:
-            cancel_order(order.get("orderId"), pair)
 
-    tp = place_take_profit_order_auto(pair, target_price=new_tp)
-    sl = place_stop_loss_order_auto(pair, stop_price=new_sl)
+    cancel_all_orders(pair)
+
+    quantity = get_asset_quantity(pair)
+    tp = place_limit_sell_order(pair, quantity=quantity, price=new_tp_price)
+    sl = place_stop_limit_sell_order(symbol.replace("USDT", ""), quantity=quantity, stop_price=new_sl_price, limit_price=new_sl_price * 0.995)
 
     if isinstance(tp, dict) and isinstance(sl, dict) and tp.get("orderId") and sl.get("orderId"):
         return {"tp": tp.get("orderId"), "sl": sl.get("orderId")}
