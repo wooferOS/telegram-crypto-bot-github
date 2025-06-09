@@ -383,8 +383,9 @@ def register_handlers(dp: Dispatcher) -> None:
     async def alerts_on_cmd(message: types.Message) -> None:
         await message.reply("Щоденні сповіщення увімкнено.")
 
+    # ✅ Обробники для команд та кнопок меню
     dp.register_message_handler(start_cmd, commands=["start"])
-    dp.register_message_handler(zarobyty_cmd, Command("zarobyty"))
+    dp.register_message_handler(zarobyty_cmd, commands=["zarobyty"])
     dp.register_callback_query_handler(
         confirm_buy, lambda c: c.data and c.data.startswith("confirmbuy_")
     )
@@ -416,15 +417,12 @@ def register_handlers(dp: Dispatcher) -> None:
     dp.register_message_handler(menu_report_cmd, commands=["Звіт"])
     dp.register_message_handler(menu_history_cmd, commands=["Історія"])
 
-    dp.register_message_handler(zarobyty_cmd, Text(contains="Звіт", ignore_case=True))
     dp.register_message_handler(zarobyty_cmd, Text(contains="Заробити", ignore_case=True))
     dp.register_message_handler(show_balance, Text(contains="Баланс", ignore_case=True))
     dp.register_message_handler(show_all_assets, Text(contains="Всі активи", ignore_case=True))
     dp.register_message_handler(show_price_chart, Text(contains="Графік", ignore_case=True))
     dp.register_message_handler(show_gpt_forecast, Text(contains="Прогноз GPT", ignore_case=True))
     dp.register_message_handler(show_support, Text(contains="Підтримка", ignore_case=True))
-    dp.register_message_handler(stats_cmd, Text(contains="Баланс", ignore_case=True))
-    dp.register_message_handler(history_cmd, Text(contains="Історія", ignore_case=True))
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith("buy:"))
