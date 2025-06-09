@@ -40,6 +40,11 @@ def _ema(values: List[float], period: int) -> List[float]:
 
 def calculate_indicators(klines: List[List[float]]) -> Dict[str, float]:
     """Calculate basic indicators for token."""
+    if not klines or not isinstance(klines[0], (list, tuple)):
+        raise TypeError(
+            f"❌ Неправильний формат klines: {type(klines[0])}, очікується список OHLCV"
+        )
+
     closes = [float(k[4]) for k in klines]
 
     ema5 = _ema(closes, 5)[-1] if closes else 0.0
