@@ -13,6 +13,7 @@ from binance_api import (
     get_candlestick_klines as get_klines,
     get_recent_trades as get_my_trades,
     get_top_tokens,
+    get_usdt_to_uah_rate,
 )
 from gpt_utils import ask_gpt
 from utils import convert_to_uah, calculate_rr, calculate_indicators, get_sector, analyze_btc_correlation
@@ -25,7 +26,9 @@ logger = logging.getLogger(__name__)
 
 def generate_zarobyty_report():
     balances = get_binance_balances()
-    usdt_balance = balances.get("USDT", 0)
+    usdt_balance = balances.get("USDT", {}).get("free", 0)
+    if usdt_balance is None:
+        usdt_balance = 0
 
     token_data = []
     now = datetime.datetime.now(pytz.timezone("Europe/Kyiv"))
@@ -69,6 +72,10 @@ def generate_zarobyty_report():
         })
 
     sell_recommendations = [t for t in token_data if t['pnl'] > 1.0]
+
+    exchange_rate_uah = get_usdt_to_uah_rate()
+    usdt_from_sales = sum([t["uah_value"] for t in sell_recommendations]) / exchange_rate_uah
+    available_usdt = round(usdt_balance + usdt_from_sales, 2)
 
     symbols_from_balance = set(t['symbol'].upper() for t in token_data)
     market_symbols = set(s.upper() for s in get_top_tokens(limit=50))
@@ -118,12 +125,26 @@ def generate_zarobyty_report():
         logger.warning("⚠️ Немає ідеальних кандидатів, шукаємо альтернативи...")
         buy_candidates = filter_fallback_best_candidates(enriched_tokens)
 
+    top_buy_candidates = sorted(buy_candidates, key=lambda x: x["risk_reward"], reverse=True)[:5]
+
+    max_per_token = 10
+    buy_plan = []
+    remaining = available_usdt
+
+    for token in top_buy_candidates:
+        if remaining < 1:
+            break
+        amount = min(max_per_token, remaining)
+        token["amount_usdt"] = amount
+        buy_plan.append(token)
+        remaining -= amount
+
     recommended_buys = []
-    for token in buy_candidates:
+    for token in buy_plan:
         price = token["price"]
         symbol = token["symbol"]
         stop_price = price * 0.97  # 3% нижче — умовний стоп
-        recommended_buys.append(f"{symbol}: Купити на 10 USDT, стоп ≈ {round(stop_price, 4)}")
+        recommended_buys.append(f"{symbol}: Купити на {token['amount_usdt']} USDT, стоп ≈ {round(stop_price, 4)}")
 
     report_lines = []
     report_lines.append(f"🕒 Звіт сформовано: {now.strftime('%Y-%m-%d %H:%M:%S')} (Kyiv)")
@@ -143,7 +164,7 @@ def generate_zarobyty_report():
         report_lines.append("Наразі немає прибуткових активів для продажу")
     report_lines.append("⸻")
 
-    if buy_candidates:
+    if buy_plan:
         report_lines.append("📈 Рекомендується купити:")
         for rec in recommended_buys:
             report_lines.append(rec)
@@ -151,7 +172,7 @@ def generate_zarobyty_report():
         report_lines.append("Наразі немає активів, що відповідають умовам Smart Buy Filter")
     report_lines.append("⸻")
 
-    expected_profit_usdt = round((sum([b.get('risk_reward', 0) for b in buy_candidates]) / len(buy_candidates)) * (usdt_balance / 100) if buy_candidates else 0, 2)
+    expected_profit_usdt = round(sum([t["amount_usdt"] * t["risk_reward"] for t in buy_plan]), 2)
     expected_profit_uah = convert_to_uah(expected_profit_usdt)
     report_lines.append(f"💹 Очікуваний прибуток: {expected_profit_usdt} USDT ≈ ~{expected_profit_uah}₴ за 24г")
     report_lines.append("⸻")
@@ -167,7 +188,7 @@ def generate_zarobyty_report():
     gpt_forecast = ask_gpt(summary_data)
     report_lines.append(f"🧠 Прогноз GPT:\n{gpt_forecast}")
 
-    keyboard = zarobyty_keyboard(buy_candidates, sell_recommendations)
+    keyboard = zarobyty_keyboard(buy_plan, sell_recommendations)
     for token in token_data:
         if token['pnl'] > 10:
             take_profit_price = round(token['price'] * 1.05, 5)
