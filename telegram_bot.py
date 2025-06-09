@@ -45,6 +45,7 @@ from binance_api import (
     place_stop_loss_order,
     place_take_profit_order_auto,
     place_stop_loss_order_auto,
+    get_current_price,
     cancel_order,
     update_tp_sl_order,
 )
@@ -58,6 +59,47 @@ ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
 logger = logging.getLogger(__name__)
+
+# Mapping of symbol to current TP/SL order IDs
+active_orders: dict[str, dict] = {}
+
+
+async def check_tp_sl_execution() -> None:
+    """Monitor active TP/SL orders and update if market moved."""
+    for symbol, data in list(active_orders.items()):
+        if not data:
+            continue
+        pair = f"{symbol.upper()}USDT"
+        orders = get_open_orders(pair)
+        if not orders:
+            active_orders[symbol] = None
+            continue
+
+        tp_order = next((o for o in orders if o.get("orderId") == data.get("tp_id")), None)
+        sl_order = next((o for o in orders if o.get("orderId") == data.get("sl_id")), None)
+
+        if not tp_order and not sl_order:
+            active_orders[symbol] = None
+            continue
+
+        current = get_current_price(symbol)
+        new_tp = round(current * 1.10, 6)
+        new_sl = round(current * 0.95, 6)
+
+        need_update = False
+        if tp_order and abs(float(tp_order.get("price", 0)) - new_tp) / float(tp_order.get("price", 1)) > 0.015:
+            need_update = True
+        if sl_order and abs(float(sl_order.get("stopPrice", 0)) - new_sl) / float(sl_order.get("stopPrice", 1)) > 0.015:
+            need_update = True
+
+        if need_update:
+            result = update_tp_sl_order(symbol, new_tp, new_sl)
+            if result:
+                active_orders[symbol] = {"tp_id": result["tp"], "sl_id": result["sl"]}
+                await bot.send_message(
+                    ADMIN_CHAT_ID,
+                    f"\u267B\ufe0f Ордер оновлено: {pair} — новий TP: {new_tp}, SL: {new_sl}"
+                )
 
 # Reply keyboard with main actions
 menu = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -229,7 +271,7 @@ def register_handlers(dp: Dispatcher) -> None:
         )
 
     async def zarobyty_cmd(message: types.Message) -> None:
-        report, _ = generate_zarobyty_report()
+        report, _, updates = generate_zarobyty_report()
         if not report:
             await message.answer(
                 "⚠️ Звіт наразі недоступний. Спробуйте пізніше."
@@ -251,6 +293,11 @@ def register_handlers(dp: Dispatcher) -> None:
                 callback_data=take_profit_cb.new(symbol=symbol, amount=str(data["amount"]))
             )
             keyboard.add(btn)
+
+        for sym, tp, sl in updates:
+            await message.answer(
+                f"\u267B\ufe0f Ордер оновлено: {sym} — новий TP: {tp}, SL: {sl}"
+            )
 
         await message.answer(report, parse_mode="Markdown", reply_markup=keyboard)
 
@@ -275,6 +322,8 @@ def register_handlers(dp: Dispatcher) -> None:
 
         tp = place_take_profit_order_auto(token, target_price=take_profit_price)
         sl = place_stop_loss_order_auto(token, stop_price=stop_loss_price)
+        if isinstance(tp, dict) and isinstance(sl, dict):
+            active_orders[token] = {"tp_id": tp.get("orderId"), "sl_id": sl.get("orderId")}
 
         await callback_query.message.answer(
             "\uD83C\uDF1F \u0412\u0441\u0442\u0430\u043D\u043E\u0432\u043B\u0435\u043D\u043E:"\
@@ -282,6 +331,9 @@ def register_handlers(dp: Dispatcher) -> None:
             f"\nStop Loss: {stop_loss_price} USDT"\
             f"\n{'✅ TP OK' if isinstance(tp, dict) and tp.get('orderId') else '❌ TP Error'} | "\
             f"{'✅ SL OK' if isinstance(sl, dict) and sl.get('orderId') else '❌ SL Error'}"
+        )
+        await callback_query.message.answer(
+            f"\u267B\ufe0f Ордер оновлено: {token}USDT — новий TP: {take_profit_price}, SL: {stop_loss_price}"
         )
 
     async def confirm_sell(callback_query: types.CallbackQuery) -> None:
@@ -330,9 +382,13 @@ def register_handlers(dp: Dispatcher) -> None:
         await message.reply(generate_history_report(), parse_mode="Markdown")
 
     async def menu_report_cmd(message: types.Message) -> None:
-        report, keyboard = generate_zarobyty_report()
+        report, keyboard, updates = generate_zarobyty_report()
         report = clean_surrogates(report)
         await message.reply(report, parse_mode="Markdown", reply_markup=keyboard)
+        for sym, tp, sl in updates:
+            await message.answer(
+                f"\u267B\ufe0f Ордер оновлено: {sym} — новий TP: {tp}, SL: {sl}"
+            )
 
     async def menu_history_cmd(message: types.Message) -> None:
         await message.reply(generate_stats_report(), parse_mode="Markdown")

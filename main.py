@@ -2,7 +2,14 @@ import logging
 import asyncio
 from aiogram import Dispatcher
 from aiogram.utils import executor
-from telegram_bot import dp, bot, setup_scheduler, register_handlers, ADMIN_CHAT_ID
+from telegram_bot import (
+    dp,
+    bot,
+    setup_scheduler,
+    register_handlers,
+    ADMIN_CHAT_ID,
+    check_tp_sl_execution,
+)
 from binance_api import get_open_orders
 
 logging.basicConfig(level=logging.INFO)
@@ -18,6 +25,7 @@ async def monitor_orders() -> None:
                     ADMIN_CHAT_ID,
                     f"\U0001F3AF Ордер виконано: {order['symbol']} {order['side']}",
                 )
+        await check_tp_sl_execution()
         await asyncio.sleep(30)
 
 
