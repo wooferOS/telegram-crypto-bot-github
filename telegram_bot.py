@@ -417,6 +417,7 @@ def register_handlers(dp: Dispatcher) -> None:
     dp.register_message_handler(menu_history_cmd, commands=["Історія"])
 
     dp.register_message_handler(zarobyty_cmd, Text(contains="Звіт", ignore_case=True))
+    dp.register_message_handler(zarobyty_cmd, Text(contains="Заробити", ignore_case=True))
     dp.register_message_handler(stats_cmd, Text(contains="Баланс", ignore_case=True))
     dp.register_message_handler(history_cmd, Text(contains="Історія", ignore_case=True))
 
