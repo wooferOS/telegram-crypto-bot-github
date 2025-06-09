@@ -249,6 +249,25 @@ def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
         return False
 
 
+def create_take_profit_order(symbol: str, quantity: float, target_price: float) -> dict:
+    """Створення ордера LIMIT SELL для фіксації прибутку (Take Profit)"""
+
+    try:
+        price_str = f"{target_price:.8f}".rstrip("0").rstrip(".")
+        quantity_str = f"{quantity:.8f}".rstrip("0").rstrip(".")
+        order = client.create_order(
+            symbol=symbol,
+            side='SELL',
+            type='LIMIT',
+            timeInForce='GTC',
+            quantity=quantity_str,
+            price=price_str,
+        )
+        return {"success": True, "order": order}
+    except Exception as e:  # pragma: no cover - network errors
+        return {"success": False, "error": str(e)}
+
+
 def get_usdt_to_uah_rate() -> float:
     """Return USDT to UAH conversion rate."""
 
