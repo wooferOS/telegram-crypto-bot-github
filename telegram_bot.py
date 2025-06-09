@@ -48,6 +48,7 @@ from binance_api import (
     get_current_price,
     cancel_order,
     update_tp_sl_order,
+    get_active_orders,
 )
 from alerts import check_daily_alerts
 
@@ -509,6 +510,32 @@ async def open_orders_cmd(message: types.Message) -> None:
         await message.answer(f"⚠️ Помилка при отриманні ордерів: {e}")
 
 
+@dp.message_handler(commands=["ордера"])
+async def show_active_orders(message: types.Message) -> None:
+    """Display currently active TP/SL orders stored locally."""
+
+    orders = get_active_orders()
+    if not orders:
+        await message.answer("Немає активних ордерів на TP/SL.")
+        return
+
+    text = "📋 <b>Ваші активні TP/SL ордери:</b>\n"
+    keyboard = InlineKeyboardMarkup(row_width=1)
+
+    for symbol, data in orders.items():
+        tp = data.get("take_profit")
+        sl = data.get("stop_loss")
+        updated = data.get("updated_at", "—")
+        text += f"\n<b>{symbol}</b>\n🎯 TP: {tp}\n🛑 SL: {sl}\n🕒 {updated}\n"
+
+        btn = InlineKeyboardButton(
+            f"🔧 Змінити {symbol}", callback_data=f"edit_order:{symbol}"
+        )
+        keyboard.add(btn)
+
+    await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+
+
 @dp.callback_query_handler(lambda c: c.data.startswith("sell_"))
 async def handle_sell_callback(callback_query: types.CallbackQuery):
     token = callback_query.data.split("_", 1)[1]
@@ -663,4 +690,14 @@ async def cancel_tp_sl(callback_query: types.CallbackQuery) -> None:
 @dp.callback_query_handler(lambda c: c.data == "refresh_orders")
 async def refresh_orders(callback_query: types.CallbackQuery) -> None:
     await handle_edit_orders(callback_query.message)
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith("edit_order:"))
+async def edit_order_callback(callback_query: types.CallbackQuery) -> None:
+    """Placeholder handler for editing TP/SL orders."""
+
+    symbol = callback_query.data.split(":", 1)[1]
+    await callback_query.answer(
+        f"Редагування {symbol} поки не реалізовано.", show_alert=True
+    )
 

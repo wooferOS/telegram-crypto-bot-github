@@ -610,6 +610,16 @@ def update_tp_sl_order(symbol: str, new_tp_price: float, new_sl_price: float) ->
     return None
 
 
+def get_active_orders() -> Dict[str, object]:
+    """Return stored active TP/SL orders from ``active_orders.json``."""
+
+    try:
+        with open("active_orders.json", "r", encoding="utf-8") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+
 def get_usdt_to_uah_rate() -> float:
     """Return USDT to UAH conversion rate."""
 
