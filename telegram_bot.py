@@ -1,6 +1,7 @@
 """Telegram bot configuration and handlers."""
 
 import os
+import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.dispatcher.filters import Command, Text
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -22,6 +23,7 @@ ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
+logger = logging.getLogger(__name__)
 
 
 @dp.callback_query_handler(lambda c: c.data and c.data.startswith("take_profit:"))
@@ -81,8 +83,9 @@ def register_handlers(dp: Dispatcher) -> None:
 
     async def zarobyty_cmd(message: types.Message) -> None:
         report, keyboard = generate_zarobyty_report()
+        logger.info("Zarobyty report:\n%s", report)
         report = clean_surrogates(report)
-        await message.reply(report, parse_mode="Markdown", reply_markup=keyboard)
+        await message.answer(report, parse_mode="Markdown", reply_markup=keyboard)
 
     async def confirm_buy(callback_query: types.CallbackQuery) -> None:
         token = callback_query.data.replace("confirmbuy_", "")
