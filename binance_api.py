@@ -231,6 +231,24 @@ def place_market_order(symbol: str, side: str, quantity: float) -> Optional[Dict
         return None
 
 
+def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
+    """Place a limit sell order on Binance."""
+
+    try:
+        client.create_order(
+            symbol=symbol.upper() + "USDT",
+            side="SELL",
+            type="LIMIT",
+            timeInForce="GTC",
+            quantity=round(quantity, 6),
+            price=str(round(price, 5)),
+        )
+        return True
+    except Exception as e:  # pragma: no cover - network errors
+        print(f"[ERROR] Failed to place sell order: {e}")
+        return False
+
+
 def get_usdt_to_uah_rate() -> float:
     """Return USDT to UAH conversion rate."""
 
