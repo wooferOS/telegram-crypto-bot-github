@@ -195,7 +195,7 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup]:
     for token in sell_recommendations:
         keyboard.insert(
             InlineKeyboardButton(
-                text=f"Продати {token['symbol']}",
+                text=f"\U0001F534 \u041F\u0440\u043E\u0434\u0430\u0442\u0438 {token['symbol']}",
                 callback_data=f"sell:{token['symbol']}"
             )
         )
@@ -203,7 +203,7 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup]:
     for token in buy_plan:
         keyboard.insert(
             InlineKeyboardButton(
-                text=f"Купити {token['symbol']}",
+                text=f"\U0001F7E2 \u041A\u0443\u043F\u0438\u0442\u0438 {token['symbol']}",
                 callback_data=f"buy:{token['symbol']}"
             )
         )
