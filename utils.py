@@ -117,3 +117,14 @@ def analyze_btc_correlation(symbol: str) -> float:
         return 0.0
     result = (corr + 1) / 2
     return max(0.0, min(1.0, float(result)))
+
+
+def get_risk_reward_ratio(price: float, stop_loss: float, take_profit: float) -> float:
+    """
+    Розрахунок співвідношення ризик/нагорода (Risk/Reward)
+    """
+    risk = price - stop_loss
+    reward = take_profit - price
+    if risk <= 0:
+        return 0
+    return round(reward / risk, 2)
