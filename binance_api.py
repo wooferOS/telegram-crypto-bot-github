@@ -23,6 +23,7 @@ from binance.enums import (
     ORDER_TYPE_MARKET,
     ORDER_TYPE_LIMIT,
     TIME_IN_FORCE_GTC,
+    ORDER_TYPE_STOP_LOSS_LIMIT,
 )
 from binance.exceptions import BinanceAPIException
 
@@ -341,12 +342,21 @@ def place_limit_sell_order(symbol: str, quantity: float, price: float):
 def place_take_profit_order(
     symbol: str,
     quantity: float,
-    current_price: float,
+    take_profit_price: float | None = None,
+    *,
+    current_price: float | None = None,
     profit_percent: float = 10.0,
 ) -> Optional[Dict[str, object]]:
-    """Встановлює ордер Take Profit після покупки."""
+    """Створює ордер Take Profit.
 
-    take_profit_price = round(current_price * (1 + profit_percent / 100), 8)
+    Якщо ``take_profit_price`` не вказаний, він розраховується від
+    ``current_price`` з урахуванням ``profit_percent``.
+    """
+
+    if take_profit_price is None:
+        if current_price is None:
+            raise ValueError("current_price or take_profit_price required")
+        take_profit_price = round(current_price * (1 + profit_percent / 100), 8)
 
     try:
         response = client.create_order(
@@ -437,6 +447,36 @@ def place_stop_limit_sell_order(
             exc,
         )
         return {"error": str(exc)}
+
+
+def place_stop_loss_order(
+    symbol: str, quantity: float, stop_price: float
+) -> Optional[Dict[str, object]]:
+    """Створити стандартний Stop Loss ордер."""
+
+    try:
+        order = client.create_order(
+            symbol=symbol,
+            side=SIDE_SELL,
+            type=ORDER_TYPE_STOP_LOSS_LIMIT,
+            timeInForce=TIME_IN_FORCE_GTC,
+            quantity=round(quantity, 6),
+            price=str(stop_price),
+            stopPrice=str(stop_price),
+        )
+        logger.info(
+            "\U0001F6E1\ufe0f Stop Loss ордер створено для %s на ціні %s",
+            symbol,
+            stop_price,
+        )
+        return order
+    except BinanceAPIException as e:  # pragma: no cover - network errors
+        logger.error(
+            "\u274c Помилка при створенні Stop Loss ордера для %s: %s",
+            symbol,
+            e,
+        )
+        return None
 
 
 def get_open_orders(symbol: str | None = None) -> list:
