@@ -64,6 +64,13 @@ logger = logging.getLogger(__name__)
 active_orders: dict[str, dict] = {}
 
 
+async def notify_updated_order(symbol: str, new_tp: float, new_sl: float) -> None:
+    """Send Telegram notification about updated TP/SL order."""
+
+    text = f"\u267B\ufe0f Ордер оновлено для {symbol}:\n\u27A4 TP: {new_tp}\n\u27A4 SL: {new_sl}"
+    await bot.send_message(ADMIN_CHAT_ID, text)
+
+
 async def check_tp_sl_execution() -> None:
     """Monitor active TP/SL orders and update if market moved."""
     for symbol, data in list(active_orders.items()):
@@ -96,10 +103,7 @@ async def check_tp_sl_execution() -> None:
             result = update_tp_sl_order(symbol, new_tp, new_sl)
             if result:
                 active_orders[symbol] = {"tp_id": result["tp"], "sl_id": result["sl"]}
-                await bot.send_message(
-                    ADMIN_CHAT_ID,
-                    f"\u267B\ufe0f Ордер оновлено: {pair} — новий TP: {new_tp}, SL: {new_sl}"
-                )
+                await notify_updated_order(pair, new_tp, new_sl)
 
 # Reply keyboard with main actions
 menu = ReplyKeyboardMarkup(resize_keyboard=True)
