@@ -280,6 +280,26 @@ def place_market_order(symbol: str, side: str, usdt_amount: float) -> Optional[D
         return None
 
 
+def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]:
+    """Buy ``symbol`` using market order for a specified USDT amount."""
+
+    try:
+        price = get_current_price(symbol)
+        if not price:
+            raise Exception("Price unavailable")
+
+        quantity = round(amount / price, 6)
+        return client.create_order(
+            symbol=f"{symbol.upper()}USDT",
+            side=SIDE_BUY,
+            type=ORDER_TYPE_MARKET,
+            quantity=quantity,
+        )
+    except BinanceAPIException as e:  # pragma: no cover - network errors
+        raise Exception(f"Binance API error: {e.message}")
+    except Exception as exc:
+        raise Exception(f"Unexpected error: {exc}")
+
 def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
     """Place a limit sell order on Binance."""
 
