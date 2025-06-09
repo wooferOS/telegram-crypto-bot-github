@@ -4,6 +4,7 @@ import os
 import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.dispatcher.filters import Command, Text
+from aiogram.dispatcher import filters
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from daily_analysis import (
@@ -13,7 +14,13 @@ from daily_analysis import (
 )
 from history import generate_history_report
 from stats import generate_stats_report
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+)
 from aiogram.utils.callback_data import CallbackData
 from binance_api import (
     place_market_order,
@@ -38,6 +45,8 @@ from binance_api import (
     place_stop_loss_order,
     place_take_profit_order_auto,
     place_stop_loss_order_auto,
+    cancel_order,
+    update_tp_sl_order,
 )
 from alerts import check_daily_alerts
 
@@ -49,6 +58,10 @@ ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
 logger = logging.getLogger(__name__)
+
+# Reply keyboard with main actions
+menu = ReplyKeyboardMarkup(resize_keyboard=True)
+menu.add(KeyboardButton("\U0001F4C8 Заробити"), KeyboardButton("\U0001F4CB Змінити ордери"))
 
 
 # ---------------------------------------------------------------------------
@@ -211,7 +224,8 @@ def register_handlers(dp: Dispatcher) -> None:
 
     async def start_cmd(message: types.Message) -> None:
         await message.reply(
-            "\U0001F44B Вітаю! Я GPT-бот для криптотрейдингу. Використовуйте команду /zarobyty для щоденного звіту."
+            "\U0001F44B Вітаю! Я GPT-бот для криптотрейдингу. Використовуйте команду /zarobyty для щоденного звіту.",
+            reply_markup=menu,
         )
 
     async def zarobyty_cmd(message: types.Message) -> None:
@@ -549,4 +563,44 @@ async def handle_smart_buy_callback(callback_query: types.CallbackQuery):
         await callback_query.message.answer(
             f"❌ Помилка при створенні ордера на {token}:\n{e}"
         )
+
+
+@dp.message_handler(commands=["orders"])
+@dp.message_handler(filters.Text(equals="📋 Змінити ордери"))
+async def handle_edit_orders(message: types.Message) -> None:
+    """Show editable open orders with cancel buttons."""
+    open_orders = get_open_orders()
+    if not open_orders:
+        await message.reply("🔕 У вас немає активних TP/SL ордерів.")
+        return
+
+    buttons = [
+        [
+            InlineKeyboardButton(
+                f"❌ Скасувати {o['symbol']} ({o['side']})",
+                callback_data=f"cancel_{o['orderId']}",
+            )
+        ]
+        for o in open_orders
+    ]
+    buttons.append([InlineKeyboardButton("🔁 Оновити", callback_data="refresh_orders")])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+    await message.reply("🛠 Оберіть ордер для редагування:", reply_markup=keyboard)
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith("cancel_"))
+async def cancel_tp_sl(callback_query: types.CallbackQuery) -> None:
+    order_id = int(callback_query.data.split("_")[1])
+    success = cancel_order(order_id)
+    if success:
+        await callback_query.message.edit_text(f"✅ Ордер #{order_id} скасовано.")
+    else:
+        await callback_query.message.edit_text(
+            f"⚠️ Помилка при скасуванні ордера #{order_id}."
+        )
+
+
+@dp.callback_query_handler(lambda c: c.data == "refresh_orders")
+async def refresh_orders(callback_query: types.CallbackQuery) -> None:
+    await handle_edit_orders(callback_query.message)
 
