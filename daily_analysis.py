@@ -18,6 +18,7 @@ from binance_api import (
     place_limit_sell_order,
     get_open_orders,
     update_tp_sl_order,
+    log_tp_sl_change,
 )
 from gpt_utils import ask_gpt
 from utils import convert_to_uah, calculate_rr, calculate_indicators, get_sector, analyze_btc_correlation
@@ -54,6 +55,7 @@ def _maybe_update_orders(symbol: str, new_tp: float, new_sl: float) -> bool:
 
     if update_needed:
         update_tp_sl_order(symbol, new_tp, new_sl)
+        log_tp_sl_change(symbol, "updated", new_tp, new_sl)
         return True
     return False
 
