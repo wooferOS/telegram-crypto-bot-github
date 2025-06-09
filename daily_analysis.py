@@ -210,11 +210,10 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup]:
 
     for token in token_data:
         if token['pnl'] > 10:
-            take_profit_price = round(token['price'] * 1.05, 5)
             keyboard.inline_keyboard.append([
                 InlineKeyboardButton(
-                    text=f"🎯 Фіксувати прибуток ({token['symbol']})",
-                    callback_data=f"take_profit:{token['symbol']}:{token['quantity']}:{take_profit_price}"
+                    text=f"📉 Фіксувати прибуток ({token['symbol']})",
+                    callback_data=f"takeprofit_{token['symbol']}"
                 )
             ])
 
