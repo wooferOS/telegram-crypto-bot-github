@@ -1032,6 +1032,6 @@ def place_stop_loss_order_auto(symbol: str, quantity: float | None = None, stop_
 # Alias для сумісності з існуючим кодом
 sell_token_market = market_sell
 
-# 🔁 Alias для сумісності зі старим кодом
+# ✅ Compatibility alias
 buy_token_market = market_buy
 
