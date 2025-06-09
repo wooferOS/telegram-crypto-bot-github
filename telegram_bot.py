@@ -14,7 +14,13 @@ from daily_analysis import (
 from history import generate_history_report
 from stats import generate_stats_report
 from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
-from binance_api import place_market_order, get_price_history_24h, place_sell_order
+from binance_api import (
+    place_market_order,
+    get_price_history_24h,
+    place_sell_order,
+    market_buy,
+    market_sell,
+)
 from alerts import check_daily_alerts
 
 
@@ -211,5 +217,34 @@ async def handle_sell_callback(callback_query: CallbackQuery):
 @dp.callback_query_handler(lambda c: c.data == "cancel")
 async def handle_cancel(callback_query: CallbackQuery):
     await callback_query.message.answer("❌ Дію скасовано.")
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith("confirm_buy:"))
+async def handle_confirm_buy(callback_query: CallbackQuery):
+    symbol = callback_query.data.split(":")[1]
+    usdt_amount = 10  # фіксована тестова сума
+    try:
+        result = market_buy(symbol, usdt_amount)
+        await callback_query.message.answer(
+            f"🟢 Купівля {symbol.upper()} на {usdt_amount} USDT успішна!\n\n{result}"
+        )
+    except Exception as e:  # pragma: no cover - network errors
+        await callback_query.message.answer(
+            f"❌ Помилка при купівлі {symbol.upper()}: {str(e)}"
+        )
+
+
+@dp.callback_query_handler(lambda c: c.data.startswith("confirm_sell:"))
+async def handle_confirm_sell(callback_query: CallbackQuery):
+    symbol = callback_query.data.split(":")[1]
+    try:
+        result = market_sell(symbol)
+        await callback_query.message.answer(
+            f"🔴 Продаж {symbol.upper()} успішний!\n\n{result}"
+        )
+    except Exception as e:  # pragma: no cover - network errors
+        await callback_query.message.answer(
+            f"❌ Помилка при продажу {symbol.upper()}: {str(e)}"
+        )
 
 
