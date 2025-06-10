@@ -12,6 +12,7 @@ from telegram_bot import (
     check_tp_sl_market_change,
     ADMIN_CHAT_ID,
     scheduler,
+    clear_bot_menu,
 )
 from binance_api import get_open_orders
 
@@ -34,6 +35,7 @@ async def monitor_orders() -> None:
 
 async def on_startup(dispatcher: Dispatcher) -> None:
     await bot.delete_webhook(drop_pending_updates=True)
+    await clear_bot_menu(bot)
 
 
 if __name__ == "__main__":

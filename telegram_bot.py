@@ -64,6 +64,12 @@ bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
 logger = logging.getLogger(__name__)
 
+
+async def clear_bot_menu(bot: Bot) -> None:
+    """Remove any custom bot commands."""
+
+    await bot.delete_my_commands()
+
 # Mapping of symbol to current TP/SL order IDs
 active_orders: dict[str, dict] = {}
 
