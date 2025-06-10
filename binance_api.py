@@ -1135,3 +1135,10 @@ sell_token_market = market_sell
 # ✅ Compatibility alias
 buy_token_market = market_buy
 
+
+def get_candlestick_klines(symbol: str, interval: str = "1d", limit: int = 7):
+    """Return candlestick klines using the Binance client."""
+
+    return client.get_klines(symbol=symbol, interval=interval, limit=limit)
+
+
