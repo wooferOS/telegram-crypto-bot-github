@@ -303,6 +303,8 @@ def clean_surrogates(text: str) -> str:
 async def zarobyty_cmd(message: types.Message) -> None:
     """Send the daily earnings report."""
 
+    await message.answer("⏳ Формую звіт...")
+
     report, _, updates = generate_zarobyty_report()
     if not report:
         await message.answer(
