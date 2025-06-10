@@ -21,6 +21,7 @@ from binance_api import (
     update_tp_sl_order,
     log_tp_sl_change,
 )
+from binance_api import get_candlestick_klines
 from gpt_utils import ask_gpt
 from utils import (
     convert_to_uah,
