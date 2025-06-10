@@ -13,7 +13,7 @@ from binance_api import (
     get_candlestick_klines as get_klines,
     get_recent_trades as get_my_trades,
     get_top_tokens,
-    get_tradable_usdt_symbols,
+    load_tradable_usdt_symbols,
     get_usdt_to_uah_rate,
     place_market_order,
     place_limit_sell_order,
@@ -106,6 +106,8 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
     for symbol, amount in balances.items():
         if symbol == "USDT" or amount == 0:
             continue
+        if symbol not in load_tradable_usdt_symbols():
+            continue
 
         price = get_symbol_price(symbol)
         uah_value = convert_to_uah(price * amount)
@@ -151,7 +153,7 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
     market_symbols = set(s.upper() for s in get_top_tokens(limit=50))
     symbols_to_analyze = symbols_from_balance.union(market_symbols)
 
-    tradable_symbols = set(s.upper() for s in get_tradable_usdt_symbols())
+    tradable_symbols = set(s.upper() for s in load_tradable_usdt_symbols())
     symbols_to_analyze = [s for s in symbols_to_analyze if s in tradable_symbols]
 
     enriched_tokens = []
