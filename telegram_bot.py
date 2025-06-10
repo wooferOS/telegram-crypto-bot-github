@@ -50,6 +50,8 @@ from binance_api import (
     update_tp_sl_order,
     get_active_orders,
     get_binance_balances,
+    modify_order,
+    cancel_tp_sl_if_market_changed,
 )
 from alerts import check_daily_alerts
 
@@ -112,6 +114,9 @@ menu = ReplyKeyboardMarkup(resize_keyboard=True)
 menu.row(
     KeyboardButton("\U0001F4C8 Заробити"),
     KeyboardButton("\U0001F4CB Змінити ордери")
+)
+menu.row(
+    KeyboardButton("\U0001F6E0\ufe0f Змінити TP/SL")
 )
 menu.row(
     KeyboardButton("\U0001F4CA Баланс"),
@@ -752,4 +757,59 @@ async def show_gpt_forecast(message: types.Message):
 
 async def show_support(message: types.Message):
     await message.answer("\U0001F9D1\u200d\U0001F4BB Пишіть адміну: @your_admin_username")
+
+
+async def check_tp_sl_market_change() -> None:
+    """Periodically cancel TP/SL orders if market moved."""
+
+    for symbol in list(active_orders.keys()):
+        cancel_tp_sl_if_market_changed(symbol)
+
+
+def register_change_tp_sl_handler(dp: Dispatcher) -> None:
+    pending: dict[int, dict] = {}
+
+    @dp.message_handler(Text(contains="Змінити TP/SL", ignore_case=True))
+    async def select_token(message: types.Message) -> None:
+        orders = get_active_orders()
+        if not orders:
+            await message.answer("Немає відкритих ордерів.")
+            return
+        keyboard = InlineKeyboardMarkup(row_width=1)
+        for sym in orders.keys():
+            keyboard.add(InlineKeyboardButton(sym, callback_data=f"change_tp_sl:{sym}"))
+        await message.answer("Оберіть токен:", reply_markup=keyboard)
+
+    @dp.callback_query_handler(lambda c: c.data.startswith("change_tp_sl:"))
+    async def ask_tp(query: CallbackQuery) -> None:
+        symbol = query.data.split(":", 1)[1]
+        pending[query.from_user.id] = {"symbol": symbol}
+        await bot.send_message(query.from_user.id, f"Введіть новий TP для {symbol}:", reply_markup=types.ForceReply())
+        await query.answer()
+
+    @dp.message_handler(lambda m: m.from_user.id in pending and "tp" not in pending[m.from_user.id])
+    async def receive_tp(message: types.Message) -> None:
+        try:
+            tp = float(message.text.replace(",", "."))
+        except ValueError:
+            await message.reply("Невірне число TP")
+            return
+        pending[message.from_user.id]["tp"] = tp
+        symbol = pending[message.from_user.id]["symbol"]
+        await message.reply(f"Введіть новий SL для {symbol}:", reply_markup=types.ForceReply())
+
+    @dp.message_handler(lambda m: m.from_user.id in pending and "tp" in pending[m.from_user.id])
+    async def receive_sl(message: types.Message) -> None:
+        data = pending.pop(message.from_user.id)
+        symbol = data["symbol"]
+        try:
+            sl = float(message.text.replace(",", "."))
+        except ValueError:
+            await message.reply("Невірне число SL")
+            return
+        success = modify_order(symbol, data["tp"], sl)
+        if success:
+            await message.reply(f"✅ Ордер для {symbol} оновлено")
+        else:
+            await message.reply(f"❌ Не вдалося оновити ордер для {symbol}")
 

@@ -22,7 +22,14 @@ from binance_api import (
     log_tp_sl_change,
 )
 from gpt_utils import ask_gpt
-from utils import convert_to_uah, calculate_rr, calculate_indicators, get_sector, analyze_btc_correlation
+from utils import (
+    convert_to_uah,
+    calculate_rr,
+    calculate_indicators,
+    get_sector,
+    analyze_btc_correlation,
+    _ema,
+)
 from coingecko_api import get_sentiment
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -165,7 +172,21 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
         avg_volume = statistics.fmean(volumes[-20:]) if volumes else 0
         volume_change = volume_24h - avg_volume
         btc_corr = analyze_btc_correlation(symbol)
-        ema_trend = indicators.get("EMA_5", 0) > indicators.get("EMA_8", 0) > indicators.get("EMA_13", 0)
+
+        closes = [float(k[4]) for k in klines]
+        ema8_series = _ema(closes, 8) if len(closes) >= 8 else [0] * len(closes)
+        ema_cross = False
+        if len(closes) >= 9:
+            ema_cross = closes[-2] < ema8_series[-2] and closes[-1] > ema8_series[-1]
+
+        klines_7d = get_candlestick_klines(symbol, interval="1d", limit=7)
+        closes_7d = [float(k[4]) for k in klines_7d]
+        if len(closes_7d) > 1:
+            mean_price = statistics.fmean(closes_7d)
+            variance = statistics.pvariance(closes_7d)
+            volatility_7d = (variance ** 0.5) / mean_price * 100
+        else:
+            volatility_7d = 0
 
         enriched_tokens.append(
             {
@@ -175,10 +196,11 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
                 "sector": sector,
                 "btc_corr": btc_corr,
                 "volume_change_24h": volume_change,
+                "volatility_7d": volatility_7d,
+                "ema_cross": ema_cross,
                 "indicators": {
                     "rsi": indicators["RSI"],
-                    "macd_signal": indicators["MACD"],
-                    "ema_trend": ema_trend,
+                    "ema8": indicators.get("EMA_8", 0),
                 },
             }
         )
@@ -333,24 +355,11 @@ def filter_adaptive_smart_buy(candidates):
     filtered = []
     for token in candidates:
         rsi = token.get("indicators", {}).get("rsi", 50)
-        macd_signal = token.get("indicators", {}).get("macd_signal", "neutral")
         rr = token.get("risk_reward", 0)
-        corr = token.get("btc_corr", 1)
-        vol_change = token.get("volume_change_24h", 0)
-        ema_trend = token.get("indicators", {}).get("ema_trend", False)
+        vol = token.get("volatility_7d", 0)
+        cross = token.get("ema_cross", False)
 
-        strong_signals = sum(
-            [
-                rsi < 40,
-                macd_signal == "bullish",
-                rr >= 1.5,
-                corr < 0.7,
-                vol_change > 0,
-                ema_trend,
-            ]
-        )
-
-        if strong_signals >= 2:
+        if rsi < 30 and cross and vol > 5 and rr > 2.0:
             filtered.append(token)
     return filtered
 
