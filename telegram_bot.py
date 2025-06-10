@@ -423,25 +423,9 @@ def register_handlers(dp: Dispatcher) -> None:
     dp.register_message_handler(statsday_cmd, commands=["statsday"])
     dp.register_message_handler(price24_cmd, commands=["price24"])
     dp.register_message_handler(alerts_on_cmd, commands=["alerts_on"])
-
-    async def menu_balance_cmd(message: types.Message) -> None:
-        await message.reply(generate_history_report(), parse_mode="Markdown")
-
-    async def menu_report_cmd(message: types.Message) -> None:
-        report, keyboard, updates = generate_zarobyty_report()
-        report = clean_surrogates(report)
-        await message.reply(report, parse_mode="Markdown", reply_markup=keyboard)
-        for sym, tp, sl in updates:
-            await message.answer(
-                f"\u267B\ufe0f Ордер оновлено: {sym} — новий TP: {tp}, SL: {sl}"
-            )
-
-    async def menu_history_cmd(message: types.Message) -> None:
-        await message.reply(generate_stats_report(), parse_mode="Markdown")
-
-    dp.register_message_handler(menu_balance_cmd, commands=["Баланс"])
-    dp.register_message_handler(menu_report_cmd, commands=["Звіт"])
-    dp.register_message_handler(menu_history_cmd, commands=["Історія"])
+    dp.register_message_handler(show_balance, commands=["balance"])
+    dp.register_message_handler(show_all_assets, commands=["all_assets"])
+    dp.register_message_handler(show_support, commands=["support"])
 
     dp.register_message_handler(zarobyty_cmd, Text(contains="Заробити", ignore_case=True))
     dp.register_message_handler(show_balance, Text(contains="Баланс", ignore_case=True))
@@ -449,16 +433,6 @@ def register_handlers(dp: Dispatcher) -> None:
     dp.register_message_handler(show_price_chart, Text(contains="Графік", ignore_case=True))
     dp.register_message_handler(show_gpt_forecast, Text(contains="Прогноз GPT", ignore_case=True))
     dp.register_message_handler(show_support, Text(contains="Підтримка", ignore_case=True))
-
-    # Additional registrations
-    dp.register_message_handler(start_cmd, commands=["start"])
-    dp.register_message_handler(zarobyty_cmd, commands=["zarobyty"])
-    dp.register_message_handler(zarobyty_cmd, Text(contains="Заробити", ignore_case=True))
-    dp.register_callback_query_handler(confirm_buy, lambda c: c.data.startswith("confirmbuy_"))
-
-    dp.register_message_handler(show_balance, commands=["balance"])
-    dp.register_message_handler(show_all_assets, commands=["all_assets"])
-    dp.register_message_handler(show_support, commands=["support"])
 
 
 @dp.callback_query_handler(lambda c: c.data.startswith("buy:"))
