@@ -44,6 +44,9 @@ LOG_FILE = "tp_sl_log.json"
 EXCHANGE_INFO_CACHE = "exchange_info_cache.json"
 EXCHANGE_INFO_TTL = 60 * 60 * 12
 
+# Cache for tradable USDT pairs loaded from Binance
+cached_usdt_pairs: set[str] = set()
+
 
 def log_tp_sl_change(symbol: str, action: str, tp: float, sl: float) -> None:
     """Append TP/SL change information to ``LOG_FILE``."""
@@ -115,6 +118,28 @@ def get_exchange_info_cached() -> Dict[str, object]:
     with open(EXCHANGE_INFO_CACHE, "w", encoding="utf-8") as f:
         json.dump(info, f)
     return info
+
+
+def get_exchange_info() -> Dict[str, object]:
+    """Return exchange information directly from Binance without cache."""
+
+    return client.get_exchange_info()
+
+
+def load_tradable_usdt_symbols() -> set[str]:
+    """Return cached set of tradable symbols quoted in USDT."""
+
+    global cached_usdt_pairs
+    if cached_usdt_pairs:
+        return cached_usdt_pairs
+    info = get_exchange_info()
+    pairs = [
+        s["symbol"]
+        for s in info.get("symbols", [])
+        if s.get("quoteAsset") == "USDT" and s.get("status") == "TRADING"
+    ]
+    cached_usdt_pairs = {p.replace("USDT", "") for p in pairs}
+    return cached_usdt_pairs
 
 
 # ---------------------------------------------------------------------------
@@ -1137,8 +1162,14 @@ buy_token_market = market_buy
 
 
 def get_candlestick_klines(symbol: str, interval: str = "1d", limit: int = 7):
-    """Return candlestick klines using the Binance client."""
+    """Return candlestick klines for a tradable symbol."""
 
-    return client.get_klines(symbol=symbol, interval=interval, limit=limit)
+    if symbol not in load_tradable_usdt_symbols():
+        raise ValueError(f"Token {symbol} не торгується на Binance")
+    return client.get_klines(
+        symbol=f"{symbol.upper()}USDT",
+        interval=interval,
+        limit=limit,
+    )
 
 
