@@ -40,6 +40,10 @@ BINANCE_BASE_URL = "https://api.binance.com"
 # File used to log TP/SL updates
 LOG_FILE = "tp_sl_log.json"
 
+# Cache for exchange information (12h TTL)
+EXCHANGE_INFO_CACHE = "exchange_info_cache.json"
+EXCHANGE_INFO_TTL = 60 * 60 * 12
+
 
 def log_tp_sl_change(symbol: str, action: str, tp: float, sl: float) -> None:
     """Append TP/SL change information to ``LOG_FILE``."""
@@ -96,6 +100,21 @@ def get_headers() -> Dict[str, str]:
     """Return HTTP headers with API key."""
 
     return {"X-MBX-APIKEY": BINANCE_API_KEY}
+
+
+def get_exchange_info_cached() -> Dict[str, object]:
+    """Return exchangeInfo using local cache with 12h TTL."""
+
+    if os.path.exists(EXCHANGE_INFO_CACHE):
+        mtime = os.path.getmtime(EXCHANGE_INFO_CACHE)
+        if time.time() - mtime < EXCHANGE_INFO_TTL:
+            with open(EXCHANGE_INFO_CACHE, "r", encoding="utf-8") as f:
+                return json.load(f)
+
+    info = client.get_exchange_info()
+    with open(EXCHANGE_INFO_CACHE, "w", encoding="utf-8") as f:
+        json.dump(info, f)
+    return info
 
 
 # ---------------------------------------------------------------------------
@@ -237,6 +256,42 @@ def get_token_balance(symbol: str) -> float:
             "%s Баланс %s недоступний: %s", TELEGRAM_LOG_PREFIX, symbol.upper(), exc
         )
         return 0.0
+
+
+def get_dust_assets() -> List[str]:
+    """Return list of assets with total value less than 1 USDT."""
+
+    prices = get_prices()
+    balances = get_balances()
+    dust = []
+    for asset, amount in balances.items():
+        if asset == "USDT":
+            continue
+        value = amount * prices.get(asset, 0)
+        if value < 1:
+            dust.append(asset)
+    return dust
+
+
+def convert_dust_to_usdt(assets: Optional[List[str]] = None) -> Optional[dict]:
+    """Convert small balances into USDT using Binance dust API."""
+
+    if assets is None:
+        assets = get_dust_assets()
+    if not assets:
+        return None
+    params = {"timestamp": get_timestamp()}
+    for idx, asset in enumerate(assets):
+        params[f"asset{idx}"] = asset
+    signed = sign_request(params)
+    url = f"{BINANCE_BASE_URL}/sapi/v1/asset/dust"
+    try:
+        resp = requests.post(url, headers=get_headers(), params=signed, timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as exc:
+        logger.error("[ERROR] convert_dust_to_usdt: %s", exc)
+        return None
 
 
 def get_account_balances() -> Dict[str, Dict[str, str]]:
@@ -645,6 +700,38 @@ def update_tp_sl_order(symbol: str, new_tp_price: float, new_sl_price: float) ->
     return None
 
 
+def modify_order(symbol: str, new_tp: float, new_sl: float) -> bool:
+    """Public wrapper to update TP/SL and log the change."""
+
+    result = update_tp_sl_order(symbol, new_tp, new_sl)
+    if result:
+        log_tp_sl_change(symbol, "modify", new_tp, new_sl)
+        return True
+    return False
+
+
+def cancel_tp_sl_if_market_changed(symbol: str) -> None:
+    """Cancel TP/SL orders if market price moved more than 5%."""
+
+    pair = symbol.upper() if symbol.upper().endswith("USDT") else f"{symbol.upper()}USDT"
+    orders = get_open_orders(pair)
+    if not orders:
+        return
+
+    current = get_symbol_price(symbol)
+    for o in orders:
+        if o.get("side") != "SELL":
+            continue
+        if o.get("type") == "LIMIT":
+            price = float(o.get("price", 0))
+        elif o.get("type") == "STOP_LOSS_LIMIT":
+            price = float(o.get("stopPrice", 0))
+        else:
+            continue
+        if price and abs(current - price) / price > 0.05:
+            cancel_order(int(o["orderId"]), pair)
+
+
 def get_active_orders() -> Dict[str, object]:
     """Return stored active TP/SL orders from ``active_orders.json``."""
 
@@ -715,12 +802,8 @@ def get_coin_price(symbol: str) -> Optional[float]:
 
 def get_symbol_precision(symbol: str) -> int:
     """Return precision for trading symbol (number of decimals)."""
-
-    url = f"{BINANCE_BASE_URL}/api/v3/exchangeInfo"
     try:
-        resp = requests.get(url, timeout=10)
-        resp.raise_for_status()
-        data = resp.json()
+        data = get_exchange_info_cached()
         for s in data.get("symbols", []):
             if s["symbol"] == symbol:
                 for f in s.get("filters", []):
@@ -878,11 +961,8 @@ def get_portfolio_stats() -> Dict[str, float]:
 def get_all_spot_symbols() -> List[str]:
     """Return list of all tradable spot symbols (USDT pairs)."""
 
-    url = f"{BINANCE_BASE_URL}/api/v3/exchangeInfo"
     try:
-        resp = requests.get(url, timeout=10)
-        resp.raise_for_status()
-        info = resp.json()
+        info = get_exchange_info_cached()
         return [
             s["baseAsset"]
             for s in info.get("symbols", [])
@@ -901,7 +981,7 @@ def get_tradable_usdt_symbols() -> List[str]:
     """Return list of tradable symbols that have an active USDT pair."""
 
     try:
-        info = client.get_exchange_info()
+        info = get_exchange_info_cached()
         usdt_pairs = [
             s.get("symbol")
             for s in info.get("symbols", [])
