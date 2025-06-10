@@ -20,7 +20,6 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     ReplyKeyboardMarkup,
     KeyboardButton,
-    BotCommand,
 )
 from aiogram.utils.callback_data import CallbackData
 from binance_api import (
@@ -64,13 +63,6 @@ ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
 logger = logging.getLogger(__name__)
-
-
-async def set_bot_commands(bot: Bot) -> None:
-    """Configure available bot commands."""
-
-    commands = [BotCommand("zarobyty", "Отримати щоденний звіт")]
-    await bot.set_my_commands(commands)
 
 # Mapping of symbol to current TP/SL order IDs
 active_orders: dict[str, dict] = {}
@@ -124,7 +116,7 @@ menu.row(
     KeyboardButton("\U0001F4CB Змінити ордери")
 )
 menu.row(
-    KeyboardButton("\U0001F6E0\ufe0f Змінити TP/SL")
+    KeyboardButton("\U0001F9F0 Змінити TP/SL")
 )
 menu.row(
     KeyboardButton("\U0001F4CA Баланс"),
