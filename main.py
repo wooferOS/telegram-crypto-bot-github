@@ -7,8 +7,11 @@ from telegram_bot import (
     bot,
     setup_scheduler,
     register_handlers,
-    ADMIN_CHAT_ID,
+    register_change_tp_sl_handler,
     check_tp_sl_execution,
+    check_tp_sl_market_change,
+    ADMIN_CHAT_ID,
+    scheduler,
 )
 from binance_api import get_open_orders
 
@@ -36,6 +39,8 @@ async def on_startup(dispatcher: Dispatcher) -> None:
 if __name__ == "__main__":
     setup_scheduler()
     register_handlers(dp)
+    register_change_tp_sl_handler(dp)
+    scheduler.add_job(check_tp_sl_market_change, "interval", hours=1)
     loop = asyncio.get_event_loop()
     loop.create_task(monitor_orders())
     executor.start_polling(dp, on_startup=on_startup)
