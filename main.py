@@ -10,7 +10,6 @@ from telegram_bot import (
     register_change_tp_sl_handler,
     check_tp_sl_execution,
     check_tp_sl_market_change,
-    set_bot_commands,
     ADMIN_CHAT_ID,
     scheduler,
 )
@@ -44,5 +43,4 @@ if __name__ == "__main__":
     scheduler.add_job(check_tp_sl_market_change, "interval", hours=1)
     loop = asyncio.get_event_loop()
     loop.create_task(monitor_orders())
-    loop.run_until_complete(set_bot_commands(bot))
     executor.start_polling(dp, on_startup=on_startup)
