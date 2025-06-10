@@ -262,6 +262,12 @@ async def handle_trade_action(callback_query: CallbackQuery) -> None:
     # Optional log
     print(f"[BUTTON ACTION] User requested to {action.upper()} {symbol}")
 
+
+@dp.callback_query_handler(lambda c: c.data == "zarobyty")
+async def zarobyty_button_handler(callback_query: types.CallbackQuery):
+    await callback_query.answer()
+    await zarobyty_cmd(callback_query.message)
+
 scheduler = AsyncIOScheduler(timezone="UTC")
 
 
@@ -286,6 +292,40 @@ def clean_surrogates(text: str) -> str:
     return text.encode("utf-16", "surrogatepass").decode("utf-16", "ignore")
 
 
+async def zarobyty_cmd(message: types.Message) -> None:
+    """Send the daily earnings report."""
+
+    report, _, updates = generate_zarobyty_report()
+    if not report:
+        await message.answer(
+            "⚠️ Звіт наразі недоступний. Спробуйте пізніше."
+        )
+        return
+    logger.info("Zarobyty report:\n%s", report)
+    print("✅ Звіт сформовано:", report[:200])
+    report = clean_surrogates(report)
+
+    pnl_data = get_real_pnl_data()
+    profitable_to_sell = {
+        sym: data for sym, data in pnl_data.items() if data.get("pnl_percent", 0) > 0
+    }
+
+    keyboard = InlineKeyboardMarkup(row_width=1)
+    for symbol, data in profitable_to_sell.items():
+        btn = InlineKeyboardButton(
+            text=f"Фіксувати прибуток {symbol}",
+            callback_data=take_profit_cb.new(symbol=symbol, amount=str(data["amount"]))
+        )
+        keyboard.add(btn)
+
+    for sym, tp, sl in updates:
+        await message.answer(
+            f"\u267B\ufe0f Ордер оновлено: {sym} — новий TP: {tp}, SL: {sl}"
+        )
+
+    await message.answer(report, parse_mode="Markdown", reply_markup=keyboard)
+
+
 def register_handlers(dp: Dispatcher) -> None:
     """Register bot command and callback handlers."""
 
@@ -295,36 +335,6 @@ def register_handlers(dp: Dispatcher) -> None:
             reply_markup=menu,
         )
 
-    async def zarobyty_cmd(message: types.Message) -> None:
-        report, _, updates = generate_zarobyty_report()
-        if not report:
-            await message.answer(
-                "⚠️ Звіт наразі недоступний. Спробуйте пізніше."
-            )
-            return
-        logger.info("Zarobyty report:\n%s", report)
-        print("✅ Звіт сформовано:", report[:200])
-        report = clean_surrogates(report)
-
-        pnl_data = get_real_pnl_data()
-        profitable_to_sell = {
-            sym: data for sym, data in pnl_data.items() if data.get("pnl_percent", 0) > 0
-        }
-
-        keyboard = InlineKeyboardMarkup(row_width=1)
-        for symbol, data in profitable_to_sell.items():
-            btn = InlineKeyboardButton(
-                text=f"Фіксувати прибуток {symbol}",
-                callback_data=take_profit_cb.new(symbol=symbol, amount=str(data["amount"]))
-            )
-            keyboard.add(btn)
-
-        for sym, tp, sl in updates:
-            await message.answer(
-                f"\u267B\ufe0f Ордер оновлено: {sym} — новий TP: {tp}, SL: {sl}"
-            )
-
-        await message.answer(report, parse_mode="Markdown", reply_markup=keyboard)
 
     async def confirm_buy(callback_query: types.CallbackQuery) -> None:
         token = callback_query.data.replace("confirmbuy_", "").upper()
