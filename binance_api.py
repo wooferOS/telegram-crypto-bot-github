@@ -897,6 +897,26 @@ def get_all_spot_symbols() -> List[str]:
         return []
 
 
+def get_tradable_usdt_symbols() -> List[str]:
+    """Return list of tradable symbols that have an active USDT pair."""
+
+    try:
+        info = client.get_exchange_info()
+        usdt_pairs = [
+            s.get("symbol")
+            for s in info.get("symbols", [])
+            if s.get("quoteAsset") == "USDT" and s.get("status") == "TRADING"
+        ]
+        return list({s.replace("USDT", "") for s in usdt_pairs})
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.warning(
+            "%s \u041f\u043e\u043c\u0438\u043b\u043a\u0430 \u043f\u0440\u0438 \u043e\u0442\u0440\u0438\u043c\u0430\u043d\u043d\u0456 USDT \u0442\u043e\u043a\u0435\u043d\u0456\u0432: %s",
+            TELEGRAM_LOG_PREFIX,
+            exc,
+        )
+        return []
+
+
 def get_top_tokens(limit: int = 50) -> List[str]:
     """Return top tokens by 24h volume."""
 
