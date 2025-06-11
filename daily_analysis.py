@@ -486,22 +486,37 @@ def generate_daily_stats_report() -> str:
 from utils import calculate_indicators, get_risk_reward_ratio, get_correlation_with_btc
 
 
-def smart_buy_filter(candidates, min_rr=1.5, min_expected_profit=0.5):
-    """Filter tokens that meet basic buy criteria.
+def smart_buy_filter(candidates, min_rr=1.0, min_score=2.0, min_tp_sl_gap=0.02):
+    """Return tokens that meet relaxed Smart Buy criteria.
 
-    A candidate is kept if it has both take-profit and stop-loss set, the
-    expected profit meets ``min_expected_profit`` and the risk/reward ratio is
-    at least ``min_rr``.
+    The new logic is intentionally simple and prints diagnostics for each
+    rejected token so that it's clear why it didn't pass the filter.
     """
+
     filtered = []
     for token in candidates:
-        if (
-            token.get("tp_price") is not None
-            and token.get("sl_price") is not None
-            and token.get("expected_profit", 0) >= min_expected_profit
-            and token.get("risk_reward", 0) >= min_rr
-        ):
-            filtered.append(token)
+        try:
+            rr = token.get("risk_reward", 0)
+            score = token.get("score", 0)
+            tp = token.get("tp_price")
+            sl = token.get("sl_price")
+            symbol = token.get("symbol")
+
+            # ensure TP and SL look valid
+            if not (tp and sl and tp > sl):
+                print(f"[⛔] {symbol} пропущено: некоректні TP/SL")
+                continue
+
+            tp_sl_gap = (tp - sl) / sl if sl > 0 else 0
+
+            if rr >= min_rr and score >= min_score and tp_sl_gap >= min_tp_sl_gap:
+                filtered.append(token)
+            else:
+                print(
+                    f"[❌] {symbol} відсіяно | RR: {rr}, SCORE: {score}, TP-SL GAP: {tp_sl_gap:.3f}"
+                )
+        except Exception as e:
+            print(f"[⚠️] Помилка з токеном: {token.get('symbol', '???')} → {e}")
     return filtered
 
 
