@@ -7,6 +7,7 @@ import joblib
 import numpy as np
 import os
 import time
+import subprocess
 
 api_key = os.getenv("BINANCE_API_KEY")
 api_secret = os.getenv("BINANCE_API_SECRET")
@@ -34,11 +35,16 @@ y_all = []
 
 for symbol in symbols:
     try:
-        _, X, y = generate_features(symbol)
-        if len(X) > 10:
-            X_all.append(X)
-            y_all.append(y)
-            print(f"✅ Додано {symbol}: {len(X)} зразків")
+        _, X_raw, y_raw = generate_features(symbol)
+        if len(X_raw) > 10:
+            X = X_raw.replace([np.inf, -np.inf], np.nan)
+            X = X.dropna()
+            y = y_raw[-len(X):]
+
+            if len(X) > 10:
+                X_all.append(X)
+                y_all.append(y)
+                print(f"✅ Додано {symbol}: {len(X)} зразків")
         time.sleep(0.3)
     except Exception as e:
         print(f"⚠️ Пропущено {symbol}: {e}")
@@ -47,7 +53,7 @@ if not X_all:
     print("❌ Дані не зібрано.")
     exit(1)
 
-X_all = np.vstack(X_all)
+X_all = np.vstack([x.values for x in X_all])
 y_all = np.concatenate(y_all)
 
 X_train, X_test, y_train, y_test = train_test_split(X_all, y_all, test_size=0.2, random_state=42)
@@ -60,3 +66,7 @@ print(classification_report(y_test, y_pred))
 
 joblib.dump(model, MODEL_PATH)
 print(f"✅ Model saved to {MODEL_PATH}")
+
+# 🔁 Автоматичний перезапуск Telegram бота
+subprocess.call(["sudo", "systemctl", "restart", "crypto-bot"])
+print("🔁 Бот перезапущено після оновлення моделі")
