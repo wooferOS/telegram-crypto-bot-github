@@ -1022,8 +1022,23 @@ def get_tradable_usdt_symbols() -> List[str]:
         return []
 
 
-def get_top_tokens(limit: int = 50) -> List[str]:
-    """Return top tokens by 24h volume."""
+def _expected_profit(price: float, tp: float, amount: float, sl: float) -> float:
+    """Calculate simple expected profit used for top token preview."""
+
+    if price <= 0 or tp <= price:
+        return 0.0
+    gross = (tp - price) * amount / price
+    net = gross * (1 - 2 * 0.001)
+    adj = net * 0.65
+    if sl and sl < price:
+        loss = (price - sl) * amount / price
+        exp_loss = loss * (1 - 0.65)
+        return round(adj - exp_loss, 2)
+    return round(adj, 2)
+
+
+def get_top_tokens(limit: int = 50) -> List[Dict[str, object]]:
+    """Return detailed info for top tokens by 24h volume."""
 
     url = f"{BINANCE_BASE_URL}/api/v3/ticker/24hr"
     try:
@@ -1040,10 +1055,39 @@ def get_top_tokens(limit: int = 50) -> List[str]:
             key=lambda x: float(x.get("quoteVolume", 0)),
             reverse=True,
         )
-        return [
-            item["symbol"].replace("USDT", "")
-            for item in sorted_tokens[:limit]
-        ]
+
+        result: List[Dict[str, object]] = []
+        for item in sorted_tokens[:limit]:
+            symbol = item["symbol"].replace("USDT", "")
+            price = float(item.get("lastPrice", 0))
+            high = float(item.get("highPrice", 0))
+            low = float(item.get("lowPrice", 0))
+
+            if price - low > 0:
+                risk_reward = round((high - price) / (price - low), 2)
+            else:
+                risk_reward = 0.0
+
+            momentum = float(item.get("priceChangePercent", 0))
+            tp_price = round(price * 1.10, 6)
+            sl_price = round(price * 0.95, 6)
+            expected_profit = _expected_profit(price, tp_price, 10, sl_price)
+
+            score = round(risk_reward * 2 + (1.5 if momentum > 0 else 0), 2)
+
+            result.append(
+                {
+                    "symbol": symbol,
+                    "risk_reward": risk_reward,
+                    "expected_profit": expected_profit,
+                    "score": score,
+                    "momentum": momentum,
+                    "tp_price": tp_price,
+                    "sl_price": sl_price,
+                }
+            )
+
+        return result
     except Exception as exc:
         logger.warning(
             "%s Помилка при отриманні топ токенів: %s",
