@@ -38,7 +38,7 @@ from utils import (
 from history import _load_history, get_failed_tokens_history
 from coingecko_api import get_sentiment
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from ml_model import load_model, predict_direction
+from ml_model import load_model, generate_features, predict_direction
 
 logger = logging.getLogger(__name__)
 
@@ -273,7 +273,7 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
         bb_ratio = (closes[-1] - (mid - 2 * stddev)) / (4 * stddev + 1e-8)
         volume_avg = statistics.fmean([float(k[5]) for k in klines[-5:]])
 
-        feature_vector = [momentum, rsi / 100, bb_ratio, volume_avg]
+        feature_vector, _, _ = generate_features(symbol)
         model = load_model()
         prob_up = predict_direction(model, feature_vector) if model else 0.5
 
