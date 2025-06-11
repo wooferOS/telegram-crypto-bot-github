@@ -486,6 +486,25 @@ def generate_daily_stats_report() -> str:
 from utils import calculate_indicators, get_risk_reward_ratio, get_correlation_with_btc
 
 
+def smart_buy_filter(candidates, min_rr=1.5, min_expected_profit=0.5):
+    """Filter tokens that meet basic buy criteria.
+
+    A candidate is kept if it has both take-profit and stop-loss set, the
+    expected profit meets ``min_expected_profit`` and the risk/reward ratio is
+    at least ``min_rr``.
+    """
+    filtered = []
+    for token in candidates:
+        if (
+            token.get("tp_price") is not None
+            and token.get("sl_price") is not None
+            and token.get("expected_profit", 0) >= min_expected_profit
+            and token.get("risk_reward", 0) >= min_rr
+        ):
+            filtered.append(token)
+    return filtered
+
+
 def filter_adaptive_smart_buy(candidates):
     filtered = []
     required_fields = {
