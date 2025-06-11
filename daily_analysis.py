@@ -438,6 +438,18 @@ def smart_buy_filter(candidates: list[dict]) -> list[dict]:
             continue
         filtered.append(token)
 
+    # 🔁 Remove duplicate tokens by symbol
+    seen = set()
+    unique_filtered = []
+    for t in filtered:
+        sym = t.get("symbol")
+        if sym in seen:
+            continue
+        seen.add(sym)
+        unique_filtered.append(t)
+
+    filtered = unique_filtered
+
     return sorted(filtered, key=lambda x: x.get("score", 0), reverse=True)
 
 
