@@ -31,6 +31,7 @@ from utils import (
     analyze_btc_correlation,
     _ema,
 )
+from history import _load_history
 from coingecko_api import get_sentiment
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -93,6 +94,62 @@ def execute_buy_order(symbol: str, amount_usdt: float):
         logger.error(f"❌ Помилка під час покупки {symbol}: {e}")
 
 
+def calculate_expected_profit(
+    price: float,
+    tp_price: float,
+    amount: float,
+    sl_price: float | None = None,
+    success_rate: float = 0.65,
+    fee: float = 0.001,
+) -> float:
+    """Return expected profit adjusted for fees and success probability."""
+
+    if price <= 0 or tp_price <= price:
+        return 0.0
+    gross_profit = (tp_price - price) * amount / price
+    net_profit = gross_profit * (1 - 2 * fee)
+    adjusted_profit = net_profit * success_rate
+    if sl_price and sl_price < price:
+        risk_loss = (price - sl_price) * amount / price
+        expected_loss = risk_loss * (1 - success_rate)
+        return round(adjusted_profit - expected_loss, 2)
+    return round(adjusted_profit, 2)
+
+
+def score_token(token: dict) -> float:
+    """Return aggregated score for token buy candidate."""
+
+    return (
+        token.get("risk_reward", 0) * 2
+        + (token.get("momentum", 0) > 0) * 1.5
+        + token.get("sector_score", 0)
+        + token.get("success_score", 0) * 2
+        + token.get("orderbook_bias", 0) * 1.2
+        + (-token.get("btc_corr", 0)) * 1
+    )
+
+
+def get_success_score(symbol: str) -> float:
+    """Calculate average profit per trade for ``symbol`` from history."""
+
+    history = _load_history()
+    trades = [h for h in history if h.get("symbol", "").upper() == symbol.upper()]
+    if not trades:
+        return 0.0
+    profit = 0.0
+    last_buy = None
+    for t in trades:
+        side = t.get("side", "").upper()
+        price = float(t.get("price", 0))
+        qty = float(t.get("qty", 0))
+        if side == "BUY":
+            last_buy = price
+        elif side == "SELL" and last_buy is not None:
+            profit += (price - last_buy) * qty
+            last_buy = None
+    return round(profit / len(trades), 2)
+
+
 def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
     """Return daily profit report text, keyboard and updates.
 
@@ -137,6 +194,11 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
             volume_24h = sum(float(k[5]) for k in price_history if len(k) > 5)
         sector = get_sector(symbol)
         btc_corr = analyze_btc_correlation(symbol)
+
+        momentum = indicators.get("EMA_8", 0) - indicators.get("EMA_13", 0)
+        sector_score = 0
+        orderbook_bias = 0
+        success_score = get_success_score(symbol)
 
         token_data.append({
             "symbol": symbol,
@@ -212,6 +274,10 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
                 "volume_change_24h": volume_change,
                 "volatility_7d": volatility_7d,
                 "ema_cross": ema_cross,
+                "momentum": momentum,
+                "sector_score": sector_score,
+                "orderbook_bias": orderbook_bias,
+                "success_score": success_score,
                 "indicators": {
                     "rsi": indicators["RSI"],
                     "ema8": indicators.get("EMA_8", 0),
@@ -233,47 +299,46 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
 
     print(f"🔍 Кандидати на купівлю: {len(buy_candidates)}")
 
-    top_buy_candidates = sorted(buy_candidates, key=lambda x: x["risk_reward"], reverse=True)[:5]
+    top_buy_candidates = sorted(buy_candidates, key=score_token, reverse=True)[:5]
 
-    max_per_token = 10
     buy_plan = []
     remaining = available_usdt
+
+    updates: list[tuple[str, float, float]] = []
+    recommended_buys = []
 
     for token in top_buy_candidates:
         if remaining < 1:
             break
-        amount = min(max_per_token, remaining)
+        rr = token.get("risk_reward", 0)
+        if rr > 5:
+            amount = 20
+        elif rr < 1.5:
+            amount = 5
+        else:
+            amount = 10
+        amount = min(amount, remaining)
         token["amount_usdt"] = amount
-        buy_plan.append(token)
-        remaining -= amount
 
-    for token in buy_plan:
-        token["expected_profit"] = round(token.get("amount_usdt", 0) * 0.1, 2)
-
-    recommended_buys = []
-    updates: list[tuple[str, float, float]] = []
-    for token in buy_plan:
-        price = token["price"]
-        symbol = token["symbol"]
-        stop_price = price * 0.97  # 3% нижче — умовний стоп
-        recommended_buys.append(
-            f"{symbol}: Купити на {token['amount_usdt']} USDT, стоп ≈ {round(stop_price, 4)}"
-        )
-
+        price = token.get("price", 0)
         tp_price = round(price * 1.10, 6)
         sl_price = round(price * 0.95, 6)
         token["tp_price"] = tp_price
+        token["sl_price"] = sl_price
+        token["score"] = score_token(token)
+        token["expected_profit"] = calculate_expected_profit(price, tp_price, amount, sl_price)
+
+        symbol = token["symbol"]
+        stop_price = price * 0.97
+        recommended_buys.append(
+            f"{symbol}: Купити на {amount} USDT, TP {tp_price}, SL {sl_price}, очік. прибуток {token['expected_profit']}"
+        )
+
         if _maybe_update_orders(symbol, tp_price, sl_price):
             updates.append((f"{symbol.upper()}USDT", tp_price, sl_price))
 
-    for token in buy_plan:
-        price = token.get("price", 0)
-        tp_price = token.get("tp_price", 0)
-        amount = token.get("amount_usdt", 0)
-
-        if price > 0 and tp_price > price:
-            profit = (tp_price - price) * amount / price
-            token["expected_profit"] = round(profit, 2)
+        buy_plan.append(token)
+        remaining -= amount
 
     report_lines = []
     report_lines.append(f"🕒 Звіт сформовано: {now.strftime('%Y-%m-%d %H:%M:%S')} (Kyiv)")
@@ -302,7 +367,7 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
     report_lines.append("⸻")
 
     expected_profit_usdt = round(
-        sum(c.get("expected_profit", 0) for c in buy_candidates),
+        sum(c.get("expected_profit", 0) for c in buy_plan),
         2,
     )
     expected_profit_uah = convert_to_uah(expected_profit_usdt)
