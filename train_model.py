@@ -13,18 +13,17 @@ api_secret = os.getenv("BINANCE_API_SECRET")
 client = Client(api_key=api_key, api_secret=api_secret)
 
 
-def get_all_usdt_symbols():
-    exchange_info = client.get_exchange_info()
-    symbols = []
-    for s in exchange_info["symbols"]:
+def get_all_usdt_symbols(min_volume=500000):
+    tickers = client.get_ticker()
+    result = []
+    for t in tickers:
         if (
-            s["quoteAsset"] == "USDT"
-            and s["status"] == "TRADING"
-            and not s["isMarginTradingAllowed"]
-            and s["isSpotTradingAllowed"]
+            t["symbol"].endswith("USDT")
+            and not t["symbol"].startswith(("USDT", "XUSD", "TUSD", "EUR", "BIFI", "USDP"))
+            and float(t.get("quoteVolume", 0)) > min_volume
         ):
-            symbols.append(s["symbol"])
-    return list(set(symbols))
+            result.append(t["symbol"])
+    return list(set(result))
 
 
 symbols = get_all_usdt_symbols()
@@ -36,15 +35,16 @@ y_all = []
 for symbol in symbols:
     try:
         _, X, y = generate_features(symbol)
-        X_all.append(X)
-        y_all.append(y)
-        print(f"✅ Додано {symbol}: {len(X)} зразків")
+        if len(X) > 10:
+            X_all.append(X)
+            y_all.append(y)
+            print(f"✅ Додано {symbol}: {len(X)} зразків")
         time.sleep(0.3)
     except Exception as e:
         print(f"⚠️ Пропущено {symbol}: {e}")
 
 if not X_all:
-    print("❌ Дані не зібрано. Перевір Binance API або generate_features.")
+    print("❌ Дані не зібрано.")
     exit(1)
 
 X_all = np.vstack(X_all)
