@@ -231,6 +231,8 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
         buy_candidates = [c for c in buy_candidates if c["symbol"] not in sell_symbols]
         strategy = "fallback"
 
+    print(f"🔍 Кандидати на купівлю: {len(buy_candidates)}")
+
     top_buy_candidates = sorted(buy_candidates, key=lambda x: x["risk_reward"], reverse=True)[:5]
 
     max_per_token = 10
@@ -244,6 +246,9 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
         token["amount_usdt"] = amount
         buy_plan.append(token)
         remaining -= amount
+
+    for token in buy_plan:
+        token["expected_profit"] = round(token.get("amount_usdt", 0) * 0.1, 2)
 
     recommended_buys = []
     updates: list[tuple[str, float, float]] = []
@@ -269,8 +274,6 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
         if price > 0 and tp_price > price:
             profit = (tp_price - price) * amount / price
             token["expected_profit"] = round(profit, 2)
-        else:
-            token["expected_profit"] = 0.0
 
     report_lines = []
     report_lines.append(f"🕒 Звіт сформовано: {now.strftime('%Y-%m-%d %H:%M:%S')} (Kyiv)")
@@ -364,11 +367,10 @@ def generate_daily_stats_report() -> str:
 async def daily_analysis_task(bot, chat_id: int) -> None:
     """Run daily analysis and notify about TP/SL updates."""
     report, _, updates, gpt_text = generate_zarobyty_report()
+    full_text = f"{report}\n\n{gpt_text}"
     MAX_LEN = 4000
-    for i in range(0, len(report), MAX_LEN):
-        await bot.send_message(chat_id, report[i:i + MAX_LEN])
-    for i in range(0, len(gpt_text), MAX_LEN):
-        await bot.send_message(chat_id, gpt_text[i:i + MAX_LEN])
+    for i in range(0, len(full_text), MAX_LEN):
+        await bot.send_message(chat_id, full_text[i:i + MAX_LEN])
     for symbol, tp_price, sl_price in updates:
         await bot.send_message(
             chat_id,
