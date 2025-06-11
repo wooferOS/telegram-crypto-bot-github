@@ -38,6 +38,7 @@ from utils import (
 from history import _load_history, get_failed_tokens_history
 from coingecko_api import get_sentiment
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from ml_model import load_model, predict_direction
 
 logger = logging.getLogger(__name__)
 
@@ -263,10 +264,22 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
         closes = [float(k[4]) for k in klines]
 
         tp, sl = dynamic_tp_sl(closes, price)
-        momentum = indicators.get("EMA_8", 0) - indicators.get("EMA_13", 0)
+        ema8 = indicators.get("EMA_8", 0)
+        ema13 = indicators.get("EMA_13", 0)
+        momentum = ema8 - ema13
+        rsi = indicators.get("RSI", 50)
+        mid = statistics.mean(closes[-20:])
+        stddev = statistics.pstdev(closes[-20:])
+        bb_ratio = (closes[-1] - (mid - 2 * stddev)) / (4 * stddev + 1e-8)
+        volume_avg = statistics.fmean([float(k[5]) for k in klines[-5:]])
+
+        feature_vector = [momentum, rsi / 100, bb_ratio, volume_avg]
+        model = load_model()
+        prob_up = predict_direction(model, feature_vector) if model else 0.5
+
         success_score = get_success_score(symbol)
         orderbook_bias = 0  # можна реалізувати пізніше
-        score = rr * 2 + momentum + success_score + (-btc_corr)
+        score = rr * 2 + momentum + success_score + (-btc_corr) + prob_up * 2
 
         enriched_tokens.append({
             "symbol": symbol,
