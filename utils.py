@@ -38,60 +38,57 @@ def _ema(values: List[float], period: int) -> List[float]:
     return ema
 
 
+def dynamic_tp_sl(closes: List[float], price: float) -> tuple[float, float]:
+    """Return take profit and stop loss levels based on recent volatility."""
+    if len(closes) < 10:
+        return round(price * 1.1, 6), round(price * 0.95, 6)
+    volatility = statistics.pstdev(closes[-10:])
+    avg_price = statistics.mean(closes[-10:])
+    factor = volatility / avg_price if avg_price else 0
+
+    tp = round(price * (1 + min(0.15, 2.0 * factor)), 6)
+    sl = round(price * (1 - max(0.03, 0.5 * factor)), 6)
+    return tp, sl
+
+
 def calculate_indicators(klines: List[List[float]]) -> Dict[str, float]:
-    """Calculate basic indicators for token."""
+    """Calculate trading indicators used for filtering."""
     if not klines or not isinstance(klines[0], (list, tuple)):
         raise TypeError(
             f"❌ Неправильний формат klines: {type(klines[0])}, очікується список OHLCV"
         )
 
     closes = [float(k[4]) for k in klines]
+    highs = [float(k[2]) for k in klines]
+    lows = [float(k[3]) for k in klines]
 
-    ema5 = _ema(closes, 5)[-1] if closes else 0.0
     ema8 = _ema(closes, 8)[-1] if closes else 0.0
     ema13 = _ema(closes, 13)[-1] if closes else 0.0
+    momentum = ema8 - ema13
 
-    if len(closes) < 26:
-        return {
-            "RSI": 50.0,
-            "MACD": "neutral",
-            "support": closes[-1] if closes else 0.0,
-            "resistance": closes[-1] if closes else 0.0,
-            "EMA_5": ema5,
-            "EMA_8": ema8,
-            "EMA_13": ema13,
-        }
+    rsi = _ema(closes, 14)[-1] if len(closes) >= 14 else closes[-1] if closes else 0.0
 
-    # RSI
-    gains = []
-    losses = []
-    for i in range(1, 15):
-        diff = closes[i] - closes[i - 1]
-        if diff >= 0:
-            gains.append(diff)
-        else:
-            losses.append(-diff)
-    avg_gain = sum(gains) / 14 if gains else 0
-    avg_loss = sum(losses) / 14 if losses else 0
-    rsi = 100 - (100 / (1 + avg_gain / avg_loss)) if avg_loss else 100.0
+    mid = statistics.mean(closes[-20:]) if len(closes) >= 20 else statistics.mean(closes) if closes else 0.0
+    stddev = statistics.pstdev(closes[-20:]) if len(closes) >= 20 else 0.0
+    lower = mid - 2 * stddev
+    bb_touch = closes[-1] <= lower if closes else False
 
-    # MACD
-    ema12 = _ema(closes, 12)
-    ema26 = _ema(closes, 26)
-    macd_val = ema12[-1] - ema26[-1]
-    macd = "bullish" if macd_val >= 0 else "bearish"
+    macd_line = _ema(closes, 12)[-1] - _ema(closes, 26)[-1] if len(closes) >= 26 else 0.0
+    signal_line = _ema(closes, 9)[-1] if len(closes) >= 9 else 0.0
+    macd_cross = macd_line > signal_line and macd_line - signal_line > 0
 
-    support = min(float(k[3]) for k in klines[-20:])
-    resistance = max(float(k[2]) for k in klines[-20:])
+    support = min(lows[-20:]) if len(lows) >= 20 else min(lows) if lows else 0.0
+    resistance = max(highs[-20:]) if len(highs) >= 20 else max(highs) if highs else 0.0
 
     return {
         "RSI": rsi,
-        "MACD": macd,
-        "support": support,
-        "resistance": resistance,
-        "EMA_5": ema5,
         "EMA_8": ema8,
         "EMA_13": ema13,
+        "momentum": momentum,
+        "MACD_CROSS": macd_cross,
+        "BB_LOWER_TOUCH": bb_touch,
+        "support": support,
+        "resistance": resistance,
     }
 
 
@@ -143,3 +140,8 @@ def get_correlation_with_btc(asset_closes: list, btc_closes: list) -> float:
     if denominator == 0:
         return 1.0
     return round(numerator / denominator, 2)
+
+
+def kelly_fraction(success_rate: float, win_loss_ratio: float) -> float:
+    """Return position size fraction using Kelly formula."""
+    return max(0.01, min(0.25, (success_rate * (win_loss_ratio + 1) - 1) / win_loss_ratio))
