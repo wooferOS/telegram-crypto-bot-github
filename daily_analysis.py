@@ -37,6 +37,13 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 logger = logging.getLogger(__name__)
 
+async def send_message_parts(bot, chat_id: int, text: str) -> None:
+    """Send text to Telegram in chunks not exceeding 4096 characters."""
+    MAX_LENGTH = 4096
+    for i in range(0, len(text), MAX_LENGTH):
+        await bot.send_message(chat_id, text[i:i + MAX_LENGTH])
+
+
 
 def _maybe_update_orders(symbol: str, new_tp: float, new_sl: float) -> bool:
     """Check existing TP/SL for ``symbol`` and update if price changed."""
@@ -393,10 +400,8 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
         report_lines.append("Наразі немає активів, що відповідають умовам Smart Buy Filter")
     report_lines.append("⸻")
 
-    expected_profit_usdt = round(
-        sum(c.get("expected_profit", 0) for c in buy_plan),
-        2,
-    )
+    total_expected_profit = sum(t.get("expected_profit", 0) for t in buy_candidates)
+    expected_profit_usdt = round(total_expected_profit, 2)
     expected_profit_uah = convert_to_uah(expected_profit_usdt)
     report_lines.append(f"💹 Очікуваний прибуток: {expected_profit_usdt} USDT ≈ ~{expected_profit_uah}₴ за 24г")
     report_lines.append("⸻")
@@ -460,9 +465,7 @@ async def daily_analysis_task(bot, chat_id: int) -> None:
     """Run daily analysis and notify about TP/SL updates."""
     report, _, updates, gpt_text = generate_zarobyty_report()
     full_text = f"{report}\n\n{gpt_text}"
-    MAX_LEN = 4000
-    for i in range(0, len(full_text), MAX_LEN):
-        await bot.send_message(chat_id, full_text[i:i + MAX_LEN])
+    await send_message_parts(bot, chat_id, full_text)
     for symbol, tp_price, sl_price in updates:
         await bot.send_message(
             chat_id,
