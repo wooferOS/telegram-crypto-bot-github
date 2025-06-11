@@ -98,11 +98,12 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
 
     Steps:
     1. Calculate current balance in UAH and USDT.
-    2. Identify sell candidates with PnL >= 1%%.
-    3. Fetch market data and filter buy candidates using RSI, EMA cross,
-       7d volatility and risk/reward.
-    4. Remove from buy list any symbols already scheduled for selling.
-    5. Estimate expected profit based on planned buys and compose GPT forecast.
+    2. Identify sell candidates where PnL >= 1%%.
+    3. Pick buy candidates with ``rsi < 30`` and ``ema_cross`` plus
+       ``volatility_7d > 5`` and ``risk_reward > 2.0``.
+       Remove any symbols that are also scheduled for selling.
+    4. Sum ``expected_profit`` from buy candidates (0 if missing).
+    5. Send all data to GPT together with market trend and active strategy.
     """
     balances = get_binance_balances()
     usdt_balance = balances.get("USDT", 0)
@@ -153,7 +154,7 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
         })
 
     # Sell tokens with profit >= 1%%
-    sell_recommendations = [t for t in token_data if t['pnl'] >= 1.0]
+    sell_recommendations = [t for t in token_data if t["pnl"] >= 1.0]
     sell_symbols = {t["symbol"] for t in sell_recommendations}
 
     exchange_rate_uah = get_usdt_to_uah_rate()
@@ -221,6 +222,7 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
 
     # Пошук кандидатів на купівлю
     buy_candidates = filter_adaptive_smart_buy(enriched_tokens)
+    strategy = "rsi_dip"
     # Прибираємо з buy ті токени, що вже в sell
     buy_candidates = [c for c in buy_candidates if c["symbol"] not in sell_symbols]
 
@@ -228,6 +230,7 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
         logger.warning("⚠️ Немає ідеальних кандидатів, шукаємо альтернативи...")
         buy_candidates = filter_fallback_best_candidates(enriched_tokens)
         buy_candidates = [c for c in buy_candidates if c["symbol"] not in sell_symbols]
+        strategy = "fallback"
 
     top_buy_candidates = sorted(buy_candidates, key=lambda x: x["risk_reward"], reverse=True)[:5]
 
@@ -285,7 +288,7 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
     report_lines.append("⸻")
 
     expected_profit_usdt = round(
-        sum(t.get("expected_profit", t["amount_usdt"] * t.get("risk_reward", 0)) for t in buy_plan),
+        sum(c.get("expected_profit", 0) for c in buy_candidates),
         2,
     )
     expected_profit_uah = convert_to_uah(expected_profit_usdt)
@@ -295,10 +298,11 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
     market_trend = get_sentiment()
     summary_data = {
         "balance": f"{total_uah}₴",
-        "recommended_sell": ", ".join([t["symbol"] for t in sell_recommendations]) or "Немає",
-        "recommended_buy": "; ".join(recommended_buys) or "Немає",
-        "profit": f"{expected_profit_uah}₴",
+        "sell_candidates": [t["symbol"] for t in sell_recommendations],
+        "buy_candidates": [t["symbol"] for t in buy_plan],
+        "expected_profit": f"{expected_profit_uah}₴",
         "market_trend": market_trend,
+        "strategy": strategy,
     }
     gpt_forecast = ask_gpt(summary_data)
     report_lines.append(f"🧠 Прогноз GPT:\n{gpt_forecast}")
