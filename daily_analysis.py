@@ -413,11 +413,6 @@ async def send_zarobyty_forecast(bot, chat_id: int) -> None:
     for part in split_telegram_message(gpt_text, 4000):
         await bot.send_message(chat_id, part)
 
-
-def generate_daily_stats_report() -> str:
-    return "⏳ Щоденний звіт тимчасово недоступний."
-
-
 # Adaptive filters for selecting buy candidates
 from utils import (
     calculate_indicators,
