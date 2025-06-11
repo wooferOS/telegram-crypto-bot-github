@@ -62,3 +62,30 @@ def get_trade_history() -> str:
     except Exception as exc:
         logger.error("Failed to prepare trade history: %s", exc)
         return "History unavailable."
+
+
+def get_failed_tokens_history(threshold: float = -1.0) -> set[str]:
+    """Return set of symbols with historical profit below ``threshold`` percent."""
+
+    history = _load_history()
+    by_symbol: dict[str, list[tuple[str, float, float]]] = {}
+    for item in history:
+        sym = str(item.get("symbol", "")).upper()
+        side = str(item.get("side", "")).upper()
+        qty = float(item.get("qty", 0))
+        price = float(item.get("price", 0))
+        by_symbol.setdefault(sym, []).append((side, qty, price))
+
+    failed: set[str] = set()
+    for sym, trades in by_symbol.items():
+        profit = 0.0
+        last_buy = None
+        for side, qty, price in trades:
+            if side == "BUY":
+                last_buy = price
+            elif side == "SELL" and last_buy:
+                profit += (price - last_buy) / last_buy * 100
+                last_buy = None
+        if profit < threshold:
+            failed.add(sym)
+    return failed
