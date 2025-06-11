@@ -145,3 +145,42 @@ def get_correlation_with_btc(asset_closes: list, btc_closes: list) -> float:
 def kelly_fraction(success_rate: float, win_loss_ratio: float) -> float:
     """Return position size fraction using Kelly formula."""
     return max(0.01, min(0.25, (success_rate * (win_loss_ratio + 1) - 1) / win_loss_ratio))
+
+def calculate_expected_profit(
+    price: float,
+    tp_price: float,
+    amount: float,
+    sl_price: float | None = None,
+    success_rate: float = 0.75,
+    fee: float = 0.001,
+) -> float:
+    """Return expected profit adjusted for fees and risk."""
+
+    if price <= 0 or tp_price <= price:
+        return 0.0
+
+    gross = (tp_price - price) / price * amount
+    loss = ((price - sl_price) / price * amount) if sl_price and sl_price < price else 0
+
+    net_profit = gross * (1 - 2 * fee)
+    expected = net_profit * success_rate - loss * (1 - success_rate)
+    return round(expected, 4)
+
+
+def advanced_buy_filter(token: dict) -> bool:
+    """Return True if token passes advanced technical filters."""
+
+    indicators = token.get("indicators", {})
+    rsi = indicators.get("RSI", 50)
+    macd_cross = indicators.get("MACD_CROSS", False)
+    bb_touch = indicators.get("BB_LOWER_TOUCH", False)
+    momentum = token.get("momentum", 0)
+    rr = token.get("risk_reward", 0)
+
+    return (
+        rsi < 40
+        and macd_cross
+        and bb_touch
+        and momentum > 0
+        and rr > 1.5
+    )

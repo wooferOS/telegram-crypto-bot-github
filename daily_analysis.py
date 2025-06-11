@@ -26,9 +26,11 @@ from gpt_utils import ask_gpt
 from utils import (
     convert_to_uah,
     calculate_rr,
+    calculate_expected_profit,
     calculate_indicators,
-    dynamic_tp_sl,
     kelly_fraction,
+    dynamic_tp_sl,
+    advanced_buy_filter,
     get_sector,
     analyze_btc_correlation,
     _ema,
@@ -198,25 +200,11 @@ def get_success_score(symbol: str) -> float:
             last_buy = None
     return round(profit / len(trades), 2)
 
-
 def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
-    """Return daily profit report text, keyboard and updates.
-
-    Steps:
-    1. Calculate current balance in UAH and USDT.
-    2. Identify sell candidates where PnL >= 1%%.
-    3. Pick buy candidates with ``rsi < 40`` and ``risk_reward > 1.5``.
-       Remove any symbols that are also scheduled for selling.
-    4. Sum ``expected_profit`` from buy candidates (0 if missing).
-    5. Send all data to GPT together with market trend and active strategy.
-    """
     balances = get_binance_balances()
-    usdt_balance = balances.get("USDT", 0)
-    if usdt_balance is None:
-        usdt_balance = 0
-
-    token_data = []
+    usdt_balance = balances.get("USDT", 0) or 0
     now = datetime.datetime.now(pytz.timezone("Europe/Kyiv"))
+    token_data = []
 
     for symbol, amount in balances.items():
         if symbol == "USDT" or amount == 0:
@@ -226,28 +214,15 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
 
         price = get_symbol_price(symbol)
         uah_value = convert_to_uah(price * amount)
-        price_history = get_price_history(symbol)
         klines = get_klines(symbol)
         trades = get_my_trades(f"{symbol}USDT")
-
         indicators = calculate_indicators(klines)
         average_buy_price = sum([float(t['price']) * float(t['qty']) for t in trades]) / sum([float(t['qty']) for t in trades]) if trades else price
         pnl_percent = ((price - average_buy_price) / average_buy_price) * 100
         rr = calculate_rr(klines)
-        volume_24h = 0
-        if (
-            isinstance(price_history, list)
-            and len(price_history) > 0
-            and isinstance(price_history[0], (list, tuple))
-        ):
-            volume_24h = sum(float(k[5]) for k in price_history if len(k) > 5)
+        volume_24h = sum(float(k[5]) for k in get_price_history(symbol)) if klines else 0
         sector = get_sector(symbol)
         btc_corr = analyze_btc_correlation(symbol)
-
-        momentum = indicators.get("EMA_8", 0) - indicators.get("EMA_13", 0)
-        sector_score = 0
-        orderbook_bias = 0
-        success_score = get_success_score(symbol)
 
         token_data.append({
             "symbol": symbol,
@@ -263,18 +238,17 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
             "btc_corr": btc_corr
         })
 
-    # Sell tokens with profit >= 1%%
+    # 🔻 Sell recommendations
     sell_recommendations = [t for t in token_data if t["pnl"] >= 1.0]
     sell_symbols = {t["symbol"] for t in sell_recommendations}
-
     exchange_rate_uah = get_usdt_to_uah_rate()
     usdt_from_sales = sum([t["uah_value"] for t in sell_recommendations]) / exchange_rate_uah
     available_usdt = round(usdt_balance + usdt_from_sales, 2)
 
+    # 🔍 Candidates to analyze
     symbols_from_balance = set(t['symbol'].upper() for t in token_data)
     market_symbols = set(t["symbol"].upper() for t in get_top_tokens(limit=50))
     symbols_to_analyze = symbols_from_balance.union(market_symbols)
-
     tradable_symbols = set(s.upper() for s in load_tradable_usdt_symbols())
     symbols_to_analyze = [s for s in symbols_to_analyze if s in tradable_symbols]
 
@@ -285,103 +259,44 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
         indicators = calculate_indicators(klines)
         rr = calculate_rr(klines)
         sector = get_sector(symbol)
-        price_stats = get_price_history(symbol)
-        volume_24h = 0
-        if (
-            isinstance(price_stats, list)
-            and len(price_stats) > 0
-            and isinstance(price_stats[0], (list, tuple))
-        ):
-            volume_24h = sum(float(k[5]) for k in price_stats if len(k) > 5)
-        volumes = [float(k[5]) for k in klines]
-        avg_volume = statistics.fmean(volumes[-20:]) if volumes else 0
-        volume_change = volume_24h - avg_volume
         btc_corr = analyze_btc_correlation(symbol)
-
         closes = [float(k[4]) for k in klines]
-        ema8_series = _ema(closes, 8) if len(closes) >= 8 else [0] * len(closes)
-        ema_cross = False
-        if len(closes) >= 9:
-            ema_cross = closes[-2] < ema8_series[-2] and closes[-1] > ema8_series[-1]
 
-        klines_7d = get_candlestick_klines(symbol, interval="1d", limit=7)
-        closes_7d = [float(k[4]) for k in klines_7d]
-        if len(closes_7d) > 1:
-            mean_price = statistics.fmean(closes_7d)
-            variance = statistics.pvariance(closes_7d)
-            volatility_7d = (variance ** 0.5) / mean_price * 100
-        else:
-            volatility_7d = 0
+        tp, sl = dynamic_tp_sl(closes, price)
+        momentum = indicators.get("EMA_8", 0) - indicators.get("EMA_13", 0)
+        success_score = get_success_score(symbol)
+        orderbook_bias = 0  # можна реалізувати пізніше
+        score = rr * 2 + momentum + success_score + (-btc_corr)
 
-        enriched_tokens.append(
-            {
-                "symbol": symbol,
-                "price": price,
-                "risk_reward": rr,
-                "sector": sector,
-                "btc_corr": btc_corr,
-                "volume_change_24h": volume_change,
-                "volatility_7d": volatility_7d,
-                "ema_cross": ema_cross,
-                "momentum": momentum,
-                "sector_score": sector_score,
-                "orderbook_bias": orderbook_bias,
-                "success_score": success_score,
-                "indicators": {
-                    "rsi": indicators["RSI"],
-                    "ema8": indicators.get("EMA_8", 0),
-                },
-            }
+        enriched_tokens.append({
+            "symbol": symbol,
+            "price": price,
+            "risk_reward": rr,
+            "tp_price": tp,
+            "sl_price": sl,
+            "momentum": momentum,
+            "sector_score": 0,
+            "success_score": success_score,
+            "orderbook_bias": orderbook_bias,
+            "btc_corr": btc_corr,
+            "indicators": indicators,
+            "score": score
+        })
+
+    # ✅ Apply advanced filtering
+    buy_candidates = [
+        t for t in enriched_tokens if advanced_buy_filter(t)
+    ]
+    for t in buy_candidates:
+        t["expected_profit"] = calculate_expected_profit(
+            t["price"], t["tp_price"], amount=10, sl_price=t["sl_price"]
         )
+        t["score"] = score_token(t)
 
-    # Debug: show top tokens before applying filters
-    preview_tokens = sorted(
-        enriched_tokens,
-        key=lambda t: t.get("risk_reward", 0),
-        reverse=True,
-    )[:5]
-    logger.info("\u2139\ufe0f Top 5 tokens before filtering:")
-    for t in preview_tokens:
-        base_amount = 10
-        closes = [float(k[4]) for k in get_klines(t["symbol"])]
-        tp, sl = dynamic_tp_sl(closes, t.get("price", 0))
-        expected = calculate_expected_profit(
-            t.get("price", 0), tp, base_amount, sl
-        )
-        score = score_token(t)
-        logger.info(
-            "• %s rr=%.2f rsi=%.2f mom=%.2f score=%.2f exp=%.2f tp=%s sl=%s",
-            t.get("symbol"),
-            t.get("risk_reward", 0),
-            t.get("indicators", {}).get("rsi", 0),
-            t.get("momentum", 0),
-            score,
-            expected,
-            tp,
-            sl,
-        )
-
-    if not sell_recommendations:
-        buy_candidates = []
-    else:
-        candidates = get_top_tokens()
-        enriched = enrich_with_metrics(candidates)
-        for t in enriched:
-            t["expected_profit"] = calculate_expected_profit(
-                t["price"], t["tp_price"], amount=10, sl_price=t["sl_price"]
-            )
-            t["score"] = score_token(t)
-        buy_candidates = [tok for tok in enriched if advanced_buy_filter(tok)]
-
-    strategy = "advanced_buy_filter"
-
-    print(f"🔍 Кандидати на купівлю: {len(buy_candidates)}")
-
-    top_buy_candidates = sorted(buy_candidates, key=lambda t: t.get("score", 0), reverse=True)[:5]
+    top_buy_candidates = sorted(buy_candidates, key=lambda t: t["score"], reverse=True)[:5]
 
     buy_plan = []
     remaining = available_usdt
-
     updates: list[tuple[str, float, float]] = []
     candidate_lines: list[str] = []
 
@@ -391,20 +306,15 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
         rr = token.get("risk_reward", 1.5)
         kelly = kelly_fraction(0.75, rr)
         amount = round(min(remaining, available_usdt * kelly), 2)
+
         token["amount_usdt"] = amount
+        tp = token["tp_price"]
+        sl = token["sl_price"]
+        price = token["price"]
+        token["expected_profit"] = calculate_expected_profit(price, tp, amount, sl)
 
-        price = token.get("price", 0)
-        closes = [float(k[4]) for k in get_klines(token["symbol"])]
-        tp_price, sl_price = dynamic_tp_sl(closes, price)
-        token["tp_price"] = tp_price
-        token["sl_price"] = sl_price
-        token["score"] = score_token(token)
-        token["expected_profit"] = calculate_expected_profit(price, tp_price, amount, sl_price)
-
-        symbol = token["symbol"]
-
-        if _maybe_update_orders(symbol, tp_price, sl_price):
-            updates.append((f"{symbol.upper()}USDT", tp_price, sl_price))
+        if _maybe_update_orders(token["symbol"], tp, sl):
+            updates.append((f"{token['symbol']}USDT", tp, sl))
 
         buy_plan.append(token)
         remaining -= amount
@@ -414,17 +324,14 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
                 f"{token['symbol']} {amount} USDT (EP: {token.get('expected_profit')})"
             )
 
+    # 📝 Final report
     report_lines = []
-    report_lines.append(f"🕒 Звіт сформовано: {now.strftime('%Y-%m-%d %H:%M:%S')}")
-    report_lines.append("")
+    report_lines.append(f"🕒 Звіт сформовано: {now.strftime('%Y-%m-%d %H:%M:%S')}\n")
     report_lines.append("💰 Баланс:")
     for t in token_data:
         report_lines.append(f"{t['symbol']}: {t['amount']} ≈ ~{t['uah_value']}₴")
-
     total_uah = round(sum([t['uah_value'] for t in token_data]) + convert_to_uah(usdt_balance), 2)
-    report_lines.append(f"Загальний баланс: {total_uah}₴")
-    report_lines.append("")
-    report_lines.append("⸻")
+    report_lines.append(f"Загальний баланс: {total_uah}₴\n⸻")
 
     report_lines.append("📉 Що продаємо:")
     if sell_recommendations:
@@ -432,34 +339,27 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
             report_lines.append(f"{t['symbol']}: {t['amount']} ≈ ~{t['uah_value']}₴ (PnL = {t['pnl']}%)")
     else:
         report_lines.append("(порожньо)")
-    report_lines.append("")
-    report_lines.append("⸻")
+    report_lines.append("\n⸻")
 
     if candidate_lines:
         report_lines.append("📈 Що купуємо:")
         report_lines.extend(candidate_lines)
     else:
         report_lines.append("📈 Що купуємо: (порожньо)")
-    report_lines.append("")
-    report_lines.append("⸻")
+    report_lines.append("\n⸻")
 
-
-    total_expected_profit = sum(t.get("expected_profit", 0) for t in buy_candidates)
+    total_expected_profit = sum(t.get("expected_profit", 0) for t in buy_plan)
     expected_profit_usdt = round(total_expected_profit, 2)
     expected_profit_uah = convert_to_uah(expected_profit_usdt)
     report_lines.append(f"💹 Очікуваний прибуток: {expected_profit_usdt} USDT ≈ {expected_profit_uah}₴ за 24г")
 
-    # GPT forecast temporarily disabled
-    gpt_forecast = ""
-
     report = "\n".join(report_lines)
-
     keyboard = InlineKeyboardMarkup(row_width=2)
 
     for token in sell_recommendations:
         keyboard.insert(
             InlineKeyboardButton(
-                text=f"\U0001F534 \u041F\u0440\u043E\u0434\u0430\u0442\u0438 {token['symbol']}",
+                text=f"🔴 Продати {token['symbol']}",
                 callback_data=f"sell:{token['symbol']}"
             )
         )
@@ -467,12 +367,13 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
     for token in buy_plan:
         keyboard.insert(
             InlineKeyboardButton(
-                text=f"\U0001F7E2 \u041A\u0443\u043F\u0438\u0442\u0438 {token['symbol']}",
+                text=f"🟢 Купити {token['symbol']}",
                 callback_data=f"buy:{token['symbol']}"
             )
         )
 
-    return report, keyboard, updates, gpt_forecast
+    return report, keyboard, updates, ""
+
 
 
 
