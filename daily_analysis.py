@@ -93,14 +93,13 @@ def execute_buy_order(symbol: str, amount_usdt: float):
         logger.error(f"❌ Помилка під час покупки {symbol}: {e}")
 
 
-def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
+def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
     """Return daily profit report text, keyboard and updates.
 
     Steps:
     1. Calculate current balance in UAH and USDT.
     2. Identify sell candidates where PnL >= 1%%.
-    3. Pick buy candidates with ``rsi < 30`` and ``ema_cross`` plus
-       ``volatility_7d > 5`` and ``risk_reward > 2.0``.
+    3. Pick buy candidates with ``rsi < 40`` and ``risk_reward > 1.5``.
        Remove any symbols that are also scheduled for selling.
     4. Sum ``expected_profit`` from buy candidates (0 if missing).
     5. Send all data to GPT together with market trend and active strategy.
@@ -305,7 +304,6 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
         "strategy": strategy,
     }
     gpt_forecast = ask_gpt(summary_data)
-    report_lines.append(f"🧠 Прогноз GPT:\n{gpt_forecast}")
 
     report = "\n".join(report_lines)
 
@@ -342,7 +340,7 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
                 )
             ])
 
-    return report, keyboard, updates
+    return report, keyboard, updates, gpt_forecast
 
 
 
@@ -353,8 +351,11 @@ def generate_daily_stats_report() -> str:
 
 async def daily_analysis_task(bot, chat_id: int) -> None:
     """Run daily analysis and notify about TP/SL updates."""
-    report, _, updates = generate_zarobyty_report()
+    report, _, updates, gpt_text = generate_zarobyty_report()
     await bot.send_message(chat_id, report)
+    MAX_LEN = 4000
+    for i in range(0, len(gpt_text), MAX_LEN):
+        await bot.send_message(chat_id, gpt_text[i:i + MAX_LEN])
     for symbol, tp_price, sl_price in updates:
         await bot.send_message(
             chat_id,
@@ -363,8 +364,11 @@ async def daily_analysis_task(bot, chat_id: int) -> None:
 
 
 async def send_zarobyty_forecast(bot, chat_id: int) -> None:
-    """Placeholder for forecast sending."""
-    await bot.send_message(chat_id, "\u23F3 \u0424\u0443\u043D\u043A\u0446\u0456\u044F \u043F\u0440\u043E\u0433\u043D\u043E\u0437\u0443 \u043D\u0435 \u0440\u0435\u0430\u043B\u0456\u0437\u043E\u0432\u0430\u043D\u0430.")
+    """Send the GPT forecast separately, splitting long text into chunks."""
+    _, _, _, gpt_text = generate_zarobyty_report()
+    MAX_LEN = 4000
+    for i in range(0, len(gpt_text), MAX_LEN):
+        await bot.send_message(chat_id, gpt_text[i:i + MAX_LEN])
 
 
 def generate_daily_stats_report() -> str:
@@ -380,10 +384,8 @@ def filter_adaptive_smart_buy(candidates):
     for token in candidates:
         rsi = token.get("indicators", {}).get("rsi", 50)
         rr = token.get("risk_reward", 0)
-        vol = token.get("volatility_7d", 0)
-        cross = token.get("ema_cross", False)
 
-        if rsi < 30 and cross and vol > 5 and rr > 2.0:
+        if rsi < 40 and rr > 1.5:
             filtered.append(token)
     return filtered
 
