@@ -2,6 +2,7 @@
 
 import os
 import logging
+import datetime
 from aiogram import Bot, Dispatcher, types
 from aiogram.dispatcher.filters import Command, Text
 from aiogram.dispatcher import filters
@@ -755,10 +756,34 @@ async def show_support(message: types.Message):
 
 
 async def check_tp_sl_market_change() -> None:
-    """Periodically cancel TP/SL orders if market moved."""
+    """Update or close orders if market moved or trade older than 24h."""
 
-    for symbol in list(active_orders.keys()):
-        cancel_tp_sl_if_market_changed(symbol)
+    now = datetime.datetime.utcnow()
+    orders = get_active_orders()
+    for symbol, data in orders.items():
+        if not data:
+            continue
+        entry_price = data.get("entry_price")
+        ts = data.get("timestamp")
+        if ts:
+            try:
+                trade_time = datetime.datetime.fromisoformat(ts)
+            except ValueError:
+                trade_time = None
+        else:
+            trade_time = None
+
+        if trade_time and trade_time + datetime.timedelta(hours=24) < now and entry_price:
+            current = get_current_price(symbol)
+            pnl = (current - entry_price) / entry_price * 100
+            if pnl > 2 or pnl < -3:
+                sell_token_market(symbol)
+                continue
+            new_tp = round(current * 1.10, 6)
+            new_sl = round(current * 0.95, 6)
+            update_tp_sl_order(symbol, new_tp, new_sl)
+        else:
+            cancel_tp_sl_if_market_changed(symbol)
 
 
 def register_change_tp_sl_handler(dp: Dispatcher) -> None:
