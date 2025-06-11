@@ -1,51 +1,43 @@
+import numpy as np
+import pandas as pd
+from binance.client import Client
+from sklearn.ensemble import RandomForestClassifier
 import joblib
 import os
-import numpy as np
-from sklearn.svm import SVC
-from sklearn.model_selection import train_test_split
 
-MODEL_PATH = "svm_direction_model.pkl"
+MODEL_PATH = "model.joblib"
 
-
-def prepare_dataset(token_klines: list[list[float]]) -> tuple[np.ndarray, np.ndarray]:
-    X, y = [], []
-    for i in range(30, len(token_klines) - 1):
-        window = token_klines[i - 30:i]
-        closes = [float(k[4]) for k in window]
-        highs = [float(k[2]) for k in window]
-        lows = [float(k[3]) for k in window]
-        volumes = [float(k[5]) for k in window]
-
-        ema8 = sum(closes[-8:]) / 8
-        ema13 = sum(closes[-13:]) / 13
-        momentum = ema8 - ema13
-        rsi = closes[-1] / (max(closes[-14:]) + 1e-8)  # спрощений
-        mid = sum(closes[-20:]) / 20
-        stddev = np.std(closes[-20:])
-        bb_ratio = (closes[-1] - (mid - 2 * stddev)) / (4 * stddev + 1e-8)
-
-        feature = [momentum, rsi, bb_ratio, np.mean(volumes[-5:])]
-        X.append(feature)
-
-        today_price = float(token_klines[i][4])
-        tomorrow_price = float(token_klines[i + 1][4])
-        y.append(1 if tomorrow_price > today_price * 1.02 else 0)
-    return np.array(X), np.array(y)
-
-
-def train_and_save_model(klines: list[list[float]]):
-    X, y = prepare_dataset(klines)
-    model = SVC(probability=True)
-    model.fit(X, y)
-    joblib.dump(model, MODEL_PATH)
-    return model
-
+client = Client(api_key=os.getenv("BINANCE_API_KEY"), api_secret=os.getenv("BINANCE_API_SECRET"))
 
 def load_model():
-    if not os.path.exists(MODEL_PATH):
+    if os.path.exists(MODEL_PATH):
+        return joblib.load(MODEL_PATH)
+    return None
+
+def get_klines(symbol, interval="1h", limit=100):
+    data = client.get_klines(symbol=symbol, interval=interval, limit=limit)
+    df = pd.DataFrame(data, columns=[
+        "timestamp", "open", "high", "low", "close", "volume",
+        "close_time", "quote_asset_volume", "number_of_trades",
+        "taker_buy_base_volume", "taker_buy_quote_volume", "ignore"])
+    df = df[["timestamp", "open", "high", "low", "close", "volume"]].astype(float)
+    return df
+
+def generate_features(symbol):
+    df = get_klines(symbol)
+    df["close_pct"] = df["close"].pct_change().fillna(0)
+    df["volume_change"] = df["volume"].pct_change().fillna(0)
+    df["high_low"] = (df["high"] - df["low"]) / df["low"]
+    df["target"] = df["close"].shift(-1) > df["close"]
+    df.dropna(inplace=True)
+    X = df[["close_pct", "volume_change", "high_low"]]
+    y = df["target"].astype(int)
+    return X.values[-1].reshape(1, -1), X, y
+
+def predict_direction(symbol):
+    model = load_model()
+    if not model:
         return None
-    return joblib.load(MODEL_PATH)
-
-
-def predict_direction(model, feature_vector: list[float]) -> float:
-    return float(model.predict_proba([feature_vector])[0][1])
+    feature_vector, _, _ = generate_features(symbol)
+    prediction = model.predict(feature_vector)
+    return "up" if prediction[0] == 1 else "down"
