@@ -285,6 +285,33 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
             }
         )
 
+    # Debug: show top tokens before applying filters
+    preview_tokens = sorted(
+        enriched_tokens,
+        key=lambda t: t.get("risk_reward", 0),
+        reverse=True,
+    )[:5]
+    logger.info("\u2139\ufe0f Top 5 tokens before filtering:")
+    for t in preview_tokens:
+        base_amount = 10
+        tp = round(t.get("price", 0) * 1.10, 6)
+        sl = round(t.get("price", 0) * 0.95, 6)
+        expected = calculate_expected_profit(
+            t.get("price", 0), tp, base_amount, sl
+        )
+        score = score_token(t)
+        logger.info(
+            "• %s rr=%.2f rsi=%.2f mom=%.2f score=%.2f exp=%.2f tp=%s sl=%s",
+            t.get("symbol"),
+            t.get("risk_reward", 0),
+            t.get("indicators", {}).get("rsi", 0),
+            t.get("momentum", 0),
+            score,
+            expected,
+            tp,
+            sl,
+        )
+
     # Пошук кандидатів на купівлю
     buy_candidates = filter_adaptive_smart_buy(enriched_tokens)
     strategy = "rsi_dip"
@@ -461,8 +488,23 @@ from utils import calculate_indicators, get_risk_reward_ratio, get_correlation_w
 
 def filter_adaptive_smart_buy(candidates):
     filtered = []
+    required_fields = {
+        "risk_reward",
+        "volatility_7d",
+        "ema_cross",
+        "momentum",
+    }
     for token in candidates:
-        rsi = token.get("indicators", {}).get("rsi", 50)
+        missing = [f for f in required_fields if f not in token]
+        if missing or "indicators" not in token or "rsi" not in token.get("indicators", {}):
+            logger.debug(
+                "Skipping %s due to missing fields: %s",
+                token.get("symbol"),
+                ",".join(missing),
+            )
+            continue
+
+        rsi = token["indicators"].get("rsi", 50)
         rr = token.get("risk_reward", 0)
 
         if rsi < 40 and rr > 1.5:
