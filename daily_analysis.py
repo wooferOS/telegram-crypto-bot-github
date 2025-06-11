@@ -223,7 +223,7 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
     available_usdt = round(usdt_balance + usdt_from_sales, 2)
 
     symbols_from_balance = set(t['symbol'].upper() for t in token_data)
-    market_symbols = set(s.upper() for s in get_top_tokens(limit=50))
+    market_symbols = set(t["symbol"].upper() for t in get_top_tokens(limit=50))
     symbols_to_analyze = symbols_from_balance.union(market_symbols)
 
     tradable_symbols = set(s.upper() for s in load_tradable_usdt_symbols())
