@@ -25,9 +25,6 @@ def get_klines(symbol, interval="1h", limit=500):
     return df
 
 def add_technical_indicators(df):
-    df["close"] = df["close"].astype(float)
-    df["volume"] = df["volume"].astype(float)
-
     df["rsi"] = ta.momentum.RSIIndicator(close=df["close"]).rsi()
     df["macd"] = ta.trend.MACD(close=df["close"]).macd()
     df["ema"] = ta.trend.EMAIndicator(close=df["close"], window=14).ema_indicator()
@@ -48,6 +45,12 @@ def generate_features(symbol):
 
     X = df[["close_pct", "volume_change", "high_low", "rsi", "macd", "ema", "sma", "atr"]]
     y = df["target"].astype(int)
+
+    # 🧼 Очистити інфініті та NaN
+    X.replace([np.inf, -np.inf], np.nan, inplace=True)
+    X.dropna(inplace=True)
+    y = y[-len(X):]
+
     return X.values[-1].reshape(1, -1), X, y
 
 def predict_direction(symbol):
