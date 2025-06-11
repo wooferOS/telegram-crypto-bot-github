@@ -55,5 +55,6 @@ def generate_features(symbol):
 
 def predict_direction(model, feature_vector):
     """Прогнозує напрямок руху (up/down) на основі переданої моделі та фічей."""
-    prediction = model.predict(feature_vector)
+    # ensure feature_vector has the correct shape for the model
+    prediction = model.predict(np.asarray(feature_vector).reshape(1, -1))
     return "up" if prediction[0] == 1 else "down"
