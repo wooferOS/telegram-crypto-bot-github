@@ -5,6 +5,8 @@ import datetime
 import pytz
 import statistics
 import logging
+import os
+from binance.client import Client
 
 from binance_api import (
     get_binance_balances,
@@ -39,6 +41,22 @@ from history import _load_history, get_failed_tokens_history
 from coingecko_api import get_sentiment
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from ml_model import load_model, generate_features, predict_direction
+
+client = Client(api_key=os.getenv("BINANCE_API_KEY"), api_secret=os.getenv("BINANCE_API_SECRET"))
+
+
+def get_valid_symbols() -> list[str]:
+    """Отримати всі активні спотові пари до USDT з Binance"""
+
+    return [
+        s["symbol"]
+        for s in client.get_exchange_info()["symbols"]
+        if s["quoteAsset"] == "USDT"
+        and s["status"] == "TRADING"
+        and s["isSpotTradingAllowed"]
+    ]
+
+symbols = get_valid_symbols()
 
 logger = logging.getLogger(__name__)
 
