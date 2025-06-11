@@ -37,11 +37,15 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 logger = logging.getLogger(__name__)
 
+def split_telegram_message(text: str, chunk_size: int = 4000) -> list[str]:
+    """Split long text into chunks suitable for Telegram messages."""
+    return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
+
+
 async def send_message_parts(bot, chat_id: int, text: str) -> None:
-    """Send text to Telegram in chunks not exceeding 4096 characters."""
-    MAX_LENGTH = 4096
-    for i in range(0, len(text), MAX_LENGTH):
-        await bot.send_message(chat_id, text[i:i + MAX_LENGTH])
+    """Send ``text`` to Telegram in chunks not exceeding ``chunk_size``."""
+    for part in split_telegram_message(text, 4000):
+        await bot.send_message(chat_id, part)
 
 
 
@@ -319,27 +323,26 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
             sl,
         )
 
-    # Пошук кандидатів на купівлю
-    buy_candidates = filter_adaptive_smart_buy(enriched_tokens)
-    strategy = "rsi_dip"
-    # Прибираємо з buy ті токени, що вже в sell
-    buy_candidates = [c for c in buy_candidates if c["symbol"] not in sell_symbols]
-
-    if not buy_candidates:
-        logger.warning("⚠️ Немає ідеальних кандидатів, шукаємо альтернативи...")
-        buy_candidates = filter_fallback_best_candidates(enriched_tokens)
-        buy_candidates = [c for c in buy_candidates if c["symbol"] not in sell_symbols]
-        strategy = "fallback"
+    # Пошук кандидатів за логікою smart_buy_filter(get_top_tokens())
+    market_tokens = get_top_tokens()
+    buy_candidates = smart_buy_filter(market_tokens)
+    strategy = "smart_buy_filter"
 
     print(f"🔍 Кандидати на купівлю: {len(buy_candidates)}")
 
-    top_buy_candidates = sorted(buy_candidates, key=score_token, reverse=True)[:5]
+    top_buy_candidates = sorted(buy_candidates, key=lambda t: t.get("score", 0), reverse=True)[:5]
 
     buy_plan = []
     remaining = available_usdt
 
     updates: list[tuple[str, float, float]] = []
-    recommended_buys = []
+    candidate_lines: list[str] = []
+    recommended_buys: list[str] = []
+
+    for token in buy_candidates:
+        candidate_lines.append(
+            f"✅ {token['symbol']} | RR: {token.get('risk_reward')} | TP: {token.get('tp_price')} | SL: {token.get('sl_price')} | EP: {token.get('expected_profit')} | SCORE: {token.get('score')}"
+        )
 
     for token in top_buy_candidates:
         if remaining < 1:
@@ -392,12 +395,19 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
         report_lines.append("Наразі немає прибуткових активів для продажу")
     report_lines.append("⸻")
 
+    if candidate_lines:
+        report_lines.append("📈 Кандидати на купівлю:")
+        report_lines.extend(candidate_lines)
+    else:
+        report_lines.append("Наразі немає активів, що відповідають умовам Smart Buy Filter")
+    report_lines.append("⸻")
+
     if buy_plan:
-        report_lines.append("📈 Рекомендується купити:")
+        report_lines.append("📌 Пропозиції до купівлі:")
         for rec in recommended_buys:
             report_lines.append(rec)
     else:
-        report_lines.append("Наразі немає активів, що відповідають умовам Smart Buy Filter")
+        report_lines.append("Немає конкретних рекомендацій до купівлі")
     report_lines.append("⸻")
 
     total_expected_profit = sum(t.get("expected_profit", 0) for t in buy_candidates)
@@ -476,9 +486,8 @@ async def daily_analysis_task(bot, chat_id: int) -> None:
 async def send_zarobyty_forecast(bot, chat_id: int) -> None:
     """Send the GPT forecast separately, splitting long text into chunks."""
     _, _, _, gpt_text = generate_zarobyty_report()
-    MAX_LEN = 4000
-    for i in range(0, len(gpt_text), MAX_LEN):
-        await bot.send_message(chat_id, gpt_text[i:i + MAX_LEN])
+    for part in split_telegram_message(gpt_text, 4000):
+        await bot.send_message(chat_id, part)
 
 
 def generate_daily_stats_report() -> str:
