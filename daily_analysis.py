@@ -257,8 +257,20 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
 
         tp_price = round(price * 1.10, 6)
         sl_price = round(price * 0.95, 6)
+        token["tp_price"] = tp_price
         if _maybe_update_orders(symbol, tp_price, sl_price):
             updates.append((f"{symbol.upper()}USDT", tp_price, sl_price))
+
+    for token in buy_plan:
+        price = token.get("price", 0)
+        tp_price = token.get("tp_price", 0)
+        amount = token.get("amount_usdt", 0)
+
+        if price > 0 and tp_price > price:
+            profit = (tp_price - price) * amount / price
+            token["expected_profit"] = round(profit, 2)
+        else:
+            token["expected_profit"] = 0.0
 
     report_lines = []
     report_lines.append(f"🕒 Звіт сформовано: {now.strftime('%Y-%m-%d %H:%M:%S')} (Kyiv)")
@@ -352,8 +364,9 @@ def generate_daily_stats_report() -> str:
 async def daily_analysis_task(bot, chat_id: int) -> None:
     """Run daily analysis and notify about TP/SL updates."""
     report, _, updates, gpt_text = generate_zarobyty_report()
-    await bot.send_message(chat_id, report)
     MAX_LEN = 4000
+    for i in range(0, len(report), MAX_LEN):
+        await bot.send_message(chat_id, report[i:i + MAX_LEN])
     for i in range(0, len(gpt_text), MAX_LEN):
         await bot.send_message(chat_id, gpt_text[i:i + MAX_LEN])
     for symbol, tp_price, sl_price in updates:
