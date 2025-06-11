@@ -337,11 +337,10 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
 
     updates: list[tuple[str, float, float]] = []
     candidate_lines: list[str] = []
-    recommended_buys: list[str] = []
 
     for token in buy_candidates:
         candidate_lines.append(
-            f"✅ {token['symbol']} | RR: {token.get('risk_reward')} | TP: {token.get('tp_price')} | SL: {token.get('sl_price')} | EP: {token.get('expected_profit')} | SCORE: {token.get('score')}"
+            f"{token['symbol']} | SCORE: {token.get('score')} | RR: {token.get('risk_reward')} | TP: {token.get('tp_price')} | SL: {token.get('sl_price')} | EP: {token.get('expected_profit')}"
         )
 
     for token in top_buy_candidates:
@@ -366,10 +365,6 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
         token["expected_profit"] = calculate_expected_profit(price, tp_price, amount, sl_price)
 
         symbol = token["symbol"]
-        stop_price = price * 0.97
-        recommended_buys.append(
-            f"{symbol}: Купити на {amount} USDT, TP {tp_price}, SL {sl_price}, очік. прибуток {token['expected_profit']}"
-        )
 
         if _maybe_update_orders(symbol, tp_price, sl_price):
             updates.append((f"{symbol.upper()}USDT", tp_price, sl_price))
@@ -378,54 +373,42 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
         remaining -= amount
 
     report_lines = []
-    report_lines.append(f"🕒 Звіт сформовано: {now.strftime('%Y-%m-%d %H:%M:%S')} (Kyiv)")
-    report_lines.append("\n💰 Баланс:")
+    report_lines.append(f"🕒 Звіт сформовано: {now.strftime('%Y-%m-%d %H:%M:%S')}")
+    report_lines.append("")
+    report_lines.append("💰 Баланс:")
     for t in token_data:
         report_lines.append(f"{t['symbol']}: {t['amount']} ≈ ~{t['uah_value']}₴")
 
     total_uah = round(sum([t['uah_value'] for t in token_data]) + convert_to_uah(usdt_balance), 2)
-    report_lines.append(f"\nЗагальний баланс: {total_uah}₴")
+    report_lines.append(f"Загальний баланс: {total_uah}₴")
+    report_lines.append("")
     report_lines.append("⸻")
 
+    report_lines.append("📉 Рекомендовано до продажу:")
     if sell_recommendations:
-        report_lines.append("💸 Рекомендується продати:")
         for t in sell_recommendations:
             report_lines.append(f"{t['symbol']}: {t['amount']} ≈ ~{t['uah_value']}₴ (PnL = {t['pnl']}%)")
     else:
-        report_lines.append("Наразі немає прибуткових активів для продажу")
+        report_lines.append("(порожньо)")
+    report_lines.append("")
     report_lines.append("⸻")
 
     if candidate_lines:
-        report_lines.append("📈 Кандидати на купівлю:")
+        report_lines.append("📈 Рекомендовано до купівлі:")
         report_lines.extend(candidate_lines)
     else:
-        report_lines.append("Наразі немає активів, що відповідають умовам Smart Buy Filter")
+        report_lines.append("📈 Рекомендовано до купівлі: (порожньо)")
+    report_lines.append("")
     report_lines.append("⸻")
 
-    if buy_plan:
-        report_lines.append("📌 Пропозиції до купівлі:")
-        for rec in recommended_buys:
-            report_lines.append(rec)
-    else:
-        report_lines.append("Немає конкретних рекомендацій до купівлі")
-    report_lines.append("⸻")
 
     total_expected_profit = sum(t.get("expected_profit", 0) for t in buy_candidates)
     expected_profit_usdt = round(total_expected_profit, 2)
     expected_profit_uah = convert_to_uah(expected_profit_usdt)
-    report_lines.append(f"💹 Очікуваний прибуток: {expected_profit_usdt} USDT ≈ ~{expected_profit_uah}₴ за 24г")
-    report_lines.append("⸻")
+    report_lines.append(f"💹 Очікуваний прибуток: {expected_profit_usdt} USDT ≈ {expected_profit_uah}₴ за 24г")
 
-    market_trend = get_sentiment()
-    summary_data = {
-        "balance": f"{total_uah}₴",
-        "sell_candidates": [t["symbol"] for t in sell_recommendations],
-        "buy_candidates": [t["symbol"] for t in buy_plan],
-        "expected_profit": f"{expected_profit_uah}₴",
-        "market_trend": market_trend,
-        "strategy": strategy,
-    }
-    gpt_forecast = ask_gpt(summary_data)
+    # GPT forecast temporarily disabled
+    gpt_forecast = ""
 
     report = "\n".join(report_lines)
 
