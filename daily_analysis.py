@@ -94,7 +94,16 @@ def execute_buy_order(symbol: str, amount_usdt: float):
 
 
 def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
-    """Return daily profit report text and keyboard."""
+    """Return daily profit report text, keyboard and updates.
+
+    Steps:
+    1. Calculate current balance in UAH and USDT.
+    2. Identify sell candidates with PnL >= 1%%.
+    3. Fetch market data and filter buy candidates using RSI, EMA cross,
+       7d volatility and risk/reward.
+    4. Remove from buy list any symbols already scheduled for selling.
+    5. Estimate expected profit based on planned buys and compose GPT forecast.
+    """
     balances = get_binance_balances()
     usdt_balance = balances.get("USDT", 0)
     if usdt_balance is None:
@@ -143,7 +152,9 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
             "btc_corr": btc_corr
         })
 
-    sell_recommendations = [t for t in token_data if t['pnl'] > 1.0]
+    # Sell tokens with profit >= 1%%
+    sell_recommendations = [t for t in token_data if t['pnl'] >= 1.0]
+    sell_symbols = {t["symbol"] for t in sell_recommendations}
 
     exchange_rate_uah = get_usdt_to_uah_rate()
     usdt_from_sales = sum([t["uah_value"] for t in sell_recommendations]) / exchange_rate_uah
@@ -210,10 +221,13 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
 
     # Пошук кандидатів на купівлю
     buy_candidates = filter_adaptive_smart_buy(enriched_tokens)
+    # Прибираємо з buy ті токени, що вже в sell
+    buy_candidates = [c for c in buy_candidates if c["symbol"] not in sell_symbols]
 
     if not buy_candidates:
         logger.warning("⚠️ Немає ідеальних кандидатів, шукаємо альтернативи...")
         buy_candidates = filter_fallback_best_candidates(enriched_tokens)
+        buy_candidates = [c for c in buy_candidates if c["symbol"] not in sell_symbols]
 
     top_buy_candidates = sorted(buy_candidates, key=lambda x: x["risk_reward"], reverse=True)[:5]
 
@@ -270,7 +284,10 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list]:
         report_lines.append("Наразі немає активів, що відповідають умовам Smart Buy Filter")
     report_lines.append("⸻")
 
-    expected_profit_usdt = round(sum([t["amount_usdt"] * t["risk_reward"] for t in buy_plan]), 2)
+    expected_profit_usdt = round(
+        sum(t.get("expected_profit", t["amount_usdt"] * t.get("risk_reward", 0)) for t in buy_plan),
+        2,
+    )
     expected_profit_uah = convert_to_uah(expected_profit_usdt)
     report_lines.append(f"💹 Очікуваний прибуток: {expected_profit_usdt} USDT ≈ ~{expected_profit_uah}₴ за 24г")
     report_lines.append("⸻")
