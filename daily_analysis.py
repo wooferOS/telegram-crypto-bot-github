@@ -31,7 +31,7 @@ from utils import (
     analyze_btc_correlation,
     _ema,
 )
-from history import _load_history
+from history import _load_history, get_failed_tokens_history
 from coingecko_api import get_sentiment
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -138,6 +138,41 @@ def score_token(token: dict) -> float:
         + token.get("orderbook_bias", 0) * 1.2
         + (-token.get("btc_corr", 0)) * 1
     )
+
+
+def enrich_with_metrics(candidates: list[dict]) -> list[dict]:
+    """Add TP/SL, indicators and other metrics to raw token data."""
+
+    enriched = []
+    for token in candidates:
+        symbol = token.get("symbol") or token.get("baseAsset")
+        if not symbol:
+            continue
+
+        price = token.get("price") or get_symbol_price(symbol)
+        klines = get_klines(symbol)
+        indicators = calculate_indicators(klines)
+        rr = token.get("risk_reward")
+        if rr is None:
+            rr = calculate_rr(klines)
+
+        momentum = indicators.get("EMA_8", 0) - indicators.get("EMA_13", 0)
+
+        enriched.append(
+            {
+                "symbol": symbol,
+                "price": price,
+                "risk_reward": rr,
+                "tp_price": token.get("tp_price") or round(price * 1.10, 6),
+                "sl_price": token.get("sl_price") or round(price * 0.95, 6),
+                "momentum": token.get("momentum", momentum),
+                "sector_score": token.get("sector_score", 0),
+                "success_score": get_success_score(symbol),
+                "orderbook_bias": token.get("orderbook_bias", 0),
+                "btc_corr": token.get("btc_corr") if "btc_corr" in token else analyze_btc_correlation(symbol),
+            }
+        )
+    return enriched
 
 
 def get_success_score(symbol: str) -> float:
@@ -323,9 +358,18 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
             sl,
         )
 
-    # Пошук кандидатів за логікою smart_buy_filter(get_top_tokens())
-    market_tokens = get_top_tokens()
-    buy_candidates = smart_buy_filter(market_tokens)
+    if not sell_recommendations:
+        buy_candidates = []
+    else:
+        candidates = get_top_tokens()
+        enriched = enrich_with_metrics(candidates)
+        for t in enriched:
+            t["expected_profit"] = calculate_expected_profit(
+                t["price"], t["tp_price"], amount=10, sl_price=t["sl_price"]
+            )
+            t["score"] = score_token(t)
+        buy_candidates = smart_buy_filter(enriched)
+
     strategy = "smart_buy_filter"
 
     print(f"🔍 Кандидати на купівлю: {len(buy_candidates)}")
@@ -337,11 +381,6 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
 
     updates: list[tuple[str, float, float]] = []
     candidate_lines: list[str] = []
-
-    for token in buy_candidates:
-        candidate_lines.append(
-            f"{token['symbol']} | SCORE: {token.get('score')} | RR: {token.get('risk_reward')} | TP: {token.get('tp_price')} | SL: {token.get('sl_price')} | EP: {token.get('expected_profit')}"
-        )
 
     for token in top_buy_candidates:
         if remaining < 1:
@@ -372,6 +411,11 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
         buy_plan.append(token)
         remaining -= amount
 
+        if len(candidate_lines) < 3:
+            candidate_lines.append(
+                f"{token['symbol']} {amount} USDT (EP: {token.get('expected_profit')})"
+            )
+
     report_lines = []
     report_lines.append(f"🕒 Звіт сформовано: {now.strftime('%Y-%m-%d %H:%M:%S')}")
     report_lines.append("")
@@ -384,7 +428,7 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
     report_lines.append("")
     report_lines.append("⸻")
 
-    report_lines.append("📉 Рекомендовано до продажу:")
+    report_lines.append("📉 Що продаємо:")
     if sell_recommendations:
         for t in sell_recommendations:
             report_lines.append(f"{t['symbol']}: {t['amount']} ≈ ~{t['uah_value']}₴ (PnL = {t['pnl']}%)")
@@ -394,10 +438,10 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
     report_lines.append("⸻")
 
     if candidate_lines:
-        report_lines.append("📈 Рекомендовано до купівлі:")
+        report_lines.append("📈 Що купуємо:")
         report_lines.extend(candidate_lines)
     else:
-        report_lines.append("📈 Рекомендовано до купівлі: (порожньо)")
+        report_lines.append("📈 Що купуємо: (порожньо)")
     report_lines.append("")
     report_lines.append("⸻")
 
@@ -429,21 +473,6 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
                 callback_data=f"buy:{token['symbol']}"
             )
         )
-        keyboard.insert(
-            InlineKeyboardButton(
-                text=f"\U0001F6D2 \u041A\u0443\u043F\u0438\u0442\u0438 {token['symbol']}",
-                callback_data=f"smartbuy_{token['symbol']}"
-            )
-        )
-
-    for token in token_data:
-        if token['pnl'] > 10:
-            keyboard.inline_keyboard.append([
-                InlineKeyboardButton(
-                    text=f"📉 Фіксувати прибуток ({token['symbol']})",
-                    callback_data=f"takeprofit_{token['symbol']}"
-                )
-            ])
 
     return report, keyboard, updates, gpt_forecast
 
@@ -481,38 +510,24 @@ def generate_daily_stats_report() -> str:
 from utils import calculate_indicators, get_risk_reward_ratio, get_correlation_with_btc
 
 
-def smart_buy_filter(candidates, min_rr=1.0, min_score=2.0, min_tp_sl_gap=0.02):
-    """Return tokens that meet relaxed Smart Buy criteria.
+def smart_buy_filter(candidates: list[dict]) -> list[dict]:
+    """Filter buy candidates using expected profit and score."""
 
-    The new logic is intentionally simple and prints diagnostics for each
-    rejected token so that it's clear why it didn't pass the filter.
-    """
-
-    filtered = []
+    filtered: list[dict] = []
+    failed = get_failed_tokens_history()
     for token in candidates:
-        try:
-            rr = token.get("risk_reward", 0)
-            score = token.get("score", 0)
-            tp = token.get("tp_price")
-            sl = token.get("sl_price")
-            symbol = token.get("symbol")
+        if (
+            token.get("expected_profit", 0) < 0.5
+            or token.get("score", 0) < 4
+            or token.get("tp_price") is None
+            or token.get("sl_price") is None
+        ):
+            continue
+        if token.get("symbol") in failed:
+            continue
+        filtered.append(token)
 
-            # ensure TP and SL look valid
-            if not (tp and sl and tp > sl):
-                print(f"[⛔] {symbol} пропущено: некоректні TP/SL")
-                continue
-
-            tp_sl_gap = (tp - sl) / sl if sl > 0 else 0
-
-            if rr >= min_rr and score >= min_score and tp_sl_gap >= min_tp_sl_gap:
-                filtered.append(token)
-            else:
-                print(
-                    f"[❌] {symbol} відсіяно | RR: {rr}, SCORE: {score}, TP-SL GAP: {tp_sl_gap:.3f}"
-                )
-        except Exception as e:
-            print(f"[⚠️] Помилка з токеном: {token.get('symbol', '???')} → {e}")
-    return filtered
+    return sorted(filtered, key=lambda x: x.get("score", 0), reverse=True)
 
 
 def filter_adaptive_smart_buy(candidates):
