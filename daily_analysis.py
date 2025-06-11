@@ -27,6 +27,8 @@ from utils import (
     convert_to_uah,
     calculate_rr,
     calculate_indicators,
+    dynamic_tp_sl,
+    kelly_fraction,
     get_sector,
     analyze_btc_correlation,
     _ema,
@@ -110,21 +112,20 @@ def calculate_expected_profit(
     tp_price: float,
     amount: float,
     sl_price: float | None = None,
-    success_rate: float = 0.65,
+    success_rate: float = 0.75,
     fee: float = 0.001,
 ) -> float:
-    """Return expected profit adjusted for fees and success probability."""
+    """Return expected profit adjusted for fees and risk."""
 
     if price <= 0 or tp_price <= price:
         return 0.0
-    gross_profit = (tp_price - price) * amount / price
-    net_profit = gross_profit * (1 - 2 * fee)
-    adjusted_profit = net_profit * success_rate
-    if sl_price and sl_price < price:
-        risk_loss = (price - sl_price) * amount / price
-        expected_loss = risk_loss * (1 - success_rate)
-        return round(adjusted_profit - expected_loss, 2)
-    return round(adjusted_profit, 2)
+
+    gross = (tp_price - price) / price * amount
+    loss = ((price - sl_price) / price * amount) if sl_price and sl_price < price else 0
+
+    net_profit = gross * (1 - 2 * fee)
+    expected = net_profit * success_rate - loss * (1 - success_rate)
+    return round(expected, 4)
 
 
 def score_token(token: dict) -> float:
@@ -156,16 +157,18 @@ def enrich_with_metrics(candidates: list[dict]) -> list[dict]:
         if rr is None:
             rr = calculate_rr(klines)
 
-        momentum = indicators.get("EMA_8", 0) - indicators.get("EMA_13", 0)
+        closes = [float(k[4]) for k in klines]
+        tp_def, sl_def = dynamic_tp_sl(closes, price)
 
         enriched.append(
             {
                 "symbol": symbol,
                 "price": price,
                 "risk_reward": rr,
-                "tp_price": token.get("tp_price") or round(price * 1.10, 6),
-                "sl_price": token.get("sl_price") or round(price * 0.95, 6),
-                "momentum": token.get("momentum", momentum),
+                "tp_price": token.get("tp_price") or tp_def,
+                "sl_price": token.get("sl_price") or sl_def,
+                "momentum": token.get("momentum", indicators.get("momentum", 0)),
+                "indicators": indicators,
                 "sector_score": token.get("sector_score", 0),
                 "success_score": get_success_score(symbol),
                 "orderbook_bias": token.get("orderbook_bias", 0),
@@ -340,8 +343,8 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
     logger.info("\u2139\ufe0f Top 5 tokens before filtering:")
     for t in preview_tokens:
         base_amount = 10
-        tp = round(t.get("price", 0) * 1.10, 6)
-        sl = round(t.get("price", 0) * 0.95, 6)
+        closes = [float(k[4]) for k in get_klines(t["symbol"])]
+        tp, sl = dynamic_tp_sl(closes, t.get("price", 0))
         expected = calculate_expected_profit(
             t.get("price", 0), tp, base_amount, sl
         )
@@ -368,9 +371,9 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
                 t["price"], t["tp_price"], amount=10, sl_price=t["sl_price"]
             )
             t["score"] = score_token(t)
-        buy_candidates = smart_buy_filter(enriched)
+        buy_candidates = [tok for tok in enriched if advanced_buy_filter(tok)]
 
-    strategy = "smart_buy_filter"
+    strategy = "advanced_buy_filter"
 
     print(f"🔍 Кандидати на купівлю: {len(buy_candidates)}")
 
@@ -385,19 +388,14 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
     for token in top_buy_candidates:
         if remaining < 1:
             break
-        rr = token.get("risk_reward", 0)
-        if rr > 5:
-            amount = 20
-        elif rr < 1.5:
-            amount = 5
-        else:
-            amount = 10
-        amount = min(amount, remaining)
+        rr = token.get("risk_reward", 1.5)
+        kelly = kelly_fraction(0.75, rr)
+        amount = round(min(remaining, available_usdt * kelly), 2)
         token["amount_usdt"] = amount
 
         price = token.get("price", 0)
-        tp_price = round(price * 1.10, 6)
-        sl_price = round(price * 0.95, 6)
+        closes = [float(k[4]) for k in get_klines(token["symbol"])]
+        tp_price, sl_price = dynamic_tp_sl(closes, price)
         token["tp_price"] = tp_price
         token["sl_price"] = sl_price
         token["score"] = score_token(token)
@@ -507,7 +505,11 @@ def generate_daily_stats_report() -> str:
 
 
 # Adaptive filters for selecting buy candidates
-from utils import calculate_indicators, get_risk_reward_ratio, get_correlation_with_btc
+from utils import (
+    calculate_indicators,
+    get_risk_reward_ratio,
+    get_correlation_with_btc,
+)
 
 
 def smart_buy_filter(candidates: list[dict]) -> list[dict]:
@@ -528,6 +530,25 @@ def smart_buy_filter(candidates: list[dict]) -> list[dict]:
         filtered.append(token)
 
     return sorted(filtered, key=lambda x: x.get("score", 0), reverse=True)
+
+
+def advanced_buy_filter(token: dict) -> bool:
+    """Return True if token passes advanced technical filters."""
+
+    indicators = token.get("indicators", {})
+    rsi = indicators.get("RSI", 50)
+    macd_cross = indicators.get("MACD_CROSS", False)
+    bb_touch = indicators.get("BB_LOWER_TOUCH", False)
+    momentum = token.get("momentum", 0)
+    rr = token.get("risk_reward", 0)
+
+    return (
+        rsi < 40
+        and macd_cross
+        and bb_touch
+        and momentum > 0
+        and rr > 1.5
+    )
 
 
 def filter_adaptive_smart_buy(candidates):
