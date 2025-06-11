@@ -15,12 +15,31 @@ def load_model():
         return joblib.load(MODEL_PATH)
     return None
 
-def get_klines(symbol, interval="1h", limit=500):
-    data = client.get_klines(symbol=symbol, interval=interval, limit=limit)
-    df = pd.DataFrame(data, columns=[
-        "timestamp", "open", "high", "low", "close", "volume",
-        "close_time", "quote_asset_volume", "number_of_trades",
-        "taker_buy_base_volume", "taker_buy_quote_volume", "ignore"])
+def get_klines(symbol: str, interval: str = "1h", limit: int = 500) -> pd.DataFrame:
+    """Fetch klines for a symbol with basic error handling."""
+    try:
+        data = client.get_klines(symbol=symbol, interval=interval, limit=limit)
+    except Exception as e:  # noqa: BLE001
+        print(f"\u26A0\uFE0F Binance error for {symbol}: {e}")
+        return pd.DataFrame()
+
+    df = pd.DataFrame(
+        data,
+        columns=[
+            "timestamp",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "close_time",
+            "quote_asset_volume",
+            "number_of_trades",
+            "taker_buy_base_volume",
+            "taker_buy_quote_volume",
+            "ignore",
+        ],
+    )
     df = df[["timestamp", "open", "high", "low", "close", "volume"]].astype(float)
     return df
 
@@ -32,8 +51,12 @@ def add_technical_indicators(df):
     df["atr"] = ta.volatility.AverageTrueRange(high=df["high"], low=df["low"], close=df["close"]).average_true_range()
     return df
 
-def generate_features(symbol):
+def generate_features(symbol: str):
+    """Generate ML features for the given trading symbol."""
     df = get_klines(symbol)
+    if df.empty:
+        raise ValueError(f"\u26A0\uFE0F No data for {symbol}")
+
     df = add_technical_indicators(df)
 
     df["close_pct"] = df["close"].pct_change()
