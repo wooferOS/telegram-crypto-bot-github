@@ -53,10 +53,7 @@ def generate_features(symbol):
 
     return X.values[-1].reshape(1, -1), X, y
 
-def predict_direction(symbol):
-    model = load_model()
-    if not model:
-        return None
-    feature_vector, _, _ = generate_features(symbol)
+def predict_direction(model, feature_vector):
+    """Прогнозує напрямок руху (up/down) на основі переданої моделі та фічей."""
     prediction = model.predict(feature_vector)
     return "up" if prediction[0] == 1 else "down"
