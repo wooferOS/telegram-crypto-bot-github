@@ -1,10 +1,14 @@
+import logging
+import os
+
+import joblib
 import numpy as np
 import pandas as pd
+import ta
 from binance.client import Client
 from sklearn.ensemble import RandomForestClassifier
-import joblib
-import os
-import ta
+
+from binance_api import _to_usdt_pair
 
 MODEL_PATH = "model.joblib"
 
@@ -17,10 +21,11 @@ def load_model():
 
 def get_klines(symbol: str, interval: str = "1h", limit: int = 500) -> pd.DataFrame:
     """Fetch klines for a symbol with basic error handling."""
+    pair = _to_usdt_pair(symbol)
     try:
-        data = client.get_klines(symbol=symbol, interval=interval, limit=limit)
+        data = client.get_klines(symbol=pair, interval=interval, limit=limit)
     except Exception as e:  # noqa: BLE001
-        print(f"\u26A0\uFE0F Binance error for {symbol}: {e}")
+        logging.warning("\u26A0\uFE0F Binance error for %s: %s", pair, e)
         return pd.DataFrame()
 
     df = pd.DataFrame(
@@ -84,8 +89,12 @@ def predict_direction(model, feature_vector):
 
 def predict_prob_up(model, feature_vector) -> float:
     """Return probability of price going up using ``model``."""
-    if hasattr(model, "predict_proba"):
-        probs = model.predict_proba(np.asarray(feature_vector).reshape(1, -1))
-        return float(probs[0][1])
-    direction = predict_direction(model, feature_vector)
-    return 1.0 if direction == "up" else 0.0
+    try:
+        if hasattr(model, "predict_proba"):
+            probs = model.predict_proba(np.asarray(feature_vector).reshape(1, -1))
+            return float(probs[0][1])
+        direction = predict_direction(model, feature_vector)
+        return 1.0 if direction == "up" else 0.0
+    except Exception as exc:  # noqa: BLE001
+        logging.warning("ML prediction failed: %s", exc)
+        return 0.5
