@@ -359,7 +359,8 @@ def get_symbol_price(symbol: str) -> float:
     """Return current price of token to USDT."""
 
     try:
-        ticker = client.get_symbol_ticker(symbol=f"{symbol.upper()}USDT")
+        pair = symbol.upper() if symbol.upper().endswith("USDT") else f"{symbol.upper()}USDT"
+        ticker = client.get_symbol_ticker(symbol=pair)
         return float(ticker.get("price", 0))
     except Exception as exc:
         logger.error("%s Помилка ціни для %s: %s", TELEGRAM_LOG_PREFIX, symbol, exc)
@@ -376,7 +377,8 @@ def get_token_price(symbol: str) -> dict:
     """Return token price with symbol."""
 
     try:
-        ticker = client.get_symbol_ticker(symbol=f"{symbol.upper()}USDT")
+        pair = symbol.upper() if symbol.upper().endswith("USDT") else f"{symbol.upper()}USDT"
+        ticker = client.get_symbol_ticker(symbol=pair)
         return {"symbol": symbol.upper(), "price": ticker.get("price", "0")}
     except Exception as exc:  # pragma: no cover - network errors
         logger.error("%s Помилка при отриманні ціни %s: %s", TELEGRAM_LOG_PREFIX, symbol, exc)
@@ -386,7 +388,7 @@ def get_token_price(symbol: str) -> dict:
 def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[str, object]]:
     """Place a market order for ``symbol`` on Binance."""
 
-    pair = f"{symbol.upper()}USDT"
+    pair = symbol.upper() if symbol.upper().endswith("USDT") else f"{symbol.upper()}USDT"
     try:
         if side.upper() == "BUY":
             order = client.create_order(
@@ -418,8 +420,9 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
             raise Exception("Price unavailable")
 
         quantity = round(amount / price, 6)
+        pair = symbol.upper() if symbol.upper().endswith("USDT") else f"{symbol.upper()}USDT"
         return client.create_order(
-            symbol=f"{symbol.upper()}USDT",
+            symbol=pair,
             side=SIDE_BUY,
             type=ORDER_TYPE_MARKET,
             quantity=quantity,
@@ -484,8 +487,9 @@ def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
     """Place a limit sell order on Binance."""
 
     try:
+        pair = symbol.upper() if symbol.upper().endswith("USDT") else f"{symbol.upper()}USDT"
         order = client.create_order(
-            symbol=symbol.upper() + "USDT",
+            symbol=pair,
             side="SELL",
             type="LIMIT",
             timeInForce="GTC",
@@ -502,8 +506,9 @@ def place_limit_sell(symbol: str, quantity: float) -> dict:
     """Place a LIMIT sell order at current market price."""
     price = get_symbol_price(symbol)
     try:
+        pair = symbol.upper() if symbol.upper().endswith("USDT") else f"{symbol.upper()}USDT"
         order = client.create_order(
-            symbol=f"{symbol.upper()}USDT",
+            symbol=pair,
             side="SELL",
             type="LIMIT",
             timeInForce="GTC",
@@ -587,8 +592,9 @@ def place_stop_limit_buy_order(
     """Create STOP_LIMIT BUY order on Binance."""
 
     try:
+        pair = symbol.upper() if symbol.upper().endswith("USDT") else f"{symbol.upper()}USDT"
         order = client.create_order(
-            symbol=f"{symbol.upper()}USDT",
+            symbol=pair,
             side="BUY",
             type="STOP_LOSS_LIMIT",
             timeInForce="GTC",
@@ -613,8 +619,9 @@ def place_stop_limit_sell_order(
     """Create STOP_LIMIT SELL order on Binance."""
 
     try:
+        pair = symbol.upper() if symbol.upper().endswith("USDT") else f"{symbol.upper()}USDT"
         order = client.create_order(
-            symbol=f"{symbol.upper()}USDT",
+            symbol=pair,
             side="SELL",
             type="STOP_LOSS_LIMIT",
             timeInForce="GTC",
@@ -798,8 +805,9 @@ def get_coin_price(symbol: str) -> Optional[float]:
     """Return last known coin price using direct HTTP call."""
 
     url = f"{BINANCE_BASE_URL}/api/v3/ticker/price"
+    pair = symbol.upper() if str(symbol).upper().endswith("USDT") else f"{symbol.upper()}USDT"
     try:
-        resp = requests.get(url, params={"symbol": f"{symbol}USDT"}, timeout=5)
+        resp = requests.get(url, params={"symbol": pair}, timeout=5)
         resp.raise_for_status()
         return float(resp.json()["price"])
     except Exception as exc:
@@ -877,7 +885,8 @@ def get_price_history_24h(symbol: str) -> Optional[List[float]]:
     """Return list of hourly close prices for the last 24 hours."""
 
     url = f"{BINANCE_BASE_URL}/api/v3/klines"
-    params = {"symbol": f"{symbol.upper()}USDT", "interval": "1h", "limit": 24}
+    pair = symbol.upper() if symbol.upper().endswith("USDT") else f"{symbol.upper()}USDT"
+    params = {"symbol": pair, "interval": "1h", "limit": 24}
     try:
         resp = requests.get(url, params=params, timeout=5)
         resp.raise_for_status()
@@ -895,7 +904,8 @@ def get_price_history_24h(symbol: str) -> Optional[List[float]]:
 def get_candlestick_klines(symbol: str, interval: str = "1h", limit: int = 100) -> List[List[float]]:
     """Return raw candlestick klines for a symbol."""
     url = f"{BINANCE_BASE_URL}/api/v3/klines"
-    params = {"symbol": f"{symbol.upper()}USDT", "interval": interval, "limit": limit}
+    pair = symbol.upper() if symbol.upper().endswith("USDT") else f"{symbol.upper()}USDT"
+    params = {"symbol": pair, "interval": interval, "limit": limit}
     try:
         response = requests.get(url, params=params, timeout=10)
         response.raise_for_status()
@@ -1194,8 +1204,9 @@ def get_candlestick_klines(symbol: str, interval: str = "1d", limit: int = 7):
 
     if symbol not in load_tradable_usdt_symbols():
         raise ValueError(f"Token {symbol} не торгується на Binance")
+    pair = symbol.upper() if symbol.upper().endswith("USDT") else f"{symbol.upper()}USDT"
     return client.get_klines(
-        symbol=f"{symbol.upper()}USDT",
+        symbol=pair,
         interval=interval,
         limit=limit,
     )
