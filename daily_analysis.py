@@ -8,6 +8,19 @@ import logging
 import os
 from binance.client import Client
 
+client = Client(api_key=os.getenv("BINANCE_API_KEY"), api_secret=os.getenv("BINANCE_API_SECRET"))
+
+
+def get_valid_usdt_symbols():
+    """Повертає всі активні спотові USDT пари з Binance"""
+    return [
+        s["symbol"]
+        for s in client.get_exchange_info()["symbols"]
+        if s["quoteAsset"] == "USDT"
+        and s["status"] == "TRADING"
+        and s["isSpotTradingAllowed"]
+    ]
+
 from binance_api import (
     get_binance_balances,
     get_symbol_price,
@@ -33,6 +46,7 @@ from utils import (
     kelly_fraction,
     dynamic_tp_sl,
     advanced_buy_filter,
+    estimate_profit,
     get_sector,
     analyze_btc_correlation,
     _ema,
@@ -47,21 +61,7 @@ from ml_model import (
     predict_prob_up,
 )
 
-client = Client(api_key=os.getenv("BINANCE_API_KEY"), api_secret=os.getenv("BINANCE_API_SECRET"))
-
-
-def get_valid_symbols() -> list[str]:
-    """Отримати всі активні спотові пари до USDT з Binance"""
-
-    return [
-        s["symbol"]
-        for s in client.get_exchange_info()["symbols"]
-        if s["quoteAsset"] == "USDT"
-        and s["status"] == "TRADING"
-        and s["isSpotTradingAllowed"]
-    ]
-
-symbols = get_valid_symbols()
+symbols = get_valid_usdt_symbols()
 
 logger = logging.getLogger(__name__)
 
@@ -277,136 +277,59 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
     # 🔍 Candidates to analyze
     symbols_from_balance = set(t['symbol'].upper() for t in token_data)
     market_symbols = set(t["symbol"].upper() for t in get_top_tokens(limit=50))
-    symbols_to_analyze = symbols_from_balance.union(market_symbols)
-    valid_pairs = {s.replace("USDT", "").upper() for s in get_valid_symbols()}
-    symbols_to_analyze = [s for s in symbols_to_analyze if s in valid_pairs]
+    symbols_to_analyze = symbols
 
-    enriched_tokens = []
+    enriched_tokens: list[dict] = []
+    buy_candidates: list[dict] = []
     model = load_model()
+
     for symbol in symbols_to_analyze:
-        price = get_symbol_price(symbol)
-        klines = get_klines(symbol)
-        if not klines:
-            continue
-        try:
-            indicators = calculate_indicators(klines)
-        except Exception:
-            continue
-        rr = calculate_rr(klines)
-        sector = get_sector(symbol)
-        btc_corr = analyze_btc_correlation(symbol)
-        closes = [float(k[4]) for k in klines]
-
-        tp, sl = dynamic_tp_sl(closes, price)
-        ema8 = indicators.get("EMA_8", 0)
-        ema13 = indicators.get("EMA_13", 0)
-        momentum = ema8 - ema13
-        rsi = indicators.get("RSI", 50)
-        mid = statistics.mean(closes[-20:])
-        stddev = statistics.pstdev(closes[-20:])
-        bb_ratio = (closes[-1] - (mid - 2 * stddev)) / (4 * stddev + 1e-8)
-        volume_avg = statistics.fmean([float(k[5]) for k in klines[-5:]])
-
-        prob_up = 0.5
         try:
             feature_vector, _, _ = generate_features(symbol)
-            if model:
-                direction = predict_direction(model, feature_vector)
-                prob_up = 1.0 if direction == "up" else 0.0
-        except Exception as e:  # noqa: BLE001
-            print(f"⚠️ ML error for {symbol}: {e}")
-            prob_up = 0.5
+            prob_up = predict_direction(model, feature_vector)
+            expected_profit = estimate_profit(symbol)
 
-        success_score = get_success_score(symbol)
-        orderbook_bias = 0  # можна реалізувати пізніше
-        expected_profit = calculate_expected_profit(price, tp, amount=10, sl_price=sl)
-        volume_24h = sum(float(k[5]) for k in get_price_history(symbol)) if klines else 0
-        score = rr * 2 + momentum + success_score + (-btc_corr) + prob_up * 2
-
-        enriched_tokens.append({
-            "symbol": symbol,
-            "price": price,
-            "risk_reward": rr,
-            "tp_price": tp,
-            "sl_price": sl,
-            "momentum": momentum,
-            "sector_score": 0,
-            "success_score": success_score,
-            "orderbook_bias": orderbook_bias,
-            "btc_corr": btc_corr,
-            "indicators": indicators,
-            "score": score,
-            "expected_profit": expected_profit,
-            "prob_up": prob_up,
-            "volume": volume_24h,
-        })
-
-    # ✅ Apply advanced filtering
-    buy_candidates = [
-        t
-        for t in enriched_tokens
-        if advanced_buy_filter(t)
-        and t.get("prob_up", 0) >= MIN_PROB_UP
-        and t.get("expected_profit", 0) >= MIN_EXPECTED_PROFIT
-    ]
-    for t in buy_candidates:
-        t["score"] = score_token(t)
-
-    buy_plan = []
-    remaining = available_usdt
-    updates: list[tuple[str, float, float]] = []
-    candidate_lines: list[str] = []
-
-    if not buy_candidates:
-        print("⚠️ No buy candidates passed advanced filters. Using fallback.")
-        fallback = [
-            token
-            for token in enriched_tokens
-            if token.get("expected_profit", 0) > 0
-            and token.get("volume", 0) > MIN_VOLUME
-        ]
-        fallback.sort(key=lambda x: x["score"], reverse=True)
-        if fallback:
-            best = fallback[0]
-            buy_plan.append(
+            enriched_tokens.append(
                 {
-                    "symbol": best["symbol"],
-                    "expected_profit": best["expected_profit"],
-                    "prob_up": best["prob_up"],
-                    "note": "🟡 Слабкий сигнал — fallback",
+                    "symbol": symbol,
+                    "expected_profit": expected_profit,
+                    "prob_up": prob_up,
+                    "score": prob_up * expected_profit,
                 }
             )
-            candidate_lines.append(f"{best['symbol']} (fallback)")
-        top_buy_candidates = []
-    else:
-        top_buy_candidates = sorted(buy_candidates, key=lambda t: t["score"], reverse=True)[:5]
 
-        for token in top_buy_candidates:
-            if remaining < 1:
-                break
-            rr = token.get("risk_reward", 1.5)
-            kelly = kelly_fraction(0.75, rr)
-            amount = round(min(remaining, available_usdt * kelly), 2)
-
-            token["amount_usdt"] = amount
-            tp = token["tp_price"]
-            sl = token["sl_price"]
-            price = token["price"]
-            token["expected_profit"] = calculate_expected_profit(price, tp, amount, sl)
-
-            if _maybe_update_orders(token["symbol"], tp, sl):
-                updates.append((f"{token['symbol']}USDT", tp, sl))
-
-            buy_plan.append(token)
-            remaining -= amount
-
-            if len(candidate_lines) < 3:
-                candidate_lines.append(
-                    f"{token['symbol']} {amount} USDT (EP: {token.get('expected_profit')})"
+            if prob_up >= MIN_PROB_UP and expected_profit >= MIN_EXPECTED_PROFIT:
+                buy_candidates.append(
+                    {
+                        "symbol": symbol,
+                        "expected_profit": expected_profit,
+                        "prob_up": prob_up,
+                        "score": prob_up * expected_profit,
+                    }
                 )
+        except Exception as e:
+            print(f"⚠️ Пропущено {symbol}: {e}")
+            continue
 
-    if not buy_plan and buy_candidates:
-        buy_plan.append(buy_candidates[0])
+    buy_candidates.sort(key=lambda x: x["score"], reverse=True)
+
+    # Якщо немає сильних кандидатів — вибрати найкращого fallback
+    if not buy_candidates and enriched_tokens:
+        print("⚠️ Немає сильних сигналів — fallback до найкращого доступного")
+        enriched_tokens.sort(key=lambda x: x["score"], reverse=True)
+        best = enriched_tokens[0]
+        buy_candidates.append(
+            {
+                "symbol": best["symbol"],
+                "expected_profit": best["expected_profit"],
+                "prob_up": best["prob_up"],
+                "note": "🟡 Fallback: слабкий сигнал",
+            }
+        )
+
+    buy_plan = buy_candidates
+    candidate_lines = [t["symbol"] for t in buy_plan[:3]]
+    updates: list[tuple[str, float, float]] = []
 
     # 📝 Final report
     report_lines = []
