@@ -341,6 +341,7 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
             fv = np.asarray(feature_vector).reshape(1, -1)
             prob_up = predict_prob_up(model, fv) if model else 0.5
             expected_profit = estimate_profit(symbol)
+            print(f"\U0001F4CA {symbol}: prob_up={prob_up:.2f}, expected_profit={expected_profit}")
 
             enriched_tokens.append(
                 {
