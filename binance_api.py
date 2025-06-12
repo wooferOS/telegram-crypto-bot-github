@@ -383,45 +383,29 @@ def get_token_price(symbol: str) -> dict:
         return {"symbol": symbol.upper(), "price": "0"}
 
 
-def place_market_order(symbol: str, side: str, usdt_amount: float) -> Optional[Dict[str, object]]:
-    """Execute a market order on a USDT amount and set Take Profit on buy."""
+def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[str, object]]:
+    """Place a market order for ``symbol`` on Binance."""
 
+    pair = f"{symbol.upper()}USDT"
     try:
-        price = get_current_price(symbol)
-        if not price:
-            return None
-
-        quantity = round(usdt_amount / price, 6)
-
-        order = client.create_order(
-            symbol=f"{symbol.upper()}USDT",
-            side=SIDE_BUY if side.upper() == "BUY" else SIDE_SELL,
-            type=ORDER_TYPE_MARKET,
-            quantity=quantity,
-        )
-        logger.info("%s Ордер %s виконано: %s", TELEGRAM_LOG_PREFIX, side, order)
-
-        if side.upper() == "BUY" and order.get("status") == "FILLED":
-            # Встановлення Take Profit (TP) після покупки
-            executed_qty = float(order.get("executedQty", quantity))
-            if current_price := get_symbol_price(symbol):
-                take_profit_price = round(current_price * 1.10, 5)
-                place_limit_sell_order(
-                    f"{symbol.upper()}USDT",
-                    executed_qty,
-                    take_profit_price,
-                )
-
+        if side.upper() == "BUY":
+            order = client.create_order(
+                symbol=pair,
+                side=Client.SIDE_BUY,
+                type=Client.ORDER_TYPE_MARKET,
+                quoteOrderQty=amount,
+            )
+        else:
+            order = client.create_order(
+                symbol=pair,
+                side=Client.SIDE_SELL,
+                type=Client.ORDER_TYPE_MARKET,
+                quantity=amount,
+            )
+        print(f"✅ Order placed: {order}")
         return order
-
-    except BinanceAPIException as e:
-        logger.error(
-            "%s \u274c Помилка при створенні ордера %s для %s: %s",
-            TELEGRAM_LOG_PREFIX,
-            side,
-            symbol,
-            e,
-        )
+    except Exception as e:
+        print(f"❌ Order error for {symbol}: {e}")
         return None
 
 

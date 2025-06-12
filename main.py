@@ -15,6 +15,7 @@ from telegram_bot import (
     clear_bot_menu,
 )
 from binance_api import get_open_orders
+from daily_analysis import auto_trade_loop
 
 logging.basicConfig(level=logging.INFO)
 
@@ -45,4 +46,5 @@ if __name__ == "__main__":
     scheduler.add_job(check_tp_sl_market_change, "interval", hours=1)
     loop = asyncio.get_event_loop()
     loop.create_task(monitor_orders())
+    loop.create_task(auto_trade_loop())
     executor.start_polling(dp, on_startup=on_startup)
