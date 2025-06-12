@@ -66,7 +66,7 @@ def generate_features(symbol: str):
 
     df.dropna(inplace=True)
 
-    X = df[["close_pct", "volume_change", "high_low", "rsi", "macd", "ema", "sma", "atr"]]
+    X = df[["close_pct", "volume_change", "high_low", "rsi", "macd", "ema", "sma", "atr"]].copy()
     y = df["target"].astype(int)
 
     # 🧼 Очистити інфініті та NaN
