@@ -464,7 +464,8 @@ def get_symbol_price(symbol: str) -> Optional[float]:
 def get_current_price(symbol: str) -> float:
     """Return current market price for a symbol."""
 
-    return get_symbol_price(symbol)
+    pair = _to_usdt_pair(symbol)
+    return get_symbol_price(pair)
 
 
 def get_token_price(symbol: str) -> dict:
@@ -525,7 +526,7 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
         if pair not in VALID_PAIRS:
             raise Exception(f"Token {pair} \u043d\u0435 \u0442\u043e\u0440\u0433\u0443\u0454\u0442\u044c\u0441\u044f \u043d\u0430 Binance")
 
-        price = get_symbol_price(base)
+        price = get_symbol_price(pair)
         if not price:
             raise Exception("Price unavailable")
 
@@ -613,9 +614,9 @@ def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
 
 def place_limit_sell(symbol: str, quantity: float) -> dict:
     """Place a LIMIT sell order at current market price."""
-    price = get_symbol_price(symbol)
+    pair = _to_usdt_pair(symbol)
+    price = get_symbol_price(pair)
     try:
-        pair = _to_usdt_pair(symbol)
         order = client.create_order(
             symbol=pair,
             side="SELL",
@@ -843,7 +844,7 @@ def cancel_tp_sl_if_market_changed(symbol: str) -> None:
     if not orders:
         return
 
-    current = get_symbol_price(symbol)
+    current = get_symbol_price(pair)
     if current is None:
         return
     for o in orders:
@@ -885,7 +886,8 @@ def get_usdt_to_uah_rate() -> float:
 def get_token_value_in_uah(symbol: str) -> float:
     """Return token price converted to UAH."""
 
-    price = get_symbol_price(symbol)
+    pair = _to_usdt_pair(symbol)
+    price = get_symbol_price(pair)
     if price is None:
         return 0.0
     return round(price * get_usdt_to_uah_rate(), 2)
@@ -1069,7 +1071,7 @@ def get_real_pnl_data() -> Dict[str, Dict[str, float]]:
                 continue
 
             avg_price = total_cost / total_qty
-            current_price = get_symbol_price(asset)
+            current_price = get_symbol_price(pair)
             if current_price is None:
                 continue
             pnl_percent = round((current_price - avg_price) / avg_price * 100, 2)
@@ -1322,9 +1324,9 @@ buy_token_market = market_buy
 
 def get_candlestick_klines(symbol: str, interval: str = "1d", limit: int = 7):
     """Return candlestick klines for a tradable symbol."""
-
-    if symbol not in load_tradable_usdt_symbols():
-        raise ValueError(f"Token {symbol} не торгується на Binance")
+    base = normalize_symbol(symbol)
+    if base not in load_tradable_usdt_symbols():
+        raise ValueError(f"Token {base} не торгується на Binance")
     pair = _to_usdt_pair(symbol)
     assert not pair.endswith("USDTUSDT"), f"Invalid pair {pair}"
     logger.debug(

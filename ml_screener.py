@@ -23,10 +23,11 @@ def get_valid_symbols() -> List[str]:
 
 def estimate_profit(symbol: str) -> float:
     """Estimate expected profit for ``symbol`` using dynamic TP/SL."""
-    price = get_symbol_price(symbol)
+    pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
+    price = get_symbol_price(pair)
     if price is None:
         return 0.0
-    klines = get_klines(symbol)
+    klines = get_klines(pair)
     if not klines:
         return 0.0
     closes = [float(k[4]) for k in klines]
@@ -41,14 +42,15 @@ def get_candidates(symbols: List[str]) -> List[Dict[str, float]]:
         print("\u26A0\ufe0f Модель недоступна")
     candidates: List[Dict[str, float]] = []
     for symbol in symbols:
+        pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
         try:
-            feature_vector, _, _ = generate_features(symbol)
+            feature_vector, _, _ = generate_features(pair)
             fv = np.asarray(feature_vector).reshape(1, -1)
             prob_up = predict_prob_up(model, fv) if model else 0.5
-            expected_profit = estimate_profit(symbol)
+            expected_profit = estimate_profit(pair)
             if prob_up > 0.5 and expected_profit > 0.005:
                 candidates.append({
-                    "symbol": symbol,
+                    "symbol": pair,
                     "expected_profit": expected_profit,
                     "prob_up": prob_up,
                 })
