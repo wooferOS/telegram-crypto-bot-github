@@ -88,6 +88,16 @@ def log_tp_sl_change(symbol: str, action: str, tp: float, sl: float) -> None:
         json.dump(history, f, indent=2)
 
 
+def log_signal(message: str) -> None:
+    """Append manual action signal to ``logs/trade.log``."""
+
+    os.makedirs("logs", exist_ok=True)
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"{timestamp} {message}\n"
+    with open("logs/trade.log", "a", encoding="utf-8") as log_file:
+        log_file.write(line)
+
+
 print(f"[DEBUG] API: {BINANCE_API_KEY[:6]}..., SECRET: {BINANCE_SECRET_KEY[:6]}...")
 
 
@@ -428,6 +438,55 @@ def convert_small_balance(from_asset: str, to_asset: str = "USDT") -> None:
         )
 
 
+def try_convert(symbol_from: str, symbol_to: str, amount: float) -> Optional[dict]:
+    """Attempt conversion via Binance Convert API."""
+
+    try:
+        url = f"{BINANCE_BASE_URL}/sapi/v1/convert/getQuote"
+        headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
+        params: Dict[str, object] = {
+            "fromAsset": symbol_from,
+            "toAsset": symbol_to,
+            "fromAmount": amount,
+            "timestamp": get_timestamp(),
+        }
+        params["signature"] = client._generate_signature(params)
+        response = requests.post(url, headers=headers, params=params, timeout=10)
+        data = response.json()
+        if "quoteId" not in data:
+            raise Exception(data)
+
+        quote_id = data["quoteId"]
+        accept_url = f"{BINANCE_BASE_URL}/sapi/v1/convert/acceptQuote"
+        accept_params = {
+            "quoteId": quote_id,
+            "timestamp": get_timestamp(),
+        }
+        accept_params["signature"] = client._generate_signature(accept_params)
+        accept_resp = requests.post(
+            accept_url, headers=headers, params=accept_params, timeout=10
+        )
+        result = accept_resp.json()
+        if "orderId" not in result:
+            raise Exception(result)
+        return result
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.error("❌ Помилка при конвертації %s: %s", symbol_from, exc)
+        price = None
+        try:
+            price = get_symbol_price(f"{symbol_from}{symbol_to}")
+        except Exception:  # pragma: no cover - price fetch issues
+            price = None
+        amount_to = round(float(amount) * price, 4) if price else "?"
+        msg = (
+            f"Сигнал: сконвертуйте {symbol_from} {amount} вручну на "
+            f"{symbol_to} {amount_to}"
+        )
+        logger.warning(msg)
+        log_signal(msg)
+        return None
+
+
 def convert_to_usdt(asset: str, amount: float):
     """Convert ``asset`` amount to USDT using Binance Convert API."""
 
@@ -444,47 +503,7 @@ def convert_to_usdt(asset: str, amount: float):
     except Exception as exc:  # pragma: no cover - handle below
         logger.warning("convert_trade fallback: %s", exc)
 
-    import hmac
-    import hashlib
-    import urllib.parse
-    import requests
-    import time
-
-    base_url = "https://api.binance.com"
-    endpoint = "/sapi/v1/convert/getQuote"
-    accept_endpoint = "/sapi/v1/convert/acceptQuote"
-
-    timestamp = int(time.time() * 1000)
-    params = {
-        "fromAsset": asset,
-        "toAsset": "USDT",
-        "fromAmount": str(amount),
-        "timestamp": timestamp,
-    }
-
-    query_string = urllib.parse.urlencode(params)
-    signature = hmac.new(BINANCE_SECRET_KEY.encode(), query_string.encode(), hashlib.sha256).hexdigest()
-    headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
-
-    quote_url = f"{base_url}{endpoint}?{query_string}&signature={signature}"
-    r = requests.post(quote_url, headers=headers)
-    quote = r.json()
-    if "quoteId" not in quote:
-        raise Exception(f"❌ Convert quote помилка: {quote}")
-    logger.info("🧾 Отримано котирування: %s", quote)
-
-    time.sleep(1)
-    accept_params = {"quoteId": quote["quoteId"], "timestamp": int(time.time() * 1000)}
-    accept_qs = urllib.parse.urlencode(accept_params)
-    signature2 = hmac.new(BINANCE_SECRET_KEY.encode(), accept_qs.encode(), hashlib.sha256).hexdigest()
-    accept_url = f"{base_url}{accept_endpoint}?{accept_qs}&signature={signature2}"
-    r2 = requests.post(accept_url, headers=headers)
-    result = r2.json()
-    if "orderId" not in result:
-        raise Exception(f"❌ Accept quote помилка: {result}")
-
-    logger.info("✅ Успішно конвертовано %s %s в USDT: %s", amount, asset, result)
-    return result
+    return try_convert(asset, "USDT", amount)
 
 
 def get_account_balances() -> Dict[str, Dict[str, str]]:
@@ -600,7 +619,9 @@ def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[s
     except BinanceAPIException as e:
         print(f"❌ Order error for {pair}: {e}")
         if "LOT_SIZE" in str(e):
-            convert_to_usdt(base, amount)
+            result = convert_to_usdt(base, amount)
+            if result is None:
+                print("[WARN] convert failed")
         return None
     except Exception as e:
         print(f"❌ Order error for {pair}: {e}")
@@ -674,9 +695,12 @@ def market_sell(symbol: str, quantity: float) -> dict:
             )
             try:
                 base_asset = symbol.replace("USDT", "")
-                convert_to_usdt(base_asset, quantity)
+                result = convert_to_usdt(base_asset, quantity)
+                if result is None:
+                    return {"status": "error", "message": "convert_failed"}
             except Exception as ce:  # pragma: no cover - network errors
                 logger.error("❌ Помилка при конвертації %s: %s", symbol, ce)
+                return {"status": "error", "message": str(ce)}
         else:
             logger.error("❌ Помилка при продажі %s: %s", symbol, e)
         return {"status": "error", "message": str(e)}
@@ -706,8 +730,10 @@ def sell_asset(symbol: str, quantity: float) -> dict:
             logger.warning("\u2757 LOT_SIZE error, спроба конвертації %s → USDT", symbol)
             try:
                 base_asset = symbol.replace("USDT", "")
-                convert_to_usdt(base_asset, quantity)
-                return {"status": "converted"}
+                result = convert_to_usdt(base_asset, quantity)
+                if result is not None:
+                    return {"status": "converted"}
+                return {"status": "error", "message": "convert_failed"}
             except Exception as conv_e:  # pragma: no cover - network errors
                 logger.error("\u26D4\ufe0f Помилка при конвертації %s: %s", symbol, conv_e)
                 return {"status": "error", "message": str(conv_e)}
