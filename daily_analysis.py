@@ -371,10 +371,10 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
     if not buy_candidates and enriched_tokens:
         enriched_tokens.sort(key=lambda x: x["score"], reverse=True)
         fallback = enriched_tokens[0]
-        if fallback.get("expected_profit", 0) > MIN_EXPECTED_PROFIT:
-            buy_candidates.append(fallback)
+        buy_candidates.append(fallback)  # додавати навіть якщо нижче порогу
 
-    buy_plan = buy_candidates
+    # 🟢 Сортуємо й обираємо токени на купівлю (TOP 3)
+    buy_plan = sorted(buy_candidates, key=lambda x: x["score"], reverse=True)[:3]
     candidate_lines = [t["symbol"] for t in buy_plan[:3]]
 
     # 📝 Final report
@@ -690,6 +690,7 @@ if __name__ == "__main__":
 
     if TELEGRAM_TOKEN and CHAT_ID:
         bot = Bot(token=TELEGRAM_TOKEN)
-        asyncio.run(daily_analysis_task(bot, int(CHAT_ID)))
+        # asyncio.run(daily_analysis_task(bot, int(CHAT_ID)))
+        asyncio.run(auto_trade_loop())  # ← Увімкни цей рядок
     else:
         print("❌ TELEGRAM_TOKEN або CHAT_ID не встановлено")
