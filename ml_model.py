@@ -8,7 +8,7 @@ import ta
 from binance.client import Client
 from sklearn.ensemble import RandomForestClassifier
 
-from binance_api import _to_usdt_pair
+from binance_api import _to_usdt_pair, is_symbol_valid
 
 MODEL_PATH = "model.joblib"
 
@@ -22,6 +22,9 @@ def load_model():
 def get_klines(symbol: str, interval: str = "1h", limit: int = 500) -> pd.DataFrame:
     """Fetch klines for a symbol with basic error handling."""
     pair = _to_usdt_pair(symbol)
+    if not is_symbol_valid(symbol):
+        logging.warning("%s not valid for klines", pair)
+        return pd.DataFrame()
     try:
         data = client.get_klines(symbol=pair, interval=interval, limit=limit)
     except Exception as e:  # noqa: BLE001
