@@ -55,6 +55,7 @@ from ml_model import (
     predict_direction,
     predict_prob_up,
 )
+from telegram import Bot
 
 symbols = get_valid_usdt_symbols()
 
@@ -62,6 +63,11 @@ logger = logging.getLogger(__name__)
 
 # Global minimum thresholds (override via config)
 MIN_VOLUME = 100_000
+
+
+async def get_trading_symbols() -> list[str]:
+    """Return list of trading symbols available for analysis."""
+    return get_valid_usdt_symbols()
 
 def split_telegram_message(text: str, chunk_size: int = 4000) -> list[str]:
     """Split long text into chunks suitable for Telegram messages."""
@@ -410,8 +416,21 @@ def generate_daily_stats_report() -> str:
     return "\u23F3 \u041F\u043E\u043A\u0438 \u0449\u043E \u0449\u043E\u0434\u0435\u043D\u043D\u0438\u0439 \u0437\u0432\u0456\u0442 \u043D\u0435 \u0440\u0435\u0430\u043B\u0456\u0437\u043E\u0432\u0430\u043D\u043E."
 
 
-async def daily_analysis_task(bot, chat_id: int) -> None:
+async def daily_analysis_task(bot: Bot, chat_id: int) -> None:
     """Run daily analysis and notify about TP/SL updates."""
+    print("\U0001F680 Start daily_analysis_task")
+
+    try:
+        symbols = await get_trading_symbols()
+        print(f"\U0001F4E6 Trading symbols loaded: {len(symbols)}")
+        print(f"\U0001F539 Example symbols: {symbols[:5]}")
+    except Exception as e:  # noqa: BLE001
+        print(f"\u274C Failed to get trading symbols: {e}")
+        return
+
+    for symbol in symbols:
+        print(f"\U0001F50D Analyzing {symbol}")
+
     report, _, _, gpt_text = generate_zarobyty_report()
     full_text = f"{report}\n\n{gpt_text}"
     await send_message_parts(bot, chat_id, full_text)
