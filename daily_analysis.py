@@ -25,6 +25,7 @@ from binance_api import (
     log_tp_sl_change,
     get_usdt_balance,
     get_token_balance,
+    market_sell,
     is_symbol_valid,
     get_valid_usdt_symbols,
     VALID_PAIRS,
@@ -460,32 +461,22 @@ async def auto_trade_loop():
 
             for token in sell_recommendations:
                 symbol = token["symbol"]
-                pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
-                quantity = token.get("quantity") or token.get("amount")
-                if not quantity:
+                amount = (
+                    token.get("balance")
+                    or token.get("amount")
+                    or token.get("quantity", 0)
+                )
+                if amount and amount > 0:
                     try:
-                        price = get_symbol_price(pair)
-                        bal = get_token_balance(symbol.replace("USDT", ""))
-                        if bal and price:
-                            quantity = bal
-                        elif token.get("balance"):
-                            quantity = float(token["balance"]) / price if price else 0
-                    except Exception as exc:  # pragma: no cover - network errors
-                        logger.warning("Balance check failed for %s: %s", symbol, exc)
-                        quantity = 0
-                try:
-                    place_market_order(pair, "SELL", quantity)
-                    price = get_symbol_price(pair)
-                    if price is not None:
-                        log_trade("SELL", pair, quantity, price)
-                        add_trade(pair, "SELL", quantity, price)
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("Auto-sell error for %s: %s", symbol, exc)
-                    from telegram_bot import bot, ADMIN_CHAT_ID
-                    await bot.send_message(ADMIN_CHAT_ID, f"\u26A0\ufe0f Sell error {symbol}: {exc}")
+                        result = market_sell(symbol, amount)
+                        print(f"✅ Продано {symbol}: {amount} | {result}")
+                    except Exception as e:  # noqa: BLE001
+                        print(f"❌ Sell error for {symbol}: {e}")
+
+            await asyncio.sleep(2)
+            balance = get_usdt_balance()
 
             if buy_candidates:
-                balance = get_usdt_balance()
                 if not balance:
                     logger.warning("USDT balance unavailable for buying")
                     from telegram_bot import bot, ADMIN_CHAT_ID
