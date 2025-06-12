@@ -65,6 +65,11 @@ symbols = get_valid_symbols()
 
 logger = logging.getLogger(__name__)
 
+# Global minimum thresholds
+MIN_EXPECTED_PROFIT = 0.005  # 0.5%
+MIN_PROB_UP = 0.55
+MIN_VOLUME = 100_000
+
 def split_telegram_message(text: str, chunk_size: int = 4000) -> list[str]:
     """Split long text into chunks suitable for Telegram messages."""
     return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
@@ -306,13 +311,16 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
         try:
             feature_vector, _, _ = generate_features(symbol)
             if model:
-                prob_up = predict_prob_up(model, feature_vector)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("Skipping %s due to ML error: %s", symbol, exc)
-            continue
+                direction = predict_direction(model, feature_vector)
+                prob_up = 1.0 if direction == "up" else 0.0
+        except Exception as e:  # noqa: BLE001
+            print(f"⚠️ ML error for {symbol}: {e}")
+            prob_up = 0.5
 
         success_score = get_success_score(symbol)
         orderbook_bias = 0  # можна реалізувати пізніше
+        expected_profit = calculate_expected_profit(price, tp, amount=10, sl_price=sl)
+        volume_24h = sum(float(k[5]) for k in get_price_history(symbol)) if klines else 0
         score = rr * 2 + momentum + success_score + (-btc_corr) + prob_up * 2
 
         enriched_tokens.append({
@@ -327,49 +335,78 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
             "orderbook_bias": orderbook_bias,
             "btc_corr": btc_corr,
             "indicators": indicators,
-            "score": score
+            "score": score,
+            "expected_profit": expected_profit,
+            "prob_up": prob_up,
+            "volume": volume_24h,
         })
 
     # ✅ Apply advanced filtering
     buy_candidates = [
-        t for t in enriched_tokens if advanced_buy_filter(t)
+        t
+        for t in enriched_tokens
+        if advanced_buy_filter(t)
+        and t.get("prob_up", 0) >= MIN_PROB_UP
+        and t.get("expected_profit", 0) >= MIN_EXPECTED_PROFIT
     ]
     for t in buy_candidates:
-        t["expected_profit"] = calculate_expected_profit(
-            t["price"], t["tp_price"], amount=10, sl_price=t["sl_price"]
-        )
         t["score"] = score_token(t)
-
-    top_buy_candidates = sorted(buy_candidates, key=lambda t: t["score"], reverse=True)[:5]
 
     buy_plan = []
     remaining = available_usdt
     updates: list[tuple[str, float, float]] = []
     candidate_lines: list[str] = []
 
-    for token in top_buy_candidates:
-        if remaining < 1:
-            break
-        rr = token.get("risk_reward", 1.5)
-        kelly = kelly_fraction(0.75, rr)
-        amount = round(min(remaining, available_usdt * kelly), 2)
-
-        token["amount_usdt"] = amount
-        tp = token["tp_price"]
-        sl = token["sl_price"]
-        price = token["price"]
-        token["expected_profit"] = calculate_expected_profit(price, tp, amount, sl)
-
-        if _maybe_update_orders(token["symbol"], tp, sl):
-            updates.append((f"{token['symbol']}USDT", tp, sl))
-
-        buy_plan.append(token)
-        remaining -= amount
-
-        if len(candidate_lines) < 3:
-            candidate_lines.append(
-                f"{token['symbol']} {amount} USDT (EP: {token.get('expected_profit')})"
+    if not buy_candidates:
+        print("⚠️ No buy candidates passed advanced filters. Using fallback.")
+        fallback = [
+            token
+            for token in enriched_tokens
+            if token.get("expected_profit", 0) > 0
+            and token.get("volume", 0) > MIN_VOLUME
+        ]
+        fallback.sort(key=lambda x: x["score"], reverse=True)
+        if fallback:
+            best = fallback[0]
+            buy_plan.append(
+                {
+                    "symbol": best["symbol"],
+                    "expected_profit": best["expected_profit"],
+                    "prob_up": best["prob_up"],
+                    "note": "🟡 Слабкий сигнал — fallback",
+                }
             )
+            candidate_lines.append(f"{best['symbol']} (fallback)")
+        top_buy_candidates = []
+    else:
+        top_buy_candidates = sorted(buy_candidates, key=lambda t: t["score"], reverse=True)[:5]
+
+        for token in top_buy_candidates:
+            if remaining < 1:
+                break
+            rr = token.get("risk_reward", 1.5)
+            kelly = kelly_fraction(0.75, rr)
+            amount = round(min(remaining, available_usdt * kelly), 2)
+
+            token["amount_usdt"] = amount
+            tp = token["tp_price"]
+            sl = token["sl_price"]
+            price = token["price"]
+            token["expected_profit"] = calculate_expected_profit(price, tp, amount, sl)
+
+            if _maybe_update_orders(token["symbol"], tp, sl):
+                updates.append((f"{token['symbol']}USDT", tp, sl))
+
+            buy_plan.append(token)
+            remaining -= amount
+
+            if len(candidate_lines) < 3:
+                candidate_lines.append(
+                    f"{token['symbol']} {amount} USDT (EP: {token.get('expected_profit')})"
+                )
+
+    if not buy_plan and buy_candidates:
+        buy_plan.append(buy_candidates[0])
 
     # 📝 Final report
     report_lines = []
