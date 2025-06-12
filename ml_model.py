@@ -78,6 +78,14 @@ def generate_features(symbol: str):
 
 def predict_direction(model, feature_vector):
     """Прогнозує напрямок руху (up/down) на основі переданої моделі та фічей."""
-    # ensure feature_vector has the correct shape for the model
     prediction = model.predict(np.asarray(feature_vector).reshape(1, -1))
     return "up" if prediction[0] == 1 else "down"
+
+
+def predict_prob_up(model, feature_vector) -> float:
+    """Return probability of price going up using ``model``."""
+    if hasattr(model, "predict_proba"):
+        probs = model.predict_proba(np.asarray(feature_vector).reshape(1, -1))
+        return float(probs[0][1])
+    direction = predict_direction(model, feature_vector)
+    return 1.0 if direction == "up" else 0.0
