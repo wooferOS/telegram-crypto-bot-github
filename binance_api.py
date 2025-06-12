@@ -55,10 +55,12 @@ def normalize_symbol(symbol: str) -> str:
 
 
 def _to_usdt_pair(symbol: str) -> str:
-    """Return ``symbol`` formatted as an USDT trading pair."""
+    """Return ``symbol`` formatted as a USDT trading pair without duplication."""
 
-    pair = symbol.upper()
-    return pair if pair.endswith("USDT") else f"{pair}USDT"
+    base = normalize_symbol(symbol)
+    pair = f"{base}USDT"
+    assert not pair.endswith("USDTUSDT"), f"Invalid pair constructed: {pair}"
+    return pair
 
 
 def log_tp_sl_change(symbol: str, action: str, tp: float, sl: float) -> None:
@@ -173,6 +175,7 @@ def load_tradable_usdt_symbols() -> set[str]:
         if s.get("quoteAsset") == "USDT" and s.get("status") == "TRADING"
     ]
     cached_usdt_pairs = {p.replace("USDT", "") for p in pairs}
+    logger.debug("Loaded %d tradable USDT symbols", len(cached_usdt_pairs))
     return cached_usdt_pairs
 
 
@@ -410,9 +413,8 @@ def cancel_all_orders(symbol: str) -> None:
 def get_symbol_price(symbol: str) -> float:
     """Return current price of ``symbol`` quoted in USDT."""
 
-    pair = symbol.upper()
-    if not pair.endswith("USDT"):
-        pair = f"{pair}USDT"
+    pair = _to_usdt_pair(symbol)
+    logger.debug("get_symbol_price: %s -> %s", symbol, pair)
 
     if pair.upper() not in VALID_PAIRS:
         logger.warning("⚠️ %s не знайдено у VALID_PAIRS, оновлюємо...", pair)
@@ -987,6 +989,8 @@ def get_candlestick_klines(symbol: str, interval: str = "1h", limit: int = 100) 
     """Return raw candlestick klines for a symbol."""
     url = f"{BINANCE_BASE_URL}/api/v3/klines"
     pair = _to_usdt_pair(symbol)
+    assert not pair.endswith("USDTUSDT"), f"Invalid pair {pair}"
+    logger.debug("get_candlestick_klines: %s -> %s", symbol, pair)
     params = {"symbol": pair, "interval": interval, "limit": limit}
     try:
         response = requests.get(url, params=params, timeout=10)
@@ -1290,6 +1294,10 @@ def get_candlestick_klines(symbol: str, interval: str = "1d", limit: int = 7):
     if symbol not in load_tradable_usdt_symbols():
         raise ValueError(f"Token {symbol} не торгується на Binance")
     pair = _to_usdt_pair(symbol)
+    assert not pair.endswith("USDTUSDT"), f"Invalid pair {pair}"
+    logger.debug(
+        "get_candlestick_klines(daily): %s -> %s interval=%s", symbol, pair, interval
+    )
     return client.get_klines(
         symbol=pair,
         interval=interval,
