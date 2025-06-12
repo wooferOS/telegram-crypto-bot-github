@@ -40,7 +40,12 @@ from utils import (
 from history import _load_history, get_failed_tokens_history
 from coingecko_api import get_sentiment
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from ml_model import load_model, generate_features, predict_direction
+from ml_model import (
+    load_model,
+    generate_features,
+    predict_direction,
+    predict_prob_up,
+)
 
 client = Client(api_key=os.getenv("BINANCE_API_KEY"), api_secret=os.getenv("BINANCE_API_SECRET"))
 
@@ -268,14 +273,20 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
     symbols_from_balance = set(t['symbol'].upper() for t in token_data)
     market_symbols = set(t["symbol"].upper() for t in get_top_tokens(limit=50))
     symbols_to_analyze = symbols_from_balance.union(market_symbols)
-    tradable_symbols = set(s.upper() for s in load_tradable_usdt_symbols())
-    symbols_to_analyze = [s for s in symbols_to_analyze if s in tradable_symbols]
+    valid_pairs = {s.replace("USDT", "").upper() for s in get_valid_symbols()}
+    symbols_to_analyze = [s for s in symbols_to_analyze if s in valid_pairs]
 
     enriched_tokens = []
+    model = load_model()
     for symbol in symbols_to_analyze:
         price = get_symbol_price(symbol)
         klines = get_klines(symbol)
-        indicators = calculate_indicators(klines)
+        if not klines:
+            continue
+        try:
+            indicators = calculate_indicators(klines)
+        except Exception:
+            continue
         rr = calculate_rr(klines)
         sector = get_sector(symbol)
         btc_corr = analyze_btc_correlation(symbol)
@@ -291,9 +302,14 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
         bb_ratio = (closes[-1] - (mid - 2 * stddev)) / (4 * stddev + 1e-8)
         volume_avg = statistics.fmean([float(k[5]) for k in klines[-5:]])
 
-        feature_vector, _, _ = generate_features(symbol)
-        model = load_model()
-        prob_up = predict_direction(model, feature_vector) if model else 0.5
+        prob_up = 0.5
+        try:
+            feature_vector, _, _ = generate_features(symbol)
+            if model:
+                prob_up = predict_prob_up(model, feature_vector)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Skipping %s due to ML error: %s", symbol, exc)
+            continue
 
         success_score = get_success_score(symbol)
         orderbook_bias = 0  # можна реалізувати пізніше
@@ -528,13 +544,53 @@ def filter_fallback_best_candidates(candidates, max_results=3):
     )
     return sorted_candidates[:max_results]
 
+
+def demo_candidates_loop(symbols: list[str]) -> list[dict]:
+    """Example loop demonstrating ML screening with safe fallbacks."""
+
+    model = load_model()
+    results: list[dict] = []
+    for pair in symbols:
+        symbol = pair.replace("USDT", "")
+        try:
+            price = get_symbol_price(symbol)
+            klines = get_klines(symbol)
+            if not klines:
+                continue
+            closes = [float(k[4]) for k in klines]
+            tp, sl = dynamic_tp_sl(closes, price)
+            feature_vector, _, _ = generate_features(symbol)
+            prob_up = predict_prob_up(model, feature_vector) if model else 0.5
+            expected_profit = calculate_expected_profit(price, tp, 10, sl)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Skip %s: %s", symbol, exc)
+            continue
+
+        if expected_profit > 0.005 and prob_up > 0.5:
+            results.append(
+                {
+                    "symbol": symbol,
+                    "expected_profit": expected_profit,
+                    "prob_up": prob_up,
+                }
+            )
+
+    return results
+
 if __name__ == "__main__":
     import asyncio
-    from telegram import Bot
     import os
+    import sys
+    from telegram import Bot
 
     TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
     CHAT_ID = os.getenv("CHAT_ID")
+
+    if len(sys.argv) > 1 and sys.argv[1] == "demo":
+        candidates = demo_candidates_loop(symbols)
+        for c in candidates:
+            print(f"{c['symbol']}: prob_up={c['prob_up']:.2f}, expected={c['expected_profit']}")
+        sys.exit(0)
 
     if TELEGRAM_TOKEN and CHAT_ID:
         bot = Bot(token=TELEGRAM_TOKEN)
