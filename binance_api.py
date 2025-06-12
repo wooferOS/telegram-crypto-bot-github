@@ -180,17 +180,17 @@ def get_valid_symbols(quote: str = "USDT") -> list[str]:
     """Return list of tradable symbols quoted in ``quote``."""
 
     try:
-        info = get_exchange_info()
+        exchange_info = client.get_exchange_info()
     except Exception as exc:  # pragma: no cover - network errors
-        logger.error("%s Не вдалося отримати exchange info: %s", TELEGRAM_LOG_PREFIX, exc)
+        logger.error(
+            "%s Не вдалося отримати exchange info: %s", TELEGRAM_LOG_PREFIX, exc
+        )
         return []
 
     return [
-        s["symbol"]
-        for s in info.get("symbols", [])
-        if s.get("quoteAsset") == quote
-        and s.get("status") == "TRADING"
-        and s.get("isSpotTradingAllowed")
+        s["symbol"].upper()
+        for s in exchange_info.get("symbols", [])
+        if s.get("quoteAsset") == quote and s.get("status") == "TRADING"
     ]
 
 
@@ -414,10 +414,10 @@ def get_symbol_price(symbol: str) -> float:
     if not pair.endswith("USDT"):
         pair = f"{pair}USDT"
 
-    if pair not in VALID_PAIRS:
+    if pair.upper() not in VALID_PAIRS:
         logger.warning("⚠️ %s не знайдено у VALID_PAIRS, оновлюємо...", pair)
         refresh_valid_pairs()
-        if pair not in VALID_PAIRS:
+        if pair.upper() not in VALID_PAIRS:
             logger.warning("⚠️ Після оновлення %s все ще не знайдено", pair)
             return 0.0
 
@@ -425,7 +425,10 @@ def get_symbol_price(symbol: str) -> float:
         ticker = client.get_symbol_ticker(symbol=pair)
         return float(ticker.get("price", 0))
     except BinanceAPIException as exc:  # pragma: no cover - network errors
-        logger.error("❌ BinanceAPIException для %s: %s", pair, exc)
+        if exc.code == -1121:
+            logger.warning("⏭️ %s не торгується на Binance", pair)
+        else:
+            logger.error("❌ BinanceAPIException для %s: %s", pair, exc)
     except Exception as exc:  # pragma: no cover - network errors
         logger.error("❌ Binance error for %s: %s", pair, exc)
     return 0.0
@@ -441,7 +444,7 @@ def get_token_price(symbol: str) -> dict:
     """Return token price with symbol."""
 
     base = normalize_symbol(symbol)
-    pair = f"{base}USDT"
+    pair = f"{base}USDT".upper()
     if pair not in VALID_PAIRS:
         logger.warning("\u26a0\ufe0f \u041f\u0440\u043e\u043f\u0443\u0449\u0435\u043d\u043e %s: Token \u043d\u0435 \u0442\u043e\u0440\u0433\u0443\u0454\u0442\u044c\u0441\u044f \u043d\u0430 Binance", pair)
         return {"symbol": base, "price": "0"}
@@ -457,7 +460,7 @@ def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[s
     """Place a market order for ``symbol`` on Binance."""
 
     base = normalize_symbol(symbol)
-    pair = f"{base}USDT"
+    pair = f"{base}USDT".upper()
     if pair not in VALID_PAIRS:
         logger.warning("⚠️ %s не знайдено у VALID_PAIRS, оновлюємо...", pair)
         refresh_valid_pairs()
@@ -491,7 +494,7 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
 
     try:
         base = normalize_symbol(symbol)
-        pair = f"{base}USDT"
+        pair = f"{base}USDT".upper()
         if pair not in VALID_PAIRS:
             raise Exception(f"Token {pair} \u043d\u0435 \u0442\u043e\u0440\u0433\u0443\u0454\u0442\u044c\u0441\u044f \u043d\u0430 Binance")
 
