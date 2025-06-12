@@ -90,12 +90,26 @@ print(f"[DEBUG] API: {BINANCE_API_KEY[:6]}..., SECRET: {BINANCE_SECRET_KEY[:6]}.
 # Initialise global Binance client exactly as in Binance docs
 client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
+# Set of currently tradable USDT pairs
+VALID_PAIRS: set[str] = set()
+
+
+def refresh_valid_pairs() -> None:
+    """Refresh ``VALID_PAIRS`` from Binance exchange info."""
+
+    global VALID_PAIRS
+    try:
+        VALID_PAIRS = set(
+            s["symbol"]
+            for s in client.get_exchange_info()["symbols"]
+            if s["quoteAsset"] == "USDT" and s["status"] == "TRADING"
+        )
+    except Exception as e:  # pragma: no cover - network errors
+        logger.warning(f"⚠️ Не вдалося оновити VALID_PAIRS: {e}")
+
+
 # Load available USDT trading pairs once on startup
-VALID_PAIRS = set(
-    s["symbol"]
-    for s in client.get_exchange_info()["symbols"]
-    if s["quoteAsset"] == "USDT" and s["status"] == "TRADING"
-)
+refresh_valid_pairs()
 
 
 # ---------------------------------------------------------------------------
@@ -381,8 +395,11 @@ def get_symbol_price(symbol: str) -> float:
     base = normalize_symbol(symbol)
     pair = f"{base}USDT"
     if pair not in VALID_PAIRS:
-        logger.warning("\u26a0\ufe0f \u041f\u0440\u043e\u043f\u0443\u0449\u0435\u043d\u043e %s: Token \u043d\u0435 \u0442\u043e\u0440\u0433\u0443\u0454\u0442\u044c\u0441\u044f \u043d\u0430 Binance", pair)
-        return 0.0
+        logger.warning("⚠️ %s не знайдено у VALID_PAIRS, оновлюємо...", pair)
+        refresh_valid_pairs()
+        if pair not in VALID_PAIRS:
+            logger.warning("⚠️ Після оновлення %s все ще не знайдено", pair)
+            return 0.0
     try:
         ticker = client.get_symbol_ticker(symbol=pair)
         return float(ticker.get("price", 0))
@@ -419,8 +436,11 @@ def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[s
     base = normalize_symbol(symbol)
     pair = f"{base}USDT"
     if pair not in VALID_PAIRS:
-        logger.warning("\u26a0\ufe0f \u041f\u0440\u043e\u043f\u0443\u0449\u0435\u043d\u043e %s: Token \u043d\u0435 \u0442\u043e\u0440\u0433\u0443\u0454\u0442\u044c\u0441\u044f \u043d\u0430 Binance", pair)
-        return None
+        logger.warning("⚠️ %s не знайдено у VALID_PAIRS, оновлюємо...", pair)
+        refresh_valid_pairs()
+        if pair not in VALID_PAIRS:
+            logger.warning("⚠️ Після оновлення %s все ще не знайдено", pair)
+            return None
     try:
         if side.upper() == "BUY":
             order = client.create_order(
@@ -1249,5 +1269,16 @@ def get_candlestick_klines(symbol: str, interval: str = "1d", limit: int = 7):
         interval=interval,
         limit=limit,
     )
+
+
+def test_valid_pairs() -> None:
+    """Log availability of some common USDT pairs."""
+
+    test_symbols = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "ADAUSDT", "XRPUSDT"]
+    for symbol in test_symbols:
+        if symbol not in VALID_PAIRS:
+            logger.warning(f"❌ {symbol} — Немає в VALID_PAIRS!")
+        else:
+            logger.info(f"✅ {symbol} — OK")
 
 

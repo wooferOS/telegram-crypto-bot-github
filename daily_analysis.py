@@ -39,6 +39,8 @@ from binance_api import (
     log_tp_sl_change,
     get_usdt_balance,
     get_token_balance,
+    VALID_PAIRS,
+    refresh_valid_pairs,
 )
 from binance_api import get_candlestick_klines
 from config import MIN_PROB_UP, MIN_EXPECTED_PROFIT, MIN_TRADE_AMOUNT, TRADE_LOOP_INTERVAL
@@ -246,6 +248,12 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
     now = datetime.datetime.now(pytz.timezone("Europe/Kyiv"))
     token_data = []
 
+    if len(VALID_PAIRS) < 50:
+        logger.warning(
+            "⚠️ VALID_PAIRS містить лише %d символів — можливі помилки",
+            len(VALID_PAIRS),
+        )
+
     for symbol, amount in balances.items():
         if symbol == "USDT" or amount == 0:
             continue
@@ -322,7 +330,7 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
                     }
                 )
         except Exception as e:
-            print(f"⚠️ Пропущено {symbol}: {e}")
+            logger.warning(f"⚠️ Пропущено {symbol}: {str(e)}")
             continue
 
     buy_candidates.sort(key=lambda x: x["score"], reverse=True)
