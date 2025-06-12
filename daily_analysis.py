@@ -14,14 +14,9 @@ client = Client(api_key=os.getenv("BINANCE_API_KEY"), api_secret=os.getenv("BINA
 
 
 def get_valid_usdt_symbols():
-    """Повертає всі активні спотові USDT пари з Binance"""
-    return [
-        s["symbol"]
-        for s in client.get_exchange_info()["symbols"]
-        if s["quoteAsset"] == "USDT"
-        and s["status"] == "TRADING"
-        and s["isSpotTradingAllowed"]
-    ]
+    """Повертає всі активні спотові USDT пари з Binance."""
+
+    return get_valid_symbols("USDT")
 
 from binance_api import (
     get_binance_balances,
@@ -41,6 +36,7 @@ from binance_api import (
     get_token_balance,
     VALID_PAIRS,
     refresh_valid_pairs,
+    get_valid_symbols,
 )
 from binance_api import get_candlestick_klines
 from config import MIN_PROB_UP, MIN_EXPECTED_PROFIT, MIN_TRADE_AMOUNT, TRADE_LOOP_INTERVAL
@@ -296,7 +292,18 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
     # 🔍 Candidates to analyze
     symbols_from_balance = set(t['symbol'].upper() for t in token_data)
     market_symbols = set(t["symbol"].upper() for t in get_top_tokens(limit=50))
-    symbols_to_analyze = symbols
+
+    valid_symbols = get_valid_symbols("USDT")
+    symbols_to_analyze = []
+    for sym in symbols:
+        if sym in valid_symbols:
+            symbols_to_analyze.append(sym)
+        else:
+            logger.info(
+                "⏭️ Пропущено %s: не торгується. valid_symbols=%s",
+                sym,
+                valid_symbols,
+            )
 
     enriched_tokens: list[dict] = []
     buy_candidates: list[dict] = []
@@ -402,7 +409,7 @@ async def send_zarobyty_forecast(bot, chat_id: int) -> None:
 async def auto_trade_loop():
     """Continuous auto-trading loop with dynamic interval."""
 
-    valid_pairs = get_valid_usdt_symbols()
+    valid_pairs = get_valid_symbols("USDT")
 
     while True:
         try:
