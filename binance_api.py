@@ -127,8 +127,6 @@ def is_symbol_valid(symbol: str) -> bool:
         refresh_valid_pairs()
     return pair in VALID_PAIRS
 
-# Load available USDT trading pairs once on startup
-refresh_valid_pairs()
 
 
 # ---------------------------------------------------------------------------
@@ -222,6 +220,9 @@ def get_valid_usdt_symbols() -> list[str]:
     """Return list of tradable USDT pairs from Binance."""
 
     return get_valid_symbols("USDT")
+
+# Load available USDT trading pairs once on startup
+refresh_valid_pairs()
 
 
 # ---------------------------------------------------------------------------
