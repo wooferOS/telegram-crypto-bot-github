@@ -7,4 +7,4 @@ MIN_EXPECTED_PROFIT = 0.3
 MIN_TRADE_AMOUNT = float(os.getenv("MIN_TRADE_AMOUNT", 10))  # USDT
 
 # Auto trading loop interval in seconds
-TRADE_LOOP_INTERVAL = int(os.getenv("TRADE_LOOP_INTERVAL", 600))
+TRADE_LOOP_INTERVAL = int(os.getenv("TRADE_LOOP_INTERVAL", 3600))
