@@ -41,7 +41,7 @@ from utils import (
     kelly_fraction,
     dynamic_tp_sl,
     advanced_buy_filter,
-    estimate_profit,
+    estimate_profit_debug,
     log_trade,
     get_sector,
     analyze_btc_correlation,
@@ -340,7 +340,7 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
             feature_vector, _, _ = generate_features(symbol)
             fv = np.asarray(feature_vector).reshape(1, -1)
             prob_up = predict_prob_up(model, fv) if model else 0.5
-            expected_profit = estimate_profit(symbol)
+            expected_profit = estimate_profit_debug(symbol)
             print(f"\U0001F4CA {symbol}: prob_up={prob_up:.2f}, expected_profit={expected_profit}")
 
             enriched_tokens.append(
