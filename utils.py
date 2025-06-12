@@ -1,4 +1,6 @@
 import statistics
+import os
+import datetime
 from typing import List, Dict, Optional
 
 from binance_api import (
@@ -197,3 +199,13 @@ def advanced_buy_filter(token: dict) -> bool:
         and momentum > 0
         and rr > 1.5
     )
+
+
+def log_trade(action: str, symbol: str, qty: float, price: float) -> None:
+    """Append trade information to ``logs/trade.log``."""
+
+    os.makedirs("logs", exist_ok=True)
+    timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    line = f"{timestamp} {action} {symbol} qty={qty} price={price}\n"
+    with open("logs/trade.log", "a", encoding="utf-8") as log_file:
+        log_file.write(line)

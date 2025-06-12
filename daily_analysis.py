@@ -39,6 +39,7 @@ from binance_api import (
     get_usdt_balance,
 )
 from binance_api import get_candlestick_klines
+from config import MIN_PROB_UP, MIN_EXPECTED_PROFIT, MIN_TRADE_AMOUNT, TRADE_LOOP_INTERVAL
 from gpt_utils import ask_gpt
 from utils import (
     convert_to_uah,
@@ -49,11 +50,12 @@ from utils import (
     dynamic_tp_sl,
     advanced_buy_filter,
     estimate_profit,
+    log_trade,
     get_sector,
     analyze_btc_correlation,
     _ema,
 )
-from history import _load_history, get_failed_tokens_history
+from history import _load_history, get_failed_tokens_history, add_trade
 from coingecko_api import get_sentiment
 from ml_model import (
     load_model,
@@ -66,9 +68,7 @@ symbols = get_valid_usdt_symbols()
 
 logger = logging.getLogger(__name__)
 
-# Global minimum thresholds
-MIN_EXPECTED_PROFIT = 0.001  # 0.1%
-MIN_PROB_UP = 0.55
+# Global minimum thresholds (override via config)
 MIN_VOLUME = 100_000
 
 def split_telegram_message(text: str, chunk_size: int = 4000) -> list[str]:
@@ -379,7 +379,9 @@ async def send_zarobyty_forecast(bot, chat_id: int) -> None:
 
 
 async def auto_trade_loop():
-    """Run continuous auto-trading every 10 minutes."""
+    """Continuous auto-trading loop with dynamic interval."""
+
+    valid_pairs = get_valid_usdt_symbols()
 
     while True:
         try:
@@ -390,26 +392,56 @@ async def auto_trade_loop():
                 quantity = token.get("quantity")
                 try:
                     place_market_order(token["symbol"], "SELL", quantity)
-                    print(f"✅ SELL {symbol} qty={quantity}")
+                    price = get_symbol_price(token["symbol"])
+                    log_trade("SELL", token["symbol"], quantity, price)
+                    add_trade(token["symbol"], "SELL", quantity, price)
                 except Exception as exc:  # noqa: BLE001
-                    print(f"❌ Auto-sell error for {symbol}: {exc}")
+                    logger.warning("Auto-sell error for %s: %s", symbol, exc)
 
             if buy_candidates:
-                candidate = buy_candidates[0]
-                symbol = f"{candidate['symbol']}USDT"
                 balance = get_usdt_balance()
-                amount_usdt = min(20, balance)
-                if amount_usdt > 0:
+                for candidate in buy_candidates:
+                    pair = f"{candidate['symbol']}USDT"
+                    if pair not in valid_pairs:
+                        continue
+                    price = get_symbol_price(candidate["symbol"])
+                    if price <= 0:
+                        continue
+
+                    win_loss_ratio = 2.0
+                    fraction = kelly_fraction(candidate.get("prob_up", 0.5), win_loss_ratio)
+                    amount_usdt = max(MIN_TRADE_AMOUNT, balance * fraction)
+                    amount_usdt = min(amount_usdt, balance)
+
+                    if amount_usdt < MIN_TRADE_AMOUNT:
+                        continue
                     try:
-                        place_market_order(candidate["symbol"], "BUY", amount_usdt)
-                        print(f"✅ BUY {symbol} for ${amount_usdt}")
+                        order = place_market_order(candidate["symbol"], "BUY", amount_usdt)
+                        qty = amount_usdt / price
+                        if isinstance(order, dict):
+                            qty = float(order.get("executedQty", qty))
+                        log_trade("BUY", candidate["symbol"], qty, price)
+                        add_trade(candidate["symbol"], "BUY", qty, price)
+
+                        klines = get_klines(candidate["symbol"])
+                        closes = [float(k[4]) for k in klines]
+                        tp, sl = dynamic_tp_sl(closes, price)
+                        orders = get_open_orders(pair)
+                        has_tp = any(o.get("type") == "LIMIT" for o in orders)
+                        has_sl = any(o.get("type") == "STOP_LOSS_LIMIT" for o in orders)
+                        if not (has_tp and has_sl):
+                            update_tp_sl_order(candidate["symbol"], tp, sl)
+                        break
                     except Exception as exc:  # noqa: BLE001
-                        print(f"❌ Auto-buy error for {symbol}: {exc}")
+                        logger.warning("Auto-buy error for %s: %s", pair, exc)
+                        continue
 
         except Exception as e:  # noqa: BLE001
-            print(f"❌ Auto-trade error: {e}")
+            logger.exception("Auto-trade error: %s", e)
+            from telegram_bot import bot, ADMIN_CHAT_ID
+            await bot.send_message(ADMIN_CHAT_ID, str(e))
 
-        await asyncio.sleep(600)
+        await asyncio.sleep(TRADE_LOOP_INTERVAL)
 
 # Adaptive filters for selecting buy candidates
 from utils import (
