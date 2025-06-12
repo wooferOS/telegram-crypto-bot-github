@@ -125,7 +125,9 @@ def is_symbol_valid(symbol: str) -> bool:
     pair = _to_usdt_pair(symbol)
     if not VALID_PAIRS:
         refresh_valid_pairs()
-    return pair in VALID_PAIRS
+    is_valid = pair in VALID_PAIRS
+    logger.info("is_symbol_valid(%s) -> %s (pair=%s)", symbol, is_valid, pair)
+    return is_valid
 
 
 
