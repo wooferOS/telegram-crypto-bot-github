@@ -42,3 +42,16 @@
 ```bash
 git clone https://github.com/wooferOS/telegram-crypto-bot-github.git
 ```
+2. Встановіть пакети для компіляції C‑залежностей (наприклад `aiohttp`):
+```bash
+sudo apt update && sudo apt install -y build-essential python3-dev
+```
+3. Оновіть pip та перевстановіть `aiohttp` без кешу:
+```bash
+pip install --upgrade pip setuptools wheel
+pip install --no-cache-dir --force-reinstall aiohttp
+```
+4. Встановіть Python‑залежності:
+```bash
+pip install -r requirements.txt
+```
