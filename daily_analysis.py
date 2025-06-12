@@ -9,12 +9,6 @@ import logging
 import os
 import numpy as np
 
-
-def get_valid_usdt_symbols() -> list[str]:
-    """Return all active USDT trading pairs."""
-
-    return get_valid_symbols("USDT")
-
 from binance_api import (
     get_binance_balances,
     get_symbol_price,
@@ -31,9 +25,10 @@ from binance_api import (
     log_tp_sl_change,
     get_usdt_balance,
     get_token_balance,
+    is_symbol_valid,
+    get_valid_usdt_symbols,
     VALID_PAIRS,
     refresh_valid_pairs,
-    get_valid_symbols,
 )
 from binance_api import get_candlestick_klines
 from config import MIN_PROB_UP, MIN_EXPECTED_PROFIT, MIN_TRADE_AMOUNT, TRADE_LOOP_INTERVAL
@@ -123,6 +118,9 @@ def _maybe_update_orders(symbol: str, new_tp: float, new_sl: float) -> bool:
 def execute_buy_order(symbol: str, amount_usdt: float):
     try:
         price = get_symbol_price(symbol)
+        if price is None:
+            logger.warning("Price unavailable for %s", symbol)
+            return
         quantity = round(amount_usdt / price, 5)
         buy_order = place_market_order(symbol, "BUY", amount_usdt)
         if not buy_order or (isinstance(buy_order, dict) and "error" in buy_order):
@@ -188,7 +186,11 @@ def enrich_with_metrics(candidates: list[dict]) -> list[dict]:
             continue
 
         price = token.get("price") or get_symbol_price(symbol)
+        if price is None:
+            continue
         klines = get_klines(symbol)
+        if not klines:
+            continue
         indicators = calculate_indicators(klines)
         rr = token.get("risk_reward")
         if rr is None:
@@ -254,8 +256,12 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
             continue
 
         price = get_symbol_price(symbol)
+        if price is None:
+            continue
         uah_value = convert_to_uah(price * amount)
         klines = get_klines(symbol)
+        if not klines:
+            continue
         trades = get_my_trades(f"{symbol}USDT")
         indicators = calculate_indicators(klines)
         average_buy_price = sum([float(t['price']) * float(t['qty']) for t in trades]) / sum([float(t['qty']) for t in trades]) if trades else price
@@ -290,22 +296,27 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
     symbols_from_balance = set(t['symbol'].upper() for t in token_data)
     market_symbols = set(t["symbol"].upper() for t in get_top_tokens(limit=50))
 
-    valid_symbols = get_valid_symbols("USDT")
+    valid_symbols = get_valid_usdt_symbols()
     logger.debug(
         "Valid symbols: %s examples: %s",
         len(valid_symbols),
         valid_symbols[:10],
     )
     symbols_to_analyze: list[str] = []
+    success = 0
+    fail = 0
     for sym in symbols:
-        if sym in valid_symbols:
+        if is_symbol_valid(sym):
             symbols_to_analyze.append(sym)
+            success += 1
         else:
             logger.info(
                 "⏭️ Пропущено %s: не торгується. valid_symbols=%s",
                 sym,
                 valid_symbols,
             )
+            fail += 1
+    logger.debug("Symbols to analyze: %d success, %d skipped", success, fail)
 
     enriched_tokens: list[dict] = []
     buy_candidates: list[dict] = []
@@ -411,7 +422,7 @@ async def send_zarobyty_forecast(bot, chat_id: int) -> None:
 async def auto_trade_loop():
     """Continuous auto-trading loop with dynamic interval."""
 
-    valid_pairs = get_valid_symbols("USDT")
+    valid_pairs = get_valid_usdt_symbols()
 
     while True:
         try:
@@ -434,8 +445,9 @@ async def auto_trade_loop():
                 try:
                     place_market_order(token["symbol"], "SELL", quantity)
                     price = get_symbol_price(token["symbol"])
-                    log_trade("SELL", token["symbol"], quantity, price)
-                    add_trade(token["symbol"], "SELL", quantity, price)
+                    if price is not None:
+                        log_trade("SELL", token["symbol"], quantity, price)
+                        add_trade(token["symbol"], "SELL", quantity, price)
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("Auto-sell error for %s: %s", symbol, exc)
                     from telegram_bot import bot, ADMIN_CHAT_ID
@@ -454,7 +466,7 @@ async def auto_trade_loop():
                     if pair not in valid_pairs:
                         continue
                     price = get_symbol_price(candidate["symbol"])
-                    if price <= 0:
+                    if price is None or price <= 0:
                         continue
 
                     win_loss_ratio = 2.0
@@ -607,6 +619,8 @@ def demo_candidates_loop(symbols: list[str]) -> list[dict]:
         symbol = pair.replace("USDT", "")
         try:
             price = get_symbol_price(symbol)
+            if price is None:
+                continue
             klines = get_klines(symbol)
             if not klines:
                 continue

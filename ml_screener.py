@@ -13,15 +13,19 @@ client = Client(api_key=os.getenv("BINANCE_API_KEY"), api_secret=os.getenv("BINA
 def get_valid_symbols() -> List[str]:
     """Return all active USDT trading pairs from Binance."""
     return [
-        s["symbol"].replace("USDT", "")
+        s["symbol"]
         for s in client.get_exchange_info()["symbols"]
-        if s["quoteAsset"] == "USDT" and s["status"] == "TRADING" and s["isSpotTradingAllowed"]
+        if s["quoteAsset"] == "USDT"
+        and s["status"] == "TRADING"
+        and s["isSpotTradingAllowed"]
     ]
 
 
 def estimate_profit(symbol: str) -> float:
     """Estimate expected profit for ``symbol`` using dynamic TP/SL."""
     price = get_symbol_price(symbol)
+    if price is None:
+        return 0.0
     klines = get_klines(symbol)
     if not klines:
         return 0.0

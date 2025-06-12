@@ -57,8 +57,10 @@ def normalize_symbol(symbol: str) -> str:
 def _to_usdt_pair(symbol: str) -> str:
     """Return ``symbol`` formatted as a USDT trading pair without duplication."""
 
-    base = normalize_symbol(symbol)
-    pair = f"{base}USDT"
+    token = symbol.upper().strip()
+    if token.endswith("USDT"):
+        return token
+    pair = f"{token}USDT"
     assert not pair.endswith("USDTUSDT"), f"Invalid pair constructed: {pair}"
     return pair
 
@@ -101,14 +103,29 @@ def refresh_valid_pairs() -> None:
 
     global VALID_PAIRS
     try:
-        VALID_PAIRS = set(
+        info = get_exchange_info_cached()
+        VALID_PAIRS = {
             s["symbol"]
-            for s in client.get_exchange_info()["symbols"]
-            if s["quoteAsset"] == "USDT" and s["status"] == "TRADING"
-        )
+            for s in info.get("symbols", [])
+            if s.get("quoteAsset") == "USDT"
+            and s.get("status") == "TRADING"
+            and s.get("isSpotTradingAllowed")
+        }
     except Exception as e:  # pragma: no cover - network errors
         logger.warning(f"⚠️ Не вдалося оновити VALID_PAIRS: {e}")
 
+
+# ---------------------------------------------------------------------------
+# Symbol helpers
+# ---------------------------------------------------------------------------
+
+def is_symbol_valid(symbol: str) -> bool:
+    """Return ``True`` if ``symbol`` is an active USDT pair."""
+
+    pair = _to_usdt_pair(symbol)
+    if not VALID_PAIRS:
+        refresh_valid_pairs()
+    return pair in VALID_PAIRS
 
 # Load available USDT trading pairs once on startup
 refresh_valid_pairs()
@@ -183,7 +200,7 @@ def get_valid_symbols(quote: str = "USDT") -> list[str]:
     """Return list of tradable symbols quoted in ``quote``."""
 
     try:
-        exchange_info = client.get_exchange_info()
+        exchange_info = get_exchange_info_cached()
     except Exception as exc:  # pragma: no cover - network errors
         logger.error(
             "%s Не вдалося отримати exchange info: %s", TELEGRAM_LOG_PREFIX, exc
@@ -193,7 +210,11 @@ def get_valid_symbols(quote: str = "USDT") -> list[str]:
     return [
         s["symbol"].upper()
         for s in exchange_info.get("symbols", [])
-        if s.get("quoteAsset") == quote and s.get("status") == "TRADING"
+        if (
+            s.get("quoteAsset") == quote
+            and s.get("status") == "TRADING"
+            and s.get("isSpotTradingAllowed")
+        )
     ]
 
 
@@ -416,18 +437,15 @@ def cancel_all_orders(symbol: str) -> None:
         logger.error("❌ Не вдалося скасувати ордери для %s: %s", symbol, exc)
 
 
-def get_symbol_price(symbol: str) -> float:
+def get_symbol_price(symbol: str) -> Optional[float]:
     """Return current price of ``symbol`` quoted in USDT."""
 
     pair = _to_usdt_pair(symbol)
     logger.debug("get_symbol_price: %s -> %s", symbol, pair)
 
-    if pair.upper() not in VALID_PAIRS:
-        logger.warning("⚠️ %s не знайдено у VALID_PAIRS, оновлюємо...", pair)
-        refresh_valid_pairs()
-        if pair.upper() not in VALID_PAIRS:
-            logger.warning("⚠️ Після оновлення %s все ще не знайдено", pair)
-            return 0.0
+    if not is_symbol_valid(symbol):
+        logger.warning("⏭️ %s не торгується на Binance", pair)
+        return None
 
     try:
         ticker = client.get_symbol_ticker(symbol=pair)
@@ -439,7 +457,7 @@ def get_symbol_price(symbol: str) -> float:
             logger.error("❌ BinanceAPIException для %s: %s", pair, exc)
     except Exception as exc:  # pragma: no cover - network errors
         logger.error("❌ Binance error for %s: %s", pair, exc)
-    return 0.0
+    return None
 
 
 def get_current_price(symbol: str) -> float:
@@ -825,6 +843,8 @@ def cancel_tp_sl_if_market_changed(symbol: str) -> None:
         return
 
     current = get_symbol_price(symbol)
+    if current is None:
+        return
     for o in orders:
         if o.get("side") != "SELL":
             continue
@@ -864,7 +884,10 @@ def get_usdt_to_uah_rate() -> float:
 def get_token_value_in_uah(symbol: str) -> float:
     """Return token price converted to UAH."""
 
-    return round(get_symbol_price(symbol) * get_usdt_to_uah_rate(), 2)
+    price = get_symbol_price(symbol)
+    if price is None:
+        return 0.0
+    return round(price * get_usdt_to_uah_rate(), 2)
 
 
 def notify_telegram(message: str) -> None:
@@ -1046,6 +1069,8 @@ def get_real_pnl_data() -> Dict[str, Dict[str, float]]:
 
             avg_price = total_cost / total_qty
             current_price = get_symbol_price(asset)
+            if current_price is None:
+                continue
             pnl_percent = round((current_price - avg_price) / avg_price * 100, 2)
 
             result[asset] = {
