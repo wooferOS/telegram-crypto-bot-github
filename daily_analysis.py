@@ -14,9 +14,10 @@ client = Client(api_key=os.getenv("BINANCE_API_KEY"), api_secret=os.getenv("BINA
 
 
 def get_valid_usdt_symbols():
-    """Повертає всі активні спотові USDT пари з Binance."""
+    """Return base symbols for all active USDT pairs."""
 
-    return get_valid_symbols("USDT")
+    pairs = get_valid_symbols("USDT")
+    return [p.replace("USDT", "") for p in pairs]
 
 from binance_api import (
     get_binance_balances,
@@ -301,7 +302,8 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
     )
     symbols_to_analyze = []
     for sym in symbols:
-        if sym.upper() in valid_symbols:
+        pair = f"{sym.upper()}USDT"
+        if pair in valid_symbols:
             symbols_to_analyze.append(sym)
         else:
             logger.info(
