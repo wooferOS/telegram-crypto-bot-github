@@ -117,12 +117,13 @@ def _maybe_update_orders(symbol: str, new_tp: float, new_sl: float) -> bool:
 
 def execute_buy_order(symbol: str, amount_usdt: float):
     try:
-        price = get_symbol_price(symbol)
+        pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
+        price = get_symbol_price(pair)
         if price is None:
             logger.warning("Price unavailable for %s", symbol)
             return
         quantity = round(amount_usdt / price, 5)
-        buy_order = place_market_order(symbol, "BUY", amount_usdt)
+        buy_order = place_market_order(pair, "BUY", amount_usdt)
         if not buy_order or (isinstance(buy_order, dict) and "error" in buy_order):
             logger.warning(f"⚠️ Купівля {symbol} не виконана")
             return
@@ -185,10 +186,11 @@ def enrich_with_metrics(candidates: list[dict]) -> list[dict]:
         if not symbol:
             continue
 
-        price = token.get("price") or get_symbol_price(symbol)
+        pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
+        price = token.get("price") or get_symbol_price(pair)
         if price is None:
             continue
-        klines = get_klines(symbol)
+        klines = get_klines(pair)
         if not klines:
             continue
         indicators = calculate_indicators(klines)
@@ -201,7 +203,7 @@ def enrich_with_metrics(candidates: list[dict]) -> list[dict]:
 
         enriched.append(
             {
-                "symbol": symbol,
+                "symbol": pair,
                 "price": price,
                 "risk_reward": rr,
                 "tp_price": token.get("tp_price") or tp_def,
@@ -211,7 +213,7 @@ def enrich_with_metrics(candidates: list[dict]) -> list[dict]:
                 "sector_score": token.get("sector_score", 0),
                 "success_score": get_success_score(symbol),
                 "orderbook_bias": token.get("orderbook_bias", 0),
-                "btc_corr": token.get("btc_corr") if "btc_corr" in token else analyze_btc_correlation(symbol),
+                "btc_corr": token.get("btc_corr") if "btc_corr" in token else analyze_btc_correlation(pair),
             }
         )
     return enriched
@@ -255,24 +257,26 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
         if symbol not in load_tradable_usdt_symbols():
             continue
 
-        price = get_symbol_price(symbol)
+        pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
+
+        price = get_symbol_price(pair)
         if price is None:
             continue
         uah_value = convert_to_uah(price * amount)
-        klines = get_klines(symbol)
+        klines = get_klines(pair)
         if not klines:
             continue
-        trades = get_my_trades(f"{symbol}USDT")
+        trades = get_my_trades(pair)
         indicators = calculate_indicators(klines)
         average_buy_price = sum([float(t['price']) * float(t['qty']) for t in trades]) / sum([float(t['qty']) for t in trades]) if trades else price
         pnl_percent = ((price - average_buy_price) / average_buy_price) * 100
         rr = calculate_rr(klines)
-        volume_24h = sum(float(k[5]) for k in get_price_history(symbol)) if klines else 0
+        volume_24h = sum(float(k[5]) for k in get_price_history(pair)) if klines else 0
         sector = get_sector(symbol)
-        btc_corr = analyze_btc_correlation(symbol)
+        btc_corr = analyze_btc_correlation(pair)
 
         token_data.append({
-            "symbol": symbol,
+            "symbol": pair,
             "amount": amount,
             "quantity": amount,
             "uah_value": round(uah_value, 2),
@@ -429,12 +433,13 @@ async def auto_trade_loop():
             _, sell_recommendations, buy_candidates, _ = generate_zarobyty_report()
 
             for token in sell_recommendations:
-                symbol = f"{token['symbol']}USDT"
+                symbol = token["symbol"]
+                pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
                 quantity = token.get("quantity") or token.get("amount")
                 if not quantity:
                     try:
-                        price = get_symbol_price(token["symbol"])
-                        bal = get_token_balance(token["symbol"])
+                        price = get_symbol_price(pair)
+                        bal = get_token_balance(symbol.replace("USDT", ""))
                         if bal and price:
                             quantity = bal
                         elif token.get("balance"):
@@ -443,11 +448,11 @@ async def auto_trade_loop():
                         logger.warning("Balance check failed for %s: %s", symbol, exc)
                         quantity = 0
                 try:
-                    place_market_order(token["symbol"], "SELL", quantity)
-                    price = get_symbol_price(token["symbol"])
+                    place_market_order(pair, "SELL", quantity)
+                    price = get_symbol_price(pair)
                     if price is not None:
-                        log_trade("SELL", token["symbol"], quantity, price)
-                        add_trade(token["symbol"], "SELL", quantity, price)
+                        log_trade("SELL", pair, quantity, price)
+                        add_trade(pair, "SELL", quantity, price)
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("Auto-sell error for %s: %s", symbol, exc)
                     from telegram_bot import bot, ADMIN_CHAT_ID
@@ -616,17 +621,20 @@ def demo_candidates_loop(symbols: list[str]) -> list[dict]:
     model = load_model()
     results: list[dict] = []
     for pair in symbols:
-        symbol = pair.replace("USDT", "")
+        pair = pair.upper()
+        if not pair.endswith("USDT"):
+            pair = f"{pair}USDT"
+        symbol = pair
         try:
-            price = get_symbol_price(symbol)
+            price = get_symbol_price(pair)
             if price is None:
                 continue
-            klines = get_klines(symbol)
+            klines = get_klines(pair)
             if not klines:
                 continue
             closes = [float(k[4]) for k in klines]
             tp, sl = dynamic_tp_sl(closes, price)
-            feature_vector, _, _ = generate_features(symbol)
+            feature_vector, _, _ = generate_features(pair)
             prob_up = predict_prob_up(model, feature_vector) if model else 0.5
             expected_profit = calculate_expected_profit(price, tp, 10, sl)
         except Exception as exc:  # noqa: BLE001
