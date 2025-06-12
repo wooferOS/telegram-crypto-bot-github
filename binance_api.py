@@ -404,6 +404,30 @@ def convert_dust_to_usdt(assets: Optional[List[str]] = None) -> Optional[dict]:
         return None
 
 
+def convert_small_balance(from_asset: str, to_asset: str = "USDT") -> None:
+    """Convert ``from_asset`` to ``to_asset`` via Binance Convert API."""
+
+    try:
+        client.convert_trade(
+            fromAsset=from_asset,
+            toAsset=to_asset,
+            amount=None,  # Binance визначає кількість автоматично
+            type="MARKET",
+        )
+        logger.info(
+            "\U0001F501 Конвертовано %s → %s через Binance Convert",
+            from_asset,
+            to_asset,
+        )
+    except BinanceAPIException as exc:
+        logger.error(
+            "\u274c Помилка конвертації %s → %s: %s",
+            from_asset,
+            to_asset,
+            exc,
+        )
+
+
 def get_account_balances() -> Dict[str, Dict[str, str]]:
     """Return mapping of assets to their free and locked amounts."""
 
@@ -514,6 +538,11 @@ def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[s
             )
         print(f"✅ Order placed: {order}")
         return order
+    except BinanceAPIException as e:
+        print(f"❌ Order error for {pair}: {e}")
+        if "LOT_SIZE" in str(e):
+            convert_small_balance(base)
+        return None
     except Exception as e:
         print(f"❌ Order error for {pair}: {e}")
         return None
@@ -593,6 +622,8 @@ def market_sell(symbol: str, quantity: float) -> dict:
 
     except BinanceAPIException as e:
         logger.error(f"\u274c Помилка при ринковому продажі {symbol}: {str(e)}")
+        if "LOT_SIZE" in str(e):
+            convert_small_balance(symbol.replace("USDT", ""))
         return {"status": "error", "message": str(e)}
 
 def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
