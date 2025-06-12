@@ -2,6 +2,7 @@
 # Мета: максимізувати прибуток за добу, діючи в рамках поточного балансу Binance
 
 import datetime
+import asyncio
 import pytz
 import statistics
 import logging
@@ -35,6 +36,7 @@ from binance_api import (
     get_open_orders,
     update_tp_sl_order,
     log_tp_sl_change,
+    get_usdt_balance,
 )
 from binance_api import get_candlestick_klines
 from gpt_utils import ask_gpt
@@ -53,7 +55,6 @@ from utils import (
 )
 from history import _load_history, get_failed_tokens_history
 from coingecko_api import get_sentiment
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from ml_model import (
     load_model,
     generate_features,
@@ -66,7 +67,7 @@ symbols = get_valid_usdt_symbols()
 logger = logging.getLogger(__name__)
 
 # Global minimum thresholds
-MIN_EXPECTED_PROFIT = 0.005  # 0.5%
+MIN_EXPECTED_PROFIT = 0.001  # 0.1%
 MIN_PROB_UP = 0.55
 MIN_VOLUME = 100_000
 
@@ -229,7 +230,7 @@ def get_success_score(symbol: str) -> float:
             last_buy = None
     return round(profit / len(trades), 2)
 
-def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
+def generate_zarobyty_report() -> tuple[str, list, list, str]:
     balances = get_binance_balances()
     usdt_balance = balances.get("USDT", 0) or 0
     now = datetime.datetime.now(pytz.timezone("Europe/Kyiv"))
@@ -313,23 +314,15 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
 
     buy_candidates.sort(key=lambda x: x["score"], reverse=True)
 
-    # Якщо немає сильних кандидатів — вибрати найкращого fallback
+    # Якщо немає сильних кандидатів — fallback до найкращого доступного
     if not buy_candidates and enriched_tokens:
-        print("⚠️ Немає сильних сигналів — fallback до найкращого доступного")
         enriched_tokens.sort(key=lambda x: x["score"], reverse=True)
-        best = enriched_tokens[0]
-        buy_candidates.append(
-            {
-                "symbol": best["symbol"],
-                "expected_profit": best["expected_profit"],
-                "prob_up": best["prob_up"],
-                "note": "🟡 Fallback: слабкий сигнал",
-            }
-        )
+        fallback = enriched_tokens[0]
+        if fallback.get("expected_profit", 0) > MIN_EXPECTED_PROFIT:
+            buy_candidates.append(fallback)
 
     buy_plan = buy_candidates
     candidate_lines = [t["symbol"] for t in buy_plan[:3]]
-    updates: list[tuple[str, float, float]] = []
 
     # 📝 Final report
     report_lines = []
@@ -361,25 +354,7 @@ def generate_zarobyty_report() -> tuple[str, InlineKeyboardMarkup, list, str]:
     report_lines.append(f"💹 Очікуваний прибуток: {expected_profit_usdt} USDT ≈ {expected_profit_uah}₴ за 24г")
 
     report = "\n".join(report_lines)
-    keyboard = InlineKeyboardMarkup(row_width=2)
-
-    for token in sell_recommendations:
-        keyboard.insert(
-            InlineKeyboardButton(
-                text=f"🔴 Продати {token['symbol']}",
-                callback_data=f"sell:{token['symbol']}"
-            )
-        )
-
-    for token in buy_plan:
-        keyboard.insert(
-            InlineKeyboardButton(
-                text=f"🟢 Купити {token['symbol']}",
-                callback_data=f"buy:{token['symbol']}"
-            )
-        )
-
-    return report, keyboard, updates, ""
+    return report, sell_recommendations, buy_plan, ""
 
 
 
@@ -391,14 +366,9 @@ def generate_daily_stats_report() -> str:
 
 async def daily_analysis_task(bot, chat_id: int) -> None:
     """Run daily analysis and notify about TP/SL updates."""
-    report, _, updates, gpt_text = generate_zarobyty_report()
+    report, _, _, gpt_text = generate_zarobyty_report()
     full_text = f"{report}\n\n{gpt_text}"
     await send_message_parts(bot, chat_id, full_text)
-    for symbol, tp_price, sl_price in updates:
-        await bot.send_message(
-            chat_id,
-            f"\u267B\ufe0f Ордер оновлено: {symbol} — новий TP: {tp_price}, SL: {sl_price}"
-        )
 
 
 async def send_zarobyty_forecast(bot, chat_id: int) -> None:
@@ -406,6 +376,40 @@ async def send_zarobyty_forecast(bot, chat_id: int) -> None:
     _, _, _, gpt_text = generate_zarobyty_report()
     for part in split_telegram_message(gpt_text, 4000):
         await bot.send_message(chat_id, part)
+
+
+async def auto_trade_loop():
+    """Run continuous auto-trading every 10 minutes."""
+
+    while True:
+        try:
+            _, sell_recommendations, buy_candidates, _ = generate_zarobyty_report()
+
+            for token in sell_recommendations:
+                symbol = f"{token['symbol']}USDT"
+                quantity = token.get("quantity")
+                try:
+                    place_market_order(token["symbol"], "SELL", quantity)
+                    print(f"✅ SELL {symbol} qty={quantity}")
+                except Exception as exc:  # noqa: BLE001
+                    print(f"❌ Auto-sell error for {symbol}: {exc}")
+
+            if buy_candidates:
+                candidate = buy_candidates[0]
+                symbol = f"{candidate['symbol']}USDT"
+                balance = get_usdt_balance()
+                amount_usdt = min(20, balance)
+                if amount_usdt > 0:
+                    try:
+                        place_market_order(candidate["symbol"], "BUY", amount_usdt)
+                        print(f"✅ BUY {symbol} for ${amount_usdt}")
+                    except Exception as exc:  # noqa: BLE001
+                        print(f"❌ Auto-buy error for {symbol}: {exc}")
+
+        except Exception as e:  # noqa: BLE001
+            print(f"❌ Auto-trade error: {e}")
+
+        await asyncio.sleep(600)
 
 # Adaptive filters for selecting buy candidates
 from utils import (

@@ -304,7 +304,7 @@ async def zarobyty_cmd(message: types.Message) -> None:
 
     await message.answer("⏳ Формую звіт...")
 
-    report, _, updates, gpt_text = generate_zarobyty_report()
+    report, _, _, gpt_text = generate_zarobyty_report()
     if not report:
         await message.answer(
             "⚠️ Звіт наразі недоступний. Спробуйте пізніше."
@@ -327,10 +327,6 @@ async def zarobyty_cmd(message: types.Message) -> None:
         )
         keyboard.add(btn)
 
-    for sym, tp, sl in updates:
-        await message.answer(
-            f"\u267B\ufe0f Ордер оновлено: {sym} — новий TP: {tp}, SL: {sl}"
-        )
 
     await message.answer(report, parse_mode="Markdown", reply_markup=keyboard)
     MAX_LEN = 4000
