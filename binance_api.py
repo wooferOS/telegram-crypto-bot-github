@@ -176,6 +176,24 @@ def load_tradable_usdt_symbols() -> set[str]:
     return cached_usdt_pairs
 
 
+def get_valid_symbols(quote: str = "USDT") -> list[str]:
+    """Return list of tradable symbols quoted in ``quote``."""
+
+    try:
+        info = get_exchange_info()
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.error("%s Не вдалося отримати exchange info: %s", TELEGRAM_LOG_PREFIX, exc)
+        return []
+
+    return [
+        s["symbol"]
+        for s in info.get("symbols", [])
+        if s.get("quoteAsset") == quote
+        and s.get("status") == "TRADING"
+        and s.get("isSpotTradingAllowed")
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Account helpers
 # ---------------------------------------------------------------------------
@@ -390,22 +408,27 @@ def cancel_all_orders(symbol: str) -> None:
 
 
 def get_symbol_price(symbol: str) -> float:
-    """Return current price of token to USDT."""
+    """Return current price of ``symbol`` quoted in USDT."""
 
-    base = normalize_symbol(symbol)
-    pair = f"{base}USDT"
+    pair = symbol.upper()
+    if not pair.endswith("USDT"):
+        pair = f"{pair}USDT"
+
     if pair not in VALID_PAIRS:
         logger.warning("⚠️ %s не знайдено у VALID_PAIRS, оновлюємо...", pair)
         refresh_valid_pairs()
         if pair not in VALID_PAIRS:
             logger.warning("⚠️ Після оновлення %s все ще не знайдено", pair)
             return 0.0
+
     try:
         ticker = client.get_symbol_ticker(symbol=pair)
         return float(ticker.get("price", 0))
-    except Exception as exc:
-        logger.error("\u274c Binance error for %s: %s", pair, exc)
-        return 0.0
+    except BinanceAPIException as exc:  # pragma: no cover - network errors
+        logger.error("❌ BinanceAPIException для %s: %s", pair, exc)
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.error("❌ Binance error for %s: %s", pair, exc)
+    return 0.0
 
 
 def get_current_price(symbol: str) -> float:
