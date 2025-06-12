@@ -57,15 +57,22 @@ def dynamic_tp_sl(closes: List[float], price: float) -> tuple[float, float]:
 
 def estimate_profit(symbol: str) -> float:
     """Estimate expected profit for ``symbol`` using dynamic TP/SL."""
+    print(f"🔍 estimate_profit(): symbol={symbol}")
     price = get_symbol_price(symbol)
     if price is None:
-        return 0.0
+        expected_profit = 0.0
+        print(f"🧮 Estimated profit for {symbol} = {expected_profit}")
+        return expected_profit
     klines = get_candlestick_klines(symbol)
     if not klines:
-        return 0.0
+        expected_profit = 0.0
+        print(f"🧮 Estimated profit for {symbol} = {expected_profit}")
+        return expected_profit
     closes = [float(k[4]) for k in klines]
     tp, sl = dynamic_tp_sl(closes, price)
-    return calculate_expected_profit(price, tp, amount=10, sl_price=sl)
+    expected_profit = calculate_expected_profit(price, tp, amount=10, sl_price=sl)
+    print(f"🧮 Estimated profit for {symbol} = {expected_profit}")
+    return expected_profit
 
 
 def calculate_indicators(klines: List[List[float]]) -> Dict[str, float]:
