@@ -58,6 +58,8 @@ def dynamic_tp_sl(closes: List[float], price: float) -> tuple[float, float]:
 def estimate_profit(symbol: str) -> float:
     """Estimate expected profit for ``symbol`` using dynamic TP/SL."""
     price = get_symbol_price(symbol)
+    if price is None:
+        return 0.0
     klines = get_candlestick_klines(symbol)
     if not klines:
         return 0.0
