@@ -8,16 +8,12 @@ import statistics
 import logging
 import os
 import numpy as np
-from binance.client import Client
-
-client = Client(api_key=os.getenv("BINANCE_API_KEY"), api_secret=os.getenv("BINANCE_API_SECRET"))
 
 
-def get_valid_usdt_symbols():
-    """Return base symbols for all active USDT pairs."""
+def get_valid_usdt_symbols() -> list[str]:
+    """Return all active USDT trading pairs."""
 
-    pairs = get_valid_symbols("USDT")
-    return [p.replace("USDT", "") for p in pairs]
+    return get_valid_symbols("USDT")
 
 from binance_api import (
     get_binance_balances,
@@ -300,10 +296,9 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
         len(valid_symbols),
         valid_symbols[:10],
     )
-    symbols_to_analyze = []
+    symbols_to_analyze: list[str] = []
     for sym in symbols:
-        pair = f"{sym.upper()}USDT"
-        if pair in valid_symbols:
+        if sym in valid_symbols:
             symbols_to_analyze.append(sym)
         else:
             logger.info(
@@ -455,7 +450,7 @@ async def auto_trade_loop():
                     await asyncio.sleep(TRADE_LOOP_INTERVAL)
                     continue
                 for candidate in buy_candidates:
-                    pair = f"{candidate['symbol']}USDT".upper()
+                    pair = candidate["symbol"].upper()
                     if pair not in valid_pairs:
                         continue
                     price = get_symbol_price(candidate["symbol"])
