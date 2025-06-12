@@ -48,6 +48,12 @@ EXCHANGE_INFO_TTL = 60 * 60 * 12
 cached_usdt_pairs: set[str] = set()
 
 
+def normalize_symbol(symbol: str) -> str:
+    """Return base symbol without the USDT suffix."""
+
+    return symbol.upper().replace("USDT", "")
+
+
 def _to_usdt_pair(symbol: str) -> str:
     """Return ``symbol`` formatted as an USDT trading pair."""
 
@@ -83,6 +89,13 @@ print(f"[DEBUG] API: {BINANCE_API_KEY[:6]}..., SECRET: {BINANCE_SECRET_KEY[:6]}.
 
 # Initialise global Binance client exactly as in Binance docs
 client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
+
+# Load available USDT trading pairs once on startup
+VALID_PAIRS = set(
+    s["symbol"]
+    for s in client.get_exchange_info()["symbols"]
+    if s["quoteAsset"] == "USDT" and s["status"] == "TRADING"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -365,12 +378,16 @@ def cancel_all_orders(symbol: str) -> None:
 def get_symbol_price(symbol: str) -> float:
     """Return current price of token to USDT."""
 
+    base = normalize_symbol(symbol)
+    pair = f"{base}USDT"
+    if pair not in VALID_PAIRS:
+        logger.warning("\u26a0\ufe0f \u041f\u0440\u043e\u043f\u0443\u0449\u0435\u043d\u043e %s: Token \u043d\u0435 \u0442\u043e\u0440\u0433\u0443\u0454\u0442\u044c\u0441\u044f \u043d\u0430 Binance", pair)
+        return 0.0
     try:
-        pair = _to_usdt_pair(symbol)
         ticker = client.get_symbol_ticker(symbol=pair)
         return float(ticker.get("price", 0))
     except Exception as exc:
-        logger.error("%s Помилка ціни для %s: %s", TELEGRAM_LOG_PREFIX, symbol, exc)
+        logger.error("\u274c Binance error for %s: %s", pair, exc)
         return 0.0
 
 
@@ -383,19 +400,27 @@ def get_current_price(symbol: str) -> float:
 def get_token_price(symbol: str) -> dict:
     """Return token price with symbol."""
 
+    base = normalize_symbol(symbol)
+    pair = f"{base}USDT"
+    if pair not in VALID_PAIRS:
+        logger.warning("\u26a0\ufe0f \u041f\u0440\u043e\u043f\u0443\u0449\u0435\u043d\u043e %s: Token \u043d\u0435 \u0442\u043e\u0440\u0433\u0443\u0454\u0442\u044c\u0441\u044f \u043d\u0430 Binance", pair)
+        return {"symbol": base, "price": "0"}
     try:
-        pair = _to_usdt_pair(symbol)
         ticker = client.get_symbol_ticker(symbol=pair)
-        return {"symbol": symbol.upper(), "price": ticker.get("price", "0")}
+        return {"symbol": base, "price": ticker.get("price", "0")}
     except Exception as exc:  # pragma: no cover - network errors
-        logger.error("%s Помилка при отриманні ціни %s: %s", TELEGRAM_LOG_PREFIX, symbol, exc)
-        return {"symbol": symbol.upper(), "price": "0"}
+        logger.error("\u274c Binance error for %s: %s", pair, exc)
+        return {"symbol": base, "price": "0"}
 
 
 def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[str, object]]:
     """Place a market order for ``symbol`` on Binance."""
 
-    pair = _to_usdt_pair(symbol)
+    base = normalize_symbol(symbol)
+    pair = f"{base}USDT"
+    if pair not in VALID_PAIRS:
+        logger.warning("\u26a0\ufe0f \u041f\u0440\u043e\u043f\u0443\u0449\u0435\u043d\u043e %s: Token \u043d\u0435 \u0442\u043e\u0440\u0433\u0443\u0454\u0442\u044c\u0441\u044f \u043d\u0430 Binance", pair)
+        return None
     try:
         if side.upper() == "BUY":
             order = client.create_order(
@@ -414,7 +439,7 @@ def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[s
         print(f"✅ Order placed: {order}")
         return order
     except Exception as e:
-        print(f"❌ Order error for {symbol}: {e}")
+        print(f"❌ Order error for {pair}: {e}")
         return None
 
 
@@ -422,12 +447,16 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
     """Buy ``symbol`` using market order for a specified USDT amount."""
 
     try:
-        price = get_current_price(symbol)
+        base = normalize_symbol(symbol)
+        pair = f"{base}USDT"
+        if pair not in VALID_PAIRS:
+            raise Exception(f"Token {pair} \u043d\u0435 \u0442\u043e\u0440\u0433\u0443\u0454\u0442\u044c\u0441\u044f \u043d\u0430 Binance")
+
+        price = get_symbol_price(base)
         if not price:
             raise Exception("Price unavailable")
 
         quantity = round(amount / price, 6)
-        pair = _to_usdt_pair(symbol)
         return client.create_order(
             symbol=pair,
             side=SIDE_BUY,
