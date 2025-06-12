@@ -8,6 +8,7 @@ cd ~/telegram-crypto-bot-github || exit 1
 
 echo "$(date '+%F %T') 📦 Встановлення системних залежностей..."
 sudo apt update && sudo apt install -y build-essential python3-dev
+pip install wheel
 
 echo "$(date '+%F %T') 📦 Оновлення pip та перевстановлення aiohttp..."
 pip install --upgrade pip setuptools wheel
