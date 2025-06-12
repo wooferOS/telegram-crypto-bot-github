@@ -310,13 +310,14 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
     success = 0
     fail = 0
     for sym in symbols:
-        if is_symbol_valid(sym):
-            symbols_to_analyze.append(sym)
+        pair = sym if sym.endswith("USDT") else f"{sym}USDT"
+        if is_symbol_valid(pair):
+            symbols_to_analyze.append(pair)
             success += 1
         else:
             logger.info(
                 "⏭️ Пропущено %s: не торгується. valid_symbols=%s",
-                sym,
+                pair,
                 valid_symbols,
             )
             fail += 1
