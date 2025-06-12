@@ -296,7 +296,7 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
         })
 
     # 🔻 Sell recommendations
-    sell_recommendations = [t for t in token_data if t["pnl"] >= 1.0]
+    sell_recommendations = [t for t in token_data if t["pnl"] >= 0.0]
     sell_symbols = {t["symbol"] for t in sell_recommendations}
     exchange_rate_uah = get_usdt_to_uah_rate()
     usdt_from_sales = sum([t["uah_value"] for t in sell_recommendations]) / exchange_rate_uah
@@ -371,7 +371,10 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
     if not buy_candidates and enriched_tokens:
         enriched_tokens.sort(key=lambda x: x["score"], reverse=True)
         fallback = enriched_tokens[0]
-        buy_candidates.append(fallback)  # додавати навіть якщо нижче порогу
+        print(
+            f"\u26A0\ufe0f No candidates passed filters, forcing fallback: {fallback['symbol']}"
+        )
+        buy_candidates.append(fallback)  # Додаємо, навіть якщо не проходить фільтр
 
     # 🟢 Сортуємо й обираємо токени на купівлю (TOP 3)
     buy_plan = sorted(buy_candidates, key=lambda x: x["score"], reverse=True)[:3]
@@ -452,6 +455,8 @@ async def auto_trade_loop():
     while True:
         try:
             _, sell_recommendations, buy_candidates, _ = generate_zarobyty_report()
+            print(f"🧾 SELL candidates: {len(sell_recommendations)}")
+            print(f"🧾 BUY candidates: {len(buy_candidates)}")
 
             for token in sell_recommendations:
                 symbol = token["symbol"]
