@@ -428,6 +428,65 @@ def convert_small_balance(from_asset: str, to_asset: str = "USDT") -> None:
         )
 
 
+def convert_to_usdt(asset: str, amount: float):
+    """Convert ``asset`` amount to USDT using Binance Convert API."""
+
+    logger.info("🔁 Спроба конвертації %s %s в USDT", amount, asset)
+
+    # Try client.convert_trade if available
+    try:
+        if hasattr(client, "convert_trade"):
+            result = client.convert_trade(asset, "USDT", amount)
+            if result.get("status") != "SUCCESS":
+                raise Exception(f"Convert API повернув помилку: {result}")
+            logger.info("✅ Конвертовано %s %s у USDT", amount, asset)
+            return result
+    except Exception as exc:  # pragma: no cover - handle below
+        logger.warning("convert_trade fallback: %s", exc)
+
+    import hmac
+    import hashlib
+    import urllib.parse
+    import requests
+    import time
+
+    base_url = "https://api.binance.com"
+    endpoint = "/sapi/v1/convert/getQuote"
+    accept_endpoint = "/sapi/v1/convert/acceptQuote"
+
+    timestamp = int(time.time() * 1000)
+    params = {
+        "fromAsset": asset,
+        "toAsset": "USDT",
+        "fromAmount": str(amount),
+        "timestamp": timestamp,
+    }
+
+    query_string = urllib.parse.urlencode(params)
+    signature = hmac.new(BINANCE_SECRET_KEY.encode(), query_string.encode(), hashlib.sha256).hexdigest()
+    headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
+
+    quote_url = f"{base_url}{endpoint}?{query_string}&signature={signature}"
+    r = requests.post(quote_url, headers=headers)
+    quote = r.json()
+    if "quoteId" not in quote:
+        raise Exception(f"❌ Convert quote помилка: {quote}")
+    logger.info("🧾 Отримано котирування: %s", quote)
+
+    time.sleep(1)
+    accept_params = {"quoteId": quote["quoteId"], "timestamp": int(time.time() * 1000)}
+    accept_qs = urllib.parse.urlencode(accept_params)
+    signature2 = hmac.new(BINANCE_SECRET_KEY.encode(), accept_qs.encode(), hashlib.sha256).hexdigest()
+    accept_url = f"{base_url}{accept_endpoint}?{accept_qs}&signature={signature2}"
+    r2 = requests.post(accept_url, headers=headers)
+    result = r2.json()
+    if "orderId" not in result:
+        raise Exception(f"❌ Accept quote помилка: {result}")
+
+    logger.info("✅ Успішно конвертовано %s %s в USDT: %s", amount, asset, result)
+    return result
+
+
 def get_account_balances() -> Dict[str, Dict[str, str]]:
     """Return mapping of assets to their free and locked amounts."""
 
@@ -541,7 +600,7 @@ def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[s
     except BinanceAPIException as e:
         print(f"❌ Order error for {pair}: {e}")
         if "LOT_SIZE" in str(e):
-            convert_small_balance(base)
+            convert_to_usdt(base, amount)
         return None
     except Exception as e:
         print(f"❌ Order error for {pair}: {e}")
@@ -604,26 +663,22 @@ def market_sell(symbol: str, quantity: float) -> dict:
     """Виконує ринковий продаж криптовалюти на вказану кількість."""
 
     try:
-        order = client.order_market_sell(
-            symbol=symbol,
-            quantity=round(quantity, 6),
-        )
-
-        executed_qty = order["executedQty"]
-        logger.info(
-            f"\u2705 Продано {executed_qty} {symbol}. Ордер ID: {order['orderId']}"
-        )
-        return {
-            "status": "success",
-            "order_id": order["orderId"],
-            "symbol": symbol,
-            "executedQty": executed_qty,
-        }
-
+        client.order_market_sell(symbol=symbol, quantity=quantity)
+        logger.info("✅ Продано %s %s", quantity, symbol)
+        return {"status": "success"}
     except BinanceAPIException as e:
-        logger.error(f"\u274c Помилка при ринковому продажі {symbol}: {str(e)}")
         if "LOT_SIZE" in str(e):
-            convert_small_balance(symbol.replace("USDT", ""))
+            logger.warning(
+                "⚠️ Не вдалося продати %s через LOT_SIZE — пробуємо конвертацію",
+                symbol,
+            )
+            try:
+                base_asset = symbol.replace("USDT", "")
+                convert_to_usdt(base_asset, quantity)
+            except Exception as ce:  # pragma: no cover - network errors
+                logger.error("❌ Помилка при конвертації %s: %s", symbol, ce)
+        else:
+            logger.error("❌ Помилка при продажі %s: %s", symbol, e)
         return {"status": "error", "message": str(e)}
 
 
@@ -650,21 +705,8 @@ def sell_asset(symbol: str, quantity: float) -> dict:
         if "LOT_SIZE" in str(e):
             logger.warning("\u2757 LOT_SIZE error, спроба конвертації %s → USDT", symbol)
             try:
-                from_symbol = symbol.replace("USDT", "")
-                bal = client.get_asset_balance(asset=from_symbol)
-                amount = float(bal.get("free", 0)) if bal else 0.0
-                params = {
-                    "fromAsset": from_symbol,
-                    "toAsset": "USDT",
-                    "amount": amount,
-                    "type": "MARKET",
-                    "timestamp": get_timestamp(),
-                }
-                signed = sign_request(params)
-                url = f"{BINANCE_BASE_URL}/sapi/v1/asset/convert"
-                resp = requests.post(url, headers=get_headers(), params=signed, timeout=10)
-                resp.raise_for_status()
-                logger.info("\U0001F501 Конвертовано %s → USDT", from_symbol)
+                base_asset = symbol.replace("USDT", "")
+                convert_to_usdt(base_asset, quantity)
                 return {"status": "converted"}
             except Exception as conv_e:  # pragma: no cover - network errors
                 logger.error("\u26D4\ufe0f Помилка при конвертації %s: %s", symbol, conv_e)
