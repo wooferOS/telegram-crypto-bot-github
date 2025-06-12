@@ -626,6 +626,51 @@ def market_sell(symbol: str, quantity: float) -> dict:
             convert_small_balance(symbol.replace("USDT", ""))
         return {"status": "error", "message": str(e)}
 
+
+def sell_asset(symbol: str, quantity: float) -> dict:
+    """Sell ``symbol`` with fallback to Binance Convert on LOT_SIZE error."""
+
+    try:
+        # звичайна спроба продати
+        order = client.order_market_sell(symbol=symbol, quantity=round(quantity, 6))
+        executed_qty = order["executedQty"]
+        logger.info(
+            "\u2705 Продано %s %s. Ордер ID: %s",
+            executed_qty,
+            symbol,
+            order["orderId"],
+        )
+        return {
+            "status": "success",
+            "order_id": order["orderId"],
+            "symbol": symbol,
+            "executedQty": executed_qty,
+        }
+    except BinanceAPIException as e:
+        if "LOT_SIZE" in str(e):
+            logger.warning("\u2757 LOT_SIZE error, спроба конвертації %s → USDT", symbol)
+            try:
+                from_symbol = symbol.replace("USDT", "")
+                bal = client.get_asset_balance(asset=from_symbol)
+                amount = float(bal.get("free", 0)) if bal else 0.0
+                params = {
+                    "fromAsset": from_symbol,
+                    "toAsset": "USDT",
+                    "amount": amount,
+                    "type": "MARKET",
+                    "timestamp": get_timestamp(),
+                }
+                signed = sign_request(params)
+                url = f"{BINANCE_BASE_URL}/sapi/v1/asset/convert"
+                resp = requests.post(url, headers=get_headers(), params=signed, timeout=10)
+                resp.raise_for_status()
+                logger.info("\U0001F501 Конвертовано %s → USDT", from_symbol)
+                return {"status": "converted"}
+            except Exception as conv_e:  # pragma: no cover - network errors
+                logger.error("\u26D4\ufe0f Помилка при конвертації %s: %s", symbol, conv_e)
+                return {"status": "error", "message": str(conv_e)}
+        raise
+
 def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
     """Place a limit sell order on Binance."""
 
