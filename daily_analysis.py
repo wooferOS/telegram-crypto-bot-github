@@ -690,7 +690,6 @@ if __name__ == "__main__":
 
     if TELEGRAM_TOKEN and CHAT_ID:
         bot = Bot(token=TELEGRAM_TOKEN)
-        # asyncio.run(daily_analysis_task(bot, int(CHAT_ID)))
-        asyncio.run(auto_trade_loop())  # ← Увімкни цей рядок
+        asyncio.run(auto_trade_loop())
     else:
         print("❌ TELEGRAM_TOKEN або CHAT_ID не встановлено")
