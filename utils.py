@@ -7,7 +7,7 @@ from binance_api import (
     get_usdt_to_uah_rate,
     get_price_history_24h,
     get_symbol_price,
-    get_candlestick_klines,
+    get_candlestick_klines as get_klines,
 )
 
 
@@ -55,24 +55,37 @@ def dynamic_tp_sl(closes: List[float], price: float) -> tuple[float, float]:
     return tp, sl
 
 
-def estimate_profit(symbol: str) -> float:
-    """Estimate expected profit for ``symbol`` using dynamic TP/SL."""
-    print(f"🔍 estimate_profit(): symbol={symbol}")
-    price = get_symbol_price(symbol)
-    if price is None:
-        expected_profit = 0.0
-        print(f"🧮 Estimated profit for {symbol} = {expected_profit}")
+def estimate_profit_debug(symbol: str) -> float:
+    try:
+        pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
+        price = get_symbol_price(pair)
+        if price is None or price <= 0:
+            print(f"⚠️ estimate_profit: no price for {pair}")
+            return 0.0
+
+        klines = get_klines(pair)
+        if not klines:
+            print(f"⚠️ estimate_profit: no klines for {pair}")
+            return 0.0
+
+        closes = [float(k[4]) for k in klines]
+        tp_price, sl_price = dynamic_tp_sl(closes, price)
+
+        expected_profit = calculate_expected_profit(
+            price=price,
+            tp_price=tp_price,
+            amount=10,
+            sl_price=sl_price,
+            success_rate=0.75,
+            fee=0.001,
+        )
+        print(
+            f"🧮 {symbol}: price={price}, tp={tp_price}, sl={sl_price}, exp={expected_profit}"
+        )
         return expected_profit
-    klines = get_candlestick_klines(symbol)
-    if not klines:
-        expected_profit = 0.0
-        print(f"🧮 Estimated profit for {symbol} = {expected_profit}")
-        return expected_profit
-    closes = [float(k[4]) for k in klines]
-    tp, sl = dynamic_tp_sl(closes, price)
-    expected_profit = calculate_expected_profit(price, tp, amount=10, sl_price=sl)
-    print(f"🧮 Estimated profit for {symbol} = {expected_profit}")
-    return expected_profit
+    except Exception as e:
+        print(f"❌ estimate_profit error for {symbol}: {e}")
+        return 0.0
 
 
 def calculate_indicators(klines: List[List[float]]) -> Dict[str, float]:
