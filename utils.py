@@ -4,6 +4,8 @@ from typing import List, Dict, Optional
 from binance_api import (
     get_usdt_to_uah_rate,
     get_price_history_24h,
+    get_symbol_price,
+    get_candlestick_klines,
 )
 
 
@@ -49,6 +51,17 @@ def dynamic_tp_sl(closes: List[float], price: float) -> tuple[float, float]:
     tp = round(price * (1 + min(0.15, 2.0 * factor)), 6)
     sl = round(price * (1 - max(0.03, 0.5 * factor)), 6)
     return tp, sl
+
+
+def estimate_profit(symbol: str) -> float:
+    """Estimate expected profit for ``symbol`` using dynamic TP/SL."""
+    price = get_symbol_price(symbol)
+    klines = get_candlestick_klines(symbol)
+    if not klines:
+        return 0.0
+    closes = [float(k[4]) for k in klines]
+    tp, sl = dynamic_tp_sl(closes, price)
+    return calculate_expected_profit(price, tp, amount=10, sl_price=sl)
 
 
 def calculate_indicators(klines: List[List[float]]) -> Dict[str, float]:
