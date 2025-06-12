@@ -294,9 +294,14 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
     market_symbols = set(t["symbol"].upper() for t in get_top_tokens(limit=50))
 
     valid_symbols = get_valid_symbols("USDT")
+    logger.debug(
+        "Valid symbols: %s examples: %s",
+        len(valid_symbols),
+        valid_symbols[:10],
+    )
     symbols_to_analyze = []
     for sym in symbols:
-        if sym in valid_symbols:
+        if sym.upper() in valid_symbols:
             symbols_to_analyze.append(sym)
         else:
             logger.info(
@@ -448,7 +453,7 @@ async def auto_trade_loop():
                     await asyncio.sleep(TRADE_LOOP_INTERVAL)
                     continue
                 for candidate in buy_candidates:
-                    pair = f"{candidate['symbol']}USDT"
+                    pair = f"{candidate['symbol']}USDT".upper()
                     if pair not in valid_pairs:
                         continue
                     price = get_symbol_price(candidate["symbol"])
