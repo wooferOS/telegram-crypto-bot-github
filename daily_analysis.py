@@ -7,6 +7,7 @@ import pytz
 import statistics
 import logging
 import os
+import numpy as np
 from binance.client import Client
 
 client = Client(api_key=os.getenv("BINANCE_API_KEY"), api_secret=os.getenv("BINANCE_API_SECRET"))
@@ -37,6 +38,7 @@ from binance_api import (
     update_tp_sl_order,
     log_tp_sl_change,
     get_usdt_balance,
+    get_token_balance,
 )
 from binance_api import get_candlestick_klines
 from config import MIN_PROB_UP, MIN_EXPECTED_PROFIT, MIN_TRADE_AMOUNT, TRADE_LOOP_INTERVAL
@@ -109,9 +111,17 @@ def _maybe_update_orders(symbol: str, new_tp: float, new_sl: float) -> bool:
         update_needed = True
 
     if update_needed:
-        update_tp_sl_order(symbol, new_tp, new_sl)
-        log_tp_sl_change(symbol, "updated", new_tp, new_sl)
-        return True
+        result = update_tp_sl_order(symbol, new_tp, new_sl)
+        if result:
+            log_tp_sl_change(symbol, "updated", new_tp, new_sl)
+            from telegram_bot import bot, ADMIN_CHAT_ID
+            asyncio.create_task(
+                bot.send_message(
+                    ADMIN_CHAT_ID,
+                    f"\u267B\ufe0f TP/SL оновлено для {symbol}: TP={new_tp}, SL={new_sl}",
+                )
+            )
+            return True
     return False
 
 
@@ -283,11 +293,14 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
     enriched_tokens: list[dict] = []
     buy_candidates: list[dict] = []
     model = load_model()
+    if not model:
+        logger.warning("\u26A0\ufe0f Модель недоступна")
 
     for symbol in symbols_to_analyze:
         try:
             feature_vector, _, _ = generate_features(symbol)
-            prob_up = predict_direction(model, feature_vector)
+            fv = np.asarray(feature_vector).reshape(1, -1)
+            prob_up = predict_prob_up(model, fv) if model else 0.5
             expected_profit = estimate_profit(symbol)
 
             enriched_tokens.append(
@@ -389,7 +402,18 @@ async def auto_trade_loop():
 
             for token in sell_recommendations:
                 symbol = f"{token['symbol']}USDT"
-                quantity = token.get("quantity")
+                quantity = token.get("quantity") or token.get("amount")
+                if not quantity:
+                    try:
+                        price = get_symbol_price(token["symbol"])
+                        bal = get_token_balance(token["symbol"])
+                        if bal and price:
+                            quantity = bal
+                        elif token.get("balance"):
+                            quantity = float(token["balance"]) / price if price else 0
+                    except Exception as exc:  # pragma: no cover - network errors
+                        logger.warning("Balance check failed for %s: %s", symbol, exc)
+                        quantity = 0
                 try:
                     place_market_order(token["symbol"], "SELL", quantity)
                     price = get_symbol_price(token["symbol"])
@@ -397,9 +421,17 @@ async def auto_trade_loop():
                     add_trade(token["symbol"], "SELL", quantity, price)
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("Auto-sell error for %s: %s", symbol, exc)
+                    from telegram_bot import bot, ADMIN_CHAT_ID
+                    await bot.send_message(ADMIN_CHAT_ID, f"\u26A0\ufe0f Sell error {symbol}: {exc}")
 
             if buy_candidates:
                 balance = get_usdt_balance()
+                if not balance:
+                    logger.warning("USDT balance unavailable for buying")
+                    from telegram_bot import bot, ADMIN_CHAT_ID
+                    await bot.send_message(ADMIN_CHAT_ID, "\u26A0\ufe0f Немає USDT для покупки")
+                    await asyncio.sleep(TRADE_LOOP_INTERVAL)
+                    continue
                 for candidate in buy_candidates:
                     pair = f"{candidate['symbol']}USDT"
                     if pair not in valid_pairs:
@@ -430,10 +462,18 @@ async def auto_trade_loop():
                         has_tp = any(o.get("type") == "LIMIT" for o in orders)
                         has_sl = any(o.get("type") == "STOP_LOSS_LIMIT" for o in orders)
                         if not (has_tp and has_sl):
-                            update_tp_sl_order(candidate["symbol"], tp, sl)
+                            result = update_tp_sl_order(candidate["symbol"], tp, sl)
+                            if result:
+                                from telegram_bot import bot, ADMIN_CHAT_ID
+                                await bot.send_message(
+                                    ADMIN_CHAT_ID,
+                                    f"\u267B\ufe0f TP/SL встановлено для {candidate['symbol']}: TP={tp}, SL={sl}",
+                                )
                         break
                     except Exception as exc:  # noqa: BLE001
                         logger.warning("Auto-buy error for %s: %s", pair, exc)
+                        from telegram_bot import bot, ADMIN_CHAT_ID
+                        await bot.send_message(ADMIN_CHAT_ID, f"\u26A0\ufe0f Buy error {pair}: {exc}")
                         continue
 
         except Exception as e:  # noqa: BLE001

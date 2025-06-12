@@ -3,6 +3,7 @@ from typing import List, Dict
 from binance.client import Client
 
 from binance_api import get_symbol_price, get_candlestick_klines as get_klines
+import numpy as np
 from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit
 
@@ -32,11 +33,14 @@ def estimate_profit(symbol: str) -> float:
 def get_candidates(symbols: List[str]) -> List[Dict[str, float]]:
     """Return promising tokens ranked by ML probability."""
     model = load_model()
+    if not model:
+        print("\u26A0\ufe0f Модель недоступна")
     candidates: List[Dict[str, float]] = []
     for symbol in symbols:
         try:
             feature_vector, _, _ = generate_features(symbol)
-            prob_up = predict_prob_up(model, feature_vector) if model else 0.5
+            fv = np.asarray(feature_vector).reshape(1, -1)
+            prob_up = predict_prob_up(model, fv) if model else 0.5
             expected_profit = estimate_profit(symbol)
             if prob_up > 0.5 and expected_profit > 0.005:
                 candidates.append({
