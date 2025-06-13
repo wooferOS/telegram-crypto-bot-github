@@ -63,3 +63,25 @@ pip install -r requirements.txt
 # daily cron launch
 0 9 * * * /usr/bin/python3 /root/telegram-crypto-bot-github/run_daily_analysis.py >> /root/cron.log 2>&1
 ```
+
+## Автозапуск через systemd
+
+1. Скопіюйте `systemd/crypto-bot.service` до `/etc/systemd/system/`.
+2. Створіть файл `systemd/crypto-bot.env` або `.env` з ключами:
+
+```
+BINANCE_API_KEY=...
+BINANCE_SECRET_KEY=...
+TELEGRAM_TOKEN=...
+CHAT_ID=...
+OPENAI_API_KEY=...
+```
+
+3. Запустіть та перезавантажте сервіс:
+
+```bash
+sudo systemctl daemon-reexec
+sudo systemctl daemon-reload
+sudo systemctl enable crypto-bot.service
+sudo systemctl restart crypto-bot.service
+```

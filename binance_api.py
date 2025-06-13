@@ -35,6 +35,11 @@ TELEGRAM_LOG_PREFIX = "\ud83d\udce1 [BINANCE]"
 
 BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
+
+if not BINANCE_API_KEY or not BINANCE_SECRET_KEY:
+    raise ValueError(
+        "BINANCE_API_KEY and BINANCE_SECRET_KEY must be provided in the environment"
+    )
 BINANCE_BASE_URL = "https://api.binance.com"
 
 # File used to log TP/SL updates
@@ -98,7 +103,11 @@ def log_signal(message: str) -> None:
         log_file.write(line)
 
 
-print(f"[DEBUG] API: {BINANCE_API_KEY[:6]}..., SECRET: {BINANCE_SECRET_KEY[:6]}...")
+logger.debug(
+    "[DEBUG] API: %s..., SECRET: %s...",
+    BINANCE_API_KEY[:6],
+    BINANCE_SECRET_KEY[:6],
+)
 
 
 # Initialise global Binance client exactly as in Binance docs
@@ -279,13 +288,19 @@ def get_binance_balances() -> Dict[str, float]:
     """Return available balances with automatic API diagnostics."""
 
     try:
-        temp_client = Client(
-            os.getenv("BINANCE_API_KEY"),
-            os.getenv("BINANCE_SECRET_KEY"),
-        )
+        api_key = os.getenv("BINANCE_API_KEY")
+        secret_key = os.getenv("BINANCE_SECRET_KEY")
+        if not api_key or not secret_key:
+            raise ValueError(
+                "BINANCE_API_KEY and BINANCE_SECRET_KEY must be provided in the environment"
+            )
+
+        temp_client = Client(api_key, secret_key)
 
         logging.debug(
-            f"[DEBUG] API: {os.getenv('BINANCE_API_KEY')[:8]}..., SECRET: {os.getenv('BINANCE_SECRET_KEY')[:8]}..."
+            "[DEBUG] API: %s..., SECRET: %s...",
+            api_key[:8],
+            secret_key[:8],
         )
 
         try:
