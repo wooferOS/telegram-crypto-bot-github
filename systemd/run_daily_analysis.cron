@@ -1,0 +1,2 @@
+# daily cron launch
+0 9 * * * /usr/bin/python3 /root/telegram-crypto-bot-github/run_daily_analysis.py >> /root/cron.log 2>&1
