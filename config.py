@@ -8,3 +8,6 @@ MIN_TRADE_AMOUNT = float(os.getenv("MIN_TRADE_AMOUNT", 10))  # USDT
 
 # Auto trading loop interval in seconds
 TRADE_LOOP_INTERVAL = int(os.getenv("TRADE_LOOP_INTERVAL", 3600))
+
+
+CHAT_ID = os.getenv("CHAT_ID")
