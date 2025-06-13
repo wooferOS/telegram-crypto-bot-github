@@ -11,6 +11,7 @@ from binance_api import (
     convert_to_usdt,
     get_usdt_balance,
     market_buy_symbol_by_amount,
+    build_manual_conversion_signal,
 )
 from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit
@@ -57,6 +58,7 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
             "tp": tp,
             "sl": sl,
             "prob_up": prob_up,
+            "price": price,
         }
 
     balances = get_binance_balances()
@@ -82,28 +84,42 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
                     manual_convert.append((asset, amount, price))
 
     if manual_convert:
-        lines = [
-            "\u26A0\ufe0f \u0421\u0438\u0433\u043d\u0430\u043b: \u0441\u043a\u043e\u043d\u0432\u0435\u0440\u0442\u0443\u0439\u0442\u0435 \u0432\u0440\u0443\u0447\u043d\u0443 \u0430\u043a\u0442\u0438\u0432\u0438 \u043d\u0430 USDT \u0447\u0435\u0440\u0435\u0437 Binance Convert:",
-        ]
+        convert_from_list = []
         for sym, amt, price in manual_convert:
-            usdt_equiv = round(amt * price, 2)
-            lines.append(f"- {sym} {amt} \u2248 {usdt_equiv} USDT")
+            convert_from_list.append(
+                {
+                    "symbol": f"{sym}USDT",
+                    "quantity": amt,
+                    "usdt_value": amt * price,
+                }
+            )
 
         buy_candidates = [
-            (sym, data)
-            for sym, data in predictions.items()
-            if data["prob_up"] >= MIN_PROB_UP
+            (s, d)
+            for s, d in predictions.items()
+            if d["prob_up"] >= MIN_PROB_UP
         ]
         buy_candidates.sort(key=lambda x: x[1]["expected_profit"], reverse=True)
-        buy_candidates = buy_candidates[:3]
-        if buy_candidates:
-            lines.append("")
-            lines.append("\ud83d\udd04 \u041f\u0456\u0441\u043b\u044f \u043a\u043e\u043d\u0432\u0435\u0440\u0442\u0430\u0446\u0456\u0457 \u043c\u043e\u0436\u043d\u0430 \u043a\u0443\u043f\u0438\u0442\u0438:")
-            for sym, data in buy_candidates:
-                lines.append(
-                    f"- {sym} (profit {data['expected_profit']:.2f}%)"
-                )
-        await bot.send_message(chat_id, clean_message("\n".join(lines)))
+        buy_candidates = buy_candidates[: len(convert_from_list)]
+
+        convert_to_suggestions: list[dict] = []
+        for i, (sym, data) in enumerate(buy_candidates):
+            price = data.get("price") or get_symbol_price(sym)
+            if not price:
+                continue
+            from_item = convert_from_list[i]
+            qty = from_item["usdt_value"] / price
+            expected_profit_usdt = data["tp"] * qty - from_item["usdt_value"]
+            convert_to_suggestions.append(
+                {
+                    "symbol": sym,
+                    "quantity": qty,
+                    "expected_profit_usdt": expected_profit_usdt,
+                }
+            )
+
+        text = build_manual_conversion_signal(convert_from_list, convert_to_suggestions)
+        await bot.send_message(chat_id, clean_message(text))
 
     usdt_balance = get_usdt_balance()
     if usdt_balance >= MIN_TRADE_AMOUNT:
