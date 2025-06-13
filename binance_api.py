@@ -429,6 +429,24 @@ def convert_dust_to_usdt(assets: Optional[List[str]] = None) -> Optional[dict]:
         return None
 
 
+def get_non_usdt_assets(threshold_usd: float = 10) -> list[tuple[str, float, float]]:
+    """Return non-USDT assets with value >= ``threshold_usd`` in USDT."""
+
+    balances = get_balances()
+    if balances.get("USDT", 0) > 0:
+        return []
+
+    prices = get_prices()
+    assets: list[tuple[str, float, float]] = []
+    for asset, amount in balances.items():
+        if asset == "USDT":
+            continue
+        usd_value = amount * prices.get(asset, 0)
+        if usd_value >= threshold_usd:
+            assets.append((asset, amount, usd_value))
+    return assets
+
+
 def convert_small_balance(from_asset: str, to_asset: str = "USDT") -> None:
     """Convert ``from_asset`` to ``to_asset`` via Binance Convert API."""
 
