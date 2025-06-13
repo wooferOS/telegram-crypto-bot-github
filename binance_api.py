@@ -120,32 +120,53 @@ def build_manual_conversion_signal(
         msg.append(f"- {sym}: {qty} \u2248 {value} USDT")
 
     symbols_from = {item.get("symbol") for item in convert_from_list}
-    filtered_to = []
-    used = set()
+    candidates = []
     for suggestion in convert_to_suggestions:
         sym = suggestion.get("symbol")
         base = sym.replace("USDT", "") if sym else ""
         profit = float(suggestion.get("expected_profit_usdt", 0))
         if (
             base.upper() == "USDT"
-            or sym in used
+            or profit <= 0
             or sym in symbols_from
             or f"{base}USDT" in symbols_from
-            or profit <= 0
         ):
             continue
-        used.add(sym)
-        filtered_to.append({
-            "symbol": sym,
-            "quantity": suggestion.get("quantity"),
-            "expected_profit_usdt": profit,
-        })
+        candidates.append(
+            {
+                "symbol": sym,
+                "quantity": suggestion.get("quantity"),
+                "expected_profit_usdt": profit,
+            }
+        )
 
-    if not filtered_to:
+    candidates.sort(key=lambda x: x["expected_profit_usdt"], reverse=True)
+
+    selected: list[dict] = []
+    used_targets: set[str] = set()
+    for from_item in convert_from_list:
+        from_sym = from_item.get("symbol", "").replace("USDT", "")
+        for cand in candidates:
+            target = cand["symbol"]
+            base = target.replace("USDT", "")
+            if (
+                target in used_targets
+                or base == from_sym
+                or target in symbols_from
+                or f"{base}USDT" in symbols_from
+            ):
+                continue
+            selected.append(cand)
+            used_targets.add(target)
+            break
+
+    if not selected:
         return ""
 
-    msg.append("\n\ud83d\udd01 \u041a\u043e\u043d\u0432\u0435\u0440\u0442\u0430\u0446\u0456\u044f \u043d\u0430:")
-    for suggestion in filtered_to:
+    msg.append(
+        "\n\ud83d\udd01 \u041a\u043e\u043d\u0432\u0435\u0440\u0442\u0430\u0446\u0456\u044f \u043d\u0430:"
+    )
+    for suggestion in selected:
         sym = suggestion.get("symbol")
         qty = round(float(suggestion.get("quantity", 0)), 8)
         profit = round(float(suggestion.get("expected_profit_usdt", 0)), 2)
