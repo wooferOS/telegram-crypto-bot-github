@@ -103,6 +103,30 @@ def log_signal(message: str) -> None:
         log_file.write(line)
 
 
+def build_manual_conversion_signal(
+    convert_from_list: list[dict], convert_to_suggestions: list[dict]
+) -> str:
+    """Return formatted manual conversion signal message."""
+
+    msg = ["\uD83D\uDD01 \u0423 \u0442\u0435\u0431\u0435 \u043d\u0430 \u0431\u0430\u043b\u0430\u043d\u0441\u0456 \u0442\u0440\u0435\u0431\u0430 \u0441\u043a\u043e\u043d\u0432\u0435\u0440\u0442\u0443\u0432\u0430\u0442\u0438 \u0437:"]
+    for item in convert_from_list:
+        sym = item.get("symbol")
+        qty = round(float(item.get("quantity", 0)), 8)
+        value = round(float(item.get("usdt_value", 0)), 2)
+        msg.append(f"- {sym}: {qty} \u2248 {value} USDT")
+
+    msg.append("\n\uD83D\uDD01 \u041A\u043E\u043D\u0432\u0435\u0440\u0442\u0430\u0446\u0456\u044F \u043D\u0430:")
+    for suggestion in convert_to_suggestions:
+        sym = suggestion.get("symbol")
+        qty = round(float(suggestion.get("quantity", 0)), 8)
+        profit = round(float(suggestion.get("expected_profit_usdt", 0)), 2)
+        msg.append(
+            f"- {sym}: {qty} \u2192 \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F \u043F\u0440\u0438\u0431\u0443\u0442\u043E\u043A \u2248 {profit} USDT"
+        )
+
+    return "\n".join(msg)
+
+
 logger.debug(
     "[DEBUG] API: %s..., SECRET: %s...",
     BINANCE_API_KEY[:6],
