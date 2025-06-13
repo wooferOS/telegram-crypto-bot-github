@@ -74,7 +74,7 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
             if result.get("status") != "error":
                 actions_made = True
             else:
-                conv = convert_to_usdt(asset, amount)
+                conv = convert_to_usdt(asset, amount, forecast)
                 if conv is not None:
                     actions_made = True
                 else:
