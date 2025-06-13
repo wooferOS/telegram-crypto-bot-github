@@ -108,21 +108,30 @@ def build_manual_conversion_signal(
 ) -> str:
     """Return formatted manual conversion signal message."""
 
-    msg = ["\uD83D\uDD01 \u0423 \u0442\u0435\u0431\u0435 \u043d\u0430 \u0431\u0430\u043b\u0430\u043d\u0441\u0456 \u0442\u0440\u0435\u0431\u0430 \u0441\u043a\u043e\u043d\u0432\u0435\u0440\u0442\u0443\u0432\u0430\u0442\u0438 \u0437:"]
+    msg = ["\ud83d\udd01 \u0423 \u0442\u0435\u0431\u0435 \u043d\u0430 \u0431\u0430\u043b\u0430\u043d\u0441\u0456 \u0442\u0440\u0435\u0431\u0430 \u0441\u043a\u043e\u043d\u0432\u0435\u0440\u0442\u0443\u0432\u0430\u0442\u0438 \u0437:"]
     for item in convert_from_list:
         sym = item.get("symbol")
         qty = round(float(item.get("quantity", 0)), 8)
         value = round(float(item.get("usdt_value", 0)), 2)
         msg.append(f"- {sym}: {qty} \u2248 {value} USDT")
 
-    msg.append("\n\uD83D\uDD01 \u041A\u043E\u043D\u0432\u0435\u0440\u0442\u0430\u0446\u0456\u044F \u043D\u0430:")
+    symbols_from = {item.get("symbol") for item in convert_from_list}
+    filtered_to = []
+    used = set()
     for suggestion in convert_to_suggestions:
+        sym = suggestion.get("symbol")
+        base = sym.replace("USDT", "") if sym else ""
+        if sym in used or sym in symbols_from or f"{base}USDT" in symbols_from:
+            continue
+        used.add(sym)
+        filtered_to.append(suggestion)
+
+    msg.append("\n\ud83d\udd01 \u041a\u043e\u043d\u0432\u0435\u0440\u0442\u0430\u0446\u0456\u044f \u043d\u0430:")
+    for suggestion in filtered_to:
         sym = suggestion.get("symbol")
         qty = round(float(suggestion.get("quantity", 0)), 8)
         profit = round(float(suggestion.get("expected_profit_usdt", 0)), 2)
-        msg.append(
-            f"- {sym}: {qty} \u2192 \u043E\u0447\u0456\u043A\u0443\u0454\u0442\u044C\u0441\u044F \u043F\u0440\u0438\u0431\u0443\u0442\u043E\u043A \u2248 {profit} USDT"
-        )
+        msg.append(f"- {sym}: {qty} \u2192 \u043e\u0447\u0456\u043a\u0443\u0454\u0442\u044c\u0441\u044f \u043f\u0440\u0438\u0431\u0443\u0442\u043e\u043a \u2248 {profit} USDT")
 
     return "\n".join(msg)
 
