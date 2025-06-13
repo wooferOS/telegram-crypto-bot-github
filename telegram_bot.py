@@ -750,6 +750,31 @@ async def show_gpt_forecast(message: types.Message):
 async def show_support(message: types.Message):
     await message.answer("\U0001F9D1\u200d\U0001F4BB Пишіть адміну: @your_admin_username")
 
+# added handler for UI button
+@dp.message_handler(Text(equals="\U0001F4C8 Заробити"))
+async def handle_zarobyty_button(message: types.Message) -> None:
+    await zarobyty_cmd(message)
+
+# added handler for UI button
+@dp.message_handler(Text(equals="\U0001F4CA Баланс"))
+async def handle_balance_button(message: types.Message) -> None:
+    await show_balance(message)
+
+# added handler for UI button
+@dp.message_handler(Text(equals="\U0001F4E6 Всі активи"))
+async def handle_all_assets_button(message: types.Message) -> None:
+    await show_all_assets(message)
+
+# added handler for UI button
+@dp.message_handler(Text(equals="\U0001F4C8 Графік"))
+async def handle_chart_button(message: types.Message) -> None:
+    await show_price_chart(message)
+
+# added handler for UI button
+@dp.message_handler(Text(equals="\U0001F9E0 Прогноз GPT"))
+async def handle_gpt_forecast_button(message: types.Message) -> None:
+    await show_gpt_forecast(message)
+
 
 async def check_tp_sl_market_change() -> None:
     """Update or close orders if market moved or trade older than 24h."""

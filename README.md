@@ -55,3 +55,11 @@ pip install --no-cache-dir --force-reinstall aiohttp
 ```bash
 pip install -r requirements.txt
 ```
+
+## Щоденний звіт о 9:00
+Щоб отримувати ранковий звіт у Telegram, додайте cron-завдання:
+
+```cron
+# daily cron launch
+0 9 * * * /usr/bin/python3 /root/telegram-crypto-bot-github/run_daily_analysis.py >> /root/cron.log 2>&1
+```

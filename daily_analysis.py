@@ -62,6 +62,9 @@ symbols = get_valid_usdt_symbols()
 
 logger = logging.getLogger(__name__)
 
+# added manual convert signal logic
+manual_convert_signal_sent = False
+
 # Global minimum thresholds (override via config)
 MIN_VOLUME = 100_000
 
@@ -479,10 +482,21 @@ async def auto_trade_loop():
             if buy_candidates:
                 if not balance:
                     logger.warning("USDT balance unavailable for buying")
-                    from telegram_bot import bot, ADMIN_CHAT_ID
-                    await bot.send_message(ADMIN_CHAT_ID, "\u26A0\ufe0f Немає USDT для покупки")
+                    global manual_convert_signal_sent
+                    if not manual_convert_signal_sent:
+                        balances = get_binance_balances()
+                        convert_assets = [f"{a} \u2192 USDT" for a in balances if a != "USDT"]
+                        if convert_assets:
+                            from telegram_bot import bot, ADMIN_CHAT_ID
+                            text = (
+                                "\u26A0\ufe0f Сигнал: сконвертуйте вручну активи на USDT через Binance Convert:\n"
+                                + "\n".join(f"- {c}" for c in convert_assets)
+                            )
+                            await bot.send_message(ADMIN_CHAT_ID, text)
+                            manual_convert_signal_sent = True
                     await asyncio.sleep(TRADE_LOOP_INTERVAL)
                     continue
+                manual_convert_signal_sent = False
                 for candidate in buy_candidates:
                     pair = candidate["symbol"].upper()
                     if pair not in valid_pairs:
