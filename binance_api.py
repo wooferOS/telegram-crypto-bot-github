@@ -471,7 +471,12 @@ def convert_small_balance(from_asset: str, to_asset: str = "USDT") -> None:
         )
 
 
-def try_convert(symbol_from: str, symbol_to: str, amount: float) -> Optional[dict]:
+def try_convert(
+    symbol_from: str,
+    symbol_to: str,
+    amount: float,
+    forecast: Optional[Dict[str, float]] | None = None,
+) -> Optional[dict]:
     """Attempt conversion via Binance Convert API."""
 
     try:
@@ -510,17 +515,36 @@ def try_convert(symbol_from: str, symbol_to: str, amount: float) -> Optional[dic
             price = get_symbol_price(f"{symbol_from}{symbol_to}")
         except Exception:  # pragma: no cover - price fetch issues
             price = None
-        amount_to = round(float(amount) * price, 4) if price else "?"
+        usdt_price = price
+        usdt_amount = round(float(amount) * usdt_price, 4) if usdt_price else "?"
         msg = (
-            f"Сигнал: сконвертуйте {symbol_from} {amount} вручну на "
-            f"{symbol_to} {amount_to}"
+            f"Сигнал: сконвертуйте {symbol_from} {amount} вручну на USDT ≈ {usdt_amount}"
+            f" (1 {symbol_from} ≈ {usdt_price})"
         )
         logger.warning(msg)
+
+        forecasted_price_next_1h15m = None
+        if forecast:
+            forecasted_price_next_1h15m = forecast.get("predicted_price") or forecast.get("forecast_1h15m")
+
+        if forecasted_price_next_1h15m and isinstance(usdt_amount, (int, float)) and usdt_price:
+            reverse_amount = usdt_amount / forecasted_price_next_1h15m
+            reverse_profit = reverse_amount - amount
+            logger.warning(
+                f"⚠️ Якщо конвертуєш назад через 1г15х: отримаєш {reverse_amount:.4f} {symbol_from}. "
+                f"Очікуваний прибуток: {reverse_profit:.4f} {symbol_from} "
+                f"(\u043a\u0443\u0440\u0441 \u043e\u0447\u0456\u043a\u0443\u0454\u0442\u044c\u0441\u044f {forecasted_price_next_1h15m:.6f} USDT)"
+            )
+
         log_signal(msg)
         return None
 
 
-def convert_to_usdt(asset: str, amount: float):
+def convert_to_usdt(
+    asset: str,
+    amount: float,
+    forecast: Optional[Dict[str, float]] | None = None,
+):
     """Convert ``asset`` amount to USDT using Binance Convert API."""
 
     logger.info("🔁 Спроба конвертації %s %s в USDT", amount, asset)
@@ -536,7 +560,7 @@ def convert_to_usdt(asset: str, amount: float):
     except Exception as exc:  # pragma: no cover - handle below
         logger.warning("convert_trade fallback: %s", exc)
 
-    return try_convert(asset, "USDT", amount)
+    return try_convert(asset, "USDT", amount, forecast)
 
 
 def get_account_balances() -> Dict[str, Dict[str, str]]:
