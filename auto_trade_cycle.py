@@ -31,6 +31,8 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
 
     logging.info("\U0001F501 Starting auto_trade_cycle")
 
+    actions_made = False
+
     model = load_model()
     predictions: Dict[str, Dict[str, float]] = {}
     symbols = get_valid_usdt_symbols()
@@ -69,9 +71,13 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
             continue
         if forecast["expected_profit"] >= MIN_EXPECTED_PROFIT:
             result = sell_asset(pair, amount)
-            if result.get("status") == "error":
+            if result.get("status") != "error":
+                actions_made = True
+            else:
                 conv = convert_to_usdt(asset, amount)
-                if conv is None:
+                if conv is not None:
+                    actions_made = True
+                else:
                     price = get_symbol_price(pair) or 0.0
                     manual_convert.append((asset, amount, price))
 
@@ -112,5 +118,14 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
             amount_per_trade = usdt_balance / len(buy_candidates)
             for sym, _ in buy_candidates:
                 market_buy_symbol_by_amount(sym, amount_per_trade)
+                actions_made = True
+
+    if not actions_made:
+        message = (
+            "ℹ️ Немає активів для торгівлі або конвертації на цій ітерації. "
+            "Очікуємо змін на ринку."
+        )
+        await bot.send_message(chat_id, message)
+        logging.info(message)
 
 
