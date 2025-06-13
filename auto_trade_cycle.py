@@ -114,7 +114,11 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
                 sym, data = buy_candidates[j]
                 j += 1
                 target_symbol = sym.replace("USDT", "")
-                if target_symbol in from_symbols or target_symbol in used_targets:
+                if (
+                    target_symbol in from_symbols
+                    or target_symbol in used_targets
+                    or target_symbol == "USDT"
+                ):
                     continue
                 price = data.get("price") or get_symbol_price(sym)
                 if not price:
@@ -124,6 +128,8 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
                 if balance_amount >= qty:
                     continue
                 expected_profit_usdt = data["tp"] * qty - from_item["usdt_value"]
+                if expected_profit_usdt <= 0:
+                    continue
                 convert_to_suggestions.append({
                     "symbol": sym,
                     "quantity": qty,
@@ -134,7 +140,8 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
                 break
         convert_from_list = filtered_from
         text = build_manual_conversion_signal(convert_from_list, convert_to_suggestions)
-        await bot.send_message(chat_id, clean_message(text))
+        if text:
+            await bot.send_message(chat_id, clean_message(text))
 
     usdt_balance = get_usdt_balance()
     if usdt_balance >= MIN_TRADE_AMOUNT:
