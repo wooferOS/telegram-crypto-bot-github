@@ -67,7 +67,7 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
         forecast = predictions.get(pair)
         if not forecast:
             continue
-        if forecast["expected_profit"] > MIN_EXPECTED_PROFIT:
+        if forecast["expected_profit"] >= MIN_EXPECTED_PROFIT:
             result = sell_asset(pair, amount)
             if result.get("status") == "error":
                 conv = convert_to_usdt(asset, amount)
@@ -80,16 +80,23 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
             "\u26A0\ufe0f \u0421\u0438\u0433\u043d\u0430\u043b: \u0441\u043a\u043e\u043d\u0432\u0435\u0440\u0442\u0443\u0439\u0442\u0435 \u0432\u0440\u0443\u0447\u043d\u0443 \u0430\u043a\u0442\u0438\u0432\u0438 \u043d\u0430 USDT \u0447\u0435\u0440\u0435\u0437 Binance Convert:",
         ]
         for sym, amt, price in manual_convert:
-            lines.append(f"- {sym}: {amt} @ {price}")
+            usdt_equiv = round(amt * price, 2)
+            lines.append(f"- {sym} {amt} \u2248 {usdt_equiv} USDT")
 
-        top_targets = sorted(
-            predictions.items(), key=lambda x: x[1]["expected_profit"], reverse=True
-        )[:3]
-        if top_targets:
+        buy_candidates = [
+            (sym, data)
+            for sym, data in predictions.items()
+            if data["prob_up"] >= MIN_PROB_UP
+        ]
+        buy_candidates.sort(key=lambda x: x[1]["expected_profit"], reverse=True)
+        buy_candidates = buy_candidates[:3]
+        if buy_candidates:
             lines.append("")
-            lines.append("\ud83d\udd04 \u0420\u0435\u043a\u043e\u043c\u0435\u043d\u0434\u043e\u0432\u0430\u043d\u0456 \u0446\u0456\u043b\u0456 \u0434\u043b\u044f \u043a\u043e\u043d\u0432\u0435\u0440\u0442\u0430\u0446\u0456\u0457:")
-            for sym, data in top_targets:
-                lines.append(f"- {sym}: ? @ {data['tp']}")
+            lines.append("\ud83d\udd04 \u041f\u0456\u0441\u043b\u044f \u043a\u043e\u043d\u0432\u0435\u0440\u0442\u0430\u0446\u0456\u0457 \u043c\u043e\u0436\u043d\u0430 \u043a\u0443\u043f\u0438\u0442\u0438:")
+            for sym, data in buy_candidates:
+                lines.append(
+                    f"- {sym} (profit {data['expected_profit']:.2f}%)"
+                )
         await bot.send_message(chat_id, clean_message("\n".join(lines)))
 
     usdt_balance = get_usdt_balance()

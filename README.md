@@ -64,6 +64,13 @@ pip install -r requirements.txt
 0 9 * * * /usr/bin/python3 /root/telegram-crypto-bot-github/run_daily_analysis.py >> /root/cron.log 2>&1
 ```
 
+## Автоматичний торговий цикл
+Запускайте автоцикл трейдингу щогодини й п'ятнадцять хвилин:
+
+```cron
+15 * * * * /usr/bin/python3 /root/telegram-crypto-bot-github/run_auto_trade_cycle.py >> /root/trade.log 2>&1
+```
+
 ## Автозапуск через systemd
 
 1. Скопіюйте `systemd/crypto-bot.service` до `/etc/systemd/system/`.
