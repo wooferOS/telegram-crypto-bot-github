@@ -1,4 +1,5 @@
 import logging
+import unicodedata
 from typing import Dict, List
 
 from binance_api import (
@@ -14,6 +15,15 @@ from binance_api import (
 from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit
 from config import MIN_EXPECTED_PROFIT, MIN_PROB_UP, MIN_TRADE_AMOUNT
+
+
+def clean_message(text: str) -> str:
+    """Return ``text`` without surrogate or emoji characters."""
+
+    normalized = unicodedata.normalize("NFKD", text)
+    return "".join(
+        ch for ch in normalized if ord(ch) <= 0xFFFF and unicodedata.category(ch) != "Cs"
+    )
 
 
 async def auto_trade_cycle(bot, chat_id: int) -> None:
@@ -80,7 +90,7 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
             lines.append("\ud83d\udd04 \u0420\u0435\u043a\u043e\u043c\u0435\u043d\u0434\u043e\u0432\u0430\u043d\u0456 \u0446\u0456\u043b\u0456 \u0434\u043b\u044f \u043a\u043e\u043d\u0432\u0435\u0440\u0442\u0430\u0446\u0456\u0457:")
             for sym, data in top_targets:
                 lines.append(f"- {sym}: ? @ {data['tp']}")
-        await bot.send_message(chat_id, "\n".join(lines))
+        await bot.send_message(chat_id, clean_message("\n".join(lines)))
 
     usdt_balance = get_usdt_balance()
     if usdt_balance >= MIN_TRADE_AMOUNT:
