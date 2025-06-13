@@ -106,7 +106,11 @@ def log_signal(message: str) -> None:
 def build_manual_conversion_signal(
     convert_from_list: list[dict], convert_to_suggestions: list[dict]
 ) -> str:
-    """Return formatted manual conversion signal message."""
+    """Return formatted manual conversion signal message.
+
+    Only include conversions into non-USDT crypto with positive expected profit.
+    If no valid suggestions remain, return an empty string.
+    """
 
     msg = ["\ud83d\udd01 \u0423 \u0442\u0435\u0431\u0435 \u043d\u0430 \u0431\u0430\u043b\u0430\u043d\u0441\u0456 \u0442\u0440\u0435\u0431\u0430 \u0441\u043a\u043e\u043d\u0432\u0435\u0440\u0442\u0443\u0432\u0430\u0442\u0438 \u0437:"]
     for item in convert_from_list:
@@ -121,17 +125,33 @@ def build_manual_conversion_signal(
     for suggestion in convert_to_suggestions:
         sym = suggestion.get("symbol")
         base = sym.replace("USDT", "") if sym else ""
-        if sym in used or sym in symbols_from or f"{base}USDT" in symbols_from:
+        profit = float(suggestion.get("expected_profit_usdt", 0))
+        if (
+            base.upper() == "USDT"
+            or sym in used
+            or sym in symbols_from
+            or f"{base}USDT" in symbols_from
+            or profit <= 0
+        ):
             continue
         used.add(sym)
-        filtered_to.append(suggestion)
+        filtered_to.append({
+            "symbol": sym,
+            "quantity": suggestion.get("quantity"),
+            "expected_profit_usdt": profit,
+        })
+
+    if not filtered_to:
+        return ""
 
     msg.append("\n\ud83d\udd01 \u041a\u043e\u043d\u0432\u0435\u0440\u0442\u0430\u0446\u0456\u044f \u043d\u0430:")
     for suggestion in filtered_to:
         sym = suggestion.get("symbol")
         qty = round(float(suggestion.get("quantity", 0)), 8)
         profit = round(float(suggestion.get("expected_profit_usdt", 0)), 2)
-        msg.append(f"- {sym}: {qty} \u2192 \u043e\u0447\u0456\u043a\u0443\u0454\u0442\u044c\u0441\u044f \u043f\u0440\u0438\u0431\u0443\u0442\u043e\u043a \u2248 {profit} USDT")
+        msg.append(
+            f"- {sym}: {qty} \u2192 \u043e\u0447\u0456\u043a\u0443\u0454\u0442\u044c\u0441\u044f \u043f\u0440\u0438\u0431\u0443\u0442\u043e\u043a \u2248 {profit} USDT"
+        )
 
     return "\n".join(msg)
 
