@@ -71,19 +71,20 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
             continue
         pair = f"{asset}USDT"
         forecast = predictions.get(pair)
-        if not forecast:
+        price = get_symbol_price(pair) or 0.0
+        if not forecast or forecast["expected_profit"] < MIN_EXPECTED_PROFIT:
+            manual_convert.append((asset, amount, price))
             continue
-        if forecast["expected_profit"] >= MIN_EXPECTED_PROFIT:
-            result = sell_asset(pair, amount)
-            if result.get("status") != "error":
+
+        result = sell_asset(pair, amount)
+        if result.get("status") != "error":
+            actions_made = True
+        else:
+            conv = convert_to_usdt(asset, amount, forecast)
+            if conv is not None:
                 actions_made = True
             else:
-                conv = convert_to_usdt(asset, amount, forecast)
-                if conv is not None:
-                    actions_made = True
-                else:
-                    price = get_symbol_price(pair) or 0.0
-                    manual_convert.append((asset, amount, price))
+                manual_convert.append((asset, amount, price))
 
     if manual_convert:
         convert_from_list = []
@@ -142,6 +143,7 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
         text = build_manual_conversion_signal(convert_from_list, convert_to_suggestions)
         if text:
             await bot.send_message(chat_id, clean_message(text))
+            actions_made = True
 
     usdt_balance = get_usdt_balance()
     if usdt_balance >= MIN_TRADE_AMOUNT:
