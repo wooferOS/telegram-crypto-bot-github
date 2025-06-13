@@ -62,6 +62,8 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
         }
 
     balances = get_binance_balances()
+    symbols_from_balance = {f"{a}USDT" for a in balances if a != "USDT"}
+    current_balances = {a: amt for a, amt in balances.items() if a != "USDT"}
     manual_convert: List[tuple[str, float, float]] = []
 
     for asset, amount in balances.items():
@@ -102,22 +104,35 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
         buy_candidates.sort(key=lambda x: x[1]["expected_profit"], reverse=True)
         buy_candidates = buy_candidates[: len(convert_from_list)]
 
+        filtered_from: list[dict] = []
         convert_to_suggestions: list[dict] = []
-        for i, (sym, data) in enumerate(buy_candidates):
-            price = data.get("price") or get_symbol_price(sym)
-            if not price:
-                continue
-            from_item = convert_from_list[i]
-            qty = from_item["usdt_value"] / price
-            expected_profit_usdt = data["tp"] * qty - from_item["usdt_value"]
-            convert_to_suggestions.append(
-                {
+        from_symbols = {item["symbol"].replace("USDT", "") for item in convert_from_list}
+        used_targets: set[str] = set()
+        j = 0
+        for from_item in convert_from_list:
+            while j < len(buy_candidates):
+                sym, data = buy_candidates[j]
+                j += 1
+                target_symbol = sym.replace("USDT", "")
+                if target_symbol in from_symbols or target_symbol in used_targets:
+                    continue
+                price = data.get("price") or get_symbol_price(sym)
+                if not price:
+                    continue
+                qty = from_item["usdt_value"] / price
+                balance_amount = current_balances.get(target_symbol, 0)
+                if balance_amount >= qty:
+                    continue
+                expected_profit_usdt = data["tp"] * qty - from_item["usdt_value"]
+                convert_to_suggestions.append({
                     "symbol": sym,
                     "quantity": qty,
                     "expected_profit_usdt": expected_profit_usdt,
-                }
-            )
-
+                })
+                filtered_from.append(from_item)
+                used_targets.add(target_symbol)
+                break
+        convert_from_list = filtered_from
         text = build_manual_conversion_signal(convert_from_list, convert_to_suggestions)
         await bot.send_message(chat_id, clean_message(text))
 
