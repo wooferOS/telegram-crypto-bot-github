@@ -1,0 +1,1 @@
+15 * * * * /usr/bin/python3 /root/telegram-crypto-bot-github/run_auto_trade_cycle.py >> /root/trade.log 2>&1
