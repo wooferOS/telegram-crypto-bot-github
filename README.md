@@ -92,3 +92,21 @@ sudo systemctl daemon-reload
 sudo systemctl enable crypto-bot.service
 sudo systemctl restart crypto-bot.service
 ```
+
+## ❗️ Типові помилки
+
+### BinanceAPIException: `code=-2015`
+
+Помилка
+
+```
+BinanceAPIException: code=-2015
+Invalid API-key, IP, or permissions for action.
+```
+
+виникає не лише через неправильні ключі. Вона також зʼявляється, якщо
+`Client` Binance створюється **до** завантаження `.env` або якщо ключі
+зчитуються через `os.getenv(...)` у різних файлах. Щоб уникнути цього,
+використовуйте `config.py`, який спочатку викликає `load_env_file()` і лише
+потім ініціалізує клієнт Binance.
+
