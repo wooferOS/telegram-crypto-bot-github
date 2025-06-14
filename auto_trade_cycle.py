@@ -18,6 +18,53 @@ from utils import dynamic_tp_sl, calculate_expected_profit
 from config import MIN_EXPECTED_PROFIT, MIN_PROB_UP, MIN_TRADE_AMOUNT
 
 
+async def send_conversion_signal(
+    bot,
+    chat_id: int,
+    convert_from: list[dict],
+    convert_to: list[dict],
+) -> bool:
+    """Send manual conversion suggestion message if ``convert_from`` not empty."""
+
+    text = build_manual_conversion_signal(convert_from, convert_to)
+    if not text:
+        return False
+    await bot.send_message(chat_id, clean_message(text))
+    return True
+
+
+async def check_profitable_balance_assets(
+    bot, chat_id: int, predictions: Dict[str, Dict[str, float]]
+) -> list[tuple[str, float, float]]:
+    """Return assets requiring manual conversion and notify about profits."""
+
+    balances = get_binance_balances()
+    manual: list[tuple[str, float, float]] = []
+    profitable: list[dict] = []
+
+    for asset, amount in balances.items():
+        if asset == "USDT" or amount <= 0:
+            continue
+        pair = f"{asset}USDT"
+        forecast = predictions.get(pair)
+        price = get_symbol_price(pair) or 0.0
+        if forecast and forecast.get("expected_profit", 0) >= MIN_EXPECTED_PROFIT:
+            profitable.append(
+                {
+                    "symbol": pair,
+                    "quantity": amount,
+                    "usdt_value": amount * price,
+                }
+            )
+        else:
+            manual.append((asset, amount, price))
+
+    if profitable:
+        await send_conversion_signal(bot, chat_id, profitable, [])
+
+    return manual
+
+
 def clean_message(text: str) -> str:
     """Return ``text`` without surrogate or emoji characters."""
 
@@ -65,6 +112,11 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
     symbols_from_balance = {f"{a}USDT" for a in balances if a != "USDT"}
     current_balances = {a: amt for a, amt in balances.items() if a != "USDT"}
     manual_convert: List[tuple[str, float, float]] = []
+
+    balance_assets_for_conversion = await check_profitable_balance_assets(
+        bot, chat_id, predictions
+    )
+    manual_convert.extend(balance_assets_for_conversion)
 
     for asset, amount in balances.items():
         if asset == "USDT" or amount <= 0:
@@ -140,9 +192,9 @@ async def auto_trade_cycle(bot, chat_id: int) -> None:
                 used_targets.add(target_symbol)
                 break
         convert_from_list = filtered_from
-        text = build_manual_conversion_signal(convert_from_list, convert_to_suggestions)
-        if text:
-            await bot.send_message(chat_id, clean_message(text))
+        if await send_conversion_signal(
+            bot, chat_id, convert_from_list, convert_to_suggestions
+        ):
             actions_made = True
 
     usdt_balance = get_usdt_balance()
