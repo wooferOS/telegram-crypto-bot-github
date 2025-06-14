@@ -11,7 +11,6 @@ from binance_api import _to_usdt_pair, is_symbol_valid, get_binance_client
 
 MODEL_PATH = "model.joblib"
 
-client = get_binance_client()
 
 def load_model():
     if os.path.exists(MODEL_PATH):
@@ -24,6 +23,7 @@ def get_klines(symbol: str, interval: str = "1h", limit: int = 500) -> pd.DataFr
     if not is_symbol_valid(symbol):
         logging.warning("%s not valid for klines", pair)
         return pd.DataFrame()
+    client = get_binance_client()
     try:
         data = client.get_klines(symbol=pair, interval=interval, limit=limit)
     except Exception as e:  # noqa: BLE001
