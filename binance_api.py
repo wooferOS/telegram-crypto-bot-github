@@ -105,7 +105,9 @@ def log_signal(message: str) -> None:
 if BINANCE_API_KEY and BINANCE_SECRET_KEY:
     print(f"[DEBUG] API: {BINANCE_API_KEY[:6]}..., SECRET: {BINANCE_SECRET_KEY[:6]}...")
 else:
-    print("[ERROR] BINANCE_API_KEY or BINANCE_SECRET_KEY is missing — check ~/.env on the server")
+    print(
+        "[ERROR] Binance ключі відсутні (None). Це очікувано у GitHub CI. Запуск можливий тільки з .env на сервері."
+    )
 
 
 # Initialise global Binance client exactly as in Binance docs
@@ -294,7 +296,7 @@ def get_binance_balances() -> Dict[str, float]:
             )
         else:
             logging.warning(
-                "[ERROR] Binance API key or secret is missing — check your ~/.env file"
+                "[ERROR] Binance ключі відсутні (None). Це очікувано у GitHub CI. Запуск можливий тільки з .env на сервері."
             )
 
         try:
