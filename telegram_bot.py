@@ -1,6 +1,5 @@
 """Telegram bot configuration and handlers."""
 
-import os
 import logging
 import datetime
 from aiogram import Bot, Dispatcher, types
@@ -55,11 +54,9 @@ from binance_api import (
     cancel_tp_sl_if_market_changed,
 )
 from alerts import check_daily_alerts
+from config import TELEGRAM_TOKEN, CHAT_ID, ADMIN_CHAT_ID
 
 take_profit_cb = CallbackData("tp", "symbol", "amount")
-
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)

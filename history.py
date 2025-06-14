@@ -1,13 +1,12 @@
 """Simple storage helpers for keeping trade history."""
 
 import json
-import os
 import logging
 from datetime import datetime
 from typing import List, Dict
 
 logger = logging.getLogger(__name__)
-HISTORY_FILE = os.getenv("HISTORY_FILE", "trade_history.json")
+from config import HISTORY_FILE
 
 
 def _load_history() -> List[Dict]:
