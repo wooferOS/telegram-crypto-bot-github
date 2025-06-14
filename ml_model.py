@@ -5,15 +5,13 @@ import joblib
 import numpy as np
 import pandas as pd
 import ta
-from binance.client import Client
 from sklearn.ensemble import RandomForestClassifier
 
-from binance_api import _to_usdt_pair, is_symbol_valid
-from config import BINANCE_API_KEY, BINANCE_API_SECRET
+from binance_api import _to_usdt_pair, is_symbol_valid, get_binance_client
 
 MODEL_PATH = "model.joblib"
 
-client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_API_SECRET)
+client = get_binance_client()
 
 def load_model():
     if os.path.exists(MODEL_PATH):

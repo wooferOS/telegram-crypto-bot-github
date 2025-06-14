@@ -1,13 +1,15 @@
 from typing import List, Dict
-from binance.client import Client
 
-from binance_api import get_symbol_price, get_candlestick_klines as get_klines
+from binance_api import (
+    get_symbol_price,
+    get_candlestick_klines as get_klines,
+    get_binance_client,
+)
 import numpy as np
 from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit
-from config import BINANCE_API_KEY, BINANCE_API_SECRET
 
-client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_API_SECRET)
+client = get_binance_client()
 
 
 def get_valid_symbols() -> List[str]:
