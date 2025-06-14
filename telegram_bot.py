@@ -58,7 +58,16 @@ from config import TELEGRAM_TOKEN, CHAT_ID, ADMIN_CHAT_ID
 
 take_profit_cb = CallbackData("tp", "symbol", "amount")
 
-bot = Bot(token=TELEGRAM_TOKEN)
+
+def get_bot() -> Bot:
+    """Return a Telegram ``Bot`` initialised with the loaded token."""
+
+    from config import TELEGRAM_TOKEN as TOKEN
+
+    return Bot(token=TOKEN)
+
+
+bot = get_bot()
 dp = Dispatcher(bot)
 logger = logging.getLogger(__name__)
 
