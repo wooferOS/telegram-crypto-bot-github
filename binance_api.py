@@ -28,13 +28,16 @@ from binance.enums import (
     ORDER_TYPE_STOP_LOSS_LIMIT,
 )
 from binance.exceptions import BinanceAPIException
+from dotenv import load_dotenv
 
 
 logger = logging.getLogger(__name__)
 TELEGRAM_LOG_PREFIX = "\ud83d\udce1 [BINANCE]"
 
-BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
-BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
+# Load environment variables from the user's home directory
+load_dotenv(dotenv_path="/root/.env")
+BINANCE_API_KEY = os.environ.get("BINANCE_API_KEY")
+BINANCE_SECRET_KEY = os.environ.get("BINANCE_SECRET_KEY")
 BINANCE_BASE_URL = "https://api.binance.com"
 
 # File used to log TP/SL updates
@@ -98,7 +101,10 @@ def log_signal(message: str) -> None:
         log_file.write(line)
 
 
-print(f"[DEBUG] API: {BINANCE_API_KEY[:6]}..., SECRET: {BINANCE_SECRET_KEY[:6]}...")
+if not BINANCE_API_KEY or not BINANCE_SECRET_KEY:
+    print("[ERROR] Binance API key or secret is missing — check your ~/.env file")
+else:
+    print(f"[DEBUG] API: {BINANCE_API_KEY[:6]}..., SECRET: {BINANCE_SECRET_KEY[:6]}...")
 
 
 # Initialise global Binance client exactly as in Binance docs
@@ -279,14 +285,16 @@ def get_binance_balances() -> Dict[str, float]:
     """Return available balances with automatic API diagnostics."""
 
     try:
-        temp_client = Client(
-            os.getenv("BINANCE_API_KEY"),
-            os.getenv("BINANCE_SECRET_KEY"),
-        )
+        temp_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
-        logging.debug(
-            f"[DEBUG] API: {os.getenv('BINANCE_API_KEY')[:8]}..., SECRET: {os.getenv('BINANCE_SECRET_KEY')[:8]}..."
-        )
+        if BINANCE_API_KEY and BINANCE_SECRET_KEY:
+            logging.debug(
+                f"[DEBUG] API: {BINANCE_API_KEY[:8]}..., SECRET: {BINANCE_SECRET_KEY[:8]}..."
+            )
+        else:
+            logging.warning(
+                "[ERROR] Binance API key or secret is missing — check your ~/.env file"
+            )
 
         try:
             # Тестовий пінг до Binance
