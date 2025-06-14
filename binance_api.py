@@ -7,6 +7,9 @@ API and is designed for use in a Telegram bot.
 
 from __future__ import annotations
 
+from dotenv import load_dotenv
+load_dotenv(dotenv_path="/root/.env")  # Завантаження реального .env із сервера
+
 import os
 import time
 import hmac
@@ -101,10 +104,12 @@ def log_signal(message: str) -> None:
         log_file.write(line)
 
 
-if not BINANCE_API_KEY or not BINANCE_SECRET_KEY:
-    print("[ERROR] Binance API key or secret is missing — check your ~/.env file")
-else:
+if BINANCE_API_KEY and BINANCE_SECRET_KEY:
     print(f"[DEBUG] API: {BINANCE_API_KEY[:6]}..., SECRET: {BINANCE_SECRET_KEY[:6]}...")
+else:
+    print(
+        "[ERROR] BINANCE_API_KEY or BINANCE_SECRET_KEY is missing — check ~/.env on the server"
+    )
 
 
 # Initialise global Binance client exactly as in Binance docs
