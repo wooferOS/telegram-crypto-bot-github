@@ -1,15 +1,14 @@
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
-from binance.client import Client
 from ml_model import generate_features, MODEL_PATH
 import joblib
 import numpy as np
-from config import BINANCE_API_KEY, BINANCE_API_SECRET
+from binance_api import get_binance_client
 import time
 import subprocess
 
-client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_API_SECRET)
+client = get_binance_client()
 
 
 def get_all_usdt_symbols(min_volume=500000):
