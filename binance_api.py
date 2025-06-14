@@ -108,6 +108,7 @@ else:
     print("[ERROR] Binance API keys are not loaded. Check .env presence on server.")
 
 
+
 # Initialise global Binance client exactly as in Binance docs
 client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
