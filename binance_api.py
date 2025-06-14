@@ -33,6 +33,7 @@ from binance.enums import (
 from binance.exceptions import BinanceAPIException
 
 
+
 logger = logging.getLogger(__name__)
 TELEGRAM_LOG_PREFIX = "\ud83d\udce1 [BINANCE]"
 
