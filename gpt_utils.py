@@ -1,8 +1,9 @@
 from typing import Dict, Any
 
 from openai import OpenAI
-from config import OPENAI_API_KEY
+import os
 
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 

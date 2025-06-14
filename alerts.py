@@ -1,12 +1,13 @@
 """Utilities for storing and checking pending trading alerts."""
 
 import json
+import os
 import logging
 from datetime import datetime, timedelta
 from typing import List, Dict
 
 logger = logging.getLogger(__name__)
-from config import ALERTS_FILE
+ALERTS_FILE = os.getenv("ALERTS_FILE", "pending_alerts.json")
 
 
 def _load_alerts() -> List[Dict]:
