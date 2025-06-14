@@ -1,19 +1,17 @@
+import os
 from typing import List, Dict
+from binance.client import Client
 
-from binance_api import (
-    get_symbol_price,
-    get_candlestick_klines as get_klines,
-    get_binance_client,
-)
+from binance_api import get_symbol_price, get_candlestick_klines as get_klines
 import numpy as np
 from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit
 
+client = Client(api_key=os.getenv("BINANCE_API_KEY"), api_secret=os.getenv("BINANCE_API_SECRET"))
 
 
 def get_valid_symbols() -> List[str]:
     """Return all active USDT trading pairs from Binance."""
-    client = get_binance_client()
     return [
         s["symbol"]
         for s in client.get_exchange_info()["symbols"]

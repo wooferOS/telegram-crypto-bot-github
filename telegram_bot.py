@@ -1,5 +1,6 @@
 """Telegram bot configuration and handlers."""
 
+import os
 import logging
 import datetime
 from aiogram import Bot, Dispatcher, types
@@ -54,20 +55,13 @@ from binance_api import (
     cancel_tp_sl_if_market_changed,
 )
 from alerts import check_daily_alerts
-from config import TELEGRAM_TOKEN, CHAT_ID, ADMIN_CHAT_ID
 
 take_profit_cb = CallbackData("tp", "symbol", "amount")
 
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
 
-def get_bot() -> Bot:
-    """Return a Telegram ``Bot`` initialised with the loaded token."""
-
-    from config import TELEGRAM_TOKEN as TOKEN
-
-    return Bot(token=TOKEN)
-
-
-bot = get_bot()
+bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
 logger = logging.getLogger(__name__)
 
@@ -755,31 +749,6 @@ async def show_gpt_forecast(message: types.Message):
 
 async def show_support(message: types.Message):
     await message.answer("\U0001F9D1\u200d\U0001F4BB Пишіть адміну: @your_admin_username")
-
-# added handler for UI button
-@dp.message_handler(Text(equals="\U0001F4C8 Заробити"))
-async def handle_zarobyty_button(message: types.Message) -> None:
-    await zarobyty_cmd(message)
-
-# added handler for UI button
-@dp.message_handler(Text(equals="\U0001F4CA Баланс"))
-async def handle_balance_button(message: types.Message) -> None:
-    await show_balance(message)
-
-# added handler for UI button
-@dp.message_handler(Text(equals="\U0001F4E6 Всі активи"))
-async def handle_all_assets_button(message: types.Message) -> None:
-    await show_all_assets(message)
-
-# added handler for UI button
-@dp.message_handler(Text(equals="\U0001F4C8 Графік"))
-async def handle_chart_button(message: types.Message) -> None:
-    await show_price_chart(message)
-
-# added handler for UI button
-@dp.message_handler(Text(equals="\U0001F9E0 Прогноз GPT"))
-async def handle_gpt_forecast_button(message: types.Message) -> None:
-    await show_gpt_forecast(message)
 
 
 async def check_tp_sl_market_change() -> None:

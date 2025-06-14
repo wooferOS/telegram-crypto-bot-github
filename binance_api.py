@@ -33,11 +33,8 @@ from binance.exceptions import BinanceAPIException
 logger = logging.getLogger(__name__)
 TELEGRAM_LOG_PREFIX = "\ud83d\udce1 [BINANCE]"
 
-from config import (
-    TELEGRAM_TOKEN,
-    ADMIN_CHAT_ID,
-    CHAT_ID,
-)
+BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
+BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
 BINANCE_BASE_URL = "https://api.binance.com"
 
 # File used to log TP/SL updates
@@ -101,101 +98,11 @@ def log_signal(message: str) -> None:
         log_file.write(line)
 
 
-def build_manual_conversion_signal(
-    convert_from_list: list[dict], convert_to_suggestions: list[dict]
-) -> str:
-    """Return formatted manual conversion signal message.
-
-    Only include conversions into non-USDT crypto with positive expected profit.
-    If no valid suggestions remain, return an empty string.
-    """
-
-    msg = ["\ud83d\udd01 \u0423 \u0442\u0435\u0431\u0435 \u043d\u0430 \u0431\u0430\u043b\u0430\u043d\u0441\u0456 \u0442\u0440\u0435\u0431\u0430 \u0441\u043a\u043e\u043d\u0432\u0435\u0440\u0442\u0443\u0432\u0430\u0442\u0438 \u0437:"]
-    for item in convert_from_list:
-        sym = item.get("symbol")
-        qty = round(float(item.get("quantity", 0)), 8)
-        value = round(float(item.get("usdt_value", 0)), 2)
-        msg.append(f"- {sym}: {qty} \u2248 {value} USDT")
-
-    symbols_from = {item.get("symbol") for item in convert_from_list}
-    candidates = []
-    for suggestion in convert_to_suggestions:
-        sym = suggestion.get("symbol")
-        base = sym.replace("USDT", "") if sym else ""
-        profit = float(suggestion.get("expected_profit_usdt", 0))
-        if (
-            base.upper() == "USDT"
-            or profit <= 0
-            or sym in symbols_from
-            or f"{base}USDT" in symbols_from
-        ):
-            continue
-        candidates.append(
-            {
-                "symbol": sym,
-                "quantity": suggestion.get("quantity"),
-                "expected_profit_usdt": profit,
-            }
-        )
-
-    candidates.sort(key=lambda x: x["expected_profit_usdt"], reverse=True)
-
-    selected: list[dict] = []
-    used_targets: set[str] = set()
-    for from_item in convert_from_list:
-        from_sym = from_item.get("symbol", "").replace("USDT", "")
-        for cand in candidates:
-            target = cand["symbol"]
-            base = target.replace("USDT", "")
-            if (
-                target in used_targets
-                or base == from_sym
-                or target in symbols_from
-                or f"{base}USDT" in symbols_from
-            ):
-                continue
-            selected.append(cand)
-            used_targets.add(target)
-            break
-
-    if not selected:
-        return ""
-
-    msg.append(
-        "\n\ud83d\udd01 \u041a\u043e\u043d\u0432\u0435\u0440\u0442\u0430\u0446\u0456\u044f \u043d\u0430:"
-    )
-    for suggestion in selected:
-        sym = suggestion.get("symbol")
-        qty = round(float(suggestion.get("quantity", 0)), 8)
-        profit = round(float(suggestion.get("expected_profit_usdt", 0)), 2)
-        msg.append(
-            f"- {sym}: {qty} \u2192 \u043e\u0447\u0456\u043a\u0443\u0454\u0442\u044c\u0441\u044f \u043f\u0440\u0438\u0431\u0443\u0442\u043e\u043a \u2248 {profit} USDT"
-        )
-
-    return "\n".join(msg)
+print(f"[DEBUG] API: {BINANCE_API_KEY[:6]}..., SECRET: {BINANCE_SECRET_KEY[:6]}...")
 
 
-
-
-
-# Lazy Binance client initialisation has been removed to ensure that
-# environment variables are loaded before creating the ``Client`` instance.
-
-
-from secure_env_loader import load_env_file
-
-
-def get_binance_client() -> Client:
-    """Return a Binance ``Client`` after loading environment variables."""
-
-    load_env_file("/root/.env")
-    api_key = os.environ.get("BINANCE_API_KEY")
-    api_secret = os.environ.get("BINANCE_SECRET_KEY") or os.environ.get(
-        "BINANCE_API_SECRET"
-    )
-    if not api_key:
-        raise RuntimeError("BINANCE_API_KEY is not set")
-    return Client(api_key, api_secret)
+# Initialise global Binance client exactly as in Binance docs
+client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
 # Set of currently tradable USDT pairs
 VALID_PAIRS: set[str] = set()
@@ -247,12 +154,10 @@ def get_timestamp() -> int:
 def sign_request(params: Dict[str, str]) -> Dict[str, str]:
     """Add HMAC SHA256 signature to request parameters."""
 
-    load_env_file("/root/.env")
-    secret = os.environ.get("BINANCE_SECRET_KEY") or os.environ.get(
-        "BINANCE_API_SECRET"
-    )
     query = "&".join(f"{k}={v}" for k, v in params.items())
-    signature = hmac.new(secret.encode(), query.encode(), hashlib.sha256).hexdigest()
+    signature = hmac.new(
+        BINANCE_SECRET_KEY.encode(), query.encode(), hashlib.sha256
+    ).hexdigest()
     params["signature"] = signature
     return params
 
@@ -260,17 +165,11 @@ def sign_request(params: Dict[str, str]) -> Dict[str, str]:
 def get_headers() -> Dict[str, str]:
     """Return HTTP headers with API key."""
 
-    load_env_file("/root/.env")
-    api_key = os.environ.get("BINANCE_API_KEY")
-    if not api_key:
-        raise RuntimeError("BINANCE_API_KEY is not set")
-    return {"X-MBX-APIKEY": api_key}
+    return {"X-MBX-APIKEY": BINANCE_API_KEY}
 
 
 def get_exchange_info_cached() -> Dict[str, object]:
     """Return exchangeInfo using local cache with 12h TTL."""
-
-    client = get_binance_client()
 
     if os.path.exists(EXCHANGE_INFO_CACHE):
         mtime = os.path.getmtime(EXCHANGE_INFO_CACHE)
@@ -286,8 +185,6 @@ def get_exchange_info_cached() -> Dict[str, object]:
 
 def get_exchange_info() -> Dict[str, object]:
     """Return exchange information directly from Binance without cache."""
-
-    client = get_binance_client()
 
     return client.get_exchange_info()
 
@@ -336,7 +233,8 @@ def get_valid_usdt_symbols() -> list[str]:
 
     return get_valid_symbols("USDT")
 
-# Load available USDT trading pairs lazily on first use
+# Load available USDT trading pairs once on startup
+refresh_valid_pairs()
 
 
 # ---------------------------------------------------------------------------
@@ -360,8 +258,6 @@ def get_account_info() -> Optional[Dict[str, object]]:
 def get_balances() -> Dict[str, float]:
     """Return mapping of asset to total balance (free + locked)."""
 
-    client = get_binance_client()
-
     try:
         account = client.get_account()
     except Exception as exc:  # pragma: no cover - network errors
@@ -383,25 +279,21 @@ def get_binance_balances() -> Dict[str, float]:
     """Return available balances with automatic API diagnostics."""
 
     try:
-        client = get_binance_client()
-
-        load_env_file("/root/.env")
-        api_key = os.environ.get("BINANCE_API_KEY", "")
-        secret = os.environ.get("BINANCE_SECRET_KEY") or os.environ.get(
-            "BINANCE_API_SECRET", ""
+        temp_client = Client(
+            os.getenv("BINANCE_API_KEY"),
+            os.getenv("BINANCE_SECRET_KEY"),
         )
+
         logging.debug(
-            "[DEBUG] API: %s..., SECRET: %s...",
-            api_key[:8],
-            secret[:8],
+            f"[DEBUG] API: {os.getenv('BINANCE_API_KEY')[:8]}..., SECRET: {os.getenv('BINANCE_SECRET_KEY')[:8]}..."
         )
 
         try:
             # Тестовий пінг до Binance
-            client.ping()
+            temp_client.ping()
             logging.info("✅ Binance API доступний")
 
-            account = client.get_account()
+            account = temp_client.get_account()
             balances = {
                 asset["asset"]: float(asset["free"])
                 for asset in account["balances"]
@@ -424,8 +316,6 @@ def get_binance_balances() -> Dict[str, float]:
 
 def get_prices() -> Dict[str, float]:
     """Return mapping of asset to its price in USDT."""
-
-    client = get_binance_client()
 
     try:
         tickers = client.get_all_tickers()
@@ -467,8 +357,6 @@ def get_current_portfolio() -> Dict[str, float]:
 def get_usdt_balance() -> float:
     """Return available USDT balance."""
 
-    client = get_binance_client()
-
     try:
         bal = client.get_asset_balance(asset="USDT")
         return float(bal.get("free", 0))
@@ -479,8 +367,6 @@ def get_usdt_balance() -> float:
 
 def get_token_balance(symbol: str) -> float:
     """Return available balance of specific token."""
-
-    client = get_binance_client()
 
     try:
         bal = client.get_asset_balance(asset=symbol.upper())
@@ -528,28 +414,8 @@ def convert_dust_to_usdt(assets: Optional[List[str]] = None) -> Optional[dict]:
         return None
 
 
-def get_non_usdt_assets(threshold_usd: float = 10) -> list[tuple[str, float, float]]:
-    """Return non-USDT assets with value >= ``threshold_usd`` in USDT."""
-
-    balances = get_balances()
-    if balances.get("USDT", 0) > 0:
-        return []
-
-    prices = get_prices()
-    assets: list[tuple[str, float, float]] = []
-    for asset, amount in balances.items():
-        if asset == "USDT":
-            continue
-        usd_value = amount * prices.get(asset, 0)
-        if usd_value >= threshold_usd:
-            assets.append((asset, amount, usd_value))
-    return assets
-
-
 def convert_small_balance(from_asset: str, to_asset: str = "USDT") -> None:
     """Convert ``from_asset`` to ``to_asset`` via Binance Convert API."""
-
-    client = get_binance_client()
 
     try:
         client.convert_trade(
@@ -572,20 +438,12 @@ def convert_small_balance(from_asset: str, to_asset: str = "USDT") -> None:
         )
 
 
-def try_convert(
-    symbol_from: str,
-    symbol_to: str,
-    amount: float,
-    forecast: Optional[Dict[str, float]] | None = None,
-) -> Optional[dict]:
+def try_convert(symbol_from: str, symbol_to: str, amount: float) -> Optional[dict]:
     """Attempt conversion via Binance Convert API."""
-
-    client = get_binance_client()
 
     try:
         url = f"{BINANCE_BASE_URL}/sapi/v1/convert/getQuote"
-        load_env_file("/root/.env")
-        headers = {"X-MBX-APIKEY": os.environ["BINANCE_API_KEY"]}
+        headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
         params: Dict[str, object] = {
             "fromAsset": symbol_from,
             "toAsset": symbol_to,
@@ -619,39 +477,18 @@ def try_convert(
             price = get_symbol_price(f"{symbol_from}{symbol_to}")
         except Exception:  # pragma: no cover - price fetch issues
             price = None
-        usdt_price = price
-        usdt_amount = round(float(amount) * usdt_price, 4) if usdt_price else "?"
+        amount_to = round(float(amount) * price, 4) if price else "?"
         msg = (
-            f"Сигнал: сконвертуйте {symbol_from} {amount} вручну на USDT ≈ {usdt_amount}"
-            f" (1 {symbol_from} ≈ {usdt_price})"
+            f"Сигнал: сконвертуйте {symbol_from} {amount} вручну на "
+            f"{symbol_to} {amount_to}"
         )
         logger.warning(msg)
-
-        forecasted_price_next_1h15m = None
-        if forecast:
-            forecasted_price_next_1h15m = forecast.get("predicted_price") or forecast.get("forecast_1h15m")
-
-        if forecasted_price_next_1h15m and isinstance(usdt_amount, (int, float)) and usdt_price:
-            reverse_amount = usdt_amount / forecasted_price_next_1h15m
-            reverse_profit = reverse_amount - amount
-            logger.warning(
-                f"⚠️ Якщо конвертуєш назад через 1г15х: отримаєш {reverse_amount:.4f} {symbol_from}. "
-                f"Очікуваний прибуток: {reverse_profit:.4f} {symbol_from} "
-                f"(\u043a\u0443\u0440\u0441 \u043e\u0447\u0456\u043a\u0443\u0454\u0442\u044c\u0441\u044f {forecasted_price_next_1h15m:.6f} USDT)"
-            )
-
         log_signal(msg)
         return None
 
 
-def convert_to_usdt(
-    asset: str,
-    amount: float,
-    forecast: Optional[Dict[str, float]] | None = None,
-):
+def convert_to_usdt(asset: str, amount: float):
     """Convert ``asset`` amount to USDT using Binance Convert API."""
-
-    client = get_binance_client()
 
     logger.info("🔁 Спроба конвертації %s %s в USDT", amount, asset)
 
@@ -666,13 +503,11 @@ def convert_to_usdt(
     except Exception as exc:  # pragma: no cover - handle below
         logger.warning("convert_trade fallback: %s", exc)
 
-    return try_convert(asset, "USDT", amount, forecast)
+    return try_convert(asset, "USDT", amount)
 
 
 def get_account_balances() -> Dict[str, Dict[str, str]]:
     """Return mapping of assets to their free and locked amounts."""
-
-    client = get_binance_client()
 
     try:
         account = client.get_account()
@@ -701,8 +536,6 @@ def get_asset_quantity(symbol: str) -> float:
 def cancel_all_orders(symbol: str) -> None:
     """Cancel all open orders for ``symbol``."""
 
-    client = get_binance_client()
-
     try:
         client.cancel_open_orders(symbol=symbol)
     except Exception as exc:  # pragma: no cover - network errors
@@ -711,8 +544,6 @@ def cancel_all_orders(symbol: str) -> None:
 
 def get_symbol_price(symbol: str) -> Optional[float]:
     """Return current price of ``symbol`` quoted in USDT."""
-
-    client = get_binance_client()
 
     pair = _to_usdt_pair(symbol)
     logger.debug("get_symbol_price: %s -> %s", symbol, pair)
@@ -744,8 +575,6 @@ def get_current_price(symbol: str) -> float:
 def get_token_price(symbol: str) -> dict:
     """Return token price with symbol."""
 
-    client = get_binance_client()
-
     base = normalize_symbol(symbol)
     pair = f"{base}USDT".upper()
     if pair not in VALID_PAIRS:
@@ -761,8 +590,6 @@ def get_token_price(symbol: str) -> dict:
 
 def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[str, object]]:
     """Place a market order for ``symbol`` on Binance."""
-
-    client = get_binance_client()
 
     base = normalize_symbol(symbol)
     pair = f"{base}USDT".upper()
@@ -804,8 +631,6 @@ def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[s
 def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]:
     """Buy ``symbol`` using market order for a specified USDT amount."""
 
-    client = get_binance_client()
-
     try:
         base = normalize_symbol(symbol)
         pair = f"{base}USDT".upper()
@@ -830,8 +655,6 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
 
 def market_buy(symbol: str, usdt_amount: float) -> dict:
     """Ринкова купівля ``symbol`` на вказану суму в USDT."""
-
-    client = get_binance_client()
 
     try:
         price_data = client.get_symbol_ticker(symbol=symbol)
@@ -860,8 +683,6 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
 def market_sell(symbol: str, quantity: float) -> dict:
     """Виконує ринковий продаж криптовалюти на вказану кількість."""
 
-    client = get_binance_client()
-
     try:
         client.order_market_sell(symbol=symbol, quantity=quantity)
         logger.info("✅ Продано %s %s", quantity, symbol)
@@ -887,8 +708,6 @@ def market_sell(symbol: str, quantity: float) -> dict:
 
 def sell_asset(symbol: str, quantity: float) -> dict:
     """Sell ``symbol`` with fallback to Binance Convert on LOT_SIZE error."""
-
-    client = get_binance_client()
 
     try:
         # звичайна спроба продати
@@ -923,8 +742,6 @@ def sell_asset(symbol: str, quantity: float) -> dict:
 def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
     """Place a limit sell order on Binance."""
 
-    client = get_binance_client()
-
     try:
         pair = _to_usdt_pair(symbol)
         order = client.create_order(
@@ -943,7 +760,6 @@ def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
 
 def place_limit_sell(symbol: str, quantity: float) -> dict:
     """Place a LIMIT sell order at current market price."""
-    client = get_binance_client()
     pair = _to_usdt_pair(symbol)
     price = get_symbol_price(pair)
     try:
@@ -982,8 +798,6 @@ def place_take_profit_order(
     ``current_price`` з урахуванням ``profit_percent``.
     """
 
-    client = get_binance_client()
-
     if take_profit_price is None:
         if current_price is None:
             raise ValueError("current_price or take_profit_price required")
@@ -1012,8 +826,6 @@ def place_take_profit_order(
 def create_take_profit_order(symbol: str, quantity: float, target_price: float) -> dict:
     """Створення ордера LIMIT SELL для фіксації прибутку (Take Profit)"""
 
-    client = get_binance_client()
-
     try:
         price_str = f"{target_price:.8f}".rstrip("0").rstrip(".")
         quantity_str = f"{quantity:.8f}".rstrip("0").rstrip(".")
@@ -1034,8 +846,6 @@ def place_stop_limit_buy_order(
     symbol: str, quantity: float, stop_price: float, limit_price: float
 ) -> dict:
     """Create STOP_LIMIT BUY order on Binance."""
-
-    client = get_binance_client()
 
     try:
         pair = _to_usdt_pair(symbol)
@@ -1064,8 +874,6 @@ def place_stop_limit_sell_order(
 ) -> dict:
     """Create STOP_LIMIT SELL order on Binance."""
 
-    client = get_binance_client()
-
     try:
         pair = _to_usdt_pair(symbol)
         order = client.create_order(
@@ -1092,8 +900,6 @@ def place_stop_loss_order(
     symbol: str, quantity: float, stop_price: float
 ) -> Optional[Dict[str, object]]:
     """Створити стандартний Stop Loss ордер."""
-
-    client = get_binance_client()
 
     try:
         order = client.create_order(
@@ -1140,8 +946,6 @@ def get_open_orders(symbol: str | None = None) -> list:
 
 def cancel_order(order_id: int, symbol: str = "USDTBTC") -> bool:
     """Cancel an existing order by ID."""
-
-    client = get_binance_client()
     try:
         response = client.cancel_order(symbol=symbol, orderId=order_id)
         return response.get("status") == "CANCELED"
@@ -1215,8 +1019,6 @@ def get_active_orders() -> Dict[str, object]:
 def get_usdt_to_uah_rate() -> float:
     """Return USDT to UAH conversion rate."""
 
-    client = get_binance_client()
-
     try:
         ticker = client.get_symbol_ticker(symbol="USDTUAH")
         return float(ticker.get("price", 39.2))
@@ -1240,8 +1042,8 @@ def get_token_value_in_uah(symbol: str) -> float:
 def notify_telegram(message: str) -> None:
     """Send a notification to Telegram if credentials are configured."""
 
-    token = TELEGRAM_TOKEN
-    chat_id = ADMIN_CHAT_ID or CHAT_ID
+    token = os.getenv("TELEGRAM_TOKEN")
+    chat_id = os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", ""))
     if not token or not chat_id:
         logger.debug("%s Telegram credentials not set", TELEGRAM_LOG_PREFIX)
         return
@@ -1380,8 +1182,6 @@ def get_candlestick_klines(symbol: str, interval: str = "1h", limit: int = 100) 
 def get_recent_trades(symbol: str = "BTCUSDT", limit: int = 5) -> List[Dict[str, object]]:
     """Return recent trades from Binance."""
 
-    client = get_binance_client()
-
     try:
         return client.get_my_trades(symbol=symbol, limit=limit)
     except Exception as exc:
@@ -1393,7 +1193,6 @@ def get_recent_trades(symbol: str = "BTCUSDT", limit: int = 5) -> List[Dict[str,
 
 def get_real_pnl_data() -> Dict[str, Dict[str, float]]:
     """Return real-time PnL data from Binance (current vs avg price)."""
-    client = get_binance_client()
     account = get_account_info()
     result: Dict[str, Dict[str, float]] = {}
     if not account:
@@ -1594,7 +1393,6 @@ def place_limit_sell_order(symbol: str, quantity: float, price: float) -> dict:
     """
     Виставляє лімітний ордер на продаж з ціною Take Profit.
     """
-    client = get_binance_client()
     try:
         response = client.create_order(
             symbol=symbol,
@@ -1672,7 +1470,6 @@ buy_token_market = market_buy
 
 def get_candlestick_klines(symbol: str, interval: str = "1d", limit: int = 7):
     """Return candlestick klines for a tradable symbol."""
-    client = get_binance_client()
     base = normalize_symbol(symbol)
     if base not in load_tradable_usdt_symbols():
         raise ValueError(f"Token {base} не торгується на Binance")

@@ -6,6 +6,7 @@ import asyncio
 import pytz
 import statistics
 import logging
+import os
 import numpy as np
 
 from binance_api import (
@@ -27,7 +28,6 @@ from binance_api import (
     market_sell,
     is_symbol_valid,
     get_valid_usdt_symbols,
-    get_non_usdt_assets,
     VALID_PAIRS,
     refresh_valid_pairs,
 )
@@ -62,9 +62,6 @@ symbols = get_valid_usdt_symbols()
 
 logger = logging.getLogger(__name__)
 
-# added manual convert signal logic
-manual_convert_signal_sent = False
-
 # Global minimum thresholds (override via config)
 MIN_VOLUME = 100_000
 
@@ -82,13 +79,6 @@ async def send_message_parts(bot, chat_id: int, text: str) -> None:
     """Send ``text`` to Telegram in chunks not exceeding ``chunk_size``."""
     for part in split_telegram_message(text, 4000):
         await bot.send_message(chat_id, part)
-
-
-async def send_telegram_message(text: str) -> None:
-    """Send ``text`` to the admin Telegram chat."""
-
-    from telegram_bot import bot, ADMIN_CHAT_ID  # Local import to avoid cycle
-    await bot.send_message(ADMIN_CHAT_ID, text)
 
 
 
@@ -446,15 +436,6 @@ async def daily_analysis_task(bot: Bot, chat_id: int) -> None:
     for symbol in symbols:
         print(f"\U0001F50D Analyzing {symbol}")
 
-    assets_to_convert = get_non_usdt_assets()
-    if assets_to_convert:
-        lines = [f"- {symbol}: ${value:.2f}" for symbol, _, value in assets_to_convert]
-        message = (
-            "\u26A0\ufe0f Сигнал: сконвертуйте вручну активи на USDT через Binance Convert:\n"
-            + "\n".join(lines)
-        )
-        await send_telegram_message(message)
-
     report, _, _, gpt_text = generate_zarobyty_report()
     full_text = f"{report}\n\n{gpt_text}"
     await send_message_parts(bot, chat_id, full_text)
@@ -498,21 +479,10 @@ async def auto_trade_loop():
             if buy_candidates:
                 if not balance:
                     logger.warning("USDT balance unavailable for buying")
-                    global manual_convert_signal_sent
-                    if not manual_convert_signal_sent:
-                        balances = get_binance_balances()
-                        convert_assets = [f"{a} \u2192 USDT" for a in balances if a != "USDT"]
-                        if convert_assets:
-                            from telegram_bot import bot, ADMIN_CHAT_ID
-                            text = (
-                                "\u26A0\ufe0f Сигнал: сконвертуйте вручну активи на USDT через Binance Convert:\n"
-                                + "\n".join(f"- {c}" for c in convert_assets)
-                            )
-                            await bot.send_message(ADMIN_CHAT_ID, text)
-                            manual_convert_signal_sent = True
+                    from telegram_bot import bot, ADMIN_CHAT_ID
+                    await bot.send_message(ADMIN_CHAT_ID, "\u26A0\ufe0f Немає USDT для покупки")
                     await asyncio.sleep(TRADE_LOOP_INTERVAL)
                     continue
-                manual_convert_signal_sent = False
                 for candidate in buy_candidates:
                     pair = candidate["symbol"].upper()
                     if pair not in valid_pairs:
@@ -701,9 +671,12 @@ def demo_candidates_loop(symbols: list[str]) -> list[dict]:
 
 if __name__ == "__main__":
     import asyncio
+    import os
     import sys
     from telegram import Bot
-    from config import TELEGRAM_TOKEN, CHAT_ID
+
+    TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+    CHAT_ID = os.getenv("CHAT_ID")
 
     if len(sys.argv) > 1 and sys.argv[1] == "demo":
         candidates = demo_candidates_loop(symbols)
