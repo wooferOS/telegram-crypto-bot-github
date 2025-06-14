@@ -105,9 +105,7 @@ def log_signal(message: str) -> None:
 if BINANCE_API_KEY and BINANCE_SECRET_KEY:
     print(f"[DEBUG] API: {BINANCE_API_KEY[:6]}..., SECRET: {BINANCE_SECRET_KEY[:6]}...")
 else:
-    print(
-        "[ERROR] BINANCE_API_KEY or BINANCE_SECRET_KEY is missing — check ~/.env on the server"
-    )
+    print("[ERROR] BINANCE_API_KEY or BINANCE_SECRET_KEY is missing — check ~/.env on the server")
 
 
 # Initialise global Binance client exactly as in Binance docs
