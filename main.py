@@ -2,6 +2,11 @@ import logging
 import asyncio
 from aiogram import Dispatcher
 from aiogram.utils import executor
+
+from secure_env_loader import load_env_file
+
+load_env_file("/root/.env")
+
 from telegram_bot import (
     dp,
     bot,
