@@ -4,6 +4,8 @@ import logging
 import requests
 from typing import Optional, Dict
 
+from config import COINGECKO_API_KEY
+
 BASE_URL = "https://api.coingecko.com/api/v3"
 logger = logging.getLogger(__name__)
 
@@ -18,8 +20,9 @@ def get_coin_market_data(coin_id: str) -> Optional[Dict]:
         "developer_data": "false",
         "sparkline": "false",
     }
+    headers = {"x-cg-pro-api-key": COINGECKO_API_KEY} if COINGECKO_API_KEY else None
     try:
-        resp = requests.get(url, params=params, timeout=10)
+        resp = requests.get(url, params=params, headers=headers, timeout=10)
         resp.raise_for_status()
         data = resp.json().get("market_data", {})
         return {
@@ -45,8 +48,9 @@ def get_market_data(token: str) -> Optional[Dict]:
 def get_sentiment() -> str:
     """Return 'Bullish', 'Neutral' or 'Bearish' based on market cap change."""
     url = f"{BASE_URL}/global"
+    headers = {"x-cg-pro-api-key": COINGECKO_API_KEY} if COINGECKO_API_KEY else None
     try:
-        resp = requests.get(url, timeout=10)
+        resp = requests.get(url, headers=headers, timeout=10)
         resp.raise_for_status()
         change = resp.json().get("data", {}).get(
             "market_cap_change_percentage_24h_usd", 0

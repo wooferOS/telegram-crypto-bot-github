@@ -6,7 +6,6 @@ import asyncio
 import pytz
 import statistics
 import logging
-import os
 import numpy as np
 
 from binance_api import (
@@ -702,12 +701,9 @@ def demo_candidates_loop(symbols: list[str]) -> list[dict]:
 
 if __name__ == "__main__":
     import asyncio
-    import os
     import sys
     from telegram import Bot
-
-    TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-    CHAT_ID = os.getenv("CHAT_ID")
+    from config import TELEGRAM_TOKEN, CHAT_ID
 
     if len(sys.argv) > 1 and sys.argv[1] == "demo":
         candidates = demo_candidates_loop(symbols)

@@ -5,13 +5,11 @@ from binance.client import Client
 from ml_model import generate_features, MODEL_PATH
 import joblib
 import numpy as np
-import os
+from config import BINANCE_API_KEY, BINANCE_API_SECRET
 import time
 import subprocess
 
-api_key = os.getenv("BINANCE_API_KEY")
-api_secret = os.getenv("BINANCE_API_SECRET")
-client = Client(api_key=api_key, api_secret=api_secret)
+client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_API_SECRET)
 
 
 def get_all_usdt_symbols(min_volume=500000):
