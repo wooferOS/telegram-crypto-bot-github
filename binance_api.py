@@ -31,14 +31,12 @@ from binance.enums import (
     ORDER_TYPE_STOP_LOSS_LIMIT,
 )
 from binance.exceptions import BinanceAPIException
-from dotenv import load_dotenv
 
 
 logger = logging.getLogger(__name__)
 TELEGRAM_LOG_PREFIX = "\ud83d\udce1 [BINANCE]"
 
 # Load environment variables from the user's home directory
-load_dotenv(dotenv_path="/root/.env")
 BINANCE_API_KEY = os.environ.get("BINANCE_API_KEY")
 BINANCE_SECRET_KEY = os.environ.get("BINANCE_SECRET_KEY")
 BINANCE_BASE_URL = "https://api.binance.com"
