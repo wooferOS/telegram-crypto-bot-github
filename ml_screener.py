@@ -9,11 +9,11 @@ import numpy as np
 from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit
 
-client = get_binance_client()
 
 
 def get_valid_symbols() -> List[str]:
     """Return all active USDT trading pairs from Binance."""
+    client = get_binance_client()
     return [
         s["symbol"]
         for s in client.get_exchange_info()["symbols"]

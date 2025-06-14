@@ -333,8 +333,7 @@ def get_valid_usdt_symbols() -> list[str]:
 
     return get_valid_symbols("USDT")
 
-# Load available USDT trading pairs once on startup
-refresh_valid_pairs()
+# Load available USDT trading pairs lazily on first use
 
 
 # ---------------------------------------------------------------------------

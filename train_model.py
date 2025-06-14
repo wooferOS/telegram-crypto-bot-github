@@ -8,10 +8,10 @@ from binance_api import get_binance_client
 import time
 import subprocess
 
-client = get_binance_client()
 
 
 def get_all_usdt_symbols(min_volume=500000):
+    client = get_binance_client()
     tickers = client.get_ticker()
     result = []
     for t in tickers:
