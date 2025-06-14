@@ -182,14 +182,19 @@ def build_manual_conversion_signal(
 # environment variables are loaded before creating the ``Client`` instance.
 
 
+from secure_env_loader import load_env_file
+
+
 def get_binance_client() -> Client:
     """Return a Binance ``Client`` after loading environment variables."""
 
-    from dotenv import load_dotenv
-
-    load_dotenv()
-    api_key = os.environ["BINANCE_API_KEY"]
-    api_secret = os.environ.get("BINANCE_SECRET_KEY") or os.environ["BINANCE_API_SECRET"]
+    load_env_file("/root/.env")
+    api_key = os.environ.get("BINANCE_API_KEY")
+    api_secret = os.environ.get("BINANCE_SECRET_KEY") or os.environ.get(
+        "BINANCE_API_SECRET"
+    )
+    if not api_key:
+        raise RuntimeError("BINANCE_API_KEY is not set")
     return Client(api_key, api_secret)
 
 # Set of currently tradable USDT pairs
@@ -242,10 +247,10 @@ def get_timestamp() -> int:
 def sign_request(params: Dict[str, str]) -> Dict[str, str]:
     """Add HMAC SHA256 signature to request parameters."""
 
-    from dotenv import load_dotenv
-
-    load_dotenv()
-    secret = os.environ.get("BINANCE_SECRET_KEY") or os.environ["BINANCE_API_SECRET"]
+    load_env_file("/root/.env")
+    secret = os.environ.get("BINANCE_SECRET_KEY") or os.environ.get(
+        "BINANCE_API_SECRET"
+    )
     query = "&".join(f"{k}={v}" for k, v in params.items())
     signature = hmac.new(secret.encode(), query.encode(), hashlib.sha256).hexdigest()
     params["signature"] = signature
@@ -255,10 +260,11 @@ def sign_request(params: Dict[str, str]) -> Dict[str, str]:
 def get_headers() -> Dict[str, str]:
     """Return HTTP headers with API key."""
 
-    from dotenv import load_dotenv
-
-    load_dotenv()
-    return {"X-MBX-APIKEY": os.environ["BINANCE_API_KEY"]}
+    load_env_file("/root/.env")
+    api_key = os.environ.get("BINANCE_API_KEY")
+    if not api_key:
+        raise RuntimeError("BINANCE_API_KEY is not set")
+    return {"X-MBX-APIKEY": api_key}
 
 
 def get_exchange_info_cached() -> Dict[str, object]:
@@ -379,11 +385,11 @@ def get_binance_balances() -> Dict[str, float]:
     try:
         client = get_binance_client()
 
-        from dotenv import load_dotenv
-
-        load_dotenv()
+        load_env_file("/root/.env")
         api_key = os.environ.get("BINANCE_API_KEY", "")
-        secret = os.environ.get("BINANCE_SECRET_KEY") or os.environ.get("BINANCE_API_SECRET", "")
+        secret = os.environ.get("BINANCE_SECRET_KEY") or os.environ.get(
+            "BINANCE_API_SECRET", ""
+        )
         logging.debug(
             "[DEBUG] API: %s..., SECRET: %s...",
             api_key[:8],
@@ -578,9 +584,7 @@ def try_convert(
 
     try:
         url = f"{BINANCE_BASE_URL}/sapi/v1/convert/getQuote"
-        from dotenv import load_dotenv
-
-        load_dotenv()
+        load_env_file("/root/.env")
         headers = {"X-MBX-APIKEY": os.environ["BINANCE_API_KEY"]}
         params: Dict[str, object] = {
             "fromAsset": symbol_from,
