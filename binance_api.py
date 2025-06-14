@@ -189,19 +189,16 @@ logger.debug(
 )
 
 
-# Lazy Binance client initialisation
-_client: Client | None = None
+# Lazy Binance client initialisation has been removed to ensure that
+# environment variables are loaded before creating the ``Client`` instance.
 
 
 def get_binance_client() -> Client:
-    """Return a cached Binance ``Client`` initialised with env keys."""
+    """Return a new Binance ``Client`` initialised with env keys."""
 
-    global _client
-    if _client is None:
-        from config import BINANCE_API_KEY, BINANCE_SECRET_KEY
+    from config import BINANCE_API_KEY, BINANCE_SECRET_KEY
 
-        _client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
-    return _client
+    return Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
 # Set of currently tradable USDT pairs
 VALID_PAIRS: set[str] = set()
@@ -384,23 +381,20 @@ def get_binance_balances() -> Dict[str, float]:
     """Return available balances with automatic API diagnostics."""
 
     try:
-        api_key = BINANCE_API_KEY
-        secret_key = BINANCE_SECRET_KEY
-
-        temp_client = Client(api_key, secret_key)
+        client = get_binance_client()
 
         logging.debug(
             "[DEBUG] API: %s..., SECRET: %s...",
-            api_key[:8],
-            secret_key[:8],
+            BINANCE_API_KEY[:8],
+            BINANCE_SECRET_KEY[:8],
         )
 
         try:
             # Тестовий пінг до Binance
-            temp_client.ping()
+            client.ping()
             logging.info("✅ Binance API доступний")
 
-            account = temp_client.get_account()
+            account = client.get_account()
             balances = {
                 asset["asset"]: float(asset["free"])
                 for asset in account["balances"]
