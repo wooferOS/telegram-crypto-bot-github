@@ -1,0 +1,809 @@
+[DEBUG] API: SwG2AF..., SECRET: LdEqOM...
+🚀 Start daily_analysis_task
+📦 Trading symbols loaded: 403
+🔹 Example symbols: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'NEOUSDT', 'LTCUSDT']
+🔍 Analyzing BTCUSDT
+🔍 Analyzing ETHUSDT
+🔍 Analyzing BNBUSDT
+🔍 Analyzing NEOUSDT
+🔍 Analyzing LTCUSDT
+🔍 Analyzing QTUMUSDT
+🔍 Analyzing ADAUSDT
+🔍 Analyzing XRPUSDT
+🔍 Analyzing TUSDUSDT
+🔍 Analyzing IOTAUSDT
+🔍 Analyzing XLMUSDT
+🔍 Analyzing ONTUSDT
+🔍 Analyzing TRXUSDT
+🔍 Analyzing ETCUSDT
+🔍 Analyzing ICXUSDT
+🔍 Analyzing VETUSDT
+🔍 Analyzing USDCUSDT
+🔍 Analyzing LINKUSDT
+🔍 Analyzing ONGUSDT
+🔍 Analyzing HOTUSDT
+🔍 Analyzing ZILUSDT
+🔍 Analyzing ZRXUSDT
+🔍 Analyzing FETUSDT
+🔍 Analyzing BATUSDT
+🔍 Analyzing ZECUSDT
+🔍 Analyzing IOSTUSDT
+🔍 Analyzing CELRUSDT
+🔍 Analyzing DASHUSDT
+🔍 Analyzing THETAUSDT
+🔍 Analyzing ENJUSDT
+🔍 Analyzing ATOMUSDT
+🔍 Analyzing TFUELUSDT
+🔍 Analyzing ONEUSDT
+🔍 Analyzing ALGOUSDT
+🔍 Analyzing DOGEUSDT
+🔍 Analyzing DUSKUSDT
+🔍 Analyzing ANKRUSDT
+🔍 Analyzing WINUSDT
+🔍 Analyzing COSUSDT
+🔍 Analyzing MTLUSDT
+🔍 Analyzing DENTUSDT
+🔍 Analyzing WANUSDT
+🔍 Analyzing FUNUSDT
+🔍 Analyzing CVCUSDT
+🔍 Analyzing CHZUSDT
+🔍 Analyzing BANDUSDT
+🔍 Analyzing XTZUSDT
+🔍 Analyzing RVNUSDT
+🔍 Analyzing HBARUSDT
+🔍 Analyzing NKNUSDT
+🔍 Analyzing STXUSDT
+🔍 Analyzing KAVAUSDT
+🔍 Analyzing ARPAUSDT
+🔍 Analyzing IOTXUSDT
+🔍 Analyzing RLCUSDT
+🔍 Analyzing BCHUSDT
+🔍 Analyzing FTTUSDT
+🔍 Analyzing EURUSDT
+🔍 Analyzing OGNUSDT
+🔍 Analyzing LSKUSDT
+🔍 Analyzing BNTUSDT
+🔍 Analyzing LTOUSDT
+🔍 Analyzing MBLUSDT
+🔍 Analyzing COTIUSDT
+🔍 Analyzing DATAUSDT
+🔍 Analyzing SOLUSDT
+🔍 Analyzing CTSIUSDT
+🔍 Analyzing HIVEUSDT
+🔍 Analyzing CHRUSDT
+🔍 Analyzing ARDRUSDT
+🔍 Analyzing MDTUSDT
+🔍 Analyzing KNCUSDT
+🔍 Analyzing LRCUSDT
+🔍 Analyzing COMPUSDT
+🔍 Analyzing SCUSDT
+🔍 Analyzing ZENUSDT
+🔍 Analyzing SNXUSDT
+🔍 Analyzing VTHOUSDT
+🔍 Analyzing DGBUSDT
+🔍 Analyzing SXPUSDT
+🔍 Analyzing MKRUSDT
+🔍 Analyzing DCRUSDT
+🔍 Analyzing STORJUSDT
+🔍 Analyzing MANAUSDT
+🔍 Analyzing YFIUSDT
+🔍 Analyzing KMDUSDT
+🔍 Analyzing JSTUSDT
+🔍 Analyzing CRVUSDT
+🔍 Analyzing SANDUSDT
+🔍 Analyzing NMRUSDT
+🔍 Analyzing DOTUSDT
+🔍 Analyzing LUNAUSDT
+🔍 Analyzing RSRUSDT
+🔍 Analyzing PAXGUSDT
+🔍 Analyzing TRBUSDT
+🔍 Analyzing SUSHIUSDT
+🔍 Analyzing KSMUSDT
+🔍 Analyzing EGLDUSDT
+🔍 Analyzing DIAUSDT
+🔍 Analyzing RUNEUSDT
+🔍 Analyzing FIOUSDT
+🔍 Analyzing UMAUSDT
+🔍 Analyzing BELUSDT
+🔍 Analyzing UNIUSDT
+🔍 Analyzing OXTUSDT
+🔍 Analyzing SUNUSDT
+🔍 Analyzing AVAXUSDT
+🔍 Analyzing FLMUSDT
+🔍 Analyzing UTKUSDT
+🔍 Analyzing XVSUSDT
+🔍 Analyzing ALPHAUSDT
+🔍 Analyzing AAVEUSDT
+🔍 Analyzing NEARUSDT
+🔍 Analyzing FILUSDT
+🔍 Analyzing INJUSDT
+🔍 Analyzing AUDIOUSDT
+🔍 Analyzing CTKUSDT
+🔍 Analyzing AXSUSDT
+🔍 Analyzing STRAXUSDT
+🔍 Analyzing ROSEUSDT
+🔍 Analyzing AVAUSDT
+🔍 Analyzing SKLUSDT
+🔍 Analyzing GRTUSDT
+🔍 Analyzing JUVUSDT
+🔍 Analyzing PSGUSDT
+🔍 Analyzing 1INCHUSDT
+🔍 Analyzing OGUSDT
+🔍 Analyzing ATMUSDT
+🔍 Analyzing ASRUSDT
+🔍 Analyzing CELOUSDT
+🔍 Analyzing RIFUSDT
+🔍 Analyzing TRUUSDT
+🔍 Analyzing CKBUSDT
+🔍 Analyzing TWTUSDT
+🔍 Analyzing SFPUSDT
+🔍 Analyzing DODOUSDT
+🔍 Analyzing CAKEUSDT
+🔍 Analyzing ACMUSDT
+🔍 Analyzing FISUSDT
+🔍 Analyzing OMUSDT
+🔍 Analyzing PONDUSDT
+🔍 Analyzing DEGOUSDT
+🔍 Analyzing ALICEUSDT
+🔍 Analyzing PERPUSDT
+🔍 Analyzing SUPERUSDT
+🔍 Analyzing CFXUSDT
+🔍 Analyzing TKOUSDT
+🔍 Analyzing PUNDIXUSDT
+🔍 Analyzing TLMUSDT
+🔍 Analyzing BARUSDT
+🔍 Analyzing FORTHUSDT
+🔍 Analyzing BAKEUSDT
+🔍 Analyzing SLPUSDT
+🔍 Analyzing SHIBUSDT
+🔍 Analyzing ICPUSDT
+🔍 Analyzing ARUSDT
+🔍 Analyzing MASKUSDT
+🔍 Analyzing LPTUSDT
+🔍 Analyzing XVGUSDT
+🔍 Analyzing ATAUSDT
+🔍 Analyzing GTCUSDT
+🔍 Analyzing PHAUSDT
+🔍 Analyzing MLNUSDT
+🔍 Analyzing DEXEUSDT
+🔍 Analyzing C98USDT
+🔍 Analyzing QNTUSDT
+🔍 Analyzing FLOWUSDT
+🔍 Analyzing MINAUSDT
+🔍 Analyzing RAYUSDT
+🔍 Analyzing FARMUSDT
+🔍 Analyzing QUICKUSDT
+🔍 Analyzing MBOXUSDT
+🔍 Analyzing REQUSDT
+🔍 Analyzing GHSTUSDT
+🔍 Analyzing WAXPUSDT
+🔍 Analyzing GNOUSDT
+🔍 Analyzing XECUSDT
+🔍 Analyzing DYDXUSDT
+🔍 Analyzing IDEXUSDT
+🔍 Analyzing USDPUSDT
+🔍 Analyzing GALAUSDT
+🔍 Analyzing ILVUSDT
+🔍 Analyzing YGGUSDT
+🔍 Analyzing SYSUSDT
+🔍 Analyzing DFUSDT
+🔍 Analyzing FIDAUSDT
+🔍 Analyzing AGLDUSDT
+🔍 Analyzing RADUSDT
+🔍 Analyzing RAREUSDT
+🔍 Analyzing LAZIOUSDT
+🔍 Analyzing CHESSUSDT
+🔍 Analyzing ADXUSDT
+🔍 Analyzing AUCTIONUSDT
+🔍 Analyzing MOVRUSDT
+🔍 Analyzing CITYUSDT
+🔍 Analyzing ENSUSDT
+🔍 Analyzing QIUSDT
+🔍 Analyzing PORTOUSDT
+🔍 Analyzing POWRUSDT
+🔍 Analyzing JASMYUSDT
+🔍 Analyzing AMPUSDT
+🔍 Analyzing PYRUSDT
+🔍 Analyzing ALCXUSDT
+🔍 Analyzing SANTOSUSDT
+🔍 Analyzing BICOUSDT
+🔍 Analyzing FLUXUSDT
+🔍 Analyzing FXSUSDT
+🔍 Analyzing VOXELUSDT
+🔍 Analyzing HIGHUSDT
+🔍 Analyzing CVXUSDT
+🔍 Analyzing PEOPLEUSDT
+🔍 Analyzing SPELLUSDT
+🔍 Analyzing JOEUSDT
+🔍 Analyzing ACHUSDT
+🔍 Analyzing IMXUSDT
+🔍 Analyzing GLMRUSDT
+🔍 Analyzing LOKAUSDT
+🔍 Analyzing SCRTUSDT
+🔍 Analyzing API3USDT
+🔍 Analyzing BTTCUSDT
+🔍 Analyzing ACAUSDT
+🔍 Analyzing XNOUSDT
+🔍 Analyzing WOOUSDT
+🔍 Analyzing ALPINEUSDT
+🔍 Analyzing TUSDT
+🔍 Analyzing ASTRUSDT
+🔍 Analyzing GMTUSDT
+🔍 Analyzing KDAUSDT
+🔍 Analyzing APEUSDT
+🔍 Analyzing BSWUSDT
+🔍 Analyzing BIFIUSDT
+🔍 Analyzing STEEMUSDT
+🔍 Analyzing NEXOUSDT
+🔍 Analyzing REIUSDT
+🔍 Analyzing LDOUSDT
+🔍 Analyzing OPUSDT
+🔍 Analyzing LEVERUSDT
+🔍 Analyzing STGUSDT
+🔍 Analyzing LUNCUSDT
+🔍 Analyzing GMXUSDT
+🔍 Analyzing POLYXUSDT
+🔍 Analyzing APTUSDT
+🔍 Analyzing OSMOUSDT
+🔍 Analyzing HFTUSDT
+🔍 Analyzing PHBUSDT
+🔍 Analyzing HOOKUSDT
+🔍 Analyzing MAGICUSDT
+🔍 Analyzing HIFIUSDT
+🔍 Analyzing RPLUSDT
+🔍 Analyzing GNSUSDT
+🔍 Analyzing SYNUSDT
+🔍 Analyzing SSVUSDT
+🔍 Analyzing LQTYUSDT
+🔍 Analyzing USTCUSDT
+🔍 Analyzing GASUSDT
+🔍 Analyzing GLMUSDT
+🔍 Analyzing PROMUSDT
+🔍 Analyzing QKCUSDT
+🔍 Analyzing IDUSDT
+🔍 Analyzing ARBUSDT
+🔍 Analyzing RDNTUSDT
+🔍 Analyzing WBTCUSDT
+🔍 Analyzing EDUUSDT
+🔍 Analyzing SUIUSDT
+🔍 Analyzing PEPEUSDT
+🔍 Analyzing FLOKIUSDT
+🔍 Analyzing MAVUSDT
+🔍 Analyzing PENDLEUSDT
+🔍 Analyzing ARKMUSDT
+🔍 Analyzing WBETHUSDT
+🔍 Analyzing WLDUSDT
+🔍 Analyzing FDUSDUSDT
+🔍 Analyzing SEIUSDT
+🔍 Analyzing CYBERUSDT
+🔍 Analyzing ARKUSDT
+🔍 Analyzing IQUSDT
+🔍 Analyzing NTRNUSDT
+🔍 Analyzing TIAUSDT
+🔍 Analyzing MEMEUSDT
+🔍 Analyzing ORDIUSDT
+🔍 Analyzing BEAMXUSDT
+🔍 Analyzing PIVXUSDT
+🔍 Analyzing VICUSDT
+🔍 Analyzing BLURUSDT
+🔍 Analyzing VANRYUSDT
+🔍 Analyzing AEURUSDT
+🔍 Analyzing JTOUSDT
+🔍 Analyzing 1000SATSUSDT
+🔍 Analyzing BONKUSDT
+🔍 Analyzing ACEUSDT
+🔍 Analyzing NFPUSDT
+🔍 Analyzing AIUSDT
+🔍 Analyzing XAIUSDT
+🔍 Analyzing MANTAUSDT
+🔍 Analyzing ALTUSDT
+🔍 Analyzing JUPUSDT
+🔍 Analyzing PYTHUSDT
+🔍 Analyzing RONINUSDT
+🔍 Analyzing DYMUSDT
+🔍 Analyzing PIXELUSDT
+🔍 Analyzing STRKUSDT
+🔍 Analyzing PORTALUSDT
+🔍 Analyzing AXLUSDT
+🔍 Analyzing WIFUSDT
+🔍 Analyzing METISUSDT
+🔍 Analyzing AEVOUSDT
+🔍 Analyzing BOMEUSDT
+🔍 Analyzing ETHFIUSDT
+🔍 Analyzing ENAUSDT
+🔍 Analyzing WUSDT
+🔍 Analyzing TNSRUSDT
+🔍 Analyzing SAGAUSDT
+🔍 Analyzing TAOUSDT
+🔍 Analyzing OMNIUSDT
+🔍 Analyzing REZUSDT
+🔍 Analyzing BBUSDT
+🔍 Analyzing NOTUSDT
+🔍 Analyzing IOUSDT
+🔍 Analyzing ZKUSDT
+🔍 Analyzing LISTAUSDT
+🔍 Analyzing ZROUSDT
+🔍 Analyzing GUSDT
+🔍 Analyzing BANANAUSDT
+🔍 Analyzing RENDERUSDT
+🔍 Analyzing TONUSDT
+🔍 Analyzing DOGSUSDT
+🔍 Analyzing EURIUSDT
+🔍 Analyzing SLFUSDT
+🔍 Analyzing POLUSDT
+🔍 Analyzing NEIROUSDT
+🔍 Analyzing TURBOUSDT
+🔍 Analyzing 1MBABYDOGEUSDT
+🔍 Analyzing CATIUSDT
+🔍 Analyzing HMSTRUSDT
+🔍 Analyzing EIGENUSDT
+🔍 Analyzing SCRUSDT
+🔍 Analyzing BNSOLUSDT
+🔍 Analyzing LUMIAUSDT
+🔍 Analyzing KAIAUSDT
+🔍 Analyzing COWUSDT
+🔍 Analyzing CETUSUSDT
+🔍 Analyzing PNUTUSDT
+🔍 Analyzing ACTUSDT
+🔍 Analyzing USUALUSDT
+🔍 Analyzing THEUSDT
+🔍 Analyzing ACXUSDT
+🔍 Analyzing ORCAUSDT
+🔍 Analyzing MOVEUSDT
+🔍 Analyzing MEUSDT
+🔍 Analyzing VELODROMEUSDT
+🔍 Analyzing VANAUSDT
+🔍 Analyzing 1000CATUSDT
+🔍 Analyzing PENGUUSDT
+🔍 Analyzing BIOUSDT
+🔍 Analyzing DUSDT
+🔍 Analyzing AIXBTUSDT
+🔍 Analyzing CGPTUSDT
+🔍 Analyzing COOKIEUSDT
+🔍 Analyzing SUSDT
+🔍 Analyzing SOLVUSDT
+🔍 Analyzing TRUMPUSDT
+🔍 Analyzing ANIMEUSDT
+🔍 Analyzing BERAUSDT
+🔍 Analyzing 1000CHEEMSUSDT
+🔍 Analyzing TSTUSDT
+🔍 Analyzing LAYERUSDT
+🔍 Analyzing HEIUSDT
+🔍 Analyzing KAITOUSDT
+🔍 Analyzing SHELLUSDT
+🔍 Analyzing REDUSDT
+🔍 Analyzing GPSUSDT
+🔍 Analyzing EPICUSDT
+🔍 Analyzing BMTUSDT
+🔍 Analyzing FORMUSDT
+🔍 Analyzing XUSDUSDT
+🔍 Analyzing NILUSDT
+🔍 Analyzing PARTIUSDT
+🔍 Analyzing MUBARAKUSDT
+🔍 Analyzing TUTUSDT
+🔍 Analyzing BROCCOLI714USDT
+🔍 Analyzing BANANAS31USDT
+🔍 Analyzing GUNUSDT
+🔍 Analyzing BABYUSDT
+🔍 Analyzing ONDOUSDT
+🔍 Analyzing BIGTIMEUSDT
+🔍 Analyzing VIRTUALUSDT
+🔍 Analyzing KERNELUSDT
+🔍 Analyzing WCTUSDT
+🔍 Analyzing HYPERUSDT
+🔍 Analyzing INITUSDT
+🔍 Analyzing SIGNUSDT
+🔍 Analyzing STOUSDT
+🔍 Analyzing SYRUPUSDT
+🔍 Analyzing KMNOUSDT
+🔍 Analyzing SXTUSDT
+🔍 Analyzing NXPCUSDT
+🔍 Analyzing AWEUSDT
+🔍 Analyzing HAEDALUSDT
+🔍 Analyzing USD1USDT
+🔍 Analyzing HUMAUSDT
+🔍 Analyzing AUSDT
+🔍 Analyzing SOPHUSDT
+🔍 Analyzing RESOLVUSDT
+📊 BTCUSDT: prob_up=0.49, expected_profit=0.6235
+📊 ETHUSDT: prob_up=0.48, expected_profit=0.6235
+📊 BNBUSDT: prob_up=0.50, expected_profit=0.6235
+📊 NEOUSDT: prob_up=0.46, expected_profit=0.6235
+📊 LTCUSDT: prob_up=0.48, expected_profit=0.6235
+📊 QTUMUSDT: prob_up=0.48, expected_profit=0.6235
+📊 ADAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 XRPUSDT: prob_up=0.47, expected_profit=0.6235
+📊 TUSDUSDT: prob_up=0.47, expected_profit=0.6235
+📊 IOTAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 XLMUSDT: prob_up=0.47, expected_profit=0.6235
+📊 ONTUSDT: prob_up=0.45, expected_profit=0.6235
+📊 TRXUSDT: prob_up=0.47, expected_profit=0.6235
+📊 ETCUSDT: prob_up=0.47, expected_profit=0.6235
+📊 ICXUSDT: prob_up=0.45, expected_profit=0.6235
+📊 VETUSDT: prob_up=0.47, expected_profit=0.6234
+📊 USDCUSDT: prob_up=0.26, expected_profit=0.6235
+📊 LINKUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ONGUSDT: prob_up=0.47, expected_profit=0.6235
+📊 HOTUSDT: prob_up=0.45, expected_profit=0.6248
+📊 ZILUSDT: prob_up=0.46, expected_profit=0.6236
+📊 ZRXUSDT: prob_up=0.46, expected_profit=0.6235
+📊 FETUSDT: prob_up=0.46, expected_profit=0.6235
+📊 BATUSDT: prob_up=0.47, expected_profit=0.6235
+📊 ZECUSDT: prob_up=0.47, expected_profit=0.6235
+📊 IOSTUSDT: prob_up=0.46, expected_profit=0.624
+📊 CELRUSDT: prob_up=0.46, expected_profit=0.6236
+📊 DASHUSDT: prob_up=0.47, expected_profit=0.6235
+📊 THETAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ENJUSDT: prob_up=0.45, expected_profit=0.6235
+📊 ATOMUSDT: prob_up=0.47, expected_profit=0.6235
+📊 TFUELUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ONEUSDT: prob_up=0.45, expected_profit=0.6234
+📊 ALGOUSDT: prob_up=0.47, expected_profit=0.6235
+📊 DOGEUSDT: prob_up=0.46, expected_profit=0.6235
+📊 DUSKUSDT: prob_up=0.45, expected_profit=0.6235
+📊 ANKRUSDT: prob_up=0.47, expected_profit=0.6235
+📊 WINUSDT: prob_up=0.46, expected_profit=0.6347
+📊 COSUSDT: prob_up=0.46, expected_profit=0.6243
+📊 MTLUSDT: prob_up=0.46, expected_profit=0.6235
+📊 DENTUSDT: prob_up=0.45, expected_profit=0.6201
+📊 WANUSDT: prob_up=0.46, expected_profit=0.6235
+📊 FUNUSDT: prob_up=0.45, expected_profit=0.6241
+📊 CVCUSDT: prob_up=0.46, expected_profit=0.6235
+📊 CHZUSDT: prob_up=0.46, expected_profit=0.6235
+📊 BANDUSDT: prob_up=0.45, expected_profit=0.6235
+📊 XTZUSDT: prob_up=0.47, expected_profit=0.6235
+📊 RVNUSDT: prob_up=0.43, expected_profit=0.6236
+📊 HBARUSDT: prob_up=0.47, expected_profit=0.6235
+📊 NKNUSDT: prob_up=0.45, expected_profit=0.6235
+📊 STXUSDT: prob_up=0.46, expected_profit=0.6235
+📊 KAVAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ARPAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 IOTXUSDT: prob_up=0.46, expected_profit=0.6235
+📊 RLCUSDT: prob_up=0.47, expected_profit=0.6235
+📊 BCHUSDT: prob_up=0.50, expected_profit=0.6235
+📊 FTTUSDT: prob_up=0.47, expected_profit=0.6235
+📊 EURUSDT: prob_up=0.40, expected_profit=0.6235
+📊 OGNUSDT: prob_up=0.46, expected_profit=0.6235
+📊 LSKUSDT: prob_up=0.46, expected_profit=0.6235
+📊 BNTUSDT: prob_up=0.46, expected_profit=0.6235
+📊 LTOUSDT: prob_up=0.45, expected_profit=0.6235
+📊 MBLUSDT: prob_up=0.47, expected_profit=0.6224
+📊 COTIUSDT: prob_up=0.45, expected_profit=0.6235
+📊 DATAUSDT: prob_up=0.47, expected_profit=0.6234
+📊 SOLUSDT: prob_up=0.47, expected_profit=0.6235
+📊 CTSIUSDT: prob_up=0.45, expected_profit=0.6235
+📊 HIVEUSDT: prob_up=0.47, expected_profit=0.6235
+📊 CHRUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ARDRUSDT: prob_up=0.47, expected_profit=0.6235
+📊 MDTUSDT: prob_up=0.46, expected_profit=0.6234
+📊 KNCUSDT: prob_up=0.46, expected_profit=0.6235
+📊 LRCUSDT: prob_up=0.46, expected_profit=0.6235
+📊 COMPUSDT: prob_up=0.47, expected_profit=0.6235
+📊 SCUSDT: prob_up=0.45, expected_profit=0.6239
+📊 ZENUSDT: prob_up=0.46, expected_profit=0.6235
+📊 SNXUSDT: prob_up=0.46, expected_profit=0.6235
+📊 VTHOUSDT: prob_up=0.46, expected_profit=0.6247
+📊 DGBUSDT: prob_up=0.46, expected_profit=0.6236
+📊 SXPUSDT: prob_up=0.46, expected_profit=0.6235
+📊 MKRUSDT: prob_up=0.48, expected_profit=0.6235
+📊 DCRUSDT: prob_up=0.47, expected_profit=0.6235
+📊 STORJUSDT: prob_up=0.46, expected_profit=0.6235
+📊 MANAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 YFIUSDT: prob_up=0.50, expected_profit=0.6235
+📊 KMDUSDT: prob_up=0.45, expected_profit=0.6235
+📊 JSTUSDT: prob_up=0.46, expected_profit=0.6235
+📊 CRVUSDT: prob_up=0.46, expected_profit=0.6235
+📊 SANDUSDT: prob_up=0.45, expected_profit=0.6235
+📊 NMRUSDT: prob_up=0.47, expected_profit=0.6235
+📊 DOTUSDT: prob_up=0.47, expected_profit=0.6235
+📊 LUNAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 RSRUSDT: prob_up=0.45, expected_profit=0.6232
+📊 PAXGUSDT: prob_up=0.49, expected_profit=0.6235
+📊 TRBUSDT: prob_up=0.48, expected_profit=0.6235
+📊 SUSHIUSDT: prob_up=0.47, expected_profit=0.6235
+📊 KSMUSDT: prob_up=0.46, expected_profit=0.6235
+📊 EGLDUSDT: prob_up=0.46, expected_profit=0.6235
+📊 DIAUSDT: prob_up=0.45, expected_profit=0.6235
+📊 RUNEUSDT: prob_up=0.47, expected_profit=0.6235
+📊 FIOUSDT: prob_up=0.46, expected_profit=0.6234
+📊 UMAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 BELUSDT: prob_up=0.46, expected_profit=0.6235
+📊 UNIUSDT: prob_up=0.46, expected_profit=0.6235
+📊 OXTUSDT: prob_up=0.47, expected_profit=0.6235
+📊 SUNUSDT: prob_up=0.47, expected_profit=0.6235
+📊 AVAXUSDT: prob_up=0.47, expected_profit=0.6235
+📊 FLMUSDT: prob_up=0.46, expected_profit=0.6235
+📊 UTKUSDT: prob_up=0.45, expected_profit=0.6235
+📊 XVSUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ALPHAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 AAVEUSDT: prob_up=0.48, expected_profit=0.6235
+📊 NEARUSDT: prob_up=0.46, expected_profit=0.6235
+📊 FILUSDT: prob_up=0.46, expected_profit=0.6235
+📊 INJUSDT: prob_up=0.46, expected_profit=0.6235
+📊 AUDIOUSDT: prob_up=0.47, expected_profit=0.6235
+📊 CTKUSDT: prob_up=0.46, expected_profit=0.6235
+📊 AXSUSDT: prob_up=0.46, expected_profit=0.6235
+📊 STRAXUSDT: prob_up=0.47, expected_profit=0.6235
+📊 ROSEUSDT: prob_up=0.45, expected_profit=0.6235
+📊 AVAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 SKLUSDT: prob_up=0.46, expected_profit=0.6236
+📊 GRTUSDT: prob_up=0.46, expected_profit=0.6235
+📊 JUVUSDT: prob_up=0.44, expected_profit=0.6235
+📊 PSGUSDT: prob_up=0.47, expected_profit=0.6235
+📊 1INCHUSDT: prob_up=0.45, expected_profit=0.6235
+📊 OGUSDT: prob_up=0.48, expected_profit=0.6235
+📊 ATMUSDT: prob_up=0.47, expected_profit=0.6235
+📊 ASRUSDT: prob_up=0.47, expected_profit=0.6235
+📊 CELOUSDT: prob_up=0.46, expected_profit=0.6235
+📊 RIFUSDT: prob_up=0.46, expected_profit=0.6235
+📊 TRUUSDT: prob_up=0.46, expected_profit=0.6235
+📊 CKBUSDT: prob_up=0.45, expected_profit=0.6241
+📊 TWTUSDT: prob_up=0.47, expected_profit=0.6235
+📊 SFPUSDT: prob_up=0.47, expected_profit=0.6235
+📊 DODOUSDT: prob_up=0.45, expected_profit=0.6235
+📊 CAKEUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ACMUSDT: prob_up=0.46, expected_profit=0.6235
+📊 FISUSDT: prob_up=0.47, expected_profit=0.6235
+📊 OMUSDT: prob_up=0.46, expected_profit=0.6235
+📊 PONDUSDT: prob_up=0.46, expected_profit=0.6235
+📊 DEGOUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ALICEUSDT: prob_up=0.45, expected_profit=0.6235
+📊 PERPUSDT: prob_up=0.47, expected_profit=0.6235
+📊 SUPERUSDT: prob_up=0.45, expected_profit=0.6235
+📊 CFXUSDT: prob_up=0.47, expected_profit=0.6235
+📊 TKOUSDT: prob_up=0.46, expected_profit=0.6235
+📊 PUNDIXUSDT: prob_up=0.47, expected_profit=0.6235
+📊 TLMUSDT: prob_up=0.46, expected_profit=0.6235
+📊 BARUSDT: prob_up=0.47, expected_profit=0.6235
+📊 FORTHUSDT: prob_up=0.47, expected_profit=0.6235
+📊 BAKEUSDT: prob_up=0.46, expected_profit=0.6235
+📊 SLPUSDT: prob_up=0.46, expected_profit=0.6244
+📊 SHIBUSDT: prob_up=0.47, expected_profit=0.5702
+📊 ICPUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ARUSDT: prob_up=0.47, expected_profit=0.6235
+📊 MASKUSDT: prob_up=0.46, expected_profit=0.6235
+📊 LPTUSDT: prob_up=0.47, expected_profit=0.6235
+📊 XVGUSDT: prob_up=0.45, expected_profit=0.6232
+📊 ATAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 GTCUSDT: prob_up=0.47, expected_profit=0.6235
+📊 PHAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 MLNUSDT: prob_up=0.47, expected_profit=0.6235
+📊 DEXEUSDT: prob_up=0.47, expected_profit=0.6235
+📊 C98USDT: prob_up=0.46, expected_profit=0.6235
+📊 QNTUSDT: prob_up=0.48, expected_profit=0.6235
+📊 FLOWUSDT: prob_up=0.47, expected_profit=0.6235
+📊 MINAUSDT: prob_up=0.45, expected_profit=0.6235
+📊 RAYUSDT: prob_up=0.46, expected_profit=0.6235
+📊 FARMUSDT: prob_up=0.35, expected_profit=0.6235
+📊 QUICKUSDT: prob_up=0.46, expected_profit=0.6235
+📊 MBOXUSDT: prob_up=0.45, expected_profit=0.6235
+📊 REQUSDT: prob_up=0.47, expected_profit=0.6235
+📊 GHSTUSDT: prob_up=0.45, expected_profit=0.6235
+📊 WAXPUSDT: prob_up=0.46, expected_profit=0.6235
+📊 GNOUSDT: prob_up=0.50, expected_profit=0.6235
+📊 XECUSDT: prob_up=0.46, expected_profit=0.6685
+📊 DYDXUSDT: prob_up=0.45, expected_profit=0.6235
+📊 IDEXUSDT: prob_up=0.46, expected_profit=0.6234
+📊 USDPUSDT: prob_up=0.39, expected_profit=0.6235
+📊 GALAUSDT: prob_up=0.45, expected_profit=0.6234
+📊 ILVUSDT: prob_up=0.46, expected_profit=0.6235
+📊 YGGUSDT: prob_up=0.45, expected_profit=0.6235
+📊 SYSUSDT: prob_up=0.47, expected_profit=0.6235
+📊 DFUSDT: prob_up=0.46, expected_profit=0.6235
+📊 FIDAUSDT: prob_up=0.45, expected_profit=0.6235
+📊 AGLDUSDT: prob_up=0.47, expected_profit=0.6235
+📊 RADUSDT: prob_up=0.47, expected_profit=0.6235
+📊 RAREUSDT: prob_up=0.45, expected_profit=0.6235
+📊 LAZIOUSDT: prob_up=0.47, expected_profit=0.6235
+📊 CHESSUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ADXUSDT: prob_up=0.47, expected_profit=0.6235
+📊 AUCTIONUSDT: prob_up=0.47, expected_profit=0.6235
+📊 MOVRUSDT: prob_up=0.46, expected_profit=0.6235
+📊 CITYUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ENSUSDT: prob_up=0.46, expected_profit=0.6235
+📊 QIUSDT: prob_up=0.46, expected_profit=0.6235
+📊 PORTOUSDT: prob_up=0.46, expected_profit=0.6235
+📊 POWRUSDT: prob_up=0.46, expected_profit=0.6235
+📊 JASMYUSDT: prob_up=0.46, expected_profit=0.6234
+📊 AMPUSDT: prob_up=0.46, expected_profit=0.6237
+📊 PYRUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ALCXUSDT: prob_up=0.46, expected_profit=0.6235
+📊 SANTOSUSDT: prob_up=0.47, expected_profit=0.6235
+📊 BICOUSDT: prob_up=0.45, expected_profit=0.6235
+📊 FLUXUSDT: prob_up=0.47, expected_profit=0.6235
+📊 FXSUSDT: prob_up=0.46, expected_profit=0.6235
+📊 VOXELUSDT: prob_up=0.46, expected_profit=0.6235
+📊 HIGHUSDT: prob_up=0.46, expected_profit=0.6235
+📊 CVXUSDT: prob_up=0.47, expected_profit=0.6235
+📊 PEOPLEUSDT: prob_up=0.45, expected_profit=0.6236
+📊 SPELLUSDT: prob_up=0.46, expected_profit=0.6264
+📊 JOEUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ACHUSDT: prob_up=0.46, expected_profit=0.6234
+📊 IMXUSDT: prob_up=0.46, expected_profit=0.6235
+📊 GLMRUSDT: prob_up=0.46, expected_profit=0.6235
+📊 LOKAUSDT: prob_up=0.45, expected_profit=0.6235
+📊 SCRTUSDT: prob_up=0.45, expected_profit=0.6235
+📊 API3USDT: prob_up=0.46, expected_profit=0.6235
+📊 BTTCUSDT: prob_up=0.38, expected_profit=3.5224
+📊 ACAUSDT: prob_up=0.47, expected_profit=0.6235
+📊 XNOUSDT: prob_up=0.46, expected_profit=0.6235
+📊 WOOUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ALPINEUSDT: prob_up=0.47, expected_profit=0.6235
+📊 TUSDT: prob_up=0.45, expected_profit=0.6234
+📊 ASTRUSDT: prob_up=0.46, expected_profit=0.6235
+📊 GMTUSDT: prob_up=0.46, expected_profit=0.6235
+📊 KDAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 APEUSDT: prob_up=0.47, expected_profit=0.6235
+📊 BSWUSDT: prob_up=0.46, expected_profit=0.6235
+📊 BIFIUSDT: prob_up=0.47, expected_profit=0.6235
+📊 STEEMUSDT: prob_up=0.45, expected_profit=0.6235
+📊 NEXOUSDT: prob_up=0.47, expected_profit=0.6235
+📊 REIUSDT: prob_up=0.47, expected_profit=0.6235
+📊 LDOUSDT: prob_up=0.46, expected_profit=0.6235
+📊 OPUSDT: prob_up=0.47, expected_profit=0.6235
+📊 LEVERUSDT: prob_up=0.46, expected_profit=0.6291
+📊 STGUSDT: prob_up=0.46, expected_profit=0.6235
+📊 LUNCUSDT: prob_up=0.46, expected_profit=0.5608
+📊 GMXUSDT: prob_up=0.46, expected_profit=0.6235
+📊 POLYXUSDT: prob_up=0.46, expected_profit=0.6235
+📊 APTUSDT: prob_up=0.48, expected_profit=0.6235
+📊 OSMOUSDT: prob_up=0.48, expected_profit=0.6235
+📊 HFTUSDT: prob_up=0.46, expected_profit=0.6235
+📊 PHBUSDT: prob_up=0.46, expected_profit=0.6235
+📊 HOOKUSDT: prob_up=0.45, expected_profit=0.6235
+📊 MAGICUSDT: prob_up=0.46, expected_profit=0.6235
+📊 HIFIUSDT: prob_up=0.46, expected_profit=0.6235
+📊 RPLUSDT: prob_up=0.46, expected_profit=0.6235
+📊 GNSUSDT: prob_up=0.46, expected_profit=0.6235
+📊 SYNUSDT: prob_up=0.47, expected_profit=0.6235
+📊 SSVUSDT: prob_up=0.46, expected_profit=0.6235
+📊 LQTYUSDT: prob_up=0.46, expected_profit=0.6235
+📊 USTCUSDT: prob_up=0.46, expected_profit=0.6234
+📊 GASUSDT: prob_up=0.46, expected_profit=0.6235
+📊 GLMUSDT: prob_up=0.46, expected_profit=0.6235
+📊 PROMUSDT: prob_up=0.48, expected_profit=0.6235
+📊 QKCUSDT: prob_up=0.46, expected_profit=0.6239
+📊 IDUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ARBUSDT: prob_up=0.46, expected_profit=0.6235
+📊 RDNTUSDT: prob_up=0.45, expected_profit=0.6234
+📊 WBTCUSDT: prob_up=0.49, expected_profit=0.6235
+📊 EDUUSDT: prob_up=0.47, expected_profit=0.6235
+📊 SUIUSDT: prob_up=0.46, expected_profit=0.6235
+📊 PEPEUSDT: prob_up=0.46, expected_profit=0.8241
+📊 FLOKIUSDT: prob_up=0.45, expected_profit=0.6169
+📊 MAVUSDT: prob_up=0.46, expected_profit=0.6235
+📊 PENDLEUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ARKMUSDT: prob_up=0.45, expected_profit=0.6235
+📊 WBETHUSDT: prob_up=0.49, expected_profit=0.6235
+📊 WLDUSDT: prob_up=0.45, expected_profit=0.6235
+📊 FDUSDUSDT: prob_up=0.43, expected_profit=0.6235
+📊 SEIUSDT: prob_up=0.46, expected_profit=0.6235
+📊 CYBERUSDT: prob_up=0.45, expected_profit=0.6235
+📊 ARKUSDT: prob_up=0.46, expected_profit=0.6235
+📊 IQUSDT: prob_up=0.46, expected_profit=0.6233
+📊 NTRNUSDT: prob_up=0.46, expected_profit=0.6235
+📊 TIAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 MEMEUSDT: prob_up=0.46, expected_profit=0.6245
+📊 ORDIUSDT: prob_up=0.46, expected_profit=0.6235
+📊 BEAMXUSDT: prob_up=0.46, expected_profit=0.6235
+📊 PIVXUSDT: prob_up=0.46, expected_profit=0.6235
+📊 VICUSDT: prob_up=0.47, expected_profit=0.6235
+📊 BLURUSDT: prob_up=0.46, expected_profit=0.6235
+📊 VANRYUSDT: prob_up=0.44, expected_profit=0.6235
+📊 AEURUSDT: prob_up=0.40, expected_profit=0.6235
+📊 JTOUSDT: prob_up=0.46, expected_profit=0.6235
+📊 1000SATSUSDT: prob_up=0.46, expected_profit=0.5927
+📊 BONKUSDT: prob_up=0.45, expected_profit=0.5919
+📊 ACEUSDT: prob_up=0.45, expected_profit=0.6235
+📊 NFPUSDT: prob_up=0.46, expected_profit=0.6235
+📊 AIUSDT: prob_up=0.46, expected_profit=0.6235
+📊 XAIUSDT: prob_up=0.46, expected_profit=0.6235
+📊 MANTAUSDT: prob_up=0.45, expected_profit=0.6235
+📊 ALTUSDT: prob_up=0.46, expected_profit=0.6235
+📊 JUPUSDT: prob_up=0.45, expected_profit=0.6235
+📊 PYTHUSDT: prob_up=0.45, expected_profit=0.6235
+📊 RONINUSDT: prob_up=0.45, expected_profit=0.6235
+📊 DYMUSDT: prob_up=0.45, expected_profit=0.6235
+📊 PIXELUSDT: prob_up=0.45, expected_profit=0.6235
+📊 STRKUSDT: prob_up=0.46, expected_profit=0.6235
+📊 PORTALUSDT: prob_up=0.46, expected_profit=0.6235
+📊 AXLUSDT: prob_up=0.46, expected_profit=0.6235
+📊 WIFUSDT: prob_up=0.45, expected_profit=0.6235
+📊 METISUSDT: prob_up=0.47, expected_profit=0.6235
+📊 AEVOUSDT: prob_up=0.46, expected_profit=0.6235
+📊 BOMEUSDT: prob_up=0.45, expected_profit=0.6252
+📊 ETHFIUSDT: prob_up=0.45, expected_profit=0.6235
+📊 ENAUSDT: prob_up=0.45, expected_profit=0.6235
+📊 WUSDT: prob_up=0.46, expected_profit=0.6235
+📊 TNSRUSDT: prob_up=0.46, expected_profit=0.6235
+📊 SAGAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 TAOUSDT: prob_up=0.48, expected_profit=0.6235
+📊 OMNIUSDT: prob_up=0.46, expected_profit=0.6235
+📊 REZUSDT: prob_up=0.45, expected_profit=0.6234
+📊 BBUSDT: prob_up=0.46, expected_profit=0.6235
+📊 NOTUSDT: prob_up=0.45, expected_profit=0.6235
+📊 IOUSDT: prob_up=0.45, expected_profit=0.6235
+📊 ZKUSDT: prob_up=0.45, expected_profit=0.6235
+📊 LISTAUSDT: prob_up=0.45, expected_profit=0.6235
+📊 ZROUSDT: prob_up=0.46, expected_profit=0.6235
+📊 GUSDT: prob_up=0.47, expected_profit=0.6234
+📊 BANANAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 RENDERUSDT: prob_up=0.46, expected_profit=0.6235
+📊 TONUSDT: prob_up=0.47, expected_profit=0.6235
+📊 DOGSUSDT: prob_up=0.45, expected_profit=0.6096
+📊 EURIUSDT: prob_up=0.40, expected_profit=0.6235
+📊 SLFUSDT: prob_up=0.46, expected_profit=0.6235
+📊 POLUSDT: prob_up=0.47, expected_profit=0.6235
+📊 NEIROUSDT: prob_up=0.45, expected_profit=0.6175
+📊 TURBOUSDT: prob_up=0.45, expected_profit=0.6239
+📊 1MBABYDOGEUSDT: prob_up=0.46, expected_profit=0.6257
+📊 CATIUSDT: prob_up=0.46, expected_profit=0.6235
+📊 HMSTRUSDT: prob_up=0.60, expected_profit=0.6253
+📊 EIGENUSDT: prob_up=0.45, expected_profit=0.6235
+📊 SCRUSDT: prob_up=0.46, expected_profit=0.6235
+📊 BNSOLUSDT: prob_up=0.48, expected_profit=0.6235
+📊 LUMIAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 KAIAUSDT: prob_up=0.45, expected_profit=0.6235
+📊 COWUSDT: prob_up=0.46, expected_profit=0.6235
+📊 CETUSUSDT: prob_up=0.45, expected_profit=0.6235
+📊 PNUTUSDT: prob_up=0.45, expected_profit=0.6235
+📊 ACTUSDT: prob_up=0.46, expected_profit=0.6235
+📊 USUALUSDT: prob_up=0.46, expected_profit=0.6235
+📊 THEUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ACXUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ORCAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 MOVEUSDT: prob_up=0.47, expected_profit=0.6235
+📊 MEUSDT: prob_up=0.47, expected_profit=0.6235
+📊 VELODROMEUSDT: prob_up=0.46, expected_profit=0.6235
+📊 VANAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 1000CATUSDT: prob_up=0.45, expected_profit=0.6235
+📊 PENGUUSDT: prob_up=0.46, expected_profit=0.6236
+📊 BIOUSDT: prob_up=0.45, expected_profit=0.6235
+📊 DUSDT: prob_up=0.46, expected_profit=0.6235
+📊 AIXBTUSDT: prob_up=0.46, expected_profit=0.6235
+📊 CGPTUSDT: prob_up=0.45, expected_profit=0.6235
+📊 COOKIEUSDT: prob_up=0.46, expected_profit=0.6235
+📊 SUSDT: prob_up=0.46, expected_profit=0.6235
+📊 SOLVUSDT: prob_up=0.46, expected_profit=0.6235
+📊 TRUMPUSDT: prob_up=0.47, expected_profit=0.6235
+📊 ANIMEUSDT: prob_up=0.48, expected_profit=0.6235
+📊 BERAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 1000CHEEMSUSDT: prob_up=0.47, expected_profit=0.6257
+📊 TSTUSDT: prob_up=0.47, expected_profit=0.6235
+📊 LAYERUSDT: prob_up=0.46, expected_profit=0.6235
+📊 HEIUSDT: prob_up=0.47, expected_profit=0.6235
+📊 KAITOUSDT: prob_up=0.53, expected_profit=0.6235
+📊 SHELLUSDT: prob_up=0.46, expected_profit=0.6235
+📊 REDUSDT: prob_up=0.45, expected_profit=0.6235
+📊 GPSUSDT: prob_up=0.51, expected_profit=0.6235
+📊 EPICUSDT: prob_up=0.46, expected_profit=0.6235
+📊 BMTUSDT: prob_up=0.47, expected_profit=0.6235
+📊 FORMUSDT: prob_up=0.47, expected_profit=0.6235
+📊 XUSDUSDT: prob_up=0.33, expected_profit=0.6235
+📊 NILUSDT: prob_up=0.46, expected_profit=0.6235
+📊 PARTIUSDT: prob_up=0.46, expected_profit=0.6235
+📊 MUBARAKUSDT: prob_up=0.46, expected_profit=0.6235
+📊 TUTUSDT: prob_up=0.46, expected_profit=0.6235
+📊 BROCCOLI714USDT: prob_up=0.45, expected_profit=0.6235
+📊 BANANAS31USDT: prob_up=0.48, expected_profit=0.6237
+📊 GUNUSDT: prob_up=0.59, expected_profit=0.6235
+📊 BABYUSDT: prob_up=0.46, expected_profit=0.6235
+📊 ONDOUSDT: prob_up=0.46, expected_profit=0.6235
+📊 BIGTIMEUSDT: prob_up=0.45, expected_profit=0.6235
+📊 VIRTUALUSDT: prob_up=0.46, expected_profit=0.6235
+📊 KERNELUSDT: prob_up=0.46, expected_profit=0.6235
+📊 WCTUSDT: prob_up=0.46, expected_profit=0.6235
+📊 HYPERUSDT: prob_up=0.46, expected_profit=0.6235
+📊 INITUSDT: prob_up=0.51, expected_profit=0.6235
+📊 SIGNUSDT: prob_up=0.47, expected_profit=0.6235
+📊 STOUSDT: prob_up=0.46, expected_profit=0.6235
+📊 SYRUPUSDT: prob_up=0.46, expected_profit=0.6235
+📊 KMNOUSDT: prob_up=0.45, expected_profit=0.6235
+📊 SXTUSDT: prob_up=0.46, expected_profit=0.6235
+📊 NXPCUSDT: prob_up=0.46, expected_profit=0.6235
+📊 AWEUSDT: prob_up=0.45, expected_profit=0.6235
+📊 HAEDALUSDT: prob_up=0.49, expected_profit=0.6235
+📊 USD1USDT: prob_up=0.32, expected_profit=0.6235
+📊 HUMAUSDT: prob_up=0.46, expected_profit=0.6235
+📊 AUSDT: prob_up=0.46, expected_profit=0.6235
+📊 SOPHUSDT: prob_up=0.46, expected_profit=0.6235
