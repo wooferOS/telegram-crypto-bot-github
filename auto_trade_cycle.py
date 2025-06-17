@@ -55,8 +55,12 @@ def _analyze_pair(pair: str, model) -> Optional[Dict[str, float]]:
     }
 
 
-def generate_conversion_signals() -> List[Dict[str, float]]:
-    """Analyze portfolio and propose asset conversions."""
+def generate_conversion_signals() -> tuple[List[Dict[str, float]], bool]:
+    """Analyze portfolio and propose asset conversions.
+
+    Returns a list of conversion suggestions and a flag indicating
+    whether the expected profit was below ``CONVERSION_MIN_EXPECTED_PROFIT``.
+    """
 
     model = load_model()
     balances = get_binance_balances()
@@ -66,7 +70,7 @@ def generate_conversion_signals() -> List[Dict[str, float]]:
         if a not in {"USDT", "BUSD"} and amt > 0
     }
     if not portfolio:
-        return []
+        return [], False
 
     predictions: Dict[str, Dict[str, float]] = {}
     for symbol in get_valid_usdt_symbols():
@@ -88,8 +92,17 @@ def generate_conversion_signals() -> List[Dict[str, float]]:
         default=(None, None),
     )
 
-    if not best_pair or best_data["expected_profit"] <= CONVERSION_MIN_EXPECTED_PROFIT:
-        return []
+    if not best_pair:
+        return [], False
+
+    low_profit = False
+    if best_data["expected_profit"] <= CONVERSION_MIN_EXPECTED_PROFIT:
+        logger.info(
+            "\u26A0\ufe0f Low expected profit %.4f USDT for %s",
+            best_data["expected_profit"],
+            best_pair,
+        )
+        low_profit = True
 
     signals: List[Dict[str, float]] = []
     for asset, amount in portfolio.items():
@@ -158,10 +171,12 @@ def generate_conversion_signals() -> List[Dict[str, float]]:
                 }
             )
 
-    return signals
+    return signals, low_profit
 
 
-async def send_conversion_signals(signals: List[Dict[str, float]]) -> None:
+async def send_conversion_signals(
+    signals: List[Dict[str, float]], low_profit: bool = False
+) -> None:
     """Send conversion suggestions to Telegram."""
 
     bot = Bot(token=os.getenv("TELEGRAM_TOKEN"))
@@ -186,14 +201,19 @@ async def send_conversion_signals(signals: List[Dict[str, float]]) -> None:
         text = "\n\n".join(lines)
         for part in split_telegram_message(text, 4000):
             await bot.send_message(CHAT_ID, part)
+        if low_profit:
+            await bot.send_message(
+                CHAT_ID,
+                "\u26A0\ufe0f Очікуваний прибуток низький, конверсія виконана."
+            )
     finally:
         session = await bot.get_session()
         await session.close()
 
 
 async def main() -> None:
-    signals = generate_conversion_signals()
-    await send_conversion_signals(signals)
+    signals, low_profit = generate_conversion_signals()
+    await send_conversion_signals(signals, low_profit)
 
 
 if __name__ == "__main__":
