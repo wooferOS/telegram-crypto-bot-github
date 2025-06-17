@@ -531,7 +531,12 @@ async def auto_trade_loop():
                         from telegram_bot import bot, ADMIN_CHAT_ID
 
                         await bot.send_message(
-                            ADMIN_CHAT_ID, "\u26a0\ufe0f Немає USDT для покупки"
+                            ADMIN_CHAT_ID,
+                            "\u26a0\ufe0f [dev] Немає USDT для покупки — продаж активів не відбувся.\n\n"
+                            "Можливі причини:\n"
+                            "– не було активів з очікуваним прибутком;\n"
+                            "– не вдалося продати через обмеження Binance (наприклад, LOT_SIZE);\n"
+                            "– не вдалося сконвертувати в USDT."
                         )
                         with open(NO_USDT_ALERT_FILE, "w") as f:
                             f.write(str(now))
@@ -736,7 +741,7 @@ def demo_candidates_loop(symbols: list[str]) -> list[dict]:
 if __name__ == "__main__":
     import asyncio
     import sys
-    from aiogram import Bot
+    from services.telegram_service import DevBot
     from config import TELEGRAM_TOKEN, CHAT_ID
 
     if len(sys.argv) > 1 and sys.argv[1] == "demo":
@@ -748,7 +753,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     if TELEGRAM_TOKEN and CHAT_ID:
-        bot = Bot(token=TELEGRAM_TOKEN)
+        bot = DevBot(token=TELEGRAM_TOKEN)
         asyncio.run(auto_trade_loop())
     else:
         print("❌ TELEGRAM_TOKEN або CHAT_ID не встановлено")
