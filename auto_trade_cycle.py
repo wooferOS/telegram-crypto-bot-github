@@ -14,11 +14,10 @@ from binance_api import (
 from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit
 from daily_analysis import split_telegram_message
-from config import (
-    CHAT_ID,
-    MIN_EXPECTED_PROFIT,
-    MIN_PROB_UP,
-)
+from config import MIN_EXPECTED_PROFIT, MIN_PROB_UP
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
 logger = logging.getLogger(__name__)
 
