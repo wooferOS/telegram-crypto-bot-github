@@ -7,9 +7,6 @@ API and is designed for use in a Telegram bot.
 
 from __future__ import annotations
 
-from dotenv import load_dotenv
-load_dotenv(dotenv_path="/root/.env")  # Завантаження реального .env із сервера
-
 import os
 import time
 import hmac

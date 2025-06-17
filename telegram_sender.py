@@ -1,9 +1,7 @@
-from dotenv import load_dotenv
 import os
-load_dotenv("/root/.env")
+
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-import os
 
 
 def send_conversion_signals(signals):
