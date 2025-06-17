@@ -128,19 +128,19 @@ async def send_conversion_signals(signals: List[Dict[str, float]]) -> None:
         logger.info("No conversion signals generated")
         return
 
-    async with Bot(token=os.getenv("TELEGRAM_TOKEN")) as bot:
-        lines = []
-        for s in signals:
-            lines.append(
-                f"{s['from_symbol']} → конвертувати {s['to_symbol']}"
-                f"\nFROM: {s['from_amount']:.4f} (~{s['from_usdt']:.2f}$)"
-                f"\nTO: ≈{s['to_amount']:.4f}"
-                f"\nОчікуваний прибуток: +{s['profit_pct']:.2f}% (~{s['profit_usdt']:.2f}$)"
-                f"\nTP {s['tp']:.4f}, SL {s['sl']:.4f}"
-            )
-        text = "\n\n".join(lines)
-        for part in split_telegram_message(text, 4000):
-            await bot.send_message(CHAT_ID, part)
+    bot = Bot(token=os.getenv("TELEGRAM_TOKEN"))
+    lines = []
+    for s in signals:
+        lines.append(
+            f"{s['from_symbol']} → конвертувати {s['to_symbol']}"
+            f"\nFROM: {s['from_amount']:.4f} (~{s['from_usdt']:.2f}$)"
+            f"\nTO: ≈{s['to_amount']:.4f}"
+            f"\nОчікуваний прибуток: +{s['profit_pct']:.2f}% (~{s['profit_usdt']:.2f}$)"
+            f"\nTP {s['tp']:.4f}, SL {s['sl']:.4f}"
+        )
+    text = "\n\n".join(lines)
+    for part in split_telegram_message(text, 4000):
+        await bot.send_message(CHAT_ID, part)
 
 
 async def main() -> None:
