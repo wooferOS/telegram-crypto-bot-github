@@ -117,8 +117,8 @@ else:
 
 
 
-# Initialise global Binance client exactly as in Binance docs
-client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
+# Initialise global Binance client exactly as in Binance docs without pinging
+client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY, ping=False)
 
 # Set of currently tradable USDT pairs
 VALID_PAIRS: set[str] = set()
@@ -249,8 +249,10 @@ def get_valid_usdt_symbols() -> list[str]:
 
     return get_valid_symbols("USDT")
 
-# Load available USDT trading pairs once on startup
-refresh_valid_pairs()
+# NOTE: Loading trading pairs requires network access which is undesirable
+# during automated testing. The call is now deferred until explicitly
+# requested by the application.
+# refresh_valid_pairs()
 
 
 # ---------------------------------------------------------------------------
@@ -295,7 +297,7 @@ def get_binance_balances() -> Dict[str, float]:
     """Return available balances with automatic API diagnostics."""
 
     try:
-        temp_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
+        temp_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY, ping=False)
 
         if BINANCE_API_KEY and BINANCE_SECRET_KEY:
             logging.debug(
