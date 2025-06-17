@@ -56,3 +56,6 @@ pip install --no-cache-dir --force-reinstall aiohttp
 ```bash
 pip install -r requirements.txt
 ```
+
+5. Заповніть `config.py` своїми ключами API. Всі модулі імпортують токени безпосередньо з цього файлу без використання змінних середовища.
+   Не використовуйте змінні середовища або `.env`. Бот читає ключі лише з `config.py`.
