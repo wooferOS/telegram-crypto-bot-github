@@ -2,7 +2,8 @@
 
 import logging
 import datetime
-from aiogram import Bot, Dispatcher, types
+from aiogram import Dispatcher, types
+from services.telegram_service import DevBot
 from aiogram.dispatcher.filters import Command, Text
 from aiogram.dispatcher import filters
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -59,12 +60,12 @@ from config import TELEGRAM_TOKEN, ADMIN_CHAT_ID
 
 take_profit_cb = CallbackData("tp", "symbol", "amount")
 
-bot = Bot(token=TELEGRAM_TOKEN)
+bot = DevBot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
 logger = logging.getLogger(__name__)
 
 
-async def clear_bot_menu(bot: Bot) -> None:
+async def clear_bot_menu(bot: DevBot) -> None:
     """Remove any custom bot commands."""
 
     await bot.delete_my_commands()
