@@ -361,7 +361,13 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
                 }
             )
 
-            if prob_up >= MIN_PROB_UP and expected_profit >= MIN_EXPECTED_PROFIT:
+            if prob_up >= MIN_PROB_UP:
+                if expected_profit < MIN_EXPECTED_PROFIT:
+                    logger.info(
+                        "\u26A0\ufe0f Low expected profit for %s: %.4f USDT",
+                        symbol,
+                        expected_profit,
+                    )
                 buy_candidates.append(
                     {
                         "symbol": symbol,
