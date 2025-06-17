@@ -3,8 +3,13 @@ import logging
 from typing import Dict, List, Optional
 
 
-from config import CHAT_ID
-from services.telegram_service import send_messages
+from config import (
+    CHAT_ID,
+    MIN_EXPECTED_PROFIT,
+    MIN_PROB_UP,
+    MIN_TRADE_AMOUNT,
+)
+from services.telegram_service import send_messages, DEV_TAG
 
 from binance_api import (
     get_binance_balances,
@@ -55,7 +60,13 @@ def _analyze_pair(pair: str, model) -> Optional[Dict[str, float]]:
     }
 
 
-def generate_conversion_signals() -> tuple[List[Dict[str, float]], bool]:
+def generate_conversion_signals() -> tuple[
+    List[Dict[str, float]],
+    bool,
+    Dict[str, float],
+    Dict[str, Dict[str, float]],
+    float,
+]:
     """Analyze portfolio and propose asset conversions.
 
     Returns a list of conversion suggestions and a flag indicating
@@ -68,7 +79,7 @@ def generate_conversion_signals() -> tuple[List[Dict[str, float]], bool]:
         a: amt for a, amt in balances.items() if a not in {"USDT", "BUSD"} and amt > 0
     }
     if not portfolio:
-        return [], False
+        return [], False, {}, {}, balances.get("USDT", 0.0)
 
     predictions: Dict[str, Dict[str, float]] = {}
     for symbol in get_valid_usdt_symbols():
@@ -78,7 +89,7 @@ def generate_conversion_signals() -> tuple[List[Dict[str, float]], bool]:
             predictions[pair] = data
 
     if not predictions:
-        return [], False
+        return [], False, portfolio, {}, balances.get("USDT", 0.0)
 
     best_pair, best_data = max(
         (
@@ -91,7 +102,7 @@ def generate_conversion_signals() -> tuple[List[Dict[str, float]], bool]:
     )
 
     if not best_pair:
-        return [], False
+        return [], False, portfolio, predictions, balances.get("USDT", 0.0)
 
     low_profit = False
     if best_data["expected_profit"] <= CONVERSION_MIN_EXPECTED_PROFIT:
@@ -169,28 +180,88 @@ def generate_conversion_signals() -> tuple[List[Dict[str, float]], bool]:
                 }
             )
 
-    return signals, low_profit
+    return signals, low_profit, portfolio, predictions, balances.get("USDT", 0.0)
+
+
+def _compose_failure_message(
+    portfolio: Dict[str, float],
+    predictions: Dict[str, Dict[str, float]],
+    usdt_balance: float,
+) -> str:
+    """Return detailed failure diagnostics for Telegram."""
+
+    lines: List[str] = ["\u26a0\ufe0f Не вдалося виконати трейд-цикл", ""]
+
+    # SELL diagnostics
+    lines.append("🔻 Продаж: ❌")
+    profitable = any(
+        predictions.get(f"{asset}USDT", {}).get("expected_profit", 0)
+        > CONVERSION_MIN_EXPECTED_PROFIT
+        for asset in portfolio
+    )
+    if not profitable:
+        lines.append(
+            f"– Не знайдено активів з очікуваним прибутком > {CONVERSION_MIN_EXPECTED_PROFIT}"
+        )
+
+    count = 0
+    for asset, amount in portfolio.items():
+        data = predictions.get(f"{asset}USDT")
+        if not data:
+            continue
+        volume = amount * data.get("price", 0)
+        if data["expected_profit"] <= 0:
+            lines.append(
+                f"– {asset} ({amount:.2f}) — expected_profit = {data['expected_profit']:.4f}"
+            )
+            count += 1
+        elif data["prob_up"] < CONVERSION_MIN_PROB_UP:
+            lines.append(
+                f"– {asset} ({amount:.2f}) — prob_up = {data['prob_up']:.2f} < MIN_PROB_UP"
+            )
+            count += 1
+        elif volume < MIN_TRADE_AMOUNT:
+            lines.append(
+                f"– {asset} ({amount:.2f}) — обсяг < MIN_TRADE_AMOUNT ({MIN_TRADE_AMOUNT})"
+            )
+            count += 1
+        if count >= 3:
+            break
+
+    lines.append("")
+
+    # Conversion diagnostics (placeholder as conversions are not attempted here)
+    lines.append("🔁 Конвертація: ❌")
+    lines.append("– Жодна конверсія не виконана")
+
+    lines.append("")
+
+    # BUY diagnostics
+    lines.append("💰 Покупка: ❌")
+    lines.append(
+        f"– Баланс USDT = {usdt_balance:.2f} — недостатньо для виконання купівлі"
+    )
+    lines.append("– Жоден токен не потрапив до top-3 BUY-кандидатів за score")
+
+    lines.append(DEV_TAG)
+    return "\n".join(lines)
 
 
 async def send_conversion_signals(
-    signals: List[Dict[str, float]], low_profit: bool = False
+    signals: List[Dict[str, float]],
+    low_profit: bool = False,
+    portfolio: Optional[Dict[str, float]] = None,
+    predictions: Optional[Dict[str, Dict[str, float]]] = None,
+    usdt_balance: float = 0.0,
 ) -> None:
     """Send conversion suggestions to Telegram."""
 
     if not signals:
         logger.info("No conversion signals generated")
-        await send_messages(
-            int(CHAT_ID),
-            [
-                (
-                    "\u26a0\ufe0f [dev] \u041d\u0435\u043c\u0430\u0454 \u0430\u043a\u0442\u0438\u0432\u0456\u0432 \u0434\u043b\u044f \u043f\u0440\u043e\u0434\u0430\u0436\u0443 / \u043a\u0443\u043f\u0456\u0432\u043b\u0456.\n\n"
-                    "\u0419\u043c\u043e\u0432\u0456\u0440\u043d\u0456 \u043f\u0440\u0438\u0447\u0438\u043d\u0438:\n"
-                    "\u2013 \u0431\u0430\u043b\u0430\u043d\u0441 \u043f\u043e\u0440\u043e\u0436\u043d\u0456\u0439;\n"
-                    "\u2013 \u0436\u043e\u0434\u0435\u043d \u0430\u043a\u0442\u0438\u0432 \u043d\u0435 \u043f\u0440\u043e\u0445\u043e\u0434\u0438\u0442\u044c \u0444\u0456\u043b\u044c\u0442\u0440\u0438 (expected_profit, prob_up);\n"
-                    "\u2013 \u0441\u0443\u043c\u0430 \u043c\u0435\u043d\u0448\u0430 \u0437\u0430 MIN_TRADE_AMOUNT."
-                )
-            ],
+        message = _compose_failure_message(
+            portfolio or {}, predictions or {}, usdt_balance
         )
+        await send_messages(int(CHAT_ID), [message])
         return
 
     lines = []
@@ -210,8 +281,16 @@ async def send_conversion_signals(
 
 
 async def main() -> None:
-    signals, low_profit = generate_conversion_signals()
-    await send_conversion_signals(signals, low_profit)
+    signals, low_profit, portfolio, predictions, usdt_balance = (
+        generate_conversion_signals()
+    )
+    await send_conversion_signals(
+        signals,
+        low_profit,
+        portfolio=portfolio,
+        predictions=predictions,
+        usdt_balance=usdt_balance,
+    )
 
 
 if __name__ == "__main__":
