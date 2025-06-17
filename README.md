@@ -42,3 +42,6 @@
 ```bash
 git clone https://github.com/wooferOS/telegram-crypto-bot-github.git
 ```
+
+## ⚠️ Відомі проблеми
+- Binance Convert Small Balances API поки закритий для більшості користувачів. При спробі виклику `convert_dust_to_usdt` бібліотека Binance може видавати `AssertionError: API Secret required for private endpoints`.
