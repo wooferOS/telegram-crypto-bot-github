@@ -86,7 +86,7 @@ def generate_conversion_signals() -> tuple[List[Dict[str, float]], bool]:
         (
             (p, d)
             for p, d in predictions.items()
-            if d["prob_up"] >= CONVERSION_MIN_PROB_UP
+            if d["expected_profit"] > 0 and d["prob_up"] > 0
         ),
         key=lambda x: x[1]["expected_profit"],
         default=(None, None),
@@ -135,7 +135,7 @@ def generate_conversion_signals() -> tuple[List[Dict[str, float]], bool]:
         )
 
     if not signals and best_pair:
-        # Fallback: suggest converting a tiny portion of the worst-performing asset
+        # Fallback: convert 90% of the highest-value asset to the best pair
         portfolio_pairs = [
             (
                 asset,
@@ -146,10 +146,10 @@ def generate_conversion_signals() -> tuple[List[Dict[str, float]], bool]:
             if predictions.get(asset if asset.endswith("USDT") else f"{asset}USDT")
         ]
         if portfolio_pairs:
-            worst_asset, amount, current = min(
-                portfolio_pairs, key=lambda x: x[2]["expected_profit"]
+            top_asset, amount, current = max(
+                portfolio_pairs, key=lambda x: x[1] * x[2]["price"]
             )
-            from_amount = min(amount, 1)
+            from_amount = amount * 0.9
             from_price = current["price"]
             from_usdt = from_amount * from_price
             to_qty = from_usdt / best_data["price"]
@@ -159,7 +159,7 @@ def generate_conversion_signals() -> tuple[List[Dict[str, float]], bool]:
 
             signals.append(
                 {
-                    "from_symbol": worst_asset,
+                    "from_symbol": top_asset,
                     "to_symbol": best_pair.replace("USDT", ""),
                     "from_amount": from_amount,
                     "from_usdt": from_usdt,
