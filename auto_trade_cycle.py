@@ -149,7 +149,8 @@ async def send_conversion_signals(signals: List[Dict[str, float]]) -> None:
         for part in split_telegram_message(text, 4000):
             await bot.send_message(CHAT_ID, part)
     finally:
-        await bot.session.close()
+        session = await bot.get_session()
+        await session.close()
 
 
 async def main() -> None:
