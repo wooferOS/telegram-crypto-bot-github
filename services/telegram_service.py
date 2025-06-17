@@ -1,6 +1,7 @@
 import logging
 from typing import Iterable
 from aiogram import Bot
+import os
 
 DEV_TAG = "[dev]"
 
@@ -28,7 +29,17 @@ from config import TELEGRAM_TOKEN
 logger = logging.getLogger(__name__)
 
 
+# Persist last sent message to avoid repeated alerts across restarts
+LAST_MESSAGE_FILE = os.path.join("logs", "last_message.txt")
+
 _last_message: str | None = None
+
+if os.path.exists(LAST_MESSAGE_FILE):
+    try:
+        with open(LAST_MESSAGE_FILE, "r", encoding="utf-8") as f:
+            _last_message = f.read().strip() or None
+    except OSError as exc:  # pragma: no cover - diagnostics only
+        logger.warning("Could not read %s: %s", LAST_MESSAGE_FILE, exc)
 
 
 async def send_messages(chat_id: int, messages: Iterable[str]) -> None:
@@ -44,6 +55,12 @@ async def send_messages(chat_id: int, messages: Iterable[str]) -> None:
                 continue
             await bot.send_message(chat_id, text)
             _last_message = text
+            try:
+                os.makedirs(os.path.dirname(LAST_MESSAGE_FILE), exist_ok=True)
+                with open(LAST_MESSAGE_FILE, "w", encoding="utf-8") as f:
+                    f.write(_last_message)
+            except OSError as exc:  # pragma: no cover - diagnostics only
+                logger.warning("Could not write %s: %s", LAST_MESSAGE_FILE, exc)
     finally:
         session = await bot.get_session()
         await session.close()
