@@ -1,154 +1,84 @@
-import asyncio
-import logging
-from typing import Dict, List, Optional
+import os
+import subprocess
+from dotenv import load_dotenv
+from decimal import Decimal, ROUND_DOWN
+from daily_analysis import generate_zarobyty_report
+from binance_api import get_binance_balances, get_symbol_price
+from datetime import datetime, timedelta
+import pytz
 
-from telegram import Bot
+load_dotenv("/root/.env")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
-from binance_api import (
-    get_binance_balances,
-    get_symbol_price,
-    get_candlestick_klines,
-    get_valid_usdt_symbols,
-)
-from ml_model import load_model, generate_features, predict_prob_up
-from utils import dynamic_tp_sl, calculate_expected_profit
-from daily_analysis import split_telegram_message
-from config import (
-    TELEGRAM_TOKEN,
-    CHAT_ID,
-    MIN_EXPECTED_PROFIT,
-    MIN_PROB_UP,
-)
+def send_telegram_message(message: str):
+    subprocess.run([
+        "curl", "-s", "-X", "POST",
+        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+        "-d", f"chat_id={CHAT_ID}",
+        "-d", f"text={message}"
+    ])
 
-logger = logging.getLogger(__name__)
-
-
-def _analyze_pair(pair: str, model) -> Optional[Dict[str, float]]:
-    """Return price analysis data for ``pair`` or ``None`` on failure."""
-
-    price = get_symbol_price(pair)
-    if price is None:
-        return None
-
-    klines = get_candlestick_klines(pair)
-    if not klines:
-        return None
-
-    closes = [float(k[4]) for k in klines]
-    tp, sl = dynamic_tp_sl(closes, price)
-
-    try:
-        features, _, _ = generate_features(pair)
-        prob_up = predict_prob_up(model, features) if model else 0.5
-    except Exception:  # noqa: BLE001
-        prob_up = 0.5
-
-    expected_profit = calculate_expected_profit(price, tp, amount=10, sl_price=sl)
-    return {
-        "price": price,
-        "tp": tp,
-        "sl": sl,
-        "prob_up": prob_up,
-        "expected_profit": expected_profit,
-    }
-
-
-def generate_conversion_signals() -> List[Dict[str, float]]:
-    """Analyze portfolio and propose asset conversions."""
-
-    model = load_model()
-    balances = get_binance_balances()
-    portfolio = {
-        a: amt
-        for a, amt in balances.items()
-        if a not in {"USDT", "BUSD"} and amt > 0
-    }
-    if not portfolio:
-        return []
-
-    predictions: Dict[str, Dict[str, float]] = {}
-    for symbol in get_valid_usdt_symbols():
-        pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
-        data = _analyze_pair(pair, model)
-        if data:
-            predictions[pair] = data
-
-    if not predictions:
-        return []
-
-    best_pair, best_data = max(
-        (
-            (p, d)
-            for p, d in predictions.items()
-            if d["prob_up"] >= MIN_PROB_UP
-        ),
-        key=lambda x: x[1]["expected_profit"],
-        default=(None, None),
-    )
-
-    if not best_pair or best_data["expected_profit"] < MIN_EXPECTED_PROFIT:
-        return []
-
-    signals: List[Dict[str, float]] = []
-    for asset, amount in portfolio.items():
-        pair = asset if asset.endswith("USDT") else f"{asset}USDT"
-        current = predictions.get(pair)
-        if not current:
-            continue
-        if best_data["expected_profit"] <= current["expected_profit"]:
-            continue
-
-        from_price = current["price"]
-        from_usdt = amount * from_price
-        to_qty = from_usdt / best_data["price"]
-        diff = best_data["expected_profit"] - current["expected_profit"]
-        profit_pct = (diff / 10) * 100
-        profit_usdt = (diff / 10) * from_usdt
-
-        signals.append(
-            {
-                "from_symbol": asset,
-                "to_symbol": best_pair.replace("USDT", ""),
-                "from_amount": amount,
-                "from_usdt": from_usdt,
-                "to_amount": to_qty,
-                "profit_pct": profit_pct,
-                "profit_usdt": profit_usdt,
-                "tp": best_data["tp"],
-                "sl": best_data["sl"],
-            }
-        )
-
-    return signals
-
-
-async def send_conversion_signals(signals: List[Dict[str, float]]) -> None:
-    """Send conversion suggestions to Telegram."""
-
-    if not signals:
-        logger.info("No conversion signals generated")
-        return
-
-    bot = Bot(token=TELEGRAM_TOKEN)
-    lines = []
-    for s in signals:
-        lines.append(
-            f"{s['from_symbol']} → конвертувати {s['to_symbol']}"
-            f"\nFROM: {s['from_amount']:.4f} (~{s['from_usdt']:.2f}$)"
-            f"\nTO: ≈{s['to_amount']:.4f}"
-            f"\nОчікуваний прибуток: +{s['profit_pct']:.2f}% (~{s['profit_usdt']:.2f}$)"
-            f"\nTP {s['tp']:.4f}, SL {s['sl']:.4f}"
-        )
-    text = "\n\n".join(lines)
-    for part in split_telegram_message(text, 4000):
-        await bot.send_message(CHAT_ID, part)
-
-
-async def main() -> None:
-    signals = generate_conversion_signals()
-    await send_conversion_signals(signals)
-
+def format_number(num, digits=8):
+    d = Decimal(str(num)).quantize(Decimal("1." + "0" * digits), rounding=ROUND_DOWN)
+    return format(d.normalize(), 'f')
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    asyncio.run(main())
+    now = datetime.now(pytz.timezone("Europe/Kyiv"))
+    print(f"🔁 Старт auto_trade_cycle.py @ {now.strftime('%Y-%m-%d %H:%M:%S')}", flush=True)
+
+    balances = get_binance_balances()
+    report, sell_signals, buy_signals, _ = generate_zarobyty_report(horizon="75m", balances=balances)
+
+    balance_lines = []
+    for symbol, amount in balances.items():
+        if amount > 0:
+            balance_lines.append(f"- {symbol}: {format_number(amount)}")
+
+    top_buys = sorted(buy_signals, key=lambda x: x.get("expected_profit", 0), reverse=True)[:3]
+    valid_top_buys = [b for b in top_buys if get_symbol_price(b.get("symbol", "") or "")]
+    total_expected_profit = sum(Decimal(str(b.get("expected_profit", 0))) for b in valid_top_buys if b.get("expected_profit", 0) > 0)
+
+    all_from_tokens = [(token, amount) for token, amount in balances.items() if token != "USDT" and amount > 0]
+    top_from_tokens = sorted(all_from_tokens, key=lambda x: get_symbol_price(x[0] + "USDT") or 0, reverse=True)[:4]
+
+    convert_lines = []
+    total_profit = Decimal("0")
+    grouped_lines = {}
+
+    for from_token, amount in top_from_tokens:
+        price_from = Decimal(str(get_symbol_price(from_token + "USDT") or "0"))
+        if price_from == 0 or amount == 0 or not valid_top_buys or total_expected_profit == 0:
+            continue
+
+        best_buy = max(valid_top_buys, key=lambda b: Decimal(str(b.get("expected_profit", 0))))
+        to_token = best_buy.get("symbol")
+        if from_token == to_token or from_token in to_token:
+            continue
+
+        expected_profit = Decimal(str(best_buy.get("expected_profit", 0)))
+        portion = (Decimal(str(amount)) * Decimal("0.9")) * expected_profit / total_expected_profit
+        usdt_equiv = (portion * price_from).quantize(Decimal("0.0001"))
+        total_profit += usdt_equiv
+
+        line = (
+            f"{from_token} → {to_token}\n"
+            f"Кількість:\n`{format_number(portion)} {from_token}`\n"
+            f"≈ {format_number(usdt_equiv, 4)} USDT"
+        )
+        grouped_lines.setdefault(from_token, []).append(line)
+
+    for token, lines in grouped_lines.items():
+        convert_lines.append(f"🔸 {token}")
+        convert_lines.extend(lines)
+
+    future_time = datetime.now(pytz.timezone("Europe/Kyiv")) + timedelta(minutes=75)
+    future_time_str = future_time.strftime("%H:%M")
+
+    message = "🧾 Баланс на зараз:\n" + "\n".join(balance_lines)
+    message += "\n\n🔄 Пропозиція для ручної конвертації:\n" + "\n".join(convert_lines)
+    message += f"\n\n📈 Очікуваний прибуток до {future_time_str}:\n- {format_number(total_profit, 4)} USDT"
+    message += "\n\n⏱ Зроби ручну конвертацію через Binance Convert"
+
+    print(f"📤 Відправка сигналу завершена @ {datetime.now().strftime('%H:%M:%S')}", flush=True)
+    send_telegram_message(message)

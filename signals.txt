@@ -1,3 +1,3 @@
-🟢 BUY: BTTCUSDT (prob_up=0.48, expected_profit=3.6866)
-🟢 BUY: BONKUSDT (prob_up=0.47, expected_profit=0.8241)
-🟢 BUY: BTCUSDT (prob_up=0.53, expected_profit=0.6235)
+🟢 BUY: BTTCUSDT (prob_up=0.48, expected_profit=3.8559)
+🟢 BUY: PEPEUSDT (prob_up=0.47, expected_profit=0.9436)
+🟢 BUY: PAXGUSDT (prob_up=0.56, expected_profit=0.6235)

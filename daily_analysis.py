@@ -249,7 +249,7 @@ def get_success_score(symbol: str) -> float:
             last_buy = None
     return round(profit / len(trades), 2)
 
-def generate_zarobyty_report() -> tuple[str, list, list, str]:
+def generate_zarobyty_report(balances=None, horizon="24h") -> tuple[str, list, list, str]:
     balances = get_binance_balances()
     usdt_balance = balances.get("USDT", 0) or 0
     now = datetime.datetime.now(pytz.timezone("Europe/Kyiv"))
