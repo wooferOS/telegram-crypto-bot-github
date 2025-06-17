@@ -13,7 +13,7 @@ def _format_dev_message(text: str) -> str:
     for m in markers:
         if text.startswith(m):
             return f"{m} {DEV_TAG} {text[len(m):].lstrip()}"
-    return f"{text}\n{DEV_TAG}"
+    return f"{DEV_TAG} {text}"
 
 
 class DevBot(Bot):
