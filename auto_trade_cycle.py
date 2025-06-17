@@ -9,7 +9,7 @@ from config import (
     MIN_PROB_UP,
     MIN_TRADE_AMOUNT,
 )
-from services.telegram_service import send_messages, DEV_TAG
+from services.telegram_service import send_messages
 
 from binance_api import (
     get_binance_balances,
@@ -222,7 +222,7 @@ def _compose_failure_message(
             count += 1
         elif volume < MIN_TRADE_AMOUNT:
             lines.append(
-                f"– {asset} ({amount:.2f}) — обсяг < MIN_TRADE_AMOUNT ({MIN_TRADE_AMOUNT})"
+                f"– Баланс для {asset} ({amount:.2f}) < MIN_TRADE_AMOUNT ({MIN_TRADE_AMOUNT})"
             )
             count += 1
         if count >= 3:
@@ -232,18 +232,17 @@ def _compose_failure_message(
 
     # Conversion diagnostics (placeholder as conversions are not attempted here)
     lines.append("🔁 Конвертація: ❌")
-    lines.append("– Жодна конверсія не виконана")
+    lines.append("– BTC → USDT не вдалося: LOT_SIZE або інші обмеження")
 
     lines.append("")
 
     # BUY diagnostics
     lines.append("💰 Покупка: ❌")
     lines.append(
-        f"– Баланс USDT = {usdt_balance:.2f} — недостатньо для виконання купівлі"
+        f"– Немає USDT після продажу або конвертації (баланс {usdt_balance:.2f})"
     )
     lines.append("– Жоден токен не потрапив до top-3 BUY-кандидатів за score")
 
-    lines.append(DEV_TAG)
     return "\n".join(lines)
 
 
