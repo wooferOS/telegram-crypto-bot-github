@@ -67,6 +67,12 @@ logger = logging.getLogger(__name__)
 # Global minimum thresholds (override via config)
 MIN_VOLUME = 100_000
 
+# Path to store timestamp of the last USDT balance warning
+NO_USDT_ALERT_FILE = "no_usdt_alert.txt"
+
+# Minimum interval between "no USDT" warnings (in seconds)
+NO_USDT_ALERT_INTERVAL = 4500
+
 
 async def get_trading_symbols() -> list[str]:
     """Return list of trading symbols available for analysis."""
@@ -482,16 +488,16 @@ async def auto_trade_loop():
                 if not balance:
                     logger.warning("USDT balance unavailable for buying")
                     try:
-                        with open("no_usdt_alert.txt", "r") as f:
+                        with open(NO_USDT_ALERT_FILE, "r") as f:
                             last_alert_time = float(f.read().strip())
                     except (FileNotFoundError, ValueError):
                         last_alert_time = 0
 
                     now = time.time()
-                    if now - last_alert_time > 3600:
+                    if now - last_alert_time > NO_USDT_ALERT_INTERVAL:
                         from telegram_bot import bot, ADMIN_CHAT_ID
                         await bot.send_message(ADMIN_CHAT_ID, "\u26A0\ufe0f Немає USDT для покупки")
-                        with open("no_usdt_alert.txt", "w") as f:
+                        with open(NO_USDT_ALERT_FILE, "w") as f:
                             f.write(str(now))
 
                     await asyncio.sleep(TRADE_LOOP_INTERVAL)
