@@ -1,8 +1,9 @@
 import asyncio
 import logging
+import os
 from typing import Dict, List, Optional
 
-from telegram import Bot
+from aiogram import Bot
 
 from binance_api import (
     get_binance_balances,
@@ -14,7 +15,6 @@ from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit
 from daily_analysis import split_telegram_message
 from config import (
-    TELEGRAM_TOKEN,
     CHAT_ID,
     MIN_EXPECTED_PROFIT,
     MIN_PROB_UP,
@@ -129,7 +129,7 @@ async def send_conversion_signals(signals: List[Dict[str, float]]) -> None:
         logger.info("No conversion signals generated")
         return
 
-    bot = Bot(token=TELEGRAM_TOKEN)
+    bot = Bot(token=os.getenv("TELEGRAM_TOKEN"))
     lines = []
     for s in signals:
         lines.append(
