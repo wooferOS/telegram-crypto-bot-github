@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict
 
 logger = logging.getLogger(__name__)
-ALERTS_FILE = os.getenv("ALERTS_FILE", "pending_alerts.json")
+ALERTS_FILE = "pending_alerts.json"
 
 
 def _load_alerts() -> List[Dict]:

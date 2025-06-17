@@ -33,8 +33,12 @@ from binance.exceptions import BinanceAPIException
 logger = logging.getLogger(__name__)
 TELEGRAM_LOG_PREFIX = "\ud83d\udce1 [BINANCE]"
 
-BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
-BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
+from config import (
+    BINANCE_API_KEY,
+    BINANCE_SECRET_KEY,
+    TELEGRAM_TOKEN,
+    CHAT_ID,
+)
 BINANCE_BASE_URL = "https://api.binance.com"
 
 # File used to log TP/SL updates
@@ -185,12 +189,12 @@ def get_binance_balances() -> Dict[str, float]:
 
     try:
         temp_client = Client(
-            os.getenv("BINANCE_API_KEY"),
-            os.getenv("BINANCE_SECRET_KEY"),
+            BINANCE_API_KEY,
+            BINANCE_SECRET_KEY,
         )
 
         logging.debug(
-            f"[DEBUG] API: {os.getenv('BINANCE_API_KEY')[:8]}..., SECRET: {os.getenv('BINANCE_SECRET_KEY')[:8]}..."
+            f"[DEBUG] API: {BINANCE_API_KEY[:8]}..., SECRET: {BINANCE_SECRET_KEY[:8]}..."
         )
 
         try:
@@ -789,8 +793,8 @@ def get_token_value_in_uah(symbol: str) -> float:
 def notify_telegram(message: str) -> None:
     """Send a notification to Telegram if credentials are configured."""
 
-    token = os.getenv("TELEGRAM_TOKEN")
-    chat_id = os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", ""))
+    token = TELEGRAM_TOKEN
+    chat_id = CHAT_ID
     if not token or not chat_id:
         logger.debug("%s Telegram credentials not set", TELEGRAM_LOG_PREFIX)
         return

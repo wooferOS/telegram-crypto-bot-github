@@ -1,6 +1,5 @@
 """Telegram bot configuration and handlers."""
 
-import os
 import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.dispatcher.filters import Command, Text
@@ -57,8 +56,9 @@ from alerts import check_daily_alerts
 
 take_profit_cb = CallbackData("tp", "symbol", "amount")
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-ADMIN_CHAT_ID = int(os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", "0")))
+from config import TELEGRAM_TOKEN, CHAT_ID
+
+ADMIN_CHAT_ID = int(CHAT_ID)
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot)
