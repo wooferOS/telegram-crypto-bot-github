@@ -382,13 +382,7 @@ def filter_fallback_best_candidates(candidates, max_results=3):
 if __name__ == "__main__":
     import asyncio
     from telegram import Bot
-    import os
+    from config import TELEGRAM_TOKEN, CHAT_ID
 
-    TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-    CHAT_ID = os.getenv("CHAT_ID")
-
-    if TELEGRAM_TOKEN and CHAT_ID:
-        bot = Bot(token=TELEGRAM_TOKEN)
-        asyncio.run(daily_analysis_task(bot, int(CHAT_ID)))
-    else:
-        print("❌ TELEGRAM_TOKEN або CHAT_ID не встановлено")
+    bot = Bot(token=TELEGRAM_TOKEN)
+    asyncio.run(daily_analysis_task(bot, int(CHAT_ID)))

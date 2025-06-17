@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import List, Dict
 
 logger = logging.getLogger(__name__)
-HISTORY_FILE = os.getenv("HISTORY_FILE", "trade_history.json")
+HISTORY_FILE = "trade_history.json"
 
 
 def _load_history() -> List[Dict]:
