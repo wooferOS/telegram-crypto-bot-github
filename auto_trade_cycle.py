@@ -15,8 +15,9 @@ from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit
 from daily_analysis import split_telegram_message
 # These thresholds are more lenient for manual conversion suggestions
-CONVERSION_MIN_EXPECTED_PROFIT = 0.0
-CONVERSION_MIN_PROB_UP = 0.4
+# Generate signals even for modest opportunities
+CONVERSION_MIN_EXPECTED_PROFIT = 0.01
+CONVERSION_MIN_PROB_UP = 0.5
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
@@ -119,6 +120,43 @@ def generate_conversion_signals() -> List[Dict[str, float]]:
                 "sl": best_data["sl"],
             }
         )
+
+    if not signals and best_pair:
+        # Fallback: suggest converting a tiny portion of the worst-performing asset
+        portfolio_pairs = [
+            (
+                asset,
+                amount,
+                predictions.get(asset if asset.endswith("USDT") else f"{asset}USDT"),
+            )
+            for asset, amount in portfolio.items()
+            if predictions.get(asset if asset.endswith("USDT") else f"{asset}USDT")
+        ]
+        if portfolio_pairs:
+            worst_asset, amount, current = min(
+                portfolio_pairs, key=lambda x: x[2]["expected_profit"]
+            )
+            from_amount = min(amount, 1)
+            from_price = current["price"]
+            from_usdt = from_amount * from_price
+            to_qty = from_usdt / best_data["price"]
+            diff = best_data["expected_profit"] - current["expected_profit"]
+            profit_pct = (diff / 10) * 100
+            profit_usdt = (diff / 10) * from_usdt
+
+            signals.append(
+                {
+                    "from_symbol": worst_asset,
+                    "to_symbol": best_pair.replace("USDT", ""),
+                    "from_amount": from_amount,
+                    "from_usdt": from_usdt,
+                    "to_amount": to_qty,
+                    "profit_pct": profit_pct,
+                    "profit_usdt": profit_usdt,
+                    "tp": best_data["tp"],
+                    "sl": best_data["sl"],
+                }
+            )
 
     return signals
 
