@@ -107,9 +107,13 @@ def log_signal(message: str) -> None:
 
 
 if BINANCE_API_KEY and BINANCE_SECRET_KEY:
-    print(f"[DEBUG] API: {BINANCE_API_KEY[:6]}..., SECRET: {BINANCE_SECRET_KEY[:6]}...")
+    print(
+        f"[DEBUG] API: {BINANCE_API_KEY[:6]}..., SECRET: {BINANCE_SECRET_KEY[:6]}..."
+    )
 else:
-    print("[ERROR] Binance API keys are not loaded. Check .env presence on server.")
+    print(
+        "[ERROR] Binance API keys are not loaded. Check config.py on the server."
+    )
 
 
 
@@ -299,7 +303,7 @@ def get_binance_balances() -> Dict[str, float]:
             )
         else:
             logging.warning(
-                "[ERROR] Binance ключі відсутні (None). Це очікувано у GitHub CI. Запуск можливий тільки з .env на сервері."
+                "[ERROR] Binance ключі відсутні (None). Запуск можливий лише після налаштування config.py на сервері."
             )
 
         try:
