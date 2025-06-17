@@ -34,9 +34,15 @@ from binance.exceptions import BinanceAPIException
 logger = logging.getLogger(__name__)
 TELEGRAM_LOG_PREFIX = "\ud83d\udce1 [BINANCE]"
 
-# Load environment variables from the user's home directory
-BINANCE_API_KEY = os.environ.get("BINANCE_API_KEY")
-BINANCE_SECRET_KEY = os.environ.get("BINANCE_SECRET_KEY")
+from config import (
+    BINANCE_API_KEY,
+    BINANCE_SECRET_KEY,
+    TELEGRAM_TOKEN,
+    CHAT_ID,
+    ADMIN_CHAT_ID,
+)
+
+# Credentials are provided via ``config.py`` on the server.
 BINANCE_BASE_URL = "https://api.binance.com"
 
 # File used to log TP/SL updates
@@ -1060,8 +1066,8 @@ def get_token_value_in_uah(symbol: str) -> float:
 def notify_telegram(message: str) -> None:
     """Send a notification to Telegram if credentials are configured."""
 
-    token = os.getenv("TELEGRAM_TOKEN")
-    chat_id = os.getenv("ADMIN_CHAT_ID", os.getenv("CHAT_ID", ""))
+    token = TELEGRAM_TOKEN
+    chat_id = ADMIN_CHAT_ID or CHAT_ID
     if not token or not chat_id:
         logger.debug("%s Telegram credentials not set", TELEGRAM_LOG_PREFIX)
         return
