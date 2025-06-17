@@ -59,7 +59,6 @@ from ml_model import (
 from telegram import Bot
 
 import time
-last_no_usdt_warning = 0
 
 symbols = get_valid_usdt_symbols()
 
@@ -482,12 +481,19 @@ async def auto_trade_loop():
             if buy_candidates:
                 if not balance:
                     logger.warning("USDT balance unavailable for buying")
+                    try:
+                        with open("no_usdt_alert.txt", "r") as f:
+                            last_alert_time = float(f.read().strip())
+                    except (FileNotFoundError, ValueError):
+                        last_alert_time = 0
+
                     now = time.time()
-                    global last_no_usdt_warning
-                    if now - last_no_usdt_warning > 4500:
-                        last_no_usdt_warning = now
+                    if now - last_alert_time > 3600:
                         from telegram_bot import bot, ADMIN_CHAT_ID
                         await bot.send_message(ADMIN_CHAT_ID, "\u26A0\ufe0f Немає USDT для покупки")
+                        with open("no_usdt_alert.txt", "w") as f:
+                            f.write(str(now))
+
                     await asyncio.sleep(TRADE_LOOP_INTERVAL)
                     continue
                 for candidate in buy_candidates:
