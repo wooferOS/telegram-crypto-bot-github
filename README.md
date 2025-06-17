@@ -32,6 +32,7 @@
 - `daily_analysis.py` — генерація щоденного прогнозу
 - `binance_api.py` — взаємодія з Binance
 - `run_daily_analysis.py` — запуск аналітики окремо
+- `run_auto_trade.py` — одиночний запуск циклу автотрейду
 - `systemd/crypto-bot.service` — сервіс для VPS
 - `.github/workflows/daily.yml` — автоматичний GitHub-запуск
 - `/etc/crypto-bot.env` — файл змінних середовища для systemd
