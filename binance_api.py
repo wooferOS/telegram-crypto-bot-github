@@ -117,8 +117,8 @@ else:
 
 
 
-# Initialise global Binance client exactly as in Binance docs without pinging
-client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY, ping=False)
+# Initialise global Binance client exactly as in Binance docs
+client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
 # Set of currently tradable USDT pairs
 VALID_PAIRS: set[str] = set()
@@ -297,7 +297,7 @@ def get_binance_balances() -> Dict[str, float]:
     """Return available balances with automatic API diagnostics."""
 
     try:
-        temp_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY, ping=False)
+        temp_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
         if BINANCE_API_KEY and BINANCE_SECRET_KEY:
             logging.debug(
