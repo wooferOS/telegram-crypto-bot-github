@@ -12,7 +12,9 @@ from binance_api import _to_usdt_pair, is_symbol_valid
 
 MODEL_PATH = "model.joblib"
 
-client = Client(api_key=os.getenv("BINANCE_API_KEY"), api_secret=os.getenv("BINANCE_API_SECRET"))
+from config import BINANCE_API_KEY, BINANCE_SECRET_KEY
+
+client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 
 def load_model():
     if os.path.exists(MODEL_PATH):
