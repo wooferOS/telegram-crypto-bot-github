@@ -14,7 +14,9 @@ from binance_api import (
 from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit
 from daily_analysis import split_telegram_message
-from config import MIN_EXPECTED_PROFIT, MIN_PROB_UP
+# These thresholds are more lenient for manual conversion suggestions
+CONVERSION_MIN_EXPECTED_PROFIT = 0.0
+CONVERSION_MIN_PROB_UP = 0.4
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
@@ -79,13 +81,13 @@ def generate_conversion_signals() -> List[Dict[str, float]]:
         (
             (p, d)
             for p, d in predictions.items()
-            if d["prob_up"] >= MIN_PROB_UP
+            if d["prob_up"] >= CONVERSION_MIN_PROB_UP
         ),
         key=lambda x: x[1]["expected_profit"],
         default=(None, None),
     )
 
-    if not best_pair or best_data["expected_profit"] < MIN_EXPECTED_PROFIT:
+    if not best_pair or best_data["expected_profit"] <= CONVERSION_MIN_EXPECTED_PROFIT:
         return []
 
     signals: List[Dict[str, float]] = []
@@ -124,11 +126,15 @@ def generate_conversion_signals() -> List[Dict[str, float]]:
 async def send_conversion_signals(signals: List[Dict[str, float]]) -> None:
     """Send conversion suggestions to Telegram."""
 
+    bot = Bot(token=os.getenv("TELEGRAM_TOKEN"))
     if not signals:
         logger.info("No conversion signals generated")
+        await bot.send_message(
+            CHAT_ID,
+            "\u26A0\ufe0f \u041d\u0435 \u0437\u043d\u0430\u0439\u0434\u0435\u043d\u043e \u0432\u0438\u0433\u0456\u0434\u043d\u0438\u0445 \u0441\u0438\u0433\u043d\u0430\u043b\u0456\u0432, \u0430\u043b\u0435 \u043e\u0447\u0456\u043a\u0443\u0432\u0430\u043d\u0438\u0439 \u043f\u0440\u0438\u0431\u0443\u0442\u043e\u043a \u0431\u0443\u0432 \u043d\u0438\u0437\u044c\u043a\u0438\u0439. \u041f\u0435\u0440\u0435\u0432\u0456\u0440 \u0432\u0440\u0443\u0447\u043d\u0443.",
+        )
         return
 
-    bot = Bot(token=os.getenv("TELEGRAM_TOKEN"))
     lines = []
     for s in signals:
         lines.append(
