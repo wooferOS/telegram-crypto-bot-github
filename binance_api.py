@@ -483,6 +483,16 @@ def try_convert(symbol_from: str, symbol_to: str, amount: float) -> Optional[dic
         return result
     except Exception as exc:  # pragma: no cover - network errors
         logger.error("❌ Помилка при конвертації %s: %s", symbol_from, exc)
+        if symbol_to == "USDT":
+            try:
+                if _fallback_market_sell(symbol_from, amount):
+                    return {"status": "market_sell"}
+            except Exception as fallback_exc:  # pragma: no cover - network errors
+                logger.warning(
+                    "⚠️ Fallback market sell error for %s: %s",
+                    symbol_from,
+                    fallback_exc,
+                )
         price = None
         try:
             price = get_symbol_price(f"{symbol_from}{symbol_to}")
@@ -1108,6 +1118,75 @@ def get_symbol_precision(symbol: str) -> int:
             exc,
         )
     return 2
+
+
+def get_min_notional(symbol: str) -> float:
+    """Return ``MIN_NOTIONAL`` value for trading ``symbol``."""
+    try:
+        data = get_exchange_info_cached()
+        for s in data.get("symbols", []):
+            if s["symbol"] == symbol:
+                for f in s.get("filters", []):
+                    if f.get("filterType") == "MIN_NOTIONAL":
+                        return float(f.get("minNotional"))
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.warning(
+            "%s Помилка при отриманні MIN_NOTIONAL для %s: %s",
+            TELEGRAM_LOG_PREFIX,
+            symbol,
+            exc,
+        )
+    return 0.0
+
+
+def get_lot_step(symbol: str) -> float:
+    """Return ``LOT_SIZE`` step for trading ``symbol``."""
+    try:
+        data = get_exchange_info_cached()
+        for s in data.get("symbols", []):
+            if s["symbol"] == symbol:
+                for f in s.get("filters", []):
+                    if f.get("filterType") == "LOT_SIZE":
+                        return float(f.get("stepSize"))
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.warning(
+            "%s Помилка при отриманні LOT_SIZE для %s: %s",
+            TELEGRAM_LOG_PREFIX,
+            symbol,
+            exc,
+        )
+    return 0.0
+
+
+def _fallback_market_sell(asset: str, quantity: float) -> bool:
+    """Attempt to sell ``asset`` to USDT market if possible."""
+    pair = f"{asset.upper()}USDT"
+    if pair not in VALID_PAIRS:
+        return False
+
+    price = get_symbol_price(pair)
+    if price is None:
+        return False
+
+    min_notional = get_min_notional(pair)
+    step = get_lot_step(pair)
+    precision = get_symbol_precision(pair)
+
+    qty = round(quantity - (quantity % step), precision)
+    if qty <= 0:
+        return False
+
+    notional = qty * price
+    if notional < min_notional:
+        return False
+
+    try:
+        order = client.order_market_sell(symbol=pair, quantity=qty)
+        logger.info("✅ Fallback market sell %s %s", qty, pair)
+        return "orderId" in order
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.warning("⚠️ Fallback market sell failed for %s: %s", pair, exc)
+        return False
 
 
 def get_full_asset_info() -> Dict[str, object]:
