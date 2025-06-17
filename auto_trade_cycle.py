@@ -3,7 +3,7 @@ import logging
 from typing import Dict, List, Optional
 
 
-from config import TELEGRAM_TOKEN, CHAT_ID
+from config import CHAT_ID
 from services.telegram_service import send_messages
 
 from binance_api import (
@@ -180,7 +180,6 @@ async def send_conversion_signals(
     if not signals:
         logger.info("No conversion signals generated")
         await send_messages(
-            TELEGRAM_TOKEN,
             int(CHAT_ID),
             [
                 "\u26a0\ufe0f \u041d\u0435\u043c\u0430\u0454 \u0430\u043a\u0442\u0438\u0432\u0456\u0432 \u0434\u043b\u044f \u043f\u0440\u043e\u0434\u0430\u0436\u0443 / \u043a\u0443\u043f\u0456\u0432\u043b\u0456"
@@ -201,7 +200,7 @@ async def send_conversion_signals(
     messages = list(split_telegram_message(text, 4000))
     if low_profit:
         messages.append("\u26a0\ufe0f Очікуваний прибуток низький, конверсія виконана.")
-    await send_messages(TELEGRAM_TOKEN, int(CHAT_ID), messages)
+    await send_messages(int(CHAT_ID), messages)
 
 
 async def main() -> None:
