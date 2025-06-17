@@ -10,7 +10,7 @@
 | BINANCE_API_KEY    | XW1x...                                     | Ключ Binance API                          |
 | BINANCE_SECRET_KEY | zRpL...                                     | Секрет Binance API                        |
 
-⚠️ **Ніколи не пушити файли з ключами.** Для безпеки всі дані зберігаються у GitHub Secrets або у `/etc/crypto-bot.env` на сервері й передаються через `systemd`.
+⚠️ **Ніколи не пушити файли з ключами.** Для безпеки всі дані зберігаються у GitHub Secrets або локально у `config.py` на сервері.
 
 ---
 
