@@ -8,6 +8,7 @@ import numpy as np
 import os
 import time
 import subprocess
+import logging
 from config import BINANCE_API_KEY, BINANCE_SECRET_KEY
 
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
@@ -26,8 +27,10 @@ def get_all_usdt_symbols(min_volume=500000):
     return list(set(result))
 
 
+logger = logging.getLogger(__name__)
+
 symbols = get_all_usdt_symbols()
-print(f"🔍 Знайдено {len(symbols)} монет для тренування.")
+logger.info("🔍 Знайдено %d монет для тренування.", len(symbols))
 
 X_all = []
 y_all = []
@@ -43,13 +46,13 @@ for symbol in symbols:
             if len(X) > 10:
                 X_all.append(X)
                 y_all.append(y)
-                print(f"✅ Додано {symbol}: {len(X)} зразків")
+                logger.info("✅ Додано %s: %d зразків", symbol, len(X))
         time.sleep(0.3)
     except Exception as e:
-        print(f"⚠️ Пропущено {symbol}: {e}")
+        logger.warning("⚠️ Пропущено %s: %s", symbol, e)
 
 if not X_all:
-    print("❌ Дані не зібрано.")
+    logger.error("❌ Дані не зібрано.")
     exit(1)
 
 X_all = np.vstack([x.values for x in X_all])
@@ -61,11 +64,11 @@ model = RandomForestClassifier(n_estimators=150, max_depth=6, random_state=42)
 model.fit(X_train, y_train)
 
 y_pred = model.predict(X_test)
-print(classification_report(y_test, y_pred))
+logger.info("\n" + classification_report(y_test, y_pred))
 
 joblib.dump(model, MODEL_PATH)
-print(f"✅ Model saved to {MODEL_PATH}")
+logger.info("✅ Model saved to %s", MODEL_PATH)
 
 # 🔁 Автоматичний перезапуск Telegram бота
 subprocess.call(["sudo", "systemctl", "restart", "crypto-bot"])
-print("🔁 Бот перезапущено після оновлення моделі")
+logger.info("🔁 Бот перезапущено після оновлення моделі")
