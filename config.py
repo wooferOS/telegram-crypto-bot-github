@@ -22,3 +22,7 @@ MIN_TRADE_AMOUNT = 10.0  # USDT
 
 # Auto trading loop interval in seconds
 TRADE_LOOP_INTERVAL = 3600
+
+# Maximum iterations for background loops
+MAX_MONITOR_ITERATIONS = 120  # ~1 hour for 30s interval
+MAX_AUTO_TRADE_ITERATIONS = 24  # ~1 day for TRADE_LOOP_INTERVAL
