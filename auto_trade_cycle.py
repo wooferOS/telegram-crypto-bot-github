@@ -1,6 +1,8 @@
 import asyncio
 import hashlib
 import logging
+
+from log_setup import setup_logging
 import os
 from typing import Dict, List, Optional
 from collections import Counter
@@ -335,5 +337,5 @@ async def main(chat_id: int) -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    setup_logging()
     asyncio.run(main(0))

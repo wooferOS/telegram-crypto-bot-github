@@ -374,10 +374,7 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
             prob_up = predict_prob_up(model, fv) if model else 0.5
             expected_profit = estimate_profit_debug(symbol)
             logger.info(
-                "\U0001f4ca %s: prob_up=%.2f, expected_profit=%s",
-                symbol,
-                prob_up,
-                expected_profit,
+                f"[dev] \U0001f4ca {symbol}: prob_up={prob_up:.2f}, expected_profit={expected_profit:.4f}"
             )
 
             enriched_tokens.append(
@@ -759,17 +756,16 @@ def demo_candidates_loop(symbols: list[str]) -> list[dict]:
 if __name__ == "__main__":
     import asyncio
     import sys
+    from log_setup import setup_logging
     from services.telegram_service import DevBot
     from config import TELEGRAM_TOKEN, CHAT_ID
 
+    setup_logging()
     if len(sys.argv) > 1 and sys.argv[1] == "demo":
         candidates = demo_candidates_loop(symbols)
         for c in candidates:
             logger.info(
-                "%s: prob_up=%.2f, expected=%s",
-                c["symbol"],
-                c["prob_up"],
-                c["expected_profit"],
+                f"[dev] \U0001f4ca {c['symbol']}: prob_up={c['prob_up']:.2f}, expected_profit={c['expected_profit']:.4f}"
             )
         sys.exit(0)
 
