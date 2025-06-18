@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 # Persist last sent message hash and timestamp to avoid repeated alerts
-LAST_MESSAGE_FILE = os.path.join("logs", "last_message.json")
+LAST_MESSAGE_FILE = os.path.join("logs", "last_message_hash.txt")
 _last_data: dict[str, object] = {"hash": None, "time": 0.0}
 
 if os.path.exists(LAST_MESSAGE_FILE):

@@ -241,11 +241,3 @@ def log_trade(action: str, symbol: str, qty: float, price: float) -> None:
         log_file.write(line)
 
 
-def log_signal(message: str) -> None:
-    """Append a manual action signal to ``logs/trade.log``."""
-
-    os.makedirs("logs", exist_ok=True)
-    timestamp = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    line = f"{timestamp} {message}\n"
-    with open("logs/trade.log", "a", encoding="utf-8") as log_file:
-        log_file.write(line)
