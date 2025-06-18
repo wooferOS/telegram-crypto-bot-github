@@ -508,8 +508,7 @@ def try_convert(symbol_from: str, symbol_to: str, amount: float) -> Optional[dic
             pass
         msg = f"{symbol_from} \u2192 {symbol_to} не вдалося: {exc}"  # type: ignore[arg-type]
         logger.warning(msg)
-        log_signal(msg)
-        return None
+        return {"status": "error", "message": str(exc)}
 
 
 def convert_to_usdt(asset: str, amount: float):
