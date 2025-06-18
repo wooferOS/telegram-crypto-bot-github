@@ -5,6 +5,8 @@ import json
 import os
 import time
 
+from log_setup import setup_logging
+
 from auto_trade_cycle import main
 from config import TRADE_LOOP_INTERVAL, CHAT_ID
 from services.telegram_service import send_messages
@@ -40,6 +42,7 @@ def _store_run_time() -> None:
         pass
 
 if __name__ == "__main__":
+    setup_logging()
     elapsed = _time_since_last_run()
     if elapsed >= AUTO_INTERVAL:
         asyncio.run(main(int(CHAT_ID)))
