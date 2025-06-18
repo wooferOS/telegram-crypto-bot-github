@@ -550,6 +550,7 @@ async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> No
                         )
                         message = (
                             "⚠️ Немає USDT для покупки.\n"
+                            "Жоден актив не був проданий або конвертований — баланс не поповнено.\n"
                             f"Причина: {reason}"
                         )
                         await send_messages(ADMIN_CHAT_ID, [message])
