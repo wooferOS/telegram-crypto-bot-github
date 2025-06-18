@@ -18,6 +18,7 @@ from binance_api import (
     get_valid_usdt_symbols,
     get_symbol_precision,
     try_convert,
+    sell_asset,
 )
 from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit
@@ -212,6 +213,49 @@ def generate_conversion_signals() -> tuple[
     )
 
 
+def sell_unprofitable_assets(portfolio: Dict[str, float], predictions: Dict[str, Dict[str, float]]) -> None:
+    """Sell assets with expected profit below the top-3 threshold."""
+
+    if not portfolio or not predictions:
+        return
+
+    ranked = sorted(
+        [d["expected_profit"] for d in predictions.values() if d["expected_profit"] > 0],
+        reverse=True,
+    )
+    if not ranked:
+        return
+
+    top3_min = ranked[min(2, len(ranked) - 1)]
+    usdt_before = get_binance_balances().get("USDT", 0.0)
+
+    for asset, amount in portfolio.items():
+        if asset in {"USDT", "BUSD"} or amount <= 0:
+            continue
+        pair = asset if asset.endswith("USDT") else f"{asset}USDT"
+        data = predictions.get(pair)
+        if not data:
+            continue
+        prob = data.get("prob_up", 0.0)
+        ep = data.get("expected_profit", 0.0)
+        logger.info(
+            f"[dev] 🔍 Оцінка продажу {asset}: prob_up={prob:.2f}, expected_profit={ep:.4f}, top3_min_profit={top3_min}"
+        )
+        if ep >= top3_min:
+            continue
+        result = sell_asset(pair, amount)
+        status = result.get("status")
+        if status in {"success", "converted"}:
+            logger.info(f"[dev] ✅ Продано {amount} {asset} за ринком")
+        else:
+            logger.warning(f"[dev] ⛔ Не вдалося ні продати, ні сконвертувати {asset}")
+
+    usdt_after = get_binance_balances().get("USDT", 0.0)
+    logger.info(f"[dev] 💰 Поточний баланс USDT: {usdt_after}")
+    if abs(usdt_after - usdt_before) < 1e-8:
+        logger.warning("[dev] ❗ Продаж не відбувся — баланс USDT залишився без змін")
+
+
 def _compose_failure_message(
     portfolio: Dict[str, float],
     predictions: Dict[str, Dict[str, float]],
@@ -325,6 +369,8 @@ async def main(chat_id: int) -> None:
         all_equal,
         _,
     ) = generate_conversion_signals()
+    sell_unprofitable_assets(portfolio, predictions)
+    usdt_balance = get_binance_balances().get("USDT", 0.0)
     await send_conversion_signals(
         signals,
         chat_id=chat_id,
