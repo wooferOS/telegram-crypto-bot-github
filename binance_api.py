@@ -582,6 +582,12 @@ def get_symbol_price(pair: str) -> float:
     try:
         ticker = _get_client().get_symbol_ticker(symbol=pair)
         return float(ticker["price"])
+    except BinanceAPIException as exc:  # pragma: no cover - API errors
+        if "Invalid" in str(exc) or "Signature" in str(exc):
+            logger.warning("[dev] ⛔ %s: %s", pair, exc)
+        else:
+            logger.warning("[dev] ❗ Binance API error for %s: %s", pair, exc)
+        return 0.0
     except Exception as e:  # pragma: no cover - network errors
         logger.warning(f"[dev] ❗ Binance API error for {pair}: {e}")
         return 0.0
@@ -660,23 +666,28 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
         base = normalize_symbol(symbol)
         pair = f"{base}USDT".upper()
         if pair not in VALID_PAIRS:
-            raise Exception(f"Token {pair} \u043d\u0435 \u0442\u043e\u0440\u0433\u0443\u0454\u0442\u044c\u0441\u044f \u043d\u0430 Binance")
+            logger.warning("[dev] ⛔ %s не торгується", pair)
+            return {"status": "error", "message": "invalid_symbol"}
 
         price = get_symbol_price(pair)
         if not price:
-            raise Exception("Price unavailable")
+            logger.warning("[dev] ⛔ Price unavailable for %s", pair)
+            return {"status": "error", "message": "no_price"}
 
         quantity = round(amount / price, 6)
-        return client.create_order(
+        order = client.create_order(
             symbol=pair,
             side=SIDE_BUY,
             type=ORDER_TYPE_MARKET,
             quantity=quantity,
         )
+        return order
     except BinanceAPIException as e:  # pragma: no cover - network errors
-        raise Exception(f"Binance API error: {e.message}")
+        logger.warning("[dev] Binance buy error for %s: %s", pair, e)
+        return {"status": "error", "message": str(e)}
     except Exception as exc:
-        raise Exception(f"Unexpected error: {exc}")
+        logger.warning("[dev] Unexpected buy error for %s: %s", pair, exc)
+        return {"status": "error", "message": str(exc)}
 
 def market_buy(symbol: str, usdt_amount: float) -> dict:
     """Ринкова купівля ``symbol`` на вказану суму в USDT."""
