@@ -28,9 +28,18 @@ def get_klines(symbol: str, interval: str = "1h", limit: int = 500) -> pd.DataFr
         logging.warning("%s not valid for klines", pair)
         return pd.DataFrame()
     try:
-        data = client.get_klines(symbol=pair, interval=interval, limit=limit)
+        data = client.get_klines(
+            symbol=pair,
+            interval=interval,
+            limit=limit,
+            timeout=10,  # ⏱️ тайм-аут Binance API
+        )
     except Exception as e:  # noqa: BLE001
-        logging.warning("\u26A0\uFE0F Binance error for %s: %s", pair, e)
+        logging.warning(f"[dev] ML get_klines error: {e}")
+        return pd.DataFrame()
+
+    if not data:
+        logging.warning("[dev] ML get_klines returned no data for %s", pair)
         return pd.DataFrame()
 
     df = pd.DataFrame(
