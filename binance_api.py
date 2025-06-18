@@ -33,6 +33,7 @@ from binance.exceptions import BinanceAPIException
 
 logger = logging.getLogger(__name__)
 TELEGRAM_LOG_PREFIX = "\ud83d\udce1 [BINANCE]"
+TEST_MODE = os.getenv("BINANCE_TEST_MODE") == "1"
 
 from config import (
     BINANCE_API_KEY,
@@ -108,8 +109,20 @@ else:
 
 
 
-# Initialise global Binance client exactly as in Binance docs
-client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
+# Initialise Binance client lazily to avoid network calls during import
+client: Client | None = None
+
+
+def _get_client() -> Client:
+    """Return cached Binance ``Client`` instance."""
+    global client
+    if client is None:
+        if TEST_MODE:
+            raise RuntimeError("Binance client unavailable in test mode")
+        if not BINANCE_API_KEY or not BINANCE_SECRET_KEY:
+            raise RuntimeError("Binance API keys are missing")
+        client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
+    return client
 
 # Set of currently tradable USDT pairs
 VALID_PAIRS: set[str] = set()
@@ -184,7 +197,7 @@ def get_exchange_info_cached() -> Dict[str, object]:
             with open(EXCHANGE_INFO_CACHE, "r", encoding="utf-8") as f:
                 return json.load(f)
 
-    info = client.get_exchange_info()
+    info = _get_client().get_exchange_info()
     with open(EXCHANGE_INFO_CACHE, "w", encoding="utf-8") as f:
         json.dump(info, f)
     return info
@@ -193,7 +206,7 @@ def get_exchange_info_cached() -> Dict[str, object]:
 def get_exchange_info() -> Dict[str, object]:
     """Return exchange information directly from Binance without cache."""
 
-    return client.get_exchange_info()
+    return _get_client().get_exchange_info()
 
 
 def load_tradable_usdt_symbols() -> set[str]:
@@ -368,8 +381,11 @@ def get_current_portfolio() -> Dict[str, float]:
 def get_usdt_balance() -> float:
     """Return available USDT balance."""
 
+    if TEST_MODE:
+        return 0.0
+
     try:
-        bal = client.get_asset_balance(asset="USDT")
+        bal = _get_client().get_asset_balance(asset="USDT")
         return float(bal.get("free", 0))
     except Exception as exc:  # pragma: no cover - network errors
         logger.error("%s Помилка отримання балансу USDT: %s", TELEGRAM_LOG_PREFIX, exc)
@@ -379,8 +395,11 @@ def get_usdt_balance() -> float:
 def get_token_balance(symbol: str) -> float:
     """Return available balance of specific token."""
 
+    if TEST_MODE:
+        return 0.0
+
     try:
-        bal = client.get_asset_balance(asset=symbol.upper())
+        bal = _get_client().get_asset_balance(asset=symbol.upper())
         return float(bal.get("free", 0))
     except Exception as exc:
         logger.error(
@@ -560,6 +579,9 @@ def cancel_all_orders(symbol: str) -> None:
 def get_symbol_price(symbol: str) -> Optional[float]:
     """Return current price of ``symbol`` quoted in USDT."""
 
+    if TEST_MODE:
+        return 0.0
+
     pair = _to_usdt_pair(symbol)
     logger.debug("get_symbol_price: %s -> %s", symbol, pair)
 
@@ -568,7 +590,7 @@ def get_symbol_price(symbol: str) -> Optional[float]:
         return None
 
     try:
-        ticker = client.get_symbol_ticker(symbol=pair)
+        ticker = _get_client().get_symbol_ticker(symbol=pair)
         return float(ticker.get("price", 0))
     except BinanceAPIException as exc:  # pragma: no cover - network errors
         if exc.code == -1121:
@@ -606,6 +628,9 @@ def get_token_price(symbol: str) -> dict:
 def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[str, object]]:
     """Place a market order for ``symbol`` on Binance."""
 
+    if TEST_MODE:
+        return {"symbol": symbol, "side": side, "amount": amount}
+
     base = normalize_symbol(symbol)
     pair = f"{base}USDT".upper()
     if pair not in VALID_PAIRS:
@@ -616,14 +641,14 @@ def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[s
             return None
     try:
         if side.upper() == "BUY":
-            order = client.create_order(
+            order = _get_client().create_order(
                 symbol=pair,
                 side=Client.SIDE_BUY,
                 type=Client.ORDER_TYPE_MARKET,
                 quoteOrderQty=amount,
             )
         else:
-            order = client.create_order(
+            order = _get_client().create_order(
                 symbol=pair,
                 side=Client.SIDE_SELL,
                 type=Client.ORDER_TYPE_MARKET,

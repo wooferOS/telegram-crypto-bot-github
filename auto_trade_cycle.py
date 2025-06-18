@@ -3,6 +3,7 @@ import hashlib
 import logging
 import os
 from typing import Dict, List, Optional
+from collections import Counter
 
 
 # Configuration values are provided explicitly by callers
@@ -27,6 +28,15 @@ CONVERSION_MIN_PROB_UP = 0.5
 
 
 logger = logging.getLogger(__name__)
+
+
+def _human_amount(amount: float, precision: int) -> str:
+    """Return ``amount`` formatted for Telegram messages."""
+    if amount >= 1_000_000:
+        return f"{amount/1_000_000:.2f}M"
+    if amount >= 10_000:
+        return f"{int(round(amount)):_}"
+    return f"{amount:,.{precision}f}".replace(",", "_")
 
 
 def _analyze_pair(pair: str, model) -> Optional[Dict[str, float]]:
@@ -65,6 +75,7 @@ def generate_conversion_signals() -> tuple[
     Dict[str, float],
     Dict[str, Dict[str, float]],
     float,
+    bool,
 ]:
     """Analyze portfolio and propose asset conversions.
 
@@ -90,18 +101,25 @@ def generate_conversion_signals() -> tuple[
     if not predictions:
         return [], False, portfolio, {}, balances.get("USDT", 0.0)
 
-    best_pair, best_data = max(
-        (
-            (p, d)
-            for p, d in predictions.items()
-            if d["expected_profit"] > 0 and d["prob_up"] > 0
-        ),
-        key=lambda x: x[1]["expected_profit"],
-        default=(None, None),
-    )
+    # Drop tokens with duplicate expected_profit values
+    ep_counts = Counter(round(d["expected_profit"], 4) for d in predictions.values())
+    unique_predictions = {
+        p: d for p, d in predictions.items() if ep_counts[round(d["expected_profit"], 4)] == 1
+    }
+    all_equal = len(ep_counts) == 1
 
-    if not best_pair:
-        return [], False, portfolio, predictions, balances.get("USDT", 0.0)
+    ranked = [
+        (p, {**d, "score": d["prob_up"] * d["expected_profit"]})
+        for p, d in (unique_predictions or predictions).items()
+        if d["prob_up"] > 0 and d["expected_profit"] > 0
+    ]
+    ranked.sort(key=lambda x: x[1]["score"], reverse=True)
+    top_tokens = ranked[:3]
+
+    if not top_tokens:
+        return [], False, portfolio, predictions, balances.get("USDT", 0.0), all_equal
+
+    best_pair, best_data = top_tokens[0]
 
     low_profit = False
     if best_data["expected_profit"] <= CONVERSION_MIN_EXPECTED_PROFIT:
@@ -179,13 +197,22 @@ def generate_conversion_signals() -> tuple[
                 }
             )
 
-    return signals, low_profit, portfolio, predictions, balances.get("USDT", 0.0)
+    return (
+        signals,
+        low_profit,
+        portfolio,
+        predictions,
+        balances.get("USDT", 0.0),
+        all_equal,
+    )
 
 
 def _compose_failure_message(
     portfolio: Dict[str, float],
     predictions: Dict[str, Dict[str, float]],
     usdt_balance: float,
+    *,
+    identical_profits: bool = False,
 ) -> str:
     """Return concise explanation why no trade was executed."""
 
@@ -195,6 +222,10 @@ def _compose_failure_message(
         lines.append("– Жоден токен не має expected_profit > 0")
 
     lines.append("– Жоден не потрапив у top-3 BUY за score")
+    if identical_profits:
+        lines.append(
+            "– Усі очікувані прибутки однакові, неможливо обрати кращі токени"
+        )
 
     if usdt_balance <= 0:
         lines.append("– Немає USDT")
@@ -210,13 +241,17 @@ async def send_conversion_signals(
     portfolio: Optional[Dict[str, float]] = None,
     predictions: Optional[Dict[str, Dict[str, float]]] = None,
     usdt_balance: float = 0.0,
+    identical_profits: bool = False,
 ) -> None:
     """Convert assets automatically and report the result."""
 
     if not signals:
         logger.info("No conversion signals generated")
         message = _compose_failure_message(
-            portfolio or {}, predictions or {}, usdt_balance
+            portfolio or {},
+            predictions or {},
+            usdt_balance,
+            identical_profits=identical_profits,
         )
         await send_messages(int(chat_id), [message])
         return
@@ -226,7 +261,7 @@ async def send_conversion_signals(
         precision = get_symbol_precision(f"{s['to_symbol']}USDT")
         precision = max(2, min(4, precision))
         to_qty = s['to_amount']
-        to_amount = f"{to_qty:,.{precision}f}"
+        to_amount = _human_amount(to_qty, precision)
         result = try_convert(s['from_symbol'], s['to_symbol'], s['from_amount'])
         if result and result.get("orderId"):
             lines.append(
@@ -270,9 +305,14 @@ async def send_conversion_signals(
 
 
 async def main(chat_id: int) -> None:
-    signals, low_profit, portfolio, predictions, usdt_balance = (
-        generate_conversion_signals()
-    )
+    (
+        signals,
+        low_profit,
+        portfolio,
+        predictions,
+        usdt_balance,
+        all_equal,
+    ) = generate_conversion_signals()
     await send_conversion_signals(
         signals,
         chat_id=chat_id,
@@ -280,6 +320,7 @@ async def main(chat_id: int) -> None:
         portfolio=portfolio,
         predictions=predictions,
         usdt_balance=usdt_balance,
+        identical_profits=all_equal,
     )
 
 
