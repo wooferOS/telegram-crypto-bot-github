@@ -43,7 +43,8 @@ def _analyze_pair(pair: str, model) -> Optional[Dict[str, float]]:
     """Return price analysis data for ``pair`` or ``None`` on failure."""
 
     price = get_symbol_price(pair)
-    if price is None:
+    if price == 0:
+        logger.info(f"[dev] ⛔ Пропускаємо {pair} — ціна недоступна")
         return None
 
     klines = get_candlestick_klines(pair)
