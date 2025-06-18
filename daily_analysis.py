@@ -52,6 +52,7 @@ from utils import (
     analyze_btc_correlation,
     _ema,
 )
+from services.telegram_service import send_messages
 from history import _load_history, get_failed_tokens_history, add_trade
 from coingecko_api import get_sentiment
 from ml_model import (
@@ -371,8 +372,11 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
             fv = np.asarray(feature_vector).reshape(1, -1)
             prob_up = predict_prob_up(model, fv) if model else 0.5
             expected_profit = estimate_profit_debug(symbol)
-            print(
-                f"\U0001f4ca {symbol}: prob_up={prob_up:.2f}, expected_profit={expected_profit}"
+            logger.info(
+                "\U0001f4ca %s: prob_up=%.2f, expected_profit=%s",
+                symbol,
+                prob_up,
+                expected_profit,
             )
 
             enriched_tokens.append(
@@ -409,8 +413,9 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
     if not buy_candidates and enriched_tokens:
         enriched_tokens.sort(key=lambda x: x["score"], reverse=True)
         fallback = enriched_tokens[0]
-        print(
-            f"\u26a0\ufe0f No candidates passed filters, forcing fallback: {fallback['symbol']}"
+        logger.info(
+            "\u26a0\ufe0f No candidates passed filters, forcing fallback: %s",
+            fallback["symbol"],
         )
         buy_candidates.append(fallback)  # Додаємо, навіть якщо не проходить фільтр
 
@@ -464,18 +469,18 @@ def generate_daily_stats_report() -> str:
 
 async def daily_analysis_task(bot: Bot, chat_id: int) -> None:
     """Run daily analysis and notify about TP/SL updates."""
-    print("\U0001f680 Start daily_analysis_task")
+    logger.info("\U0001f680 Start daily_analysis_task")
 
     try:
         symbols = await get_trading_symbols()
-        print(f"\U0001f4e6 Trading symbols loaded: {len(symbols)}")
-        print(f"\U0001f539 Example symbols: {symbols[:5]}")
+        logger.info("\U0001f4e6 Trading symbols loaded: %d", len(symbols))
+        logger.info("\U0001f539 Example symbols: %s", symbols[:5])
     except Exception as e:  # noqa: BLE001
-        print(f"\u274c Failed to get trading symbols: {e}")
+        logger.error("Failed to get trading symbols: %s", e)
         return
 
     for symbol in symbols:
-        print(f"\U0001f50d Analyzing {symbol}")
+        logger.info("\U0001f50d Analyzing %s", symbol)
 
     report, _, _, gpt_text = generate_zarobyty_report()
     full_text = f"{report}\n\n{gpt_text}"
@@ -497,8 +502,8 @@ async def auto_trade_loop():
     while True:
         try:
             _, sell_recommendations, buy_candidates, _ = generate_zarobyty_report()
-            print(f"🧾 SELL candidates: {len(sell_recommendations)}")
-            print(f"🧾 BUY candidates: {len(buy_candidates)}")
+            logger.info("🧾 SELL candidates: %d", len(sell_recommendations))
+            logger.info("🧾 BUY candidates: %d", len(buy_candidates))
 
             for token in sell_recommendations:
                 symbol = token["symbol"]
@@ -510,9 +515,9 @@ async def auto_trade_loop():
                 if amount and amount > 0:
                     try:
                         result = market_sell(symbol, amount)
-                        print(f"✅ Продано {symbol}: {amount} | {result}")
+                        logger.info("✅ Продано %s: %s | %s", symbol, amount, result)
                     except Exception as e:  # noqa: BLE001
-                        print(f"❌ Sell error for {symbol}: {e}")
+                        logger.error("❌ Sell error for %s: %s", symbol, e)
 
             await asyncio.sleep(2)
             balance = get_usdt_balance()
@@ -529,15 +534,16 @@ async def auto_trade_loop():
                     now = time.time()
                     if now - last_alert_time > NO_USDT_ALERT_INTERVAL:
                         from telegram_bot import bot, ADMIN_CHAT_ID
-
-                        await bot.send_message(
-                            ADMIN_CHAT_ID,
-                            "\u26a0\ufe0f [dev] Немає USDT для покупки — продаж активів не відбувся.\n\n"
-                            "Можливі причини:\n"
-                            "– не було активів з очікуваним прибутком;\n"
-                            "– не вдалося продати через обмеження Binance (наприклад, LOT_SIZE);\n"
-                            "– не вдалося сконвертувати в USDT."
+                        from auto_trade_cycle import (
+                            generate_conversion_signals,
+                            _compose_failure_message,
                         )
+
+                        _, _, portfolio, predictions, usdt_bal = generate_conversion_signals()
+                        message = _compose_failure_message(
+                            portfolio, predictions, usdt_bal
+                        )
+                        await send_messages(ADMIN_CHAT_ID, [message])
                         with open(NO_USDT_ALERT_FILE, "w") as f:
                             f.write(str(now))
 
@@ -747,8 +753,11 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "demo":
         candidates = demo_candidates_loop(symbols)
         for c in candidates:
-            print(
-                f"{c['symbol']}: prob_up={c['prob_up']:.2f}, expected={c['expected_profit']}"
+            logger.info(
+                "%s: prob_up=%.2f, expected=%s",
+                c["symbol"],
+                c["prob_up"],
+                c["expected_profit"],
             )
         sys.exit(0)
 
@@ -756,4 +765,4 @@ if __name__ == "__main__":
         bot = DevBot(token=TELEGRAM_TOKEN)
         asyncio.run(auto_trade_loop())
     else:
-        print("❌ TELEGRAM_TOKEN або CHAT_ID не встановлено")
+        logger.error("❌ TELEGRAM_TOKEN або CHAT_ID не встановлено")

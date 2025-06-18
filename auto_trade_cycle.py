@@ -1,5 +1,7 @@
 import asyncio
+import hashlib
 import logging
+import os
 from typing import Dict, List, Optional
 
 
@@ -274,7 +276,7 @@ async def send_conversion_signals(
     for s in signals:
         precision = get_symbol_precision(f"{s['to_symbol']}USDT")
         precision = max(2, min(8, precision))
-        to_amount = f"{s['to_amount']:.{precision}f}"
+        to_amount = f"{s['to_amount']:,.{precision}f}"
         lines.append(
             f"{s['from_symbol']} → конвертувати {s['to_symbol']}"
             f"\nFROM: {s['from_amount']:.4f} (~{s['from_usdt']:.2f}$)"
@@ -283,10 +285,31 @@ async def send_conversion_signals(
             f"\nTP {s['tp']:.4f}, SL {s['sl']:.4f}"
         )
     text = "\n\n".join(lines)
+
+    # Persist last conversion to suppress duplicates
+    last_file = os.path.join("logs", "last_conversion_hash.txt")
+    text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
+    last_hash = None
+    if os.path.exists(last_file):
+        try:
+            with open(last_file, "r", encoding="utf-8") as f:
+                last_hash = f.read().strip() or None
+        except OSError:
+            last_hash = None
+    if text_hash == last_hash:
+        return
+
     messages = list(split_telegram_message(text, 4000))
     if low_profit:
         messages.append("\u26a0\ufe0f Очікуваний прибуток низький, конверсія виконана.")
     await send_messages(int(CHAT_ID), messages)
+
+    try:
+        os.makedirs(os.path.dirname(last_file), exist_ok=True)
+        with open(last_file, "w", encoding="utf-8") as f:
+            f.write(text_hash)
+    except OSError as exc:  # pragma: no cover - diagnostics only
+        logger.warning("Could not persist %s: %s", last_file, exc)
 
 
 async def main() -> None:

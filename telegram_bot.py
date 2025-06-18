@@ -266,7 +266,7 @@ async def handle_trade_action(callback_query: CallbackQuery) -> None:
         )
 
     # Optional log
-    print(f"[BUTTON ACTION] User requested to {action.upper()} {symbol}")
+    logger.info("[BUTTON ACTION] User requested to %s %s", action.upper(), symbol)
 
 
 @dp.callback_query_handler(lambda c: c.data == "zarobyty")
@@ -310,7 +310,7 @@ async def zarobyty_cmd(message: types.Message) -> None:
         )
         return
     logger.info("Zarobyty report:\n%s", report)
-    print("✅ Звіт сформовано:", report[:200])
+    logger.info("✅ Звіт сформовано: %s", report[:200])
     report = clean_surrogates(report)
 
     pnl_data = get_real_pnl_data()

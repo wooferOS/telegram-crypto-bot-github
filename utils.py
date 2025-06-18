@@ -1,7 +1,8 @@
+import logging
 import statistics
 import os
 import datetime
-from typing import List, Dict, Optional
+from typing import List, Dict
 
 from binance_api import (
     get_usdt_to_uah_rate,
@@ -9,6 +10,8 @@ from binance_api import (
     get_symbol_price,
     get_candlestick_klines as get_klines,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def convert_to_uah(amount_usdt: float) -> float:
@@ -60,12 +63,12 @@ def estimate_profit_debug(symbol: str) -> float:
         pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
         price = get_symbol_price(pair)
         if price is None or price <= 0:
-            print(f"⚠️ estimate_profit: no price for {pair}")
+            logger.warning("estimate_profit: no price for %s", pair)
             return 0.0
 
         klines = get_klines(pair)
         if not klines:
-            print(f"⚠️ estimate_profit: no klines for {pair}")
+            logger.warning("estimate_profit: no klines for %s", pair)
             return 0.0
 
         closes = [float(k[4]) for k in klines]
@@ -79,12 +82,17 @@ def estimate_profit_debug(symbol: str) -> float:
             success_rate=0.75,
             fee=0.001,
         )
-        print(
-            f"🧮 {symbol}: price={price}, tp={tp_price}, sl={sl_price}, exp={expected_profit}"
+        logger.info(
+            "🧮 %s: price=%s, tp=%s, sl=%s, exp=%s",
+            symbol,
+            price,
+            tp_price,
+            sl_price,
+            expected_profit,
         )
         return expected_profit
     except Exception as e:
-        print(f"❌ estimate_profit error for {symbol}: {e}")
+        logger.error("estimate_profit error for %s: %s", symbol, e)
         return 0.0
 
 
