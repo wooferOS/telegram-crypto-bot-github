@@ -747,7 +747,7 @@ def market_sell(symbol: str, quantity: float) -> dict:
 
 
 def sell_asset(symbol: str, quantity: float) -> dict:
-    """Sell ``symbol`` with fallback to Binance Convert on LOT_SIZE error."""
+    """Sell ``symbol`` with fallback to Binance Convert on LOT_SIZE/INSUFFICIENT_FUNDS."""
 
     try:
         # звичайна спроба продати
@@ -766,18 +766,26 @@ def sell_asset(symbol: str, quantity: float) -> dict:
             "executedQty": executed_qty,
         }
     except BinanceAPIException as e:
-        if "LOT_SIZE" in str(e):
-            logger.warning("\u2757 LOT_SIZE error, спроба конвертації %s → USDT", symbol)
+        msg = str(e)
+        if "LOT_SIZE" in msg or "INSUFFICIENT_FUNDS" in msg:
+            logger.warning("[dev] ⚠️ Неможливо продати %s, спроба конвертувати", symbol)
             try:
                 base_asset = symbol.replace("USDT", "")
                 result = convert_to_usdt(base_asset, quantity)
                 if result is not None:
                     return {"status": "converted"}
+                logger.warning(
+                    "[dev] ⛔ Не вдалося ні продати, ні сконвертувати %s", symbol
+                )
                 return {"status": "error", "message": "convert_failed"}
             except Exception as conv_e:  # pragma: no cover - network errors
+                logger.warning(
+                    "[dev] ⛔ Не вдалося ні продати, ні сконвертувати %s", symbol
+                )
                 logger.error("\u26D4\ufe0f Помилка при конвертації %s: %s", symbol, conv_e)
                 return {"status": "error", "message": str(conv_e)}
-        raise
+        logger.error("❌ Помилка при продажі %s: %s", symbol, e)
+        return {"status": "error", "message": msg}
 
 def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
     """Place a limit sell order on Binance."""
