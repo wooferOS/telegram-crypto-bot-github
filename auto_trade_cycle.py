@@ -16,6 +16,7 @@ from binance_api import (
     get_symbol_price,
     get_candlestick_klines,
     get_valid_usdt_symbols,
+    get_symbol_precision,
 )
 from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit
@@ -271,10 +272,13 @@ async def send_conversion_signals(
 
     lines = []
     for s in signals:
+        precision = get_symbol_precision(f"{s['to_symbol']}USDT")
+        precision = max(2, min(8, precision))
+        to_amount = f"{s['to_amount']:.{precision}f}"
         lines.append(
             f"{s['from_symbol']} → конвертувати {s['to_symbol']}"
             f"\nFROM: {s['from_amount']:.4f} (~{s['from_usdt']:.2f}$)"
-            f"\nTO: ≈{s['to_amount']:.4f}"
+            f"\nTO: ≈{to_amount}"
             f"\nОчікуваний прибуток: +{s['profit_pct']:.2f}% (~{s['profit_usdt']:.2f}$)"
             f"\nTP {s['tp']:.4f}, SL {s['sl']:.4f}"
         )
