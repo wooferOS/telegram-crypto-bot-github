@@ -23,6 +23,7 @@ from binance_api import (
 from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit
 from daily_analysis import split_telegram_message
+from gpt_filter import parse_gpt_forecast
 
 # These thresholds are more lenient for manual conversion suggestions
 # Generate signals even for modest opportunities
@@ -73,7 +74,7 @@ def _analyze_pair(pair: str, model) -> Optional[Dict[str, float]]:
     }
 
 
-def generate_conversion_signals() -> tuple[
+def generate_conversion_signals(gpt_filters: Optional[Dict[str, List[str]]] = None) -> tuple[
     List[Dict[str, float]],
     bool,
     Dict[str, float],
@@ -119,10 +120,27 @@ def generate_conversion_signals() -> tuple[
         if d["prob_up"] > 0 and d["expected_profit"] > 0
     ]
     ranked.sort(key=lambda x: x[1]["score"], reverse=True)
+    gpt_notes: List[str] = []
     top_tokens = ranked[:3]
 
+    if gpt_filters:
+        filtered_tokens = [
+            t for t in top_tokens if t[0].replace("USDT", "") not in gpt_filters.get("do_not_buy", [])
+        ]
+        prioritized = [
+            t for t in top_tokens if t[0].replace("USDT", "") in gpt_filters.get("recommend_buy", [])
+        ]
+        if prioritized:
+            filtered_tokens = prioritized
+        for t in top_tokens:
+            sym = t[0].replace("USDT", "")
+            if sym in gpt_filters.get("do_not_buy", []) and t not in filtered_tokens:
+                logger.info(f"[dev] ⚠️ GPT не рекомендує купувати {sym}")
+                gpt_notes.append(f"⚠️ GPT не рекомендує купувати {sym}")
+        top_tokens = filtered_tokens
+
     if not top_tokens:
-        return [], False, portfolio, predictions, balances.get("USDT", 0.0), all_equal
+        return [], False, portfolio, predictions, balances.get("USDT", 0.0), all_equal, gpt_notes
 
     best_pair, best_data = top_tokens[0]
 
@@ -209,15 +227,19 @@ def generate_conversion_signals() -> tuple[
         predictions,
         balances.get("USDT", 0.0),
         all_equal,
-        [],
+        gpt_notes,
     )
 
 
-def sell_unprofitable_assets(portfolio: Dict[str, float], predictions: Dict[str, Dict[str, float]]) -> None:
+def sell_unprofitable_assets(
+    portfolio: Dict[str, float],
+    predictions: Dict[str, Dict[str, float]],
+    gpt_filters: Optional[Dict[str, List[str]]] = None,
+) -> List[str]:
     """Sell assets with expected profit below the top-3 threshold."""
 
     if not portfolio or not predictions:
-        return
+        return []
 
     ranked = sorted(
         [d["expected_profit"] for d in predictions.values() if d["expected_profit"] > 0],
@@ -228,8 +250,16 @@ def sell_unprofitable_assets(portfolio: Dict[str, float], predictions: Dict[str,
 
     top3_min = ranked[min(2, len(ranked) - 1)]
     usdt_before = get_binance_balances().get("USDT", 0.0)
+    gpt_notes: List[str] = []
+    tokens_to_consider = [a for a in portfolio if a not in (gpt_filters or {}).get("do_not_sell", [])]
+    for t in (gpt_filters or {}).get("do_not_sell", []):
+        if t in portfolio:
+            logger.info(f"[dev] ⛔ GPT не рекомендує продавати {t} — ігноруємо продаж")
+            gpt_notes.append(f"⛔ GPT заблокував продаж {t}")
 
     for asset, amount in portfolio.items():
+        if asset not in tokens_to_consider:
+            continue
         if asset in {"USDT", "BUSD"} or amount <= 0:
             continue
         pair = asset if asset.endswith("USDT") else f"{asset}USDT"
@@ -254,6 +284,8 @@ def sell_unprofitable_assets(portfolio: Dict[str, float], predictions: Dict[str,
     logger.info(f"[dev] 💰 Поточний баланс USDT: {usdt_after}")
     if abs(usdt_after - usdt_before) < 1e-8:
         logger.warning("[dev] ❗ Продаж не відбувся — баланс USDT залишився без змін")
+
+    return gpt_notes
 
 
 def _compose_failure_message(
@@ -291,6 +323,7 @@ async def send_conversion_signals(
     predictions: Optional[Dict[str, Dict[str, float]]] = None,
     usdt_balance: float = 0.0,
     identical_profits: bool = False,
+    gpt_notes: Optional[List[str]] = None,
 ) -> None:
     """Convert assets automatically and report the result."""
 
@@ -349,6 +382,8 @@ async def send_conversion_signals(
     messages = list(split_telegram_message(text, 4000))
     if low_profit:
         messages.append("\u26a0\ufe0f Очікуваний прибуток низький")
+    if gpt_notes:
+        messages.extend(gpt_notes)
     await send_messages(int(chat_id), messages)
 
     try:
@@ -360,6 +395,14 @@ async def send_conversion_signals(
 
 
 async def main(chat_id: int) -> None:
+    try:
+        with open("gpt_forecast.txt", "r", encoding="utf-8") as f:
+            gpt_text = f.read()
+        gpt_filters = parse_gpt_forecast(gpt_text)
+    except Exception as e:
+        gpt_filters = {"do_not_sell": [], "do_not_buy": [], "recommend_buy": []}
+        logger.warning(f"[dev] ❗ Не вдалося завантажити GPT-фільтри: {e}")
+
     (
         signals,
         low_profit,
@@ -367,9 +410,9 @@ async def main(chat_id: int) -> None:
         predictions,
         usdt_balance,
         all_equal,
-        _,
-    ) = generate_conversion_signals()
-    sell_unprofitable_assets(portfolio, predictions)
+        gpt_notes,
+    ) = generate_conversion_signals(gpt_filters)
+    gpt_notes.extend(sell_unprofitable_assets(portfolio, predictions, gpt_filters))
     usdt_balance = get_binance_balances().get("USDT", 0.0)
     await send_conversion_signals(
         signals,
@@ -379,6 +422,7 @@ async def main(chat_id: int) -> None:
         predictions=predictions,
         usdt_balance=usdt_balance,
         identical_profits=all_equal,
+        gpt_notes=gpt_notes,
     )
 
 
