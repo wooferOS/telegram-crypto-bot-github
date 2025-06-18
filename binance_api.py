@@ -576,30 +576,15 @@ def cancel_all_orders(symbol: str) -> None:
         logger.error("❌ Не вдалося скасувати ордери для %s: %s", symbol, exc)
 
 
-def get_symbol_price(symbol: str) -> Optional[float]:
-    """Return current price of ``symbol`` quoted in USDT."""
-
-    if TEST_MODE:
-        return 0.0
-
-    pair = _to_usdt_pair(symbol)
-    logger.debug("get_symbol_price: %s -> %s", symbol, pair)
-
-    if not is_symbol_valid(symbol):
-        logger.warning("⏭️ %s не торгується на Binance", pair)
-        return None
+def get_symbol_price(pair: str) -> float:
+    """Return current price for ``pair`` quoted in USDT."""
 
     try:
         ticker = _get_client().get_symbol_ticker(symbol=pair)
-        return float(ticker.get("price", 0))
-    except BinanceAPIException as exc:  # pragma: no cover - network errors
-        if exc.code == -1121:
-            logger.warning("⏭️ %s не торгується на Binance", pair)
-        else:
-            logger.error("❌ BinanceAPIException для %s: %s", pair, exc)
-    except Exception as exc:  # pragma: no cover - network errors
-        logger.error("❌ Binance error for %s: %s", pair, exc)
-    return None
+        return float(ticker["price"])
+    except Exception as e:  # pragma: no cover - network errors
+        logger.warning(f"[dev] ❗ Binance API error for {pair}: {e}")
+        return 0.0
 
 
 def get_current_price(symbol: str) -> float:
