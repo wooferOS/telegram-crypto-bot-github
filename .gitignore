@@ -8,3 +8,5 @@ __pycache__/
 env
 *.env
 /etc/crypto-bot.env
+.last_run.json
+logs/
