@@ -27,7 +27,7 @@ from binance_api import (
     market_sell,
     is_symbol_valid,
     get_valid_usdt_symbols,
-    VALID_PAIRS,
+    get_all_valid_symbols,
     refresh_valid_pairs,
 )
 from binance_api import get_candlestick_klines
@@ -67,6 +67,7 @@ from telegram import Bot
 import time
 
 symbols = get_valid_usdt_symbols()
+VALID_PAIRS = get_all_valid_symbols()
 
 logger = logging.getLogger(__name__)
 
