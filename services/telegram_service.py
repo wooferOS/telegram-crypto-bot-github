@@ -50,19 +50,19 @@ async def send_messages(chat_id: int, messages: Iterable[str]) -> None:
     texts = [m.strip() for m in messages if m.strip()]
     if not texts:
         return
-    combined_hash = hashlib.md5("\n".join(texts).encode("utf-8")).hexdigest()
-    if combined_hash == _last_hash:
-        return
     try:
         for text in texts:
+            msg_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
+            if msg_hash == _last_hash:
+                continue
             await bot.send_message(chat_id, text)
-        _last_hash = combined_hash
-        try:
-            os.makedirs(os.path.dirname(LAST_MESSAGE_FILE), exist_ok=True)
-            with open(LAST_MESSAGE_FILE, "w", encoding="utf-8") as f:
-                f.write(_last_hash)
-        except OSError as exc:  # pragma: no cover - diagnostics only
-            logger.warning("Could not write %s: %s", LAST_MESSAGE_FILE, exc)
+            _last_hash = msg_hash
+            try:
+                os.makedirs(os.path.dirname(LAST_MESSAGE_FILE), exist_ok=True)
+                with open(LAST_MESSAGE_FILE, "w", encoding="utf-8") as f:
+                    f.write(_last_hash)
+            except OSError as exc:  # pragma: no cover - diagnostics only
+                logger.warning("Could not write %s: %s", LAST_MESSAGE_FILE, exc)
     finally:
         session = await bot.get_session()
         await session.close()
