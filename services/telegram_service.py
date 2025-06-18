@@ -56,10 +56,11 @@ async def send_messages(chat_id: int, messages: Iterable[str], *, min_interval: 
         for text in texts:
             msg_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
             now = time.time()
-            if (
-                msg_hash == _last_data.get("hash")
-                and now - float(_last_data.get("time", 0)) < min_interval
-            ):
+            if msg_hash == _last_data.get("hash"):
+                logger.info("[dev] Duplicate message skipped")
+                continue
+            if now - float(_last_data.get("time", 0)) < min_interval:
+                logger.info("[dev] Message suppressed due to min_interval")
                 continue
             await bot.send_message(chat_id, text)
             _last_data = {"hash": msg_hash, "time": now}
