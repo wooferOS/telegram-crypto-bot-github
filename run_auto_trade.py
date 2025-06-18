@@ -37,7 +37,7 @@ def _store_run_time() -> None:
 if __name__ == "__main__":
     elapsed = _time_since_last_run()
     if elapsed >= TRADE_LOOP_INTERVAL:
-        asyncio.run(main())
+        asyncio.run(main(int(CHAT_ID)))
         _store_run_time()
     else:
         minutes = int(elapsed / 60)

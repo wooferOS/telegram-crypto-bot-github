@@ -5,12 +5,7 @@ import os
 from typing import Dict, List, Optional
 
 
-from config import (
-    CHAT_ID,
-    MIN_EXPECTED_PROFIT,
-    MIN_PROB_UP,
-    MIN_TRADE_AMOUNT,
-)
+# Configuration values are provided explicitly by callers
 from services.telegram_service import send_messages
 
 from binance_api import (
@@ -209,6 +204,8 @@ def _compose_failure_message(
 
 async def send_conversion_signals(
     signals: List[Dict[str, float]],
+    *,
+    chat_id: int,
     low_profit: bool = False,
     portfolio: Optional[Dict[str, float]] = None,
     predictions: Optional[Dict[str, Dict[str, float]]] = None,
@@ -221,13 +218,13 @@ async def send_conversion_signals(
         message = _compose_failure_message(
             portfolio or {}, predictions or {}, usdt_balance
         )
-        await send_messages(int(CHAT_ID), [message])
+        await send_messages(int(chat_id), [message])
         return
 
     lines = []
     for s in signals:
         precision = get_symbol_precision(f"{s['to_symbol']}USDT")
-        precision = max(0, min(8, precision)) or 2
+        precision = max(2, min(4, precision))
         to_qty = s['to_amount']
         to_amount = f"{to_qty:,.{precision}f}"
         result = try_convert(s['from_symbol'], s['to_symbol'], s['from_amount'])
@@ -262,7 +259,7 @@ async def send_conversion_signals(
     messages = list(split_telegram_message(text, 4000))
     if low_profit:
         messages.append("\u26a0\ufe0f Очікуваний прибуток низький")
-    await send_messages(int(CHAT_ID), messages)
+    await send_messages(int(chat_id), messages)
 
     try:
         os.makedirs(os.path.dirname(last_file), exist_ok=True)
@@ -272,13 +269,14 @@ async def send_conversion_signals(
         logger.warning("Could not persist %s: %s", last_file, exc)
 
 
-async def main() -> None:
+async def main(chat_id: int) -> None:
     signals, low_profit, portfolio, predictions, usdt_balance = (
         generate_conversion_signals()
     )
     await send_conversion_signals(
         signals,
-        low_profit,
+        chat_id=chat_id,
+        low_profit=low_profit,
         portfolio=portfolio,
         predictions=predictions,
         usdt_balance=usdt_balance,
@@ -287,4 +285,4 @@ async def main() -> None:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    asyncio.run(main())
+    asyncio.run(main(0))
