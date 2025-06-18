@@ -457,7 +457,23 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
     )
 
     report = "\n".join(report_lines)
-    return report, sell_recommendations, buy_plan, ""
+
+    summary = {
+        "balance": available_usdt,
+        "sell_candidates": [s.replace("USDT", "") for s in sell_symbols],
+        "buy_candidates": [c.replace("USDT", "") for c in candidate_lines],
+        "expected_profit": expected_profit_usdt,
+        "market_trend": get_sentiment(),
+        "strategy": "dev",
+    }
+    gpt_text = ask_gpt(summary)
+    try:
+        with open("gpt_forecast.txt", "w", encoding="utf-8") as f:
+            f.write(gpt_text)
+    except OSError:
+        pass
+
+    return report, sell_recommendations, buy_plan, gpt_text
 
 
 def generate_daily_stats_report() -> str:
