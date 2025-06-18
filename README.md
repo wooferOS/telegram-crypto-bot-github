@@ -59,3 +59,5 @@ pip install -r requirements.txt
 
 5. Заповніть `config.py` своїми ключами API. Всі модулі імпортують токени безпосередньо з цього файлу без використання змінних середовища.
    Не використовуйте змінні середовища або `.env`. Бот читає ключі лише з `config.py`.
+
+Please ensure GitHub Actions are enabled in your fork.
