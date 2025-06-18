@@ -107,13 +107,13 @@ def log_signal(message: str) -> None:
 
 
 if BINANCE_API_KEY and BINANCE_SECRET_KEY:
-    print(
-        f"[DEBUG] API: {BINANCE_API_KEY[:6]}..., SECRET: {BINANCE_SECRET_KEY[:6]}..."
+    logger.debug(
+        "API: %s..., SECRET: %s...",
+        BINANCE_API_KEY[:6],
+        BINANCE_SECRET_KEY[:6],
     )
 else:
-    print(
-        "[ERROR] Binance API keys are not loaded. Check config.py on the server."
-    )
+    logger.error("Binance API keys are not loaded. Check config.py on the server.")
 
 
 
@@ -502,16 +502,11 @@ def try_convert(symbol_from: str, symbol_to: str, amount: float) -> Optional[dic
                     symbol_from,
                     fallback_exc,
                 )
-        price = None
         try:
-            price = get_symbol_price(f"{symbol_from}{symbol_to}")
+            get_symbol_price(f"{symbol_from}{symbol_to}")
         except Exception:  # pragma: no cover - price fetch issues
-            price = None
-        amount_to = round(float(amount) * price, 4) if price else "?"
-        msg = (
-            f"Сигнал: сконвертуйте {symbol_from} {amount} вручну на "
-            f"{symbol_to} {amount_to}"
-        )
+            pass
+        msg = f"{symbol_from} \u2192 {symbol_to} не вдалося: {exc}"  # type: ignore[arg-type]
         logger.warning(msg)
         log_signal(msg)
         return None
@@ -644,17 +639,17 @@ def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[s
                 type=Client.ORDER_TYPE_MARKET,
                 quantity=amount,
             )
-        print(f"✅ Order placed: {order}")
+        logger.info("✅ Order placed: %s", order)
         return order
     except BinanceAPIException as e:
-        print(f"❌ Order error for {pair}: {e}")
+        logger.error("❌ Order error for %s: %s", pair, e)
         if "LOT_SIZE" in str(e):
             result = convert_to_usdt(base, amount)
             if result is None:
-                print("[WARN] convert failed")
+                logger.warning("[WARN] convert failed")
         return None
     except Exception as e:
-        print(f"❌ Order error for {pair}: {e}")
+        logger.error("❌ Order error for %s: %s", pair, e)
         return None
 
 
@@ -784,7 +779,7 @@ def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
         )
         return True
     except Exception as e:  # pragma: no cover - network errors
-        print(f"[ERROR] Failed to place take profit order for {symbol}: {e}")
+        logger.error("Failed to place take profit order for %s: %s", symbol, e)
         return False
 
 

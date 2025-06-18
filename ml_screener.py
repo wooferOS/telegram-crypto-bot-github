@@ -39,7 +39,7 @@ def get_candidates(symbols: List[str]) -> List[Dict[str, float]]:
     """Return promising tokens ranked by ML probability."""
     model = load_model()
     if not model:
-        print("\u26A0\ufe0f Модель недоступна")
+        logger.warning("\u26A0\ufe0f Модель недоступна")
     candidates: List[Dict[str, float]] = []
     for symbol in symbols:
         pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
@@ -55,7 +55,7 @@ def get_candidates(symbols: List[str]) -> List[Dict[str, float]]:
                     "prob_up": prob_up,
                 })
         except Exception as e:  # noqa: BLE001
-            print(f"\u26A0\ufe0f \u041f\u0440\u043e\u043f\u0443\u0449\u0435\u043d\u043e {symbol}: {e}")
+            logger.warning("\u26A0\ufe0f Пропущено %s: %s", symbol, e)
             continue
     return candidates
 
@@ -64,4 +64,9 @@ if __name__ == "__main__":
     symbols = get_valid_symbols()
     tokens = get_candidates(symbols)
     for t in tokens:
-        print(f"{t['symbol']}: prob_up={t['prob_up']:.2f}, expected={t['expected_profit']}")
+        logger.info(
+            "%s: prob_up=%.2f, expected=%s",
+            t["symbol"],
+            t["prob_up"],
+            t["expected_profit"],
+        )
