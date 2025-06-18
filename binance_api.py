@@ -583,10 +583,14 @@ def get_symbol_price(pair: str) -> float:
         ticker = _get_client().get_symbol_ticker(symbol=pair)
         return float(ticker["price"])
     except BinanceAPIException as exc:  # pragma: no cover - API errors
-        if "Invalid" in str(exc) or "Signature" in str(exc):
-            logger.warning("[dev] ⛔ %s: %s", pair, exc)
+        msg = str(exc)
+        if "Invalid" in msg:
+            reason = "символ не існує"
+        elif "Signature" in msg:
+            reason = "не пройшла перевірку підпису"
         else:
-            logger.warning("[dev] ❗ Binance API error for %s: %s", pair, exc)
+            reason = msg
+        logger.warning("[dev] ❗ Binance API error for %s: %s", pair, reason)
         return 0.0
     except Exception as e:  # pragma: no cover - network errors
         logger.warning(f"[dev] ❗ Binance API error for {pair}: {e}")
