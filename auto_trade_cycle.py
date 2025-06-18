@@ -243,6 +243,12 @@ def _compose_failure_message(
     )
     lines.append("– Жоден токен не потрапив до top-3 BUY-кандидатів за score")
 
+    lines.append("")
+    lines.append("ℹ️ Поточні фільтри:")
+    lines.append(f"– MIN_EXPECTED_PROFIT = {MIN_EXPECTED_PROFIT}")
+    lines.append(f"– MIN_PROB_UP = {MIN_PROB_UP}")
+    lines.append(f"– MIN_TRADE_AMOUNT = {MIN_TRADE_AMOUNT}")
+
     return "\n".join(lines)
 
 
