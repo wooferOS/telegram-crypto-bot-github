@@ -259,6 +259,12 @@ def get_valid_usdt_symbols() -> list[str]:
 
     return get_valid_symbols("USDT")
 
+
+def get_all_valid_symbols() -> list[str]:
+    """Return list of all valid USDT trading pairs."""
+
+    return [s for s in get_valid_usdt_symbols() if s.endswith("USDT") and is_symbol_valid(s)]
+
 # NOTE: Loading trading pairs requires network access which is undesirable
 # during automated testing. The call is now deferred until explicitly
 # requested by the application.
@@ -1592,20 +1598,27 @@ buy_token_market = market_buy
 
 
 def get_candlestick_klines(symbol: str, interval: str = "1d", limit: int = 7):
-    """Return candlestick klines for a tradable symbol."""
+    """Return candlestick klines for a tradable symbol with a short timeout."""
+
     base = normalize_symbol(symbol)
     if base not in load_tradable_usdt_symbols():
         raise ValueError(f"Token {base} не торгується на Binance")
+
     pair = _to_usdt_pair(symbol)
     assert not pair.endswith("USDTUSDT"), f"Invalid pair {pair}"
     logger.debug(
         "get_candlestick_klines(daily): %s -> %s interval=%s", symbol, pair, interval
     )
-    return client.get_klines(
-        symbol=pair,
-        interval=interval,
-        limit=limit,
-    )
+
+    url = f"{BINANCE_BASE_URL}/api/v3/klines"
+    params = {"symbol": pair, "interval": interval, "limit": limit}
+    try:
+        resp = requests.get(url, params=params, timeout=(5, 10))
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.warning("❌ Klines error for %s: %s", symbol, exc)
+        return []
 
 
 def test_valid_pairs() -> None:
