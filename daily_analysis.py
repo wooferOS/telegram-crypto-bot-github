@@ -541,9 +541,12 @@ async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> No
                             _compose_failure_message,
                         )
 
-                        _, _, portfolio, predictions, usdt_bal = generate_conversion_signals()
+                        _, _, portfolio, predictions, usdt_bal, ident = generate_conversion_signals()
                         message = _compose_failure_message(
-                            portfolio, predictions, usdt_bal
+                            portfolio,
+                            predictions,
+                            usdt_bal,
+                            identical_profits=ident,
                         )
                         await send_messages(ADMIN_CHAT_ID, [message])
                         with open(NO_USDT_ALERT_FILE, "w") as f:

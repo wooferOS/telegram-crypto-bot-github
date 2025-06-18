@@ -1,4 +1,9 @@
 import logging
+import os
+import pytest
+
+os.environ["BINANCE_TEST_MODE"] = "1"
+
 from binance_api import (
     get_usdt_balance,
     get_token_balance,
