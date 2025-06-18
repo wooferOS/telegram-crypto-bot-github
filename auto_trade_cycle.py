@@ -19,6 +19,7 @@ from binance_api import (
     get_candlestick_klines,
     get_valid_usdt_symbols,
     get_symbol_precision,
+    try_convert,
 )
 from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit
@@ -233,9 +234,16 @@ def _compose_failure_message(
 
     lines.append("")
 
-    # Conversion diagnostics (placeholder as conversions are not attempted here)
     lines.append("🔁 Конвертація: ❌")
-    lines.append("– BTC → USDT не вдалося: LOT_SIZE або інші обмеження")
+    lines.append("– Продаж або конвертація не дали результату")
+    lines.append(f"– Баланс USDT після дій = {usdt_balance:.2f}")
+    example = ""
+    for asset, amount in portfolio.items():
+        if amount < MIN_TRADE_AMOUNT:
+            example = f"{asset} ({amount:.1f}) < MIN_TRADE_AMOUNT ({MIN_TRADE_AMOUNT})"
+            break
+    if example:
+        lines.append(f"– Наприклад: {example}")
 
     lines.append("")
 
@@ -262,7 +270,7 @@ async def send_conversion_signals(
     predictions: Optional[Dict[str, Dict[str, float]]] = None,
     usdt_balance: float = 0.0,
 ) -> None:
-    """Send conversion suggestions to Telegram."""
+    """Convert assets automatically and report the result."""
 
     if not signals:
         logger.info("No conversion signals generated")
@@ -276,14 +284,22 @@ async def send_conversion_signals(
     for s in signals:
         precision = get_symbol_precision(f"{s['to_symbol']}USDT")
         precision = max(0, min(4, precision)) or 4
-        to_amount = f"{s['to_amount']:.{precision}f}"
-        lines.append(
-            f"{s['from_symbol']} → конвертувати {s['to_symbol']}"
-            f"\nFROM: {s['from_amount']:.4f} (~{s['from_usdt']:.2f}$)"
-            f"\nTO: ≈{to_amount}"
-            f"\nОчікуваний прибуток: +{s['profit_pct']:.2f}% (~{s['profit_usdt']:.2f}$)"
-            f"\nTP {s['tp']:.4f}, SL {s['sl']:.4f}"
-        )
+        to_qty = s['to_amount']
+        to_amount = f"{to_qty:,.{precision}f}"
+        result = try_convert(s['from_symbol'], s['to_symbol'], s['from_amount'])
+        if result and result.get("orderId"):
+            lines.append(
+                f"✅ Конвертовано {s['from_symbol']} → {s['to_symbol']}"
+                f"\nFROM: {s['from_amount']:.4f} (~{s['from_usdt']:.2f}$)"
+                f"\nTO: ≈{to_amount}"
+                f"\nОчікуваний прибуток: +{s['profit_pct']:.2f}% (~{s['profit_usdt']:.2f}$)"
+            )
+        else:
+            reason = result.get("message", "невідома помилка") if result else "невідома помилка"
+            lines.append(
+                f"❌ Не вдалося конвертувати {s['from_symbol']} → {s['to_symbol']}"
+                f"\nПричина: {reason}"
+            )
     text = "\n\n".join(lines)
 
     # Persist last conversion to suppress duplicates
@@ -301,7 +317,7 @@ async def send_conversion_signals(
 
     messages = list(split_telegram_message(text, 4000))
     if low_profit:
-        messages.append("\u26a0\ufe0f Очікуваний прибуток низький, конверсія виконана.")
+        messages.append("\u26a0\ufe0f Очікуваний прибуток низький")
     await send_messages(int(CHAT_ID), messages)
 
     try:

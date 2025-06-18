@@ -16,13 +16,15 @@ from telegram_bot import (
 )
 from binance_api import get_open_orders
 from daily_analysis import auto_trade_loop
+from config import MAX_MONITOR_ITERATIONS, MAX_AUTO_TRADE_ITERATIONS
 
 logging.basicConfig(level=logging.INFO)
 
 
-async def monitor_orders() -> None:
+async def monitor_orders(max_iterations: int = MAX_MONITOR_ITERATIONS) -> None:
     """Periodically check open orders and notify when filled."""
-    while True:
+    iteration = 0
+    while iteration < max_iterations:
         open_orders = get_open_orders()
         for order in open_orders:
             if order.get("status") == "FILLED":
@@ -32,6 +34,7 @@ async def monitor_orders() -> None:
                 )
         await check_tp_sl_execution()
         await asyncio.sleep(30)
+        iteration += 1
 
 
 async def on_startup(dispatcher: Dispatcher) -> None:
@@ -45,6 +48,6 @@ if __name__ == "__main__":
     register_change_tp_sl_handler(dp)
     scheduler.add_job(check_tp_sl_market_change, "interval", hours=1)
     loop = asyncio.get_event_loop()
-    loop.create_task(monitor_orders())
-    loop.create_task(auto_trade_loop())
+    loop.create_task(monitor_orders(MAX_MONITOR_ITERATIONS))
+    loop.create_task(auto_trade_loop(MAX_AUTO_TRADE_ITERATIONS))
     executor.start_polling(dp, on_startup=on_startup)

@@ -36,6 +36,7 @@ from config import (
     MIN_EXPECTED_PROFIT,
     MIN_TRADE_AMOUNT,
     TRADE_LOOP_INTERVAL,
+    MAX_AUTO_TRADE_ITERATIONS,
 )
 from gpt_utils import ask_gpt
 from utils import (
@@ -494,12 +495,13 @@ async def send_zarobyty_forecast(bot, chat_id: int) -> None:
         await bot.send_message(chat_id, part)
 
 
-async def auto_trade_loop():
+async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> None:
     """Continuous auto-trading loop with dynamic interval."""
 
     valid_pairs = get_valid_usdt_symbols()
+    iteration = 0
 
-    while True:
+    while iteration < max_iterations:
         try:
             _, sell_recommendations, buy_candidates, _ = generate_zarobyty_report()
             logger.info("🧾 SELL candidates: %d", len(sell_recommendations))
@@ -548,6 +550,7 @@ async def auto_trade_loop():
                             f.write(str(now))
 
                     await asyncio.sleep(TRADE_LOOP_INTERVAL)
+                    iteration += 1
                     continue
                 for candidate in buy_candidates:
                     pair = candidate["symbol"].upper()
@@ -608,6 +611,7 @@ async def auto_trade_loop():
             await bot.send_message(ADMIN_CHAT_ID, str(e))
 
         await asyncio.sleep(TRADE_LOOP_INTERVAL)
+        iteration += 1
 
 
 # Adaptive filters for selecting buy candidates
