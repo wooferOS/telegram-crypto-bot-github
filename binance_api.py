@@ -96,15 +96,6 @@ def log_tp_sl_change(symbol: str, action: str, tp: float, sl: float) -> None:
         json.dump(history, f, indent=2)
 
 
-def log_signal(message: str) -> None:
-    """Append manual action signal to ``logs/trade.log``."""
-
-    os.makedirs("logs", exist_ok=True)
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    line = f"{timestamp} {message}\n"
-    with open("logs/trade.log", "a", encoding="utf-8") as log_file:
-        log_file.write(line)
-
 
 if BINANCE_API_KEY and BINANCE_SECRET_KEY:
     logger.debug(

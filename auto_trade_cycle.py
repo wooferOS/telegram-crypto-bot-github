@@ -192,73 +192,17 @@ def _compose_failure_message(
     predictions: Dict[str, Dict[str, float]],
     usdt_balance: float,
 ) -> str:
-    """Return detailed failure diagnostics for Telegram."""
+    """Return concise explanation why no trade was executed."""
 
-    lines: List[str] = ["\u26a0\ufe0f Не вдалося виконати трейд-цикл", ""]
+    lines: List[str] = ["Нічого не куплено. Причина:"]
 
-    # SELL diagnostics
-    lines.append("🔻 Продаж: ❌")
-    profitable = any(
-        predictions.get(f"{asset}USDT", {}).get("expected_profit", 0)
-        > CONVERSION_MIN_EXPECTED_PROFIT
-        for asset in portfolio
-    )
-    if not profitable:
-        lines.append(
-            f"– Не знайдено активів з очікуваним прибутком > {CONVERSION_MIN_EXPECTED_PROFIT}"
-        )
+    if not any(p.get("expected_profit", 0) > 0 for p in predictions.values()):
+        lines.append("– Жоден токен не має expected_profit > 0")
 
-    count = 0
-    for asset, amount in portfolio.items():
-        data = predictions.get(f"{asset}USDT")
-        if not data:
-            continue
-        volume = amount * data.get("price", 0)
-        if data["expected_profit"] <= 0:
-            lines.append(
-                f"– {asset} ({amount:.2f}) — expected_profit = {data['expected_profit']:.4f}"
-            )
-            count += 1
-        elif data["prob_up"] < CONVERSION_MIN_PROB_UP:
-            lines.append(
-                f"– {asset} ({amount:.2f}) — prob_up = {data['prob_up']:.2f} < MIN_PROB_UP"
-            )
-            count += 1
-        elif volume < MIN_TRADE_AMOUNT:
-            lines.append(
-                f"– Баланс для {asset} ({amount:.2f}) < MIN_TRADE_AMOUNT ({MIN_TRADE_AMOUNT})"
-            )
-            count += 1
-        if count >= 3:
-            break
+    lines.append("– Жоден не потрапив у top-3 BUY за score")
 
-    lines.append("")
-
-    lines.append("🔁 Конвертація: ❌")
-    lines.append("– Продаж або конвертація не дали результату")
-    lines.append(f"– Баланс USDT після дій = {usdt_balance:.2f}")
-    example = ""
-    for asset, amount in portfolio.items():
-        if amount < MIN_TRADE_AMOUNT:
-            example = f"{asset} ({amount:.1f}) < MIN_TRADE_AMOUNT ({MIN_TRADE_AMOUNT})"
-            break
-    if example:
-        lines.append(f"– Наприклад: {example}")
-
-    lines.append("")
-
-    # BUY diagnostics
-    lines.append("💰 Покупка: ❌")
-    lines.append(
-        f"– Немає USDT після продажу або конвертації (баланс {usdt_balance:.2f})"
-    )
-    lines.append("– Жоден токен не потрапив до top-3 BUY-кандидатів за score")
-
-    lines.append("")
-    lines.append("ℹ️ Поточні фільтри:")
-    lines.append(f"– MIN_EXPECTED_PROFIT = {MIN_EXPECTED_PROFIT}")
-    lines.append(f"– MIN_PROB_UP = {MIN_PROB_UP}")
-    lines.append(f"– MIN_TRADE_AMOUNT = {MIN_TRADE_AMOUNT}")
+    if usdt_balance <= 0:
+        lines.append("– Немає USDT")
 
     return "\n".join(lines)
 
@@ -283,7 +227,7 @@ async def send_conversion_signals(
     lines = []
     for s in signals:
         precision = get_symbol_precision(f"{s['to_symbol']}USDT")
-        precision = max(0, min(4, precision)) or 4
+        precision = max(0, min(8, precision)) or 2
         to_qty = s['to_amount']
         to_amount = f"{to_qty:,.{precision}f}"
         result = try_convert(s['from_symbol'], s['to_symbol'], s['from_amount'])
