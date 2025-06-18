@@ -76,6 +76,7 @@ def generate_conversion_signals() -> tuple[
     Dict[str, Dict[str, float]],
     float,
     bool,
+    list,
 ]:
     """Analyze portfolio and propose asset conversions.
 
@@ -204,6 +205,7 @@ def generate_conversion_signals() -> tuple[
         predictions,
         balances.get("USDT", 0.0),
         all_equal,
+        [],
     )
 
 
@@ -312,6 +314,7 @@ async def main(chat_id: int) -> None:
         predictions,
         usdt_balance,
         all_equal,
+        _,
     ) = generate_conversion_signals()
     await send_conversion_signals(
         signals,
