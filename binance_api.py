@@ -124,6 +124,12 @@ def _get_client() -> Client:
         client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
     return client
 
+
+def get_binance_client() -> Client:
+    """Return a fresh Binance ``Client`` using credentials from config."""
+
+    return Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+
 # Set of currently tradable USDT pairs
 VALID_PAIRS: set[str] = set()
 
