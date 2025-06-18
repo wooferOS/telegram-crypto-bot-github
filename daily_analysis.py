@@ -466,10 +466,11 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
         "market_trend": get_sentiment(),
         "strategy": "dev",
     }
-    gpt_text = ask_gpt(summary)
+    gpt_text = ask_gpt(summary) or ""
     try:
         with open("gpt_forecast.txt", "w", encoding="utf-8") as f:
             f.write(gpt_text)
+        logger.info("GPT forecast saved to gpt_forecast.txt")
     except OSError:
         pass
 
