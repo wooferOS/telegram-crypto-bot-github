@@ -77,7 +77,7 @@ MIN_VOLUME = 100_000
 NO_USDT_ALERT_FILE = "no_usdt_alert.txt"
 
 # Minimum interval between "no USDT" warnings (in seconds)
-NO_USDT_ALERT_INTERVAL = 4500
+NO_USDT_ALERT_INTERVAL = 10800
 
 
 async def get_trading_symbols() -> list[str]:
@@ -507,6 +507,8 @@ async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> No
             logger.info("🧾 SELL candidates: %d", len(sell_recommendations))
             logger.info("🧾 BUY candidates: %d", len(buy_candidates))
 
+            sold_any = False
+
             for token in sell_recommendations:
                 symbol = token["symbol"]
                 amount = (
@@ -518,6 +520,8 @@ async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> No
                     try:
                         result = market_sell(symbol, amount)
                         logger.info("✅ Продано %s: %s | %s", symbol, amount, result)
+                        if result.get("status") == "success":
+                            sold_any = True
                     except Exception as e:  # noqa: BLE001
                         logger.error("❌ Sell error for %s: %s", symbol, e)
 
@@ -534,19 +538,19 @@ async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> No
                         last_alert_time = 0
 
                     now = time.time()
-                    if now - last_alert_time > NO_USDT_ALERT_INTERVAL:
-                        from telegram_bot import bot, ADMIN_CHAT_ID
-                        from auto_trade_cycle import (
-                            generate_conversion_signals,
-                            _compose_failure_message,
-                        )
+                    if (now - last_alert_time > NO_USDT_ALERT_INTERVAL) and not sold_any:
+                        from telegram_bot import ADMIN_CHAT_ID
+                        from auto_trade_cycle import generate_conversion_signals
 
-                        _, _, portfolio, predictions, usdt_bal, ident, _ = generate_conversion_signals()
-                        message = _compose_failure_message(
-                            portfolio,
-                            predictions,
-                            usdt_bal,
-                            identical_profits=ident,
+                        _, _, _, predictions, _, _, _ = generate_conversion_signals()
+                        reason = (
+                            "на балансі немає активів з очікуваним прибутком > 0."
+                            if not any(p.get("expected_profit", 0) > 0 for p in predictions.values())
+                            else "невідомо."
+                        )
+                        message = (
+                            "⚠️ Немає USDT для покупки.\n"
+                            f"Причина: {reason}"
                         )
                         await send_messages(ADMIN_CHAT_ID, [message])
                         with open(NO_USDT_ALERT_FILE, "w") as f:

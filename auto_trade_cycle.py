@@ -275,10 +275,16 @@ async def send_conversion_signals(
             )
         else:
             reason = result.get("message", "невідома помилка") if result else "невідома помилка"
-            lines.append(
-                f"❌ Не вдалося конвертувати {s['from_symbol']} → {s['to_symbol']}"
-                f"\nПричина: {reason}"
-            )
+            if "Signature for this request" in reason:
+                amount_str = _human_amount(s["from_amount"], 0)
+                lines.append(
+                    f"❗ Неможливо виконати convert для {amount_str}{s['from_symbol']} → {s['to_symbol']}. Binance ще не надав доступ до цього інструменту."
+                )
+            else:
+                lines.append(
+                    f"❌ Не вдалося конвертувати {s['from_symbol']} → {s['to_symbol']}"
+                    f"\nПричина: {reason}"
+                )
     text = "\n\n".join(lines)
 
     # Persist last conversion to suppress duplicates
