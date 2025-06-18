@@ -9,6 +9,7 @@ from log_setup import setup_logging
 
 from auto_trade_cycle import main
 from config import TRADE_LOOP_INTERVAL, CHAT_ID
+from daily_analysis import generate_zarobyty_report
 from services.telegram_service import send_messages
 
 # Minimum allowed interval between automated runs (1 hour)
@@ -43,6 +44,7 @@ def _store_run_time() -> None:
 
 if __name__ == "__main__":
     setup_logging()
+    generate_zarobyty_report()
     elapsed = _time_since_last_run()
     if elapsed >= AUTO_INTERVAL:
         asyncio.run(main(int(CHAT_ID)))
