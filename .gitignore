@@ -1,12 +1,18 @@
-
-# 🔒 Ігнорування секретних файлів
-.env
-crypto-bot.env
-systemd/crypto-bot.env
-*.pyc
-__pycache__/
-env
-*.env
-/etc/crypto-bot.env
-.last_run.json
+*.log
 logs/
+debug.log
+run.log
+est.log
+auto_update.log
+last_run.log
+zarobyty_output.log
+
+# Тимчасові файли, що генеруються ботом
+*.json
+signals.txt
+exchange_info_cache.json
+model.joblib
+
+# Systemd файли (не публікуємо)
+systemd/*.service
+systemd/*.env
