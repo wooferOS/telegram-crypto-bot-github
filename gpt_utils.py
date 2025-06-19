@@ -14,6 +14,7 @@ def ask_gpt(summary):
             f"- Що продаємо: {summary.get('sell') or summary.get('sell_candidates', [])}\n"
             f"- Що купуємо: {summary.get('buy') or summary.get('buy_candidates', [])}\n"
             f"- Очікуваний прибуток: {summary.get('total_profit') or summary.get('expected_profit', '')}\n"
+            f"- Адаптивні фільтри: profit>={summary.get('adaptive_filters', {}).get('min_expected_profit')} prob>={summary.get('adaptive_filters', {}).get('min_prob_up')}\n"
             "scoreboard:\n"
             + "\n".join(summary.get('scoreboard', []))
             + "\n"

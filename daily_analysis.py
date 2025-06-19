@@ -9,6 +9,9 @@ import statistics
 import logging
 import numpy as np
 
+# Lookback window for trade history metrics
+lookback_days = 30
+
 from binance_api import (
     get_binance_balances,
     get_symbol_price,
@@ -270,6 +273,37 @@ def get_success_score(symbol: str) -> float:
     return round(profit / len(trades), 2)
 
 
+def calculate_adaptive_filters(days: int = lookback_days) -> tuple[float, float]:
+    """Return adaptive min_expected_profit and min_prob_up for the last ``days`` trades."""
+
+    history = _load_history()
+    if not history:
+        return MIN_EXPECTED_PROFIT, MIN_PROB_UP
+
+    cutoff = datetime.datetime.utcnow() - datetime.timedelta(days=days)
+    recent = [h for h in history if datetime.datetime.fromisoformat(h.get("timestamp", "1970-01-01")) >= cutoff]
+
+    successful = [
+        h
+        for h in recent
+        if h.get("take_profit_hit") is True or float(h.get("sell_profit", 0)) > 0
+    ]
+
+    if not successful:
+        return MIN_EXPECTED_PROFIT, MIN_PROB_UP
+
+    exp_profits = [float(h.get("expected_profit", 0)) for h in successful]
+    probs = [float(h.get("prob_up", 0.5)) for h in successful]
+
+    mean_expected_profit_success = statistics.mean(exp_profits)
+    mean_prob_up_success = statistics.mean(probs)
+
+    adaptive_min_profit = round(mean_expected_profit_success * 0.7, 4)
+    adaptive_min_prob = round(mean_prob_up_success * 0.9, 4)
+
+    return adaptive_min_profit, adaptive_min_prob
+
+
 def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
     balances = get_binance_balances()
     usdt_balance = balances.get("USDT", 0) or 0
@@ -473,6 +507,12 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
 
     report = "\n".join(report_lines)
 
+    adaptive_min_profit, adaptive_min_prob = calculate_adaptive_filters()
+    adaptive_filters = {
+        "min_expected_profit": adaptive_min_profit,
+        "min_prob_up": adaptive_min_prob,
+    }
+
     summary = {
         "balance": balance_str,
         "sell_candidates": [s.replace("USDT", "") for s in sell_symbols],
@@ -481,11 +521,13 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
         "market_trend": get_sentiment(),
         "strategy": "dev",
         "scoreboard": scoreboard,
+        "adaptive_filters": adaptive_filters,
     }
     forecast = ask_gpt(summary)
     if forecast is None:
         logger.warning("[dev] GPT forecast unavailable")
     else:
+        forecast = {**forecast, "adaptive_filters": adaptive_filters, "summary": summary}
         with open("gpt_forecast.txt", "w", encoding="utf-8") as f:
             json.dump(forecast, f, ensure_ascii=False)
         logger.info("GPT forecast saved to gpt_forecast.txt")
