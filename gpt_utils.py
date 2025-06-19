@@ -11,9 +11,12 @@ def ask_gpt(summary):
         content = (
             "Ти криптотрейдер. Оціни ситуацію:\n"
             f"- Баланс: {summary.get('balance', '')}\n"
-            f"- Що продаємо: {summary.get('sell', [])}\n"
-            f"- Що купуємо: {summary.get('buy', [])}\n"
-            f"- Очікуваний прибуток: {summary.get('total_profit', '')}\n"
+            f"- Що продаємо: {summary.get('sell') or summary.get('sell_candidates', [])}\n"
+            f"- Що купуємо: {summary.get('buy') or summary.get('buy_candidates', [])}\n"
+            f"- Очікуваний прибуток: {summary.get('total_profit') or summary.get('expected_profit', '')}\n"
+            "scoreboard:\n"
+            + "\n".join(summary.get('scoreboard', []))
+            + "\n"
             "Відповідай строго у форматі JSON, без пояснень:\n"
             '{"buy": [...], "sell": [...], "scores": {...}}'
         )
@@ -21,8 +24,15 @@ def ask_gpt(summary):
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "Ти професійний криптотрейдер."},
-                {"role": "user", "content": content}
+                {
+                    "role": "system",
+                    "content": (
+                        "Ти професійний криптотрейдер. "
+                        "Навіть якщо немає великих прибутків, знайди топ-3 монети з потенціалом прибутку, "
+                        "аналізуй дані, а не відповідай шаблоном. Завжди обирай найкращі доступні варіанти."
+                    ),
+                },
+                {"role": "user", "content": content},
             ],
             temperature=0.7,
             timeout=60

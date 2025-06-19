@@ -434,6 +434,14 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
     )
     report_lines.append(f"Загальний баланс: {total_uah}₴\n⸻")
 
+    balance_parts = [
+        f"{t['symbol']}: {t['amount']} ≈ ~{t['uah_value']}₴" for t in token_data
+    ]
+    balance_parts.append(
+        f"USDT: {usdt_balance} ≈ ~{convert_to_uah(usdt_balance)}₴"
+    )
+    balance_str = ", ".join(balance_parts)
+
     report_lines.append("📉 Що продаємо:")
     if sell_recommendations:
         for t in sell_recommendations:
@@ -458,15 +466,21 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
         f"💹 Очікуваний прибуток: {expected_profit_usdt} USDT ≈ {expected_profit_uah}₴ за 24г"
     )
 
+    scoreboard = [
+        f"{t['symbol']}: score={t['score']:.4f}"
+        for t in sorted(enriched_tokens, key=lambda x: x['score'], reverse=True)[:3]
+    ]
+
     report = "\n".join(report_lines)
 
     summary = {
-        "balance": available_usdt,
+        "balance": balance_str,
         "sell_candidates": [s.replace("USDT", "") for s in sell_symbols],
         "buy_candidates": [c.replace("USDT", "") for c in candidate_lines],
         "expected_profit": expected_profit_usdt,
         "market_trend": get_sentiment(),
         "strategy": "dev",
+        "scoreboard": scoreboard,
     }
     forecast = ask_gpt(summary)
     if forecast is None:
