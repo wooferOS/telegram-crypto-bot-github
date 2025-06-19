@@ -635,12 +635,9 @@ async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> No
                             if not any(p.get("expected_profit", 0) > 0 for p in predictions.values())
                             else "невідомо."
                         )
-                        message = (
-                            "⚠️ Немає USDT для покупки.\n"
-                            "Жоден актив не був проданий або конвертований — баланс не поповнено.\n"
-                            f"Причина: {reason}"
-                        )
-                        await send_messages(ADMIN_CHAT_ID, [message])
+                        # 🔕 [dev] Повідомлення про відсутність USDT більше не надсилається
+                        # if usdt_balance < MIN_TRADE_AMOUNT:
+                        #     send_telegram_message("⚠️ Немає USDT для покупки.\n")
                         with open(NO_USDT_ALERT_FILE, "w") as f:
                             f.write(str(now))
 
