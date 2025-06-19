@@ -2,6 +2,10 @@ import asyncio
 import hashlib
 import logging
 
+import math
+import statistics
+import numpy as np
+
 from log_setup import setup_logging
 import os
 from typing import Dict, List, Optional
@@ -60,7 +64,12 @@ def _human_amount(amount: float, precision: int) -> str:
     return f"{amount:,.{precision}f}".replace(",", "_")
 
 
-def _analyze_pair(pair: str, model) -> Optional[Dict[str, float]]:
+def _analyze_pair(
+    pair: str,
+    model,
+    min_profit: float,
+    min_prob: float,
+) -> Optional[Dict[str, float]]:
     """Return price analysis data for ``pair`` or ``None`` on failure."""
 
     price = get_symbol_price(pair)
@@ -76,6 +85,23 @@ def _analyze_pair(pair: str, model) -> Optional[Dict[str, float]]:
     tp, sl = dynamic_tp_sl(closes, price)
 
     try:
+        prices_24h = [float(k[4]) for k in klines[-24:]]
+        volume_usdt = sum(float(k[5]) for k in klines[-24:])
+        if len(prices_24h) >= 2:
+            x = np.arange(len(prices_24h))
+            slope = np.polyfit(x, prices_24h, 1)[0]
+            slope_norm = slope / prices_24h[0] * len(prices_24h)
+            trend_score = 1 / (1 + math.exp(-slope_norm))
+            volatility_24h = statistics.pstdev(prices_24h)
+        else:
+            trend_score = 0.5
+            volatility_24h = 0.0
+    except Exception:  # noqa: BLE001
+        trend_score = 0.5
+        volatility_24h = 0.0
+        volume_usdt = 0.0
+
+    try:
         features, _, _ = generate_features(pair)
         prob_up = predict_prob_up(model, features) if model else 0.5
     except Exception:  # noqa: BLE001
@@ -83,11 +109,23 @@ def _analyze_pair(pair: str, model) -> Optional[Dict[str, float]]:
 
     expected_profit = calculate_expected_profit(price, tp, amount=10, sl_price=sl)
 
-    if expected_profit < 0.001 or prob_up < 0.01:
+    score = prob_up * expected_profit
+
+    if expected_profit < min_profit or prob_up < min_prob:
         logger.info(
-            f"[dev] ⏭️ Пропускаємо {pair} — expected_profit={expected_profit:.4f}, prob_up={prob_up:.2f}"
+            f"[dev] ⚠️ Пропущено {pair}: expected_profit={expected_profit:.2f} < MIN={min_profit}, prob_up={prob_up:.2f} < MIN={min_prob}"
         )
         return None
+    elif trend_score < 0.3:
+        logger.info(f"[dev] ⚠️ Пропущено {pair}: Low trend")
+        return None
+    elif volume_usdt < 10000:
+        logger.info(f"[dev] ⚠️ Пропущено {pair}: Low volume")
+        return None
+    else:
+        logger.info(
+            f"[dev] ✅ Додано у BUY: {pair.replace('USDT','')}, score={score:.2f}, trend={trend_score:.2f}, vol={volume_usdt:.0f}$"
+        )
 
     return {
         "price": price,
@@ -95,6 +133,10 @@ def _analyze_pair(pair: str, model) -> Optional[Dict[str, float]]:
         "sl": sl,
         "prob_up": prob_up,
         "expected_profit": expected_profit,
+        "trend_score": trend_score,
+        "volatility_24h": volatility_24h,
+        "volume_usdt": volume_usdt,
+        "score": score,
     }
 
 
@@ -117,6 +159,8 @@ def generate_conversion_signals(
     """
 
     model = load_model()
+    min_profit = gpt_forecast.get("adaptive_filters", {}).get("min_expected_profit", 0.3) if gpt_forecast else 0.3
+    min_prob = gpt_forecast.get("adaptive_filters", {}).get("min_prob_up", 0.6) if gpt_forecast else 0.6
     balances = get_binance_balances()
     portfolio = {
         a: amt for a, amt in balances.items() if a not in {"USDT", "BUSD"} and amt > 0
@@ -127,7 +171,7 @@ def generate_conversion_signals(
     predictions: Dict[str, Dict[str, float]] = {}
     for symbol in get_valid_usdt_symbols():
         pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
-        data = _analyze_pair(pair, model)
+        data = _analyze_pair(pair, model, min_profit, min_prob)
         if data:
             predictions[pair] = data
 
