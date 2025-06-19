@@ -303,7 +303,7 @@ async def zarobyty_cmd(message: types.Message) -> None:
 
     await message.answer("⏳ Формую звіт...")
 
-    report, _, _, gpt_text = generate_zarobyty_report()
+    report, _, _, forecast = generate_zarobyty_report()
     if not report:
         await message.answer(
             "⚠️ Звіт наразі недоступний. Спробуйте пізніше."
@@ -328,9 +328,14 @@ async def zarobyty_cmd(message: types.Message) -> None:
 
 
     await message.answer(report, parse_mode="Markdown", reply_markup=keyboard)
-    MAX_LEN = 4000
-    for i in range(0, len(gpt_text), MAX_LEN):
-        await message.answer(gpt_text[i:i + MAX_LEN])
+    if forecast is not None:
+        parts = []
+        if forecast.get("buy"):
+            parts.append("🤖 BUY: " + ", ".join(forecast["buy"]))
+        if forecast.get("sell"):
+            parts.append("🤖 SELL: " + ", ".join(forecast["sell"]))
+        if parts:
+            await message.answer("\n".join(parts))
 
 
 def register_handlers(dp: Dispatcher) -> None:

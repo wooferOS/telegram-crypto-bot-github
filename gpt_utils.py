@@ -1,3 +1,4 @@
+import json
 import logging
 import openai
 from config import OPENAI_API_KEY
@@ -13,7 +14,8 @@ def ask_gpt(summary):
             f"- Що продаємо: {summary.get('sell', [])}\n"
             f"- Що купуємо: {summary.get('buy', [])}\n"
             f"- Очікуваний прибуток: {summary.get('total_profit', '')}\n"
-            "Дай короткий коментар. Якщо нічого не купуємо чи не продаємо — скажи це."
+            "Відповідай строго у форматі JSON, без пояснень:\n"
+            '{"buy": [...], "sell": [...], "scores": {...}}'
         )
 
         response = client.chat.completions.create(
@@ -25,7 +27,12 @@ def ask_gpt(summary):
             temperature=0.7,
             timeout=60
         )
-        return response.choices[0].message.content.strip()
+        content = response.choices[0].message.content
+        try:
+            return json.loads(content)
+        except Exception:
+            logging.warning("[dev] GPT response is not JSON, skipping")
+            return None
 
     except Exception as e:
         logging.warning(f"[dev] GPT error: {e}")

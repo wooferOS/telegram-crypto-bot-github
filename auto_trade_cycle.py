@@ -23,7 +23,7 @@ from binance_api import (
 from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit
 from daily_analysis import split_telegram_message
-from gpt_filter import parse_gpt_forecast
+import json
 
 # These thresholds are more lenient for manual conversion suggestions
 # Generate signals even for modest opportunities
@@ -38,21 +38,16 @@ def load_gpt_filters() -> dict[str, str]:
     """Read ``gpt_forecast.txt`` and return a symbol→action mapping."""
     try:
         with open("gpt_forecast.txt", "r", encoding="utf-8") as f:
-            text = f.read()
+            forecast = json.load(f)
     except Exception as exc:  # pragma: no cover - diagnostics only
         logger.warning("[dev] ❗ Не вдалося завантажити GPT-прогноз: %s", exc)
         return {}
 
-    parsed = parse_gpt_forecast(text)
-    forecast: dict[str, str] = {}
-    for token in parsed.get("do_not_sell", []):
-        forecast[token] = "тримати"
-    for token in parsed.get("do_not_buy", []):
-        forecast[token] = "не купувати"
-    for token in parsed.get("recommend_buy", []):
-        forecast.setdefault(token, "купувати")
-
-    logger.info("GPT-фільтровано токенів: %d", len(forecast))
+    logger.info(
+        "GPT-фільтр: buy=%d, sell=%d",
+        len(forecast.get("buy", [])),
+        len(forecast.get("sell", [])),
+    )
     return forecast
 
 
@@ -98,7 +93,7 @@ def _analyze_pair(pair: str, model) -> Optional[Dict[str, float]]:
 
 def generate_conversion_signals(
     gpt_filters: Optional[Dict[str, List[str]]] = None,
-    gpt_forecast: Optional[Dict[str, str]] = None,
+    gpt_forecast: Optional[Dict[str, List[str]]] = None,
 ) -> tuple[
     List[Dict[str, float]],
     bool,
@@ -165,11 +160,11 @@ def generate_conversion_signals(
         top_tokens = filtered_tokens
 
     if gpt_forecast:
+        allowed = set(gpt_forecast.get("buy", []))
         filtered = []
         for pair, data in top_tokens:
             sym = pair.replace("USDT", "")
-            action = gpt_forecast.get(sym)
-            if action == "не купувати" or action is None:
+            if allowed and sym not in allowed:
                 logger.info(f"[dev] ⏭️ GPT блокує покупку {sym}")
                 continue
             filtered.append((pair, data))
@@ -270,7 +265,7 @@ def generate_conversion_signals(
 def sell_unprofitable_assets(
     portfolio: Dict[str, float],
     predictions: Dict[str, Dict[str, float]],
-    gpt_forecast: Optional[Dict[str, str]] = None,
+    gpt_forecast: Optional[Dict[str, List[str]]] = None,
 ) -> List[str]:
     """Sell assets with expected profit below the top-3 threshold."""
 
@@ -288,9 +283,10 @@ def sell_unprofitable_assets(
     usdt_before = get_binance_balances().get("USDT", 0.0)
     gpt_notes: List[str] = []
     if gpt_forecast:
-        tokens_to_consider = [a for a in portfolio if gpt_forecast.get(a) != "тримати"]
-        for token, action in gpt_forecast.items():
-            if action == "тримати" and token in portfolio:
+        blocked = set(gpt_forecast.get("sell", []))
+        tokens_to_consider = [a for a in portfolio if a not in blocked]
+        for token in blocked:
+            if token in portfolio:
                 logger.info(f"[dev] ⛔ GPT не рекомендує продавати {token} — ігноруємо продаж")
                 gpt_notes.append(f"⛔ GPT заблокував продаж {token}")
     else:
@@ -436,9 +432,9 @@ async def send_conversion_signals(
 async def main(chat_id: int) -> None:
     gpt_forecast = load_gpt_filters()
     gpt_filters = {
-        "do_not_sell": [s for s, a in gpt_forecast.items() if a == "тримати"],
-        "do_not_buy": [s for s, a in gpt_forecast.items() if a == "не купувати"],
-        "recommend_buy": [s for s, a in gpt_forecast.items() if a == "купувати"],
+        "do_not_sell": gpt_forecast.get("sell", []),
+        "do_not_buy": [],
+        "recommend_buy": gpt_forecast.get("buy", []),
     }
 
     (
