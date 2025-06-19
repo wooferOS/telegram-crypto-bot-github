@@ -82,6 +82,13 @@ def _analyze_pair(pair: str, model) -> Optional[Dict[str, float]]:
         prob_up = 0.5
 
     expected_profit = calculate_expected_profit(price, tp, amount=10, sl_price=sl)
+
+    if expected_profit < 0.001 or prob_up < 0.01:
+        logger.info(
+            f"[dev] ⏭️ Пропускаємо {pair} — expected_profit={expected_profit:.4f}, prob_up={prob_up:.2f}"
+        )
+        return None
+
     return {
         "price": price,
         "tp": tp,
