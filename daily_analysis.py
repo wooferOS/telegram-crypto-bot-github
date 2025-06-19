@@ -3,6 +3,7 @@
 
 import datetime
 import asyncio
+import json
 import pytz
 import statistics
 import logging
@@ -269,7 +270,7 @@ def get_success_score(symbol: str) -> float:
     return round(profit / len(trades), 2)
 
 
-def generate_zarobyty_report() -> tuple[str, list, list, str]:
+def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
     balances = get_binance_balances()
     usdt_balance = balances.get("USDT", 0) or 0
     now = datetime.datetime.now(pytz.timezone("Europe/Kyiv"))
@@ -467,12 +468,15 @@ def generate_zarobyty_report() -> tuple[str, list, list, str]:
         "market_trend": get_sentiment(),
         "strategy": "dev",
     }
-    gpt_text = ask_gpt(summary) or ""
-    with open("gpt_forecast.txt", "w", encoding="utf-8") as f:
-        f.write(gpt_text)
-    logger.info("GPT forecast saved to gpt_forecast.txt")
+    forecast = ask_gpt(summary)
+    if forecast is None:
+        logger.warning("[dev] GPT forecast unavailable")
+    else:
+        with open("gpt_forecast.txt", "w", encoding="utf-8") as f:
+            json.dump(forecast, f, ensure_ascii=False)
+        logger.info("GPT forecast saved to gpt_forecast.txt")
 
-    return report, sell_recommendations, buy_plan, gpt_text
+    return report, sell_recommendations, buy_plan, forecast
 
 
 def generate_daily_stats_report() -> str:
@@ -495,16 +499,31 @@ async def daily_analysis_task(bot: Bot, chat_id: int) -> None:
     for symbol in symbols:
         logger.info("\U0001f50d Analyzing %s", symbol)
 
-    report, _, _, gpt_text = generate_zarobyty_report()
-    full_text = f"{report}\n\n{gpt_text}"
-    await send_message_parts(bot, chat_id, full_text)
+    report, _, _, forecast = generate_zarobyty_report()
+    await send_message_parts(bot, chat_id, report)
+    if forecast is not None:
+        summary_lines = []
+        if forecast.get("buy"):
+            summary_lines.append("🤖 BUY: " + ", ".join(forecast["buy"]))
+        if forecast.get("sell"):
+            summary_lines.append("🤖 SELL: " + ", ".join(forecast["sell"]))
+        if summary_lines:
+            await bot.send_message(chat_id, "\n".join(summary_lines))
 
 
 async def send_zarobyty_forecast(bot, chat_id: int) -> None:
-    """Send the GPT forecast separately, splitting long text into chunks."""
-    _, _, _, gpt_text = generate_zarobyty_report()
-    for part in split_telegram_message(gpt_text, 4000):
-        await bot.send_message(chat_id, part)
+    """Send summarized GPT forecast."""
+    _, _, _, forecast = generate_zarobyty_report()
+    if forecast is None:
+        await bot.send_message(chat_id, "GPT forecast unavailable")
+        return
+    lines = []
+    if forecast.get("buy"):
+        lines.append("🤖 BUY: " + ", ".join(forecast["buy"]))
+    if forecast.get("sell"):
+        lines.append("🤖 SELL: " + ", ".join(forecast["sell"]))
+    if lines:
+        await bot.send_message(chat_id, "\n".join(lines))
 
 
 async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> None:
