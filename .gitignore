@@ -1,3 +1,4 @@
+# Журнали
 *.log
 logs/
 debug.log
@@ -12,7 +13,10 @@ zarobyty_output.log
 signals.txt
 exchange_info_cache.json
 model.joblib
+gpt_forecast.txt
 
 # Systemd файли (не публікуємо)
 systemd/*.service
 systemd/*.env
+/etc/systemd/system/auto-trade.*
+docs/systemd/auto-trade.*
