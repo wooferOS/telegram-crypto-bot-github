@@ -841,23 +841,6 @@ def demo_candidates_loop(symbols: list[str]) -> list[dict]:
 
 
 if __name__ == "__main__":
-    import asyncio
-    import sys
-    from log_setup import setup_logging
-    from services.telegram_service import DevBot
-    from config import TELEGRAM_TOKEN, CHAT_ID
-
-    setup_logging()
-    if len(sys.argv) > 1 and sys.argv[1] == "demo":
-        candidates = demo_candidates_loop(symbols)
-        for c in candidates:
-            logger.info(
-                f"[dev] \U0001f4ca {c['symbol']}: prob_up={c['prob_up']:.2f}, expected_profit={c['expected_profit']:.4f}"
-            )
-        sys.exit(0)
-
-    if TELEGRAM_TOKEN and CHAT_ID:
-        bot = DevBot(token=TELEGRAM_TOKEN)
-        asyncio.run(auto_trade_loop())
-    else:
-        logger.error("❌ TELEGRAM_TOKEN або CHAT_ID не встановлено")
+    raise RuntimeError(
+        "🚫 Цей файл не можна запускати напряму. Використовуйте тільки через run_auto_trade.py або systemd."
+    )
