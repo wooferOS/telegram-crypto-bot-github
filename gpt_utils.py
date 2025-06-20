@@ -38,7 +38,7 @@ def ask_gpt(prompt_dict: dict, model: str = "gpt-4o") -> dict:
     }
 
     if model in ("gpt-4o", "gpt-4-turbo"):
-        kwargs["response_format"] = "json"
+        kwargs["response_format"] = {"type": "json_object"}
 
     try:
         response = client.chat.completions.create(**kwargs)
