@@ -26,6 +26,7 @@ from binance_api import (
     get_open_orders,
     update_tp_sl_order,
     log_tp_sl_change,
+    notify_telegram,
     get_usdt_balance,
     get_token_balance,
     market_sell,
@@ -83,6 +84,16 @@ NO_USDT_ALERT_FILE = "no_usdt_alert.txt"
 
 # Minimum interval between "no USDT" warnings (in seconds)
 NO_USDT_ALERT_INTERVAL = 10800
+
+
+def log_and_telegram(message: str) -> None:
+    """Log ``message`` and send it to Telegram."""
+
+    logger.warning(message)
+    try:
+        notify_telegram(message)
+    except Exception as exc:  # pragma: no cover - diagnostics only
+        logger.warning("[dev] Failed to notify Telegram: %s", exc)
 
 
 async def get_trading_symbols() -> list[str]:
@@ -547,6 +558,8 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
         },
     }
     gpt_result = ask_gpt(summary)
+    if gpt_result == {}:
+        log_and_telegram("[GPT] ⚠️ Порожній прогноз, можливо, сталася помилка")
     if gpt_result:
         forecast = {**gpt_result, "adaptive_filters": adaptive_filters, "summary": summary}
         with open("gpt_forecast.txt", "w", encoding="utf-8") as f:
