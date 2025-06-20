@@ -9,7 +9,6 @@ from log_setup import setup_logging
 
 from auto_trade_cycle import main
 from config import TRADE_LOOP_INTERVAL, CHAT_ID
-from daily_analysis import generate_zarobyty_report
 from services.telegram_service import send_messages
 
 # Minimum allowed interval between automated runs (1 hour)
@@ -46,10 +45,19 @@ if __name__ == "__main__":
     setup_logging()
     elapsed = _time_since_last_run()
     if elapsed >= AUTO_INTERVAL:
-        asyncio.run(main(int(CHAT_ID)))
+        summary = asyncio.run(main(int(CHAT_ID)))
         _store_run_time()
-        report, _, _, _ = generate_zarobyty_report()
-        asyncio.run(send_messages(int(CHAT_ID), [report]))
+        lines = ["[dev] 🧾 Звіт:"]
+        if summary.get("sold"):
+            lines.append("\n🔁 Продано:")
+            lines.extend(summary["sold"])
+        if summary.get("bought"):
+            lines.append("\n📈 Куплено:")
+            lines.extend(summary["bought"])
+        lines.append(f"\n💰 Баланс до: {summary.get('before', 0):.2f} USDT")
+        lines.append(f"💰 Баланс після: {summary.get('after', 0):.2f} USDT")
+        lines.append("\n✅ Завершено успішно.")
+        asyncio.run(send_messages(int(CHAT_ID), ["\n".join(lines)]))
     else:
         minutes = int(elapsed / 60)
         msg = (
