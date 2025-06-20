@@ -554,7 +554,11 @@ async def main(chat_id: int) -> None:
         gpt_forecast,
     ) = generate_conversion_signals(gpt_filters, gpt_forecast)
 
-    logger.info(f"[dev] \ud83d\udccb \u0417\u0432\u0456\u0442:\n{report_text}")
+    try:
+        logger.info("[dev] Звіт:\n%s", report_text)
+    except UnicodeEncodeError:
+        logger.info("[dev] Звіт (без emoji):")
+        logger.info(report_text.encode("ascii", "ignore").decode())
 
     await send_conversion_signals(conversion_signals, chat_id=chat_id)
 
