@@ -490,6 +490,10 @@ def sell_unprofitable_assets(
             f"[dev] 🔍 Перевірка активу для продажу: {pair}, баланс={amount}, expected_profit={expected_profit:.2f}, min_qty={min_qty}, min_notional={min_notional}"
         )
 
+        if expected_profit == 0.0:
+            # ⚠️ Пробуємо продати навіть якщо expected_profit == 0.0
+            logger.info(f"[dev] 🔄 Пробуємо продати {pair}, expected_profit={expected_profit}")
+
         if asset not in tokens_to_consider:
             continue
         if asset in {"USDT", "BUSD"} or amount <= 0:
@@ -843,7 +847,26 @@ async def main(chat_id: int) -> dict:
 
     usdt_after = get_binance_balances().get("USDT", 0.0)
 
-    await buy_with_remaining_usdt(usdt_after, filtered_tokens, chat_id=chat_id)
+    successfully_bought = False
+    for s in sorted(to_buy, key=lambda x: predictions.get(x + "USDT", {}).get("score", 0), reverse=True):
+        usdt_balance = get_binance_balances().get("USDT", 0.0)
+        try:
+            symbol = s + "USDT"
+            logger.info(f"[dev] 💸 Пробуємо купити {symbol} на {usdt_balance:.2f}")
+            buy_result = market_buy(symbol, usdt_balance)
+            if buy_result.get("status") == "filled":
+                logger.info(f"[dev] ✅ Купівля успішна: {symbol}")
+                TRADE_SUMMARY["bought"].append(f"{symbol} — успішно")
+                successfully_bought = True
+                break
+            else:
+                logger.warning(f"[dev] ❌ Купівля {symbol} не вдалася, пробуємо наступну")
+        except Exception as e:  # pragma: no cover - diagnostics only
+            logger.warning(f"[dev] ⚠️ Помилка при купівлі {symbol}: {e}")
+    if not successfully_bought:
+        logger.warning(f"[dev] ❌ Жодна купівля не відбулась, усі спроби не пройшли")
+
+    await buy_with_remaining_usdt(get_binance_balances().get("USDT", 0.0), filtered_tokens, chat_id=chat_id)
 
     usdt_final = get_binance_balances().get("USDT", 0.0)
 
