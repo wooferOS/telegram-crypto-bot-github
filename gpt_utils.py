@@ -1,46 +1,43 @@
+"""Utilities for working with GPT models."""
+
 import json
 import logging
-import openai
-from config import OPENAI_API_KEY
 
-client = openai.OpenAI(api_key=OPENAI_API_KEY)
+
 logger = logging.getLogger(__name__)
 
 
+def ask_gpt(prompt_dict: dict, model: str = "gpt-4o") -> dict:
+    """Send ``prompt_dict`` to GPT and return the JSON response."""
 
-def ask_gpt(payload: dict) -> dict:
-    """Send ``payload`` to GPT and return JSON response."""
+    from openai import OpenAI
+
+    client = OpenAI()
 
     try:
-        logger.info(
-            "[dev] ➡️ GPT input:\n%s",
-            json.dumps(payload, indent=2, ensure_ascii=False),
-        )
-
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Ти професійний криптотрейдер. "
-                        "Завжди поверни JSON з полями buy, sell, scores, summary."
-                    ),
-                },
-                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+        kwargs = {
+            "model": model,
+            "messages": [
+                {"role": "user", "content": json.dumps(prompt_dict)}
             ],
-            temperature=0.2,
-            response_format={"type": "json_object"},
-            timeout=60,
-        )
+        }
+
+        if model in ("gpt-4o", "gpt-4-turbo"):
+            kwargs["response_format"] = "json"
+
+        response = client.chat.completions.create(**kwargs)
+
+        if hasattr(response, "error"):
+            logger.error(f"[dev] GPT API error: {response.error}")
+            return {}
 
         content = response.choices[0].message.content
-        try:
-            return json.loads(content)
-        except Exception:
-            logger.warning("[dev] ❌ GPT forecast is not JSON. Raw content:\n%s", content)
-            return {"buy": [], "sell": [], "scores": {}, "summary": ""}
 
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("[dev] GPT error: %s", exc)
-        return {"buy": [], "sell": [], "scores": {}, "summary": ""}
+        if isinstance(content, dict):
+            return content
+
+        return json.loads(content)
+
+    except Exception as e:  # noqa: BLE001
+        logger.exception(f"[dev] GPT fallback error: {e}")
+        return {}
