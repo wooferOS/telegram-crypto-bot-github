@@ -29,6 +29,8 @@ from binance_api import (
     try_convert,
     sell_asset,
     get_token_balance,
+    place_take_profit_order,
+    place_stop_loss_order,
 )
 from ml_model import (
     load_model,
@@ -483,9 +485,12 @@ def sell_unprofitable_assets(
         )
         if ep >= top3_min:
             continue
+        logger.info(f"[dev] 🧪 Пробуємо продати {asset}: amount={amount}")
         result = sell_asset(pair, amount)
         status = result.get("status")
         if status in {"success", "converted"}:
+            logger.info(f"[dev] ✅ Продано {amount} {asset}")
+            TRADE_SUMMARY["sold"].append(f"- {amount:.4f} {asset} (EP: {ep:.2f})")
             logger.info(f"[dev] ✅ Продано {amount} {asset} за ринком")
             amount_left = get_token_balance(asset)
             if amount_left < 10**-6:
@@ -550,6 +555,10 @@ async def buy_with_remaining_usdt(
                 expected_profit=data.get("expected_profit"),
                 prob_up=data.get("prob_up"),
             )
+            tp = data.get("tp")
+            sl = data.get("sl")
+            place_take_profit_order(f"{symbol}USDT", qty, take_profit_price=tp)
+            place_stop_loss_order(f"{symbol}USDT", qty, stop_price=sl)
             return symbol
 
     model = load_model()
@@ -597,6 +606,10 @@ async def buy_with_remaining_usdt(
                     expected_profit=data.get("expected_profit"),
                     prob_up=data.get("prob_up"),
                 )
+                tp = data.get("tp")
+                sl = data.get("sl")
+                place_take_profit_order(f"{symbol}USDT", qty, take_profit_price=tp)
+                place_stop_loss_order(f"{symbol}USDT", qty, stop_price=sl)
                 return symbol
 
     await send_messages(

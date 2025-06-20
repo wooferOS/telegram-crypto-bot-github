@@ -95,6 +95,15 @@ if __name__ == "__main__":
     elapsed = _time_since_last_run()
     if elapsed >= AUTO_INTERVAL:
         summary = asyncio.run(main(int(CHAT_ID)))
+        if not summary["sold"] and not summary["bought"]:
+            asyncio.run(
+                send_messages(
+                    int(CHAT_ID),
+                    [
+                        "[dev] ❗ Увага: жодного продажу чи купівлі не відбулося. Можливо, не спрацювали фільтри."
+                    ],
+                )
+            )
         _store_run_time()
         lines = ["[dev] 🧾 Звіт:"]
         if summary.get("sold"):
