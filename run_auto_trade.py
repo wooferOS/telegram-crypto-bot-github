@@ -1,13 +1,17 @@
 """Entry point for scheduled auto trade cycle with rate limiting."""
 
+import argparse
 import asyncio
 import json
 import os
 import time
+from datetime import datetime
 
 from log_setup import setup_logging
 
 from auto_trade_cycle import main
+from binance_api import get_symbol_price
+from history import _load_history
 from config import TRADE_LOOP_INTERVAL, CHAT_ID
 from services.telegram_service import send_messages
 
@@ -41,8 +45,53 @@ def _store_run_time() -> None:
     except OSError:
         pass
 
+
+def backtest() -> None:
+    """Simple 24h backtest using recorded trade history."""
+    history = _load_history()
+    if not history:
+        print("No trade history available")
+        return
+    successes = 0
+    total = 0
+    now = time.time()
+    for item in history:
+        ts = item.get("timestamp")
+        if not ts:
+            continue
+        try:
+            trade_time = datetime.fromisoformat(ts).timestamp()
+        except Exception:
+            continue
+        if now - trade_time < 24 * 3600:
+            continue
+        symbol = item.get("symbol")
+        pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
+        price_now = get_symbol_price(pair)
+        if not price_now:
+            continue
+        exp = float(item.get("expected_profit", 0))
+        total += 1
+        if item.get("action") == "buy":
+            if price_now - item.get("price", 0) >= exp:
+                successes += 1
+        else:
+            if item.get("price", 0) - price_now >= exp:
+                successes += 1
+    rate = successes / total * 100 if total else 0.0
+    print(f"Backtest success rate: {successes}/{total} = {rate:.1f}%")
+
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--backtest", action="store_true", help="run backtest only")
+    args = parser.parse_args()
+
     setup_logging()
+
+    if args.backtest:
+        backtest()
+        raise SystemExit
+
     elapsed = _time_since_last_run()
     if elapsed >= AUTO_INTERVAL:
         summary = asyncio.run(main(int(CHAT_ID)))
