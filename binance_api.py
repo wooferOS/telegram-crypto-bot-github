@@ -562,20 +562,30 @@ def convert_to_usdt(asset: str, amount: float):
 
 
 def get_account_balances() -> Dict[str, Dict[str, str]]:
-    """Return mapping of assets to their free and locked amounts."""
+    """Return mapping of tradable assets to their free and locked amounts."""
 
     try:
         account = client.get_account()
     except Exception as exc:  # pragma: no cover - network errors
-        logger.error("%s Не вдалося отримати баланси акаунта: %s", TELEGRAM_LOG_PREFIX, exc)
+        logger.error(
+            "%s Не вдалося отримати баланси акаунта: %s", TELEGRAM_LOG_PREFIX, exc
+        )
         return {}
 
+    tradable = load_tradable_usdt_symbols()
     balances: Dict[str, Dict[str, str]] = {}
+
     for bal in account.get("balances", []):
-        balances[bal.get("asset", "")] = {
-            "free": bal.get("free", "0"),
-            "locked": bal.get("locked", "0"),
-        }
+        asset = bal.get("asset", "")
+        free = float(bal.get("free", 0) or 0)
+        locked = float(bal.get("locked", 0) or 0)
+        total = free + locked
+        if total <= 0:
+            continue
+        if asset == "USDT" or asset in tradable:
+            balances[asset] = {"free": str(free), "locked": str(locked)}
+        else:
+            logger.debug("[dev] ⏭️ Пропущено %s: не торгується", asset)
 
     return balances
 
