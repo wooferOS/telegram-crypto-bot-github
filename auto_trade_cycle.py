@@ -36,6 +36,7 @@ from risk_utils import calculate_risk_reward, max_drawdown
 from utils import dynamic_tp_sl, calculate_expected_profit
 from binance_api import get_min_notional, get_lot_step, market_buy_symbol_by_amount
 from daily_analysis import split_telegram_message
+from history import add_trade
 import json
 
 # These thresholds are more lenient for manual conversion suggestions
@@ -95,6 +96,19 @@ def _analyze_pair(
     tp, sl = dynamic_tp_sl(closes, price)
 
     try:
+        last4 = [float(k[4]) for k in klines[-4:]]
+        vol = statistics.pstdev(last4) if len(last4) >= 2 else 0.0
+        volatility_weight = 1 + (vol / price if price else 0)
+    except Exception:  # noqa: BLE001
+        volatility_weight = 1.0
+
+    try:
+        last12 = [float(k[4]) for k in klines[-12:]]
+        trend_weight = 1.1 if len(last12) >= 2 and last12[-1] > last12[0] else 0.9
+    except Exception:  # noqa: BLE001
+        trend_weight = 1.0
+
+    try:
         prices_24h = [float(k[4]) for k in klines[-24:]]
         volume_usdt = sum(float(k[5]) for k in klines[-24:])
         if len(prices_24h) >= 2:
@@ -123,7 +137,7 @@ def _analyze_pair(
     expected_profit = calculate_expected_profit(price, tp, amount=10, sl_price=sl)
 
     score_base = prob_up * expected_profit
-    score = expected_profit * trend_score
+    final_score = prob_up * expected_profit * trend_weight * volatility_weight
     rrr = calculate_risk_reward(prob_up, expected_profit)
     ret = [closes[i] / closes[i - 1] - 1 for i in range(1, len(closes))]
     dd = max_drawdown(ret)
@@ -145,7 +159,7 @@ def _analyze_pair(
         return None
     else:
         logger.info(
-            f"[dev] ✅ Додано у BUY: {pair.replace('USDT','')}, score={score:.2f}, trend={trend_score:.2f}, vol={volume_usdt:.0f}$"
+            f"[dev] ✅ Додано у BUY: {pair.replace('USDT','')}, score={final_score:.2f}, trend={trend_score:.2f}, vol={volume_usdt:.0f}$"
         )
 
     return {
@@ -157,8 +171,10 @@ def _analyze_pair(
         "expected_profit": expected_profit,
         "trend_score": trend_score,
         "volatility_24h": volatility_24h,
+        "trend_weight": trend_weight,
+        "volatility_weight": volatility_weight,
         "volume_usdt": volume_usdt,
-        "score": score,
+        "score": final_score,
         "score_base": score_base,
         "risk_reward_ratio": rrr,
         "drawdown": dd,
@@ -176,6 +192,7 @@ def generate_conversion_signals(
     List[str],
     str,
     Dict[str, List[str]] | None,
+    Dict[str, Dict[str, float]],
 ]:
     """Analyze portfolio and propose asset conversions.
 
@@ -211,7 +228,6 @@ def generate_conversion_signals(
             p,
             {
                 **d,
-                "score": d["expected_profit"] * d.get("trend_score", 0),
                 "score_base": d.get("score_base", d["prob_up"] * d["expected_profit"]),
             },
         )
@@ -310,6 +326,12 @@ def generate_conversion_signals(
                 "tp": best_data["tp"],
                 "sl": best_data["sl"],
                 "score": best_data.get("score", 0.0),
+                "price": best_data["price"],
+                "expected_profit": best_data.get("expected_profit", 0.0),
+                "prob_up": best_data.get("prob_up", 0.0),
+                "from_price": from_price,
+                "from_expected_profit": current.get("expected_profit", 0.0),
+                "from_prob_up": current.get("prob_up", 0.0),
             }
         )
 
@@ -346,15 +368,29 @@ def generate_conversion_signals(
                     "tp": best_data["tp"],
                     "sl": best_data["sl"],
                     "score": best_data.get("score", 0.0),
+                    "price": best_data["price"],
+                    "expected_profit": best_data.get("expected_profit", 0.0),
+                    "prob_up": best_data.get("prob_up", 0.0),
+                    "from_price": from_price,
+                    "from_expected_profit": current.get("expected_profit", 0.0),
+                    "from_prob_up": current.get("prob_up", 0.0),
                 }
             )
 
     to_buy = [p.replace("USDT", "") for p, _ in top_tokens]
-    to_sell = [
-        asset
-        for asset in portfolio
-        if predictions.get(asset if asset.endswith("USDT") else f"{asset}USDT", {}).get("expected_profit", 0) <= 0
-    ]
+    to_sell: list[str] = []
+    for asset in portfolio:
+        pair = asset if asset.endswith("USDT") else f"{asset}USDT"
+        data = predictions.get(pair)
+        if not data:
+            continue
+        if (
+            data.get("expected_profit", 0) >= 0.3
+            and data.get("score", 0) >= 0.3
+            and data.get("prob_up", 0) > 0.45
+            and data.get("risk_reward_ratio", 0) >= 1.5
+        ):
+            to_sell.append(asset)
     summary = [f"{p.replace('USDT', '')}: {d['expected_profit']:.2f}" for p, d in top_tokens]
     report_text = f"USDT balance: {balances.get('USDT', 0.0)}\n" + "\n".join(summary)
 
@@ -366,6 +402,7 @@ def generate_conversion_signals(
         summary,
         report_text,
         gpt_forecast,
+        predictions,
     )
 
 
@@ -473,6 +510,15 @@ async def buy_with_remaining_usdt(
             TRADE_SUMMARY["bought"].append(
                 f"- {qty:.4f} {symbol} (score: {data.get('score', 0):.2f}, expected_profit: {data.get('expected_profit', 0):.2f})"
             )
+            add_trade(
+                symbol,
+                "BUY",
+                qty,
+                price,
+                source="fallback" if pair not in tried_tokens else "gpt",
+                expected_profit=data.get("expected_profit"),
+                prob_up=data.get("prob_up"),
+            )
             return symbol
 
     model = load_model()
@@ -510,6 +556,15 @@ async def buy_with_remaining_usdt(
             if result and result.get("status") != "error":
                 TRADE_SUMMARY["bought"].append(
                     f"- {qty:.4f} {symbol} (score: {data.get('score', 0):.2f}, expected_profit: {data.get('expected_profit', 0):.2f})"
+                )
+                add_trade(
+                    symbol,
+                    "BUY",
+                    qty,
+                    price,
+                    source="fallback",
+                    expected_profit=data.get("expected_profit"),
+                    prob_up=data.get("prob_up"),
                 )
                 return symbol
 
@@ -571,6 +626,24 @@ async def send_conversion_signals(
             sold.append(f"- {s['from_amount']}{s['from_symbol']} → {s['to_symbol']}")
             bought.append(
                 f"- {to_amount} {s['to_symbol']} (score: {s['score']:.2f}, expected_profit: {s['expected_profit']:.2f})"
+            )
+            add_trade(
+                s["from_symbol"],
+                "SELL",
+                s["from_amount"],
+                s.get("from_price", 0),
+                source="gpt",
+                expected_profit=s.get("from_expected_profit"),
+                prob_up=s.get("from_prob_up"),
+            )
+            add_trade(
+                s["to_symbol"],
+                "BUY",
+                to_qty,
+                s.get("price", 0),
+                source="gpt",
+                expected_profit=s.get("expected_profit"),
+                prob_up=s.get("prob_up"),
             )
         else:
             reason = result.get("message", "невідома помилка") if result else "невідома помилка"
@@ -642,6 +715,7 @@ async def main(chat_id: int) -> dict:
         summary,
         report_text,
         gpt_forecast,
+        predictions,
     ) = generate_conversion_signals(gpt_filters, gpt_forecast)
 
     try:
@@ -660,19 +734,37 @@ async def main(chat_id: int) -> dict:
 
     balances = get_binance_balances()
     logger.info(f"[dev] \U0001F4E6 Баланс оновлено: {balances}")
-    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    lines = [f"[dev] 🕒 Звіт сформовано: {timestamp}", "", "💰 Баланс:"]
-    for sym, amt in balances.items():
-        lines.append(f"{sym}: {amt}")
-    lines.append("")
-    sell_line = ", ".join(to_sell) if to_sell else "(порожньо)"
-    buy_line = ", ".join(to_buy) if to_buy else "(порожньо)"
-    manual_line = "(немає)" if not TRADE_SUMMARY.get("bought") else ", ".join(TRADE_SUMMARY["bought"])
-    lines.append(f"📉 Що продаємо: {sell_line}")
-    lines.append(f"📈 Що купуємо: {buy_line}")
-    lines.append(f"🔁 Сконвертовано вручну: {manual_line}")
-    lines.append("")
-    lines.append("💹 Очікуваний прибуток: 0 USDT ≈ 0₴ за 24г")
+    balance_line = ", ".join(f"{k} {v}" for k, v in balances.items())
+
+    buy_line = ""
+    if to_buy:
+        buy_line = ", ".join(
+            f"{sym} (score {predictions.get(sym+'USDT', {}).get('score', 0):.2f})"
+            for sym in to_buy
+        )
+    sell_line = ""
+    if to_sell:
+        sell_line = ", ".join(
+            f"{sym} (EP {predictions.get(sym if sym.endswith('USDT') else sym+'USDT', {}).get('expected_profit', 0)*10:.1f}%)"
+            for sym in to_sell
+        )
+
+    avg_profit = 0.0
+    if to_buy:
+        avg_profit = sum(
+            predictions.get(sym + 'USDT', {}).get('expected_profit', 0) for sym in to_buy
+        ) / len(to_buy) * 10
+
+    lines = [
+        "[dev] 🧠 GPT аналіз",
+        f"Баланс: {balance_line}",
+    ]
+    lines.append(
+        f"✅ Купуємо: {buy_line}" if buy_line else "Жодна монета не пройшла фільтри"
+    )
+    if sell_line:
+        lines.append(f"📉 Продаємо: {sell_line}")
+    lines.append(f"\n💹 Очікуваний прибуток: {avg_profit:.1f}% за 24h")
     await send_messages(int(chat_id), ["\n".join(lines)])
 
     return {
