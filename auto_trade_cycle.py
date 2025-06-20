@@ -462,6 +462,7 @@ def sell_unprofitable_assets(
     top3_min = ranked[min(2, len(ranked) - 1)]
     usdt_before = get_binance_balances().get("USDT", 0.0)
     gpt_notes: List[str] = []
+    sold_anything = False
 
     if gpt_forecast:
         blocked = set(gpt_forecast.get("sell", []))
@@ -474,18 +475,25 @@ def sell_unprofitable_assets(
         tokens_to_consider = list(portfolio.keys())
 
     for asset, amount in portfolio.items():
+        pair = asset if asset.endswith("USDT") else f"{asset}USDT"
+        data = predictions.get(pair, {})
+        expected_profit = data.get("expected_profit", 0.0)
+        min_qty = get_lot_step(pair)
+        min_notional = get_min_notional(pair)
+        logger.info(
+            f"[dev] 🔍 Перевірка активу для продажу: {pair}, баланс={amount}, expected_profit={expected_profit:.2f}, min_qty={min_qty}, min_notional={min_notional}"
+        )
+
         if asset not in tokens_to_consider:
             continue
         if asset in {"USDT", "BUSD"} or amount <= 0:
             continue
 
-        pair = asset if asset.endswith("USDT") else f"{asset}USDT"
-        data = predictions.get(pair)
         if not data:
             continue
 
         prob = data.get("prob_up", 0.0)
-        ep = data.get("expected_profit", 0.0)
+        ep = expected_profit
         logger.info(
             f"[dev] 🔍 Оцінка продажу {asset}: prob_up={prob:.2f}, expected_profit={ep:.4f}, top3_min_profit={top3_min}"
         )
@@ -493,17 +501,23 @@ def sell_unprofitable_assets(
         if ep >= top3_min:
             continue
 
+        logger.info(f"[dev] ✅ SELL виконується: {pair}, кількість: {amount}")
         result = sell_asset(pair, amount)
         status = result.get("status")
 
         if status == "success":
             logger.info(f"[dev] ✅ Продано {amount} {asset} за ринком")
+            sold_anything = True
         elif status == "converted":
             logger.info(f"[dev] 🔄 Сконвертовано {amount} {asset}")
+            sold_anything = True
         else:
             logger.warning(f"[dev] ⚠️ Не вдалося продати чи сконвертувати {asset}: {result.get('message')}")
 
         continue  # Завжди продовжувати цикл
+
+    if not sold_anything:
+        logger.warning("[dev] ⚠️ Жоден актив не пройшов фільтр для продажу. Баланси переглянуті.")
 
     usdt_after = get_binance_balances().get("USDT", 0.0)
     logger.info(f"[dev] 💰 Поточний баланс USDT: {usdt_after}")
