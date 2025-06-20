@@ -813,9 +813,10 @@ def sell_asset(symbol: str, quantity: float) -> dict:
                 if result is not None:
                     return {"status": "converted"}
                 logger.warning(
-                    "[dev] ⛔ Не вдалося ні продати, ні сконвертувати %s", symbol
+                    "[dev] ❌ Пропущено %s: не вдалося ні продати, ні сконвертувати",
+                    symbol,
                 )
-                return {"status": "error", "message": "convert_failed"}
+                return None  # Continue loop without stopping
             except Exception as conv_e:  # pragma: no cover - network errors
                 logger.warning(
                     "[dev] ⛔ Не вдалося ні продати, ні сконвертувати %s", symbol
