@@ -647,12 +647,7 @@ async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> No
                         from telegram_bot import ADMIN_CHAT_ID
                         from auto_trade_cycle import generate_conversion_signals
 
-                        _, _, _, predictions, _, _, _ = generate_conversion_signals()
-                        reason = (
-                            "на балансі немає активів з очікуваним прибутком > 0."
-                            if not any(p.get("expected_profit", 0) > 0 for p in predictions.values())
-                            else "невідомо."
-                        )
+                        _, _, _, _, _, _, _ = generate_conversion_signals()
                         # 🔕 [dev] Повідомлення про відсутність USDT більше не надсилається
                         # if usdt_balance < MIN_TRADE_AMOUNT:
                         #     send_telegram_message("⚠️ Немає USDT для покупки.\n")
