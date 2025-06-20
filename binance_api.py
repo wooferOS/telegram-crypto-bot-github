@@ -1311,6 +1311,21 @@ def get_price_history_24h(symbol: str) -> Optional[List[float]]:
         return None
 
 
+def get_whale_alert(symbol: str, threshold: float = 100_000) -> bool:
+    """Return True if order book contains a single order over ``threshold`` USDT."""
+
+    try:
+        order_book = _get_client().get_order_book(symbol=symbol, limit=100)
+        bids = order_book.get("bids", [])
+        asks = order_book.get("asks", [])
+        max_bid = max([float(qty) * float(price) for price, qty in bids], default=0)
+        max_ask = max([float(qty) * float(price) for price, qty in asks], default=0)
+        return max_bid > threshold or max_ask > threshold
+    except Exception as e:  # pragma: no cover - network errors
+        logger.warning(f"[dev] Whale-check error for {symbol}: {e}")
+        return False
+
+
 def get_candlestick_klines(symbol: str, interval: str = "1h", limit: int = 100) -> List[List[float]]:
     """Return raw candlestick klines for a symbol."""
     url = f"{BINANCE_BASE_URL}/api/v3/klines"

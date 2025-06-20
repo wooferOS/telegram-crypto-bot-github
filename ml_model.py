@@ -1,5 +1,6 @@
 import logging
 import os
+import json
 
 import joblib
 import numpy as np
@@ -111,4 +112,78 @@ def predict_prob_up(model, feature_vector) -> float:
         return 1.0 if direction == "up" else 0.0
     except Exception as exc:  # noqa: BLE001
         logging.warning("ML prediction failed: %s", exc)
+        return 0.5
+
+
+TRADE_MODEL_PATH = "trade_model.joblib"
+
+
+def train_model_from_history(history_file: str = "trade_history.json"):
+    """Train RandomForest model using recorded trade history."""
+
+    if not os.path.exists(history_file):
+        logging.warning("[dev] trade_history.json not found")
+        return None
+    try:
+        with open(history_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as exc:  # pragma: no cover - simple IO
+        logging.warning("[dev] Failed to load history: %s", exc)
+        return None
+
+    if not data:
+        logging.warning("[dev] Empty trade history")
+        return None
+
+    df = pd.DataFrame(data)
+    features = [
+        "expected_profit",
+        "prob_up",
+        "score",
+        "whale_alert",
+        "volume",
+        "rsi",
+        "trend",
+        "previous_gain",
+    ]
+    for col in features:
+        if col not in df:
+            df[col] = 0.0
+    if "success" in df:
+        y = df["success"].astype(int)
+    else:
+        y = (df.get("sell_profit", 0) > 0).astype(int)
+
+    X = df[features].fillna(0)
+
+    model = RandomForestClassifier(n_estimators=150, random_state=42)
+    model.fit(X, y)
+    joblib.dump(model, TRADE_MODEL_PATH)
+    return model
+
+
+def _load_trade_model():
+    if os.path.exists(TRADE_MODEL_PATH):
+        try:
+            return joblib.load(TRADE_MODEL_PATH)
+        except Exception:
+            return None
+    return None
+
+
+def predict_trade_success(token_data: dict) -> float:
+    """Return probability of trade success based on history model."""
+
+    model = _load_trade_model()
+    if not model:
+        return 0.5
+    df = pd.DataFrame([token_data])
+    df = df.fillna(0)
+    try:
+        if hasattr(model, "predict_proba"):
+            proba = model.predict_proba(df)[0][1]
+            return float(proba)
+        pred = model.predict(df)[0]
+        return 1.0 if int(pred) == 1 else 0.0
+    except Exception:
         return 0.5
