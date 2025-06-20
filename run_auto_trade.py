@@ -7,6 +7,8 @@ import os
 import time
 from datetime import datetime
 
+import logging
+
 from log_setup import setup_logging
 
 from auto_trade_cycle import main
@@ -14,6 +16,8 @@ from binance_api import get_symbol_price
 from history import _load_history
 from config import TRADE_LOOP_INTERVAL, CHAT_ID
 from services.telegram_service import send_messages
+
+logger = logging.getLogger(__name__)
 
 # Minimum allowed interval between automated runs (1 hour)
 MIN_AUTO_TRADE_INTERVAL = 3600
@@ -96,6 +100,7 @@ if __name__ == "__main__":
     if elapsed >= AUTO_INTERVAL:
         summary = asyncio.run(main(int(CHAT_ID)))
         if not summary["sold"] and not summary["bought"]:
+            logger.warning("[dev] ❗ Увага: трейд-цикл завершився без активних дій")
             asyncio.run(
                 send_messages(
                     int(CHAT_ID),
