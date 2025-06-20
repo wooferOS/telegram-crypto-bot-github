@@ -46,6 +46,8 @@ from binance_api import (
     get_lot_step,
     market_buy_symbol_by_amount,
     get_whale_alert,
+    market_buy,
+    market_sell,
 )
 from daily_analysis import split_telegram_message
 from history import add_trade
@@ -655,6 +657,29 @@ async def send_conversion_signals(
         to_qty = s["to_amount"]
         to_amount = _human_amount(to_qty, precision)
         result = try_convert(s["from_symbol"], s["to_symbol"], s["from_amount"])
+
+        # TODO(dev): якщо convert не працює через Signature error — виконуємо ринковий sell+buy
+        if result and "Signature for this request is not valid" in str(result):
+            logger.warning("[dev] ⛔ Convert заблокований, fallback на ринковий sell+buy")
+            sell_result = market_sell(f"{s['from_symbol']}USDT", s["from_amount"])
+            if sell_result.get("status") == "success":
+                buy_result = market_buy(s["to_symbol"] + "USDT", s["from_usdt"])
+                if buy_result.get("status") == "success":
+                    TRADE_SUMMARY["sold"].append(
+                        f"- {s['from_amount']:.4f} {s['from_symbol']} (manual convert fallback)"
+                    )
+                    TRADE_SUMMARY["bought"].append(
+                        f"- {buy_result['executedQty']} {s['to_symbol']} (score: {s.get('score', 0):.2f}, expected_profit: {s.get('expected_profit', 0):.2f})"
+                    )
+                    add_trade(
+                        s["from_symbol"], "SELL", s["from_amount"], s["from_price"], source="fallback",
+                        expected_profit=s.get("from_expected_profit"), prob_up=s.get("from_prob_up")
+                    )
+                    add_trade(
+                        s["to_symbol"], "BUY", float(buy_result["executedQty"]), s["price"], source="fallback",
+                        expected_profit=s.get("expected_profit"), prob_up=s.get("prob_up")
+                    )
+                    continue
         token_line = (
             f"✅ {s['to_symbol']} ml={s.get('ml_proba', 0.5):.2f} exp={s['expected_profit']:.2f} "
             f"RRR={s.get('rrr', 0):.2f} score={s.get('score', 0):.2f}"
