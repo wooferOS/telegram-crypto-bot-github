@@ -11,8 +11,13 @@ import logging
 
 from log_setup import setup_logging
 
-from auto_trade_cycle import main
-from binance_api import get_symbol_price
+from auto_trade_cycle import (
+    main,
+    generate_conversion_signals,
+    load_gpt_filters,
+    sell_unprofitable_assets,
+)
+from binance_api import get_symbol_price, get_binance_balances
 from history import _load_history
 from config import TRADE_LOOP_INTERVAL, CHAT_ID
 from services.telegram_service import send_messages
@@ -95,6 +100,26 @@ if __name__ == "__main__":
     if args.backtest:
         backtest()
         raise SystemExit
+
+    # Sell assets with low expected profit before running the main cycle
+    gpt_forecast = load_gpt_filters()
+    gpt_filters = {"do_not_sell": gpt_forecast.get("sell", [])}
+    (
+        _,
+        _,
+        _,
+        _,
+        _,
+        _,
+        gpt_forecast,
+        predictions,
+    ) = generate_conversion_signals(gpt_filters, gpt_forecast)
+    portfolio = {
+        asset: amt
+        for asset, amt in get_binance_balances().items()
+        if asset not in {"USDT", "BUSD"} and amt > 0
+    }
+    sell_unprofitable_assets(portfolio, predictions, gpt_forecast)
 
     elapsed = _time_since_last_run()
     if elapsed >= AUTO_INTERVAL:
