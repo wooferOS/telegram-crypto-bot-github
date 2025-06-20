@@ -34,7 +34,15 @@ def ask_gpt(prompt_dict: dict, model: str = "gpt-4o") -> dict:
 
     kwargs = {
         "model": model,
-        "messages": [{"role": "user", "content": json.dumps(prompt_dict)}],
+        "messages": [
+            {
+                "role": "user",
+                "content": (
+                    "Please return a valid JSON object with fields: buy, sell, scores, summary.\n\n"
+                    + json.dumps(prompt_dict)
+                ),
+            }
+        ],
     }
 
     if model in ("gpt-4o", "gpt-4-turbo"):
