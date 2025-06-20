@@ -123,29 +123,35 @@ if __name__ == "__main__":
 
     elapsed = _time_since_last_run()
     if elapsed >= AUTO_INTERVAL:
-        summary = asyncio.run(main(int(CHAT_ID)))
-        if not summary["sold"] and not summary["bought"]:
-            logger.warning("[dev] ❗ Увага: трейд-цикл завершився без активних дій")
-            asyncio.run(
-                send_messages(
-                    int(CHAT_ID),
-                    [
-                        "[dev] ❗ Увага: жодного продажу чи купівлі не відбулося. Можливо, не спрацювали фільтри."
-                    ],
-                )
-            )
+        MAX_ATTEMPTS = 5
+        attempt = 0
+        summary = {"sold": [], "bought": []}
+
+        while attempt < MAX_ATTEMPTS:
+            summary = asyncio.run(main(int(CHAT_ID)))
+            sold = summary.get("sold")
+            bought = summary.get("bought")
+            if sold or bought:
+                break
+            attempt += 1
+            logger.info(f"[dev] ⏳ Спроба {attempt}: жодної угоди. Повторюємо...")
+
         _store_run_time()
-        lines = ["[dev] 🧾 Звіт:"]
-        if summary.get("sold"):
-            lines.append("\n🔁 Продано:")
-            lines.extend(summary["sold"])
-        if summary.get("bought"):
-            lines.append("\n📈 Куплено:")
-            lines.extend(summary["bought"])
-        lines.append(f"\n💰 Баланс до: {summary.get('before', 0):.2f} USDT")
-        lines.append(f"💰 Баланс після: {summary.get('after', 0):.2f} USDT")
-        lines.append("\n✅ Завершено успішно.")
-        asyncio.run(send_messages(int(CHAT_ID), ["\n".join(lines)]))
+
+        if summary.get("sold") or summary.get("bought"):
+            lines = ["[dev] 🧾 Звіт:"]
+            if summary.get("sold"):
+                lines.append("\n🔁 Продано:")
+                lines.extend(summary["sold"])
+            if summary.get("bought"):
+                lines.append("\n📈 Куплено:")
+                lines.extend(summary["bought"])
+            lines.append(f"\n💰 Баланс до: {summary.get('before', 0):.2f} USDT")
+            lines.append(f"💰 Баланс після: {summary.get('after', 0):.2f} USDT")
+            lines.append("\n✅ Завершено успішно.")
+            asyncio.run(send_messages(int(CHAT_ID), ["\n".join(lines)]))
+        else:
+            logger.warning("[dev] ❗ Досягнуто максимум спроб. Жодна угода не виконана.")
     else:
         minutes = int(elapsed / 60)
         msg = (
