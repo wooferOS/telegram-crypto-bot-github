@@ -92,6 +92,7 @@ def estimate_profit_debug(symbol: str) -> float:
         )
         return expected_profit
     except Exception as e:
+        logger.warning(f"⚠️ get_klines failed for {symbol}: {e}")
         logger.error("estimate_profit error for %s: %s", symbol, e)
         return 0.0
 

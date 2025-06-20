@@ -17,6 +17,9 @@ from config import BINANCE_API_KEY, BINANCE_SECRET_KEY
 
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 
+# Module-level logger
+logger = logging.getLogger(__name__)
+
 def load_model():
     if os.path.exists(MODEL_PATH):
         return joblib.load(MODEL_PATH)
@@ -29,11 +32,12 @@ def get_klines(symbol: str, interval: str = "1h", limit: int = 500) -> pd.DataFr
         logging.warning("%s not valid for klines", pair)
         return pd.DataFrame()
     try:
+        # Binance ``Client.get_klines`` accepts only symbol, interval and limit
+        # parameters. Passing ``timeout`` causes API error ``code -1104``.
         data = client.get_klines(
             symbol=pair,
             interval=interval,
             limit=limit,
-            timeout=10,  # ⏱️ тайм-аут Binance API
         )
     except Exception as e:  # noqa: BLE001
         logging.warning(f"[dev] ML get_klines error: {e}")
@@ -73,7 +77,11 @@ def add_technical_indicators(df):
 
 def generate_features(symbol: str):
     """Generate ML features for the given trading symbol."""
-    df = get_klines(symbol)
+    try:
+        df = get_klines(symbol)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"⚠️ get_klines failed for {symbol}: {e}")
+        raise
     if df.empty:
         raise ValueError(f"\u26A0\uFE0F No data for {symbol}")
 
