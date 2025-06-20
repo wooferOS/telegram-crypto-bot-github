@@ -8,9 +8,17 @@ client = openai.OpenAI(api_key=OPENAI_API_KEY)
 
 def ask_gpt(summary):
     try:
+        balance_field = summary.get("balance", "")
+        if isinstance(balance_field, dict):
+            balance = ", ".join(
+                f"{k}: {v}" for k, v in balance_field.items() if v
+            )
+        else:
+            balance = balance_field
+
         content = (
             "Ти криптотрейдер. Оціни ситуацію:\n"
-            f"- Баланс: {summary.get('balance', '')}\n"
+            f"- Баланс: {balance}\n"
             f"- Що продаємо: {summary.get('sell') or summary.get('sell_candidates', [])}\n"
             f"- Що купуємо: {summary.get('buy') or summary.get('buy_candidates', [])}\n"
             f"- Очікуваний прибуток: {summary.get('total_profit') or summary.get('expected_profit', '')}\n"

@@ -618,6 +618,13 @@ async def send_conversion_signals(
 
 
 async def main(chat_id: int) -> dict:
+    # Refresh GPT forecast file to avoid using stale data
+    try:
+        with open("gpt_forecast.txt", "w", encoding="utf-8") as f:
+            json.dump({}, f)
+    except OSError as exc:  # pragma: no cover - diagnostics only
+        logger.warning("[dev] Не вдалося очистити gpt_forecast.txt: %s", exc)
+
     gpt_forecast = load_gpt_filters()
     gpt_filters = {
         "do_not_sell": gpt_forecast.get("sell", []),
@@ -652,6 +659,7 @@ async def main(chat_id: int) -> dict:
     usdt_final = get_binance_balances().get("USDT", 0.0)
 
     balances = get_binance_balances()
+    logger.info(f"[dev] \U0001F4E6 Баланс оновлено: {balances}")
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     lines = [f"[dev] 🕒 Звіт сформовано: {timestamp}", "", "💰 Баланс:"]
     for sym, amt in balances.items():
