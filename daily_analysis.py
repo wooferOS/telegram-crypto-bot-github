@@ -541,14 +541,15 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
         "scoreboard": scoreboard,
         "adaptive_filters": adaptive_filters,
     }
-    forecast = ask_gpt(summary)
-    if forecast is None:
-        logger.warning("[dev] GPT forecast unavailable")
-    else:
-        forecast = {**forecast, "adaptive_filters": adaptive_filters, "summary": summary}
+    gpt_result = ask_gpt(summary)
+    if gpt_result:
+        forecast = {**gpt_result, "adaptive_filters": adaptive_filters, "summary": summary}
         with open("gpt_forecast.txt", "w", encoding="utf-8") as f:
-            json.dump(forecast, f, ensure_ascii=False)
+            json.dump(forecast, f, indent=2, ensure_ascii=False)
         logger.info("GPT forecast saved to gpt_forecast.txt")
+    else:
+        logger.warning("[dev] ❌ GPT result is empty or invalid.")
+        forecast = gpt_result
 
     return report, sell_recommendations, buy_plan, forecast
 
