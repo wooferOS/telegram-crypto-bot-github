@@ -579,6 +579,23 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
         logger.warning("[dev] ❌ GPT result is empty or invalid.")
         forecast = gpt_result
 
+    if not buy_plan and forecast and forecast.get("buy"):
+        fallback_tokens = forecast["buy"]
+        logger.info(
+            "⚠️ GPT BUY fallback enabled — using tokens from GPT: %s", fallback_tokens
+        )
+        for sym in fallback_tokens:
+            if sym in forecast.get("token_scores", {}):
+                tok = forecast["token_scores"][sym]
+                buy_plan.append(
+                    {
+                        "symbol": sym + "USDT",
+                        "expected_profit": tok["expected_profit"],
+                        "prob_up": tok["prob_up"],
+                        "score": tok["score"],
+                    }
+                )
+
     return report, sell_recommendations, buy_plan, forecast
 
 
