@@ -28,17 +28,35 @@ def _save_history(data: List[Dict]) -> None:
         logger.error("Failed to save history: %s", exc)
 
 
-def add_trade(symbol: str, side: str, qty: float, price: float, timestamp: str | None = None) -> None:
+def add_trade(
+    symbol: str,
+    side: str,
+    qty: float,
+    price: float,
+    timestamp: str | None = None,
+    *,
+    source: str | None = None,
+    expected_profit: float | None = None,
+    prob_up: float | None = None,
+) -> None:
+    """Persist executed trade to ``trade_history.json``."""
+
     history = _load_history()
-    history.append(
-        {
-            "symbol": symbol,
-            "side": side,
-            "qty": qty,
-            "price": price,
-            "timestamp": timestamp or datetime.utcnow().isoformat(),
-        }
-    )
+    entry: Dict[str, object] = {
+        "symbol": symbol,
+        "action": side.lower(),
+        "amount": qty,
+        "price": price,
+        "timestamp": timestamp or datetime.utcnow().isoformat(),
+    }
+    if source:
+        entry["source"] = source
+    if expected_profit is not None:
+        entry["expected_profit"] = expected_profit
+    if prob_up is not None:
+        entry["prob_up"] = prob_up
+
+    history.append(entry)
     _save_history(history)
 
 

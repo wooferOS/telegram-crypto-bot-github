@@ -531,15 +531,20 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
         "min_prob_up": adaptive_min_prob,
     }
 
+    balance_dict = {k: v for k, v in balances.items() if v}
     summary = {
-        "balance": balance_str,
-        "sell_candidates": [s.replace("USDT", "") for s in sell_symbols],
-        "buy_candidates": [c.replace("USDT", "") for c in candidate_lines],
-        "expected_profit": expected_profit_usdt,
+        "balance": balance_dict,
+        "sell": [s.replace("USDT", "") for s in sell_symbols],
+        "buy": [c.replace("USDT", "") for c in candidate_lines],
+        "total_profit": str(expected_profit_usdt),
         "market_trend": get_sentiment(),
-        "strategy": "dev",
-        "scoreboard": scoreboard,
-        "adaptive_filters": adaptive_filters,
+        "filters": {
+            "min_score": 0.3,
+            "min_expected_profit": 0.2,
+            "min_prob_up": 0.45,
+            "min_volatility": 1.0,
+            "min_volume": 10_000_000,
+        },
     }
     gpt_result = ask_gpt(summary)
     if gpt_result:
