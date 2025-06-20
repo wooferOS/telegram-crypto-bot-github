@@ -166,12 +166,12 @@ def generate_conversion_signals(
     gpt_forecast: Optional[Dict[str, List[str]]] = None,
 ) -> tuple[
     List[Dict[str, float]],
-    bool,
-    Dict[str, float],
-    Dict[str, Dict[str, float]],
-    float,
-    bool,
-    list,
+    List[str],
+    List[str],
+    List,
+    List[str],
+    str,
+    Dict[str, List[str]] | None,
 ]:
     """Analyze portfolio and propose asset conversions.
 
@@ -187,7 +187,7 @@ def generate_conversion_signals(
         a: amt for a, amt in balances.items() if a not in {"USDT", "BUSD"} and amt > 0
     }
     if not portfolio:
-        return [], False, {}, {}, balances.get("USDT", 0.0)
+        return [], [], [], [], [], "", gpt_forecast
 
     predictions: Dict[str, Dict[str, float]] = {}
     for symbol in get_valid_usdt_symbols():
@@ -197,7 +197,7 @@ def generate_conversion_signals(
             predictions[pair] = data
 
     if not predictions:
-        return [], False, portfolio, {}, balances.get("USDT", 0.0)
+        return [], [], [], [], [], "", gpt_forecast
 
     # Drop tokens with duplicate expected_profit values
     ep_counts = Counter(round(d["expected_profit"], 4) for d in predictions.values())
@@ -228,6 +228,7 @@ def generate_conversion_signals(
     ranked.sort(key=lambda x: x[1]["score"], reverse=True)
     all_buy_tokens = ranked
     top_tokens = ranked[:3]
+    filtered_tokens = top_tokens
 
     if gpt_filters:
         filtered_tokens = [
@@ -262,7 +263,7 @@ def generate_conversion_signals(
         )
         top_tokens = all_buy_tokens[:3]
     if not top_tokens:
-        return [], False, portfolio, predictions, balances.get("USDT", 0.0), all_equal, gpt_notes
+        return [], [], [], [], [], "", gpt_forecast
 
     best_pair, best_data = top_tokens[0]
 
@@ -344,14 +345,26 @@ def generate_conversion_signals(
                 }
             )
 
+    to_buy = [p.replace("USDT", "") for p, _ in top_tokens]
+    to_sell = [
+        asset
+        for asset in portfolio
+        if predictions.get(asset if asset.endswith("USDT") else f"{asset}USDT", {}).get("expected_profit", 0)
+        <= 0
+    ]
+    summary = [f"{p.replace('USDT', '')}: {d['expected_profit']:.2f}" for p, d in top_tokens]
+    report_text = (
+        f"USDT balance: {balances.get('USDT', 0.0)}\n" + "\n".join(summary)
+    )
+
     return (
         signals,
-        low_profit,
-        portfolio,
-        predictions,
-        balances.get("USDT", 0.0),
-        all_equal,
-        gpt_notes,
+        to_buy,
+        to_sell,
+        filtered_tokens,
+        summary,
+        report_text,
+        gpt_forecast,
     )
 
 
@@ -532,57 +545,18 @@ async def main(chat_id: int) -> None:
     }
 
     (
-        signals,
-        low_profit,
-        portfolio,
-        predictions,
-        usdt_balance,
-        all_equal,
-        gpt_notes,
+        conversion_signals,
+        to_buy,
+        to_sell,
+        filtered_tokens,
+        summary,
+        report_text,
+        gpt_forecast,
     ) = generate_conversion_signals(gpt_filters, gpt_forecast)
-    gpt_notes.extend(sell_unprofitable_assets(portfolio, predictions, gpt_forecast))
-    usdt_balance = get_binance_balances().get("USDT", 0.0)
 
-    if not signals:
-        fallback = None
-        for pair, data in sorted(
-            predictions.items(), key=lambda x: x[1].get("volume_usdt", 0), reverse=True
-        ):
-            if data.get("expected_profit", 0) > 0.01:
-                fallback = (pair, data)
-                break
-        if fallback and usdt_balance > 0:
-            pair, data = fallback
-            amount = usdt_balance
-            if data.get("drawdown", 0) > 0.3:
-                amount *= 0.5
-            signals.append(
-                {
-                    "from_symbol": "USDT",
-                    "to_symbol": pair.replace("USDT", ""),
-                    "from_amount": amount,
-                    "from_usdt": amount,
-                    "to_amount": amount / data["price"],
-                    "profit_pct": (data["expected_profit"] / 10) * 100,
-                    "profit_usdt": (data["expected_profit"] / 10) * amount,
-                    "tp": data["tp"],
-                    "sl": data["sl"],
-                    "score": data.get("score", 0.0),
-                    "ml_proba": data.get("ml_proba", 0.5),
-                    "expected_profit": data["expected_profit"],
-                    "rrr": data.get("risk_reward_ratio", 0),
-                }
-            )
-    await send_conversion_signals(
-        signals,
-        chat_id=chat_id,
-        low_profit=low_profit,
-        portfolio=portfolio,
-        predictions=predictions,
-        usdt_balance=usdt_balance,
-        identical_profits=all_equal,
-        gpt_notes=gpt_notes,
-    )
+    logger.info(f"[dev] \ud83d\udccb \u0417\u0432\u0456\u0442:\n{report_text}")
+
+    await send_conversion_signals(conversion_signals, chat_id=chat_id)
 
 
 if __name__ == "__main__":
