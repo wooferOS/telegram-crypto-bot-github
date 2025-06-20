@@ -841,6 +841,4 @@ def demo_candidates_loop(symbols: list[str]) -> list[dict]:
 
 
 if __name__ == "__main__":
-    raise RuntimeError(
-        "🚫 Цей файл не можна запускати напряму. Використовуйте тільки через run_auto_trade.py або systemd."
-    )
+    raise RuntimeError("🚫 Запускати тільки через systemd або run_auto_trade.py")

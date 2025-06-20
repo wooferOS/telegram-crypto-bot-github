@@ -26,6 +26,8 @@ from binance_api import (
     get_token_balance,
 )
 from ml_model import load_model, generate_features, predict_prob_up
+from ml_utils import predict_proba
+from risk_utils import calculate_risk_reward, max_drawdown
 from utils import dynamic_tp_sl, calculate_expected_profit
 from daily_analysis import split_telegram_message
 import json
@@ -105,17 +107,30 @@ def _analyze_pair(
     try:
         features, _, _ = generate_features(pair)
         prob_up = predict_prob_up(model, features) if model else 0.5
+        indicators = {f"f{i}": float(v) for i, v in enumerate(features[0])}
+        ml_proba = predict_proba(pair, indicators)
     except Exception:  # noqa: BLE001
         prob_up = 0.5
+        ml_proba = 0.5
 
     expected_profit = calculate_expected_profit(price, tp, amount=10, sl_price=sl)
 
     score_base = prob_up * expected_profit
     score = expected_profit * trend_score
+    rrr = calculate_risk_reward(prob_up, expected_profit)
+    ret = [closes[i] / closes[i - 1] - 1 for i in range(1, len(closes))]
+    dd = max_drawdown(ret)
 
-    if expected_profit < min_profit or prob_up < min_prob:
+    if (
+        expected_profit < min_profit
+        or prob_up < min_prob
+        or score <= 0
+        or prob_up <= 0.5
+        or ml_proba <= 0.65
+        or rrr <= 1.5
+    ):
         logger.info(
-            f"[dev] ⚠️ Пропущено {pair}: expected_profit={expected_profit:.2f} < MIN={min_profit}, prob_up={prob_up:.2f} < MIN={min_prob}"
+            f"[dev] ⚠️ Пропущено {pair}: EP={expected_profit:.2f}, prob_up={prob_up:.2f}, ml={ml_proba:.2f}, RRR={rrr:.2f}"
         )
         return None
     elif trend_score < 0.3:
@@ -134,12 +149,15 @@ def _analyze_pair(
         "tp": tp,
         "sl": sl,
         "prob_up": prob_up,
+        "ml_proba": ml_proba,
         "expected_profit": expected_profit,
         "trend_score": trend_score,
         "volatility_24h": volatility_24h,
         "volume_usdt": volume_usdt,
         "score": score,
         "score_base": score_base,
+        "risk_reward_ratio": rrr,
+        "drawdown": dd,
     }
 
 
@@ -442,9 +460,7 @@ async def send_conversion_signals(
         return
 
     lines = []
-    summary = [
-        f"[dev] Куплено {len(signals)} токен{'и' if len(signals) != 1 else ''}:"
-    ]
+    summary = [f"[dev] Куплено {len(signals)} токен{'и' if len(signals) != 1 else ''}:"]
     for s in signals:
         precision = get_symbol_precision(f"{s['to_symbol']}USDT")
         precision = max(2, min(4, precision))
@@ -452,15 +468,16 @@ async def send_conversion_signals(
         to_amount = _human_amount(to_qty, precision)
         result = try_convert(s['from_symbol'], s['to_symbol'], s['from_amount'])
         token_line = (
-            f"✅ {s['to_symbol']} (score={s['score']:.2f}, profit={s['profit_pct']:.1f}%)"
+            f"✅ {s['to_symbol']} ml={s['ml_proba']:.2f} exp={s['expected_profit']:.2f} "
+            f"RRR={s['rrr']:.2f} score={s['score']:.2f}"
         )
         summary.append(token_line)
         if result and result.get("orderId"):
             lines.append(
                 f"✅ Конвертовано {s['from_symbol']} → {s['to_symbol']}"
-                f"\nFROM: {s['from_amount']:.4f} (~{s['from_usdt']:.2f}$)"
+                f"\nFROM: {s['from_amount']:.4f}"
                 f"\nTO: ≈{to_amount}"
-                f"\nОчікуваний прибуток: +{s['profit_pct']:.2f}% (~{s['profit_usdt']:.2f}$)"
+                f"\nML={s['ml_proba']:.2f}, exp={s['expected_profit']:.2f}, RRR={s['rrr']:.2f}, score={s['score']:.2f}"
             )
         else:
             reason = result.get("message", "невідома помилка") if result else "невідома помилка"
@@ -525,6 +542,37 @@ async def main(chat_id: int) -> None:
     ) = generate_conversion_signals(gpt_filters, gpt_forecast)
     gpt_notes.extend(sell_unprofitable_assets(portfolio, predictions, gpt_forecast))
     usdt_balance = get_binance_balances().get("USDT", 0.0)
+
+    if not signals:
+        fallback = None
+        for pair, data in sorted(
+            predictions.items(), key=lambda x: x[1].get("volume_usdt", 0), reverse=True
+        ):
+            if data.get("expected_profit", 0) > 0.01:
+                fallback = (pair, data)
+                break
+        if fallback and usdt_balance > 0:
+            pair, data = fallback
+            amount = usdt_balance
+            if data.get("drawdown", 0) > 0.3:
+                amount *= 0.5
+            signals.append(
+                {
+                    "from_symbol": "USDT",
+                    "to_symbol": pair.replace("USDT", ""),
+                    "from_amount": amount,
+                    "from_usdt": amount,
+                    "to_amount": amount / data["price"],
+                    "profit_pct": (data["expected_profit"] / 10) * 100,
+                    "profit_usdt": (data["expected_profit"] / 10) * amount,
+                    "tp": data["tp"],
+                    "sl": data["sl"],
+                    "score": data.get("score", 0.0),
+                    "ml_proba": data.get("ml_proba", 0.5),
+                    "expected_profit": data["expected_profit"],
+                    "rrr": data.get("risk_reward_ratio", 0),
+                }
+            )
     await send_conversion_signals(
         signals,
         chat_id=chat_id,
