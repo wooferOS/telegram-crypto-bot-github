@@ -785,46 +785,25 @@ def market_sell(symbol: str, quantity: float) -> dict:
 
 
 def sell_asset(symbol: str, quantity: float) -> dict:
-    """Sell ``symbol`` with fallback to Binance Convert on LOT_SIZE/INSUFFICIENT_FUNDS."""
+    """Sell ``symbol`` with fallback to ``_fallback_market_sell`` on failure."""
 
-    try:
-        # звичайна спроба продати
-        order = client.order_market_sell(symbol=symbol, quantity=round(quantity, 6))
-        executed_qty = order["executedQty"]
-        logger.info(
-            "\u2705 Продано %s %s. Ордер ID: %s",
-            executed_qty,
-            symbol,
-            order["orderId"],
-        )
-        return {
-            "status": "success",
-            "order_id": order["orderId"],
-            "symbol": symbol,
-            "executedQty": executed_qty,
-        }
-    except BinanceAPIException as e:
-        msg = str(e)
-        if "LOT_SIZE" in msg or "INSUFFICIENT_FUNDS" in msg:
-            logger.warning("[dev] ⚠️ Неможливо продати %s, спроба конвертувати", symbol)
-            try:
-                base_asset = symbol.replace("USDT", "")
-                result = convert_to_usdt(base_asset, quantity)
-                if result is not None:
-                    return {"status": "converted"}
-                logger.warning(
-                    "[dev] ❌ Пропущено %s: не вдалося ні продати, ні сконвертувати",
-                    symbol,
-                )
-                return None  # Continue loop without stopping
-            except Exception as conv_e:  # pragma: no cover - network errors
-                logger.warning(
-                    "[dev] ⛔ Не вдалося ні продати, ні сконвертувати %s", symbol
-                )
-                logger.error("\u26D4\ufe0f Помилка при конвертації %s: %s", symbol, conv_e)
-                return {"status": "error", "message": str(conv_e)}
-        logger.error("❌ Помилка при продажі %s: %s", symbol, e)
-        return {"status": "error", "message": msg}
+    order = place_market_order(symbol, "SELL", quantity)
+    if order:
+        return {"status": "market_order"}
+
+    price = get_symbol_price(_to_usdt_pair(symbol))
+    logger.warning(
+        f"[dev] ⚠️ Неможливо продати {symbol} — minNotional або minQty не виконано: кількість={quantity}, ціна={price}"
+    )
+
+    success = _fallback_market_sell(symbol, quantity)
+    if success:
+        return {"status": "fallback_sell"}
+
+    logger.error(
+        f"[dev] ❌ Fallback market_sell також не вдався: {symbol}, кількість={quantity}"
+    )
+    return {"status": "failed"}
 
 def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
     """Place a limit sell order on Binance."""
