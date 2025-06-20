@@ -5,6 +5,7 @@ import logging
 import math
 import statistics
 import numpy as np
+import datetime
 
 from log_setup import setup_logging
 import os
@@ -126,22 +127,24 @@ def _analyze_pair(
     dd = max_drawdown(ret)
 
     if (
-        expected_profit < min_profit
-        or prob_up < min_prob
-        or score <= 0
-        or prob_up <= 0.5
-        or ml_proba <= 0.65
-        or rrr <= 1.5
+        expected_profit < 0.01
+        or prob_up < 0.45
+        or rrr < 1.0
+        or ml_proba < 0.45
     ):
         logger.info(
             f"[dev] ⚠️ Пропущено {pair}: EP={expected_profit:.2f}, prob_up={prob_up:.2f}, ml={ml_proba:.2f}, RRR={rrr:.2f}"
         )
         return None
     elif trend_score < 0.3:
-        logger.info(f"[dev] ⚠️ Пропущено {pair}: Low trend")
+        logger.info(
+            f"[dev] ⚠️ Пропущено {pair}: Low trend EP={expected_profit:.2f}, prob_up={prob_up:.2f}, ml={ml_proba:.2f}, RRR={rrr:.2f}"
+        )
         return None
     elif volume_usdt < 10000:
-        logger.info(f"[dev] ⚠️ Пропущено {pair}: Low volume")
+        logger.info(
+            f"[dev] ⚠️ Пропущено {pair}: Low volume EP={expected_profit:.2f}, prob_up={prob_up:.2f}, ml={ml_proba:.2f}, RRR={rrr:.2f}"
+        )
         return None
     else:
         logger.info(
@@ -260,6 +263,22 @@ def generate_conversion_signals(
                 continue
             filtered.append((pair, data))
         top_tokens = filtered
+        filtered_tokens = filtered
+
+    if len(top_tokens) < 3 and all_buy_tokens:
+        # Force buy top-3 tokens by basic score even if filtered out
+        fallback = sorted(
+            all_buy_tokens,
+            key=lambda x: x[1].get("prob_up", 0) * x[1].get("expected_profit", 0),
+            reverse=True,
+        )[:3]
+        for pair, data in fallback:
+            if pair not in [p for p, _ in top_tokens]:
+                top_tokens.append((pair, data))
+                logger.warning(
+                    f"[dev] ⚠️ Куплено попри фільтр: {pair.replace('USDT','')} у топ‑3 BUY"
+                )
+        filtered_tokens = top_tokens
 
     if len(top_tokens) < 3:
         logger.info(
@@ -624,6 +643,22 @@ async def main(chat_id: int) -> dict:
     await buy_with_remaining_usdt(usdt_after, filtered_tokens, chat_id=chat_id)
 
     usdt_final = get_binance_balances().get("USDT", 0.0)
+
+    balances = get_binance_balances()
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lines = [f"[dev] 🕒 Звіт сформовано: {timestamp}", "", "💰 Баланс:"]
+    for sym, amt in balances.items():
+        lines.append(f"{sym}: {amt}")
+    lines.append("")
+    sell_line = ", ".join(to_sell) if to_sell else "(порожньо)"
+    buy_line = ", ".join(to_buy) if to_buy else "(порожньо)"
+    manual_line = "(немає)" if not TRADE_SUMMARY.get("bought") else ", ".join(TRADE_SUMMARY["bought"])
+    lines.append(f"📉 Що продаємо: {sell_line}")
+    lines.append(f"📈 Що купуємо: {buy_line}")
+    lines.append(f"🔁 Сконвертовано вручну: {manual_line}")
+    lines.append("")
+    lines.append("💹 Очікуваний прибуток: 0 USDT ≈ 0₴ за 24г")
+    await send_messages(int(chat_id), ["\n".join(lines)])
 
     return {
         "sold": TRADE_SUMMARY["sold"],
