@@ -353,6 +353,7 @@ def generate_conversion_signals(
                 "tp": best_data["tp"],
                 "sl": best_data["sl"],
                 "score": best_data.get("score", 0.0),
+                "rrr": best_data.get("risk_reward_ratio", 0.0),
                 "price": best_data["price"],
                 "expected_profit": best_data.get("expected_profit", 0.0),
                 "prob_up": best_data.get("prob_up", 0.0),
@@ -396,6 +397,7 @@ def generate_conversion_signals(
                     "tp": best_data["tp"],
                     "sl": best_data["sl"],
                     "score": best_data.get("score", 0.0),
+                    "rrr": best_data.get("risk_reward_ratio", 0.0),
                     "price": best_data["price"],
                     "expected_profit": best_data.get("expected_profit", 0.0),
                     "prob_up": best_data.get("prob_up", 0.0),
@@ -642,7 +644,7 @@ async def send_conversion_signals(
         result = try_convert(s["from_symbol"], s["to_symbol"], s["from_amount"])
         token_line = (
             f"✅ {s['to_symbol']} ml={s.get('ml_proba', 0.5):.2f} exp={s['expected_profit']:.2f} "
-            f"RRR={s['rrr']:.2f} score={s['score']:.2f}"
+            f"RRR={s.get('rrr', 0):.2f} score={s.get('score', 0):.2f}"
         )
         summary.append(token_line)
         if result and result.get("orderId"):
@@ -650,7 +652,7 @@ async def send_conversion_signals(
                 f"✅ Конвертовано {s['from_symbol']} → {s['to_symbol']}"
                 f"\nFROM: {s['from_amount']:.4f}"
                 f"\nTO: ≈{to_amount}"
-                f"\nML={s['ml_proba']:.2f}, exp={s['expected_profit']:.2f}, RRR={s['rrr']:.2f}, score={s['score']:.2f}"
+                f"\nML={s['ml_proba']:.2f}, exp={s['expected_profit']:.2f}, RRR={s.get('rrr', 0):.2f}, score={s.get('score', 0):.2f}"
             )
             sold.append(f"- {s['from_amount']}{s['from_symbol']} → {s['to_symbol']}")
             bought.append(
