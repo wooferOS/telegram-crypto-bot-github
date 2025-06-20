@@ -555,6 +555,16 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
             "min_prob_up": 0.45,
             "min_volatility": 1.0,
             "min_volume": 10_000_000,
+            "adaptive_min_expected_profit": adaptive_min_profit,
+            "adaptive_min_prob_up": adaptive_min_prob,
+        },
+        "token_scores": {
+            t["symbol"]: {
+                "expected_profit": t["expected_profit"],
+                "prob_up": t["prob_up"],
+                "score": t["score"],
+            }
+            for t in enriched_tokens
         },
     }
     gpt_result = ask_gpt(summary)
