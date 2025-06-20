@@ -241,8 +241,14 @@ def generate_conversion_signals(
         return [], [], [], [], [], "", gpt_forecast
 
     predictions: Dict[str, Dict[str, float]] = {}
-    for symbol in get_valid_usdt_symbols():
-        pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
+    market_pairs = [
+        s if s.endswith("USDT") else f"{s}USDT" for s in get_valid_usdt_symbols()
+    ]
+    # ⚠️ Тимчасове обмеження для дебагу
+    market_pairs = market_pairs[:50]
+
+    for pair in market_pairs:
+        logger.info(f"[dev] 🔍 Аналізуємо {pair}...")
         data = _analyze_pair(pair, model, min_profit, min_prob)
         if data:
             predictions[pair] = data
