@@ -11,8 +11,9 @@ def ask_gpt(prompt_dict: dict, model: str = "gpt-4o") -> dict:
     """Send ``prompt_dict`` to GPT and return the JSON response."""
 
     from openai import OpenAI
+    from config import OPENAI_API_KEY
 
-    client = OpenAI()
+    client = OpenAI(api_key=OPENAI_API_KEY)
 
     try:
         kwargs = {
