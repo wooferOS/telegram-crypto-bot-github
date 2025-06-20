@@ -3,8 +3,25 @@
 import json
 import logging
 
+from typing import Any
+
+from binance_api import notify_telegram
+
 
 logger = logging.getLogger(__name__)
+
+
+DEFAULT_RESULT = {"buy": [], "sell": [], "scores": {}, "summary": ""}
+
+
+def _ensure_structure(data: dict) -> dict:
+    """Return ``data`` with required keys populated."""
+
+    result = DEFAULT_RESULT.copy()
+    if not isinstance(data, dict):
+        return result
+    result.update({k: data.get(k, result[k]) for k in result})
+    return result
 
 
 def ask_gpt(prompt_dict: dict, model: str = "gpt-4o") -> dict:
@@ -15,30 +32,43 @@ def ask_gpt(prompt_dict: dict, model: str = "gpt-4o") -> dict:
 
     client = OpenAI(api_key=OPENAI_API_KEY)
 
+    kwargs = {
+        "model": model,
+        "messages": [{"role": "user", "content": json.dumps(prompt_dict)}],
+    }
+
+    if model in ("gpt-4o", "gpt-4-turbo"):
+        kwargs["response_format"] = "json"
+
     try:
-        kwargs = {
-            "model": model,
-            "messages": [
-                {"role": "user", "content": json.dumps(prompt_dict)}
-            ],
-        }
-
-        if model in ("gpt-4o", "gpt-4-turbo"):
-            kwargs["response_format"] = "json"
-
         response = client.chat.completions.create(**kwargs)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("[GPT] API request failed: %s", exc)
+        notify_telegram(f"[GPT] ❌ Error: {exc}")
+        return DEFAULT_RESULT.copy()
 
-        if hasattr(response, "error"):
-            logger.error(f"[dev] GPT API error: {response.error}")
-            return {}
+    if hasattr(response, "error") and response.error:
+        logger.error("[GPT] API error: %s", response.error)
+        notify_telegram(f"[GPT] ❌ Error: {response.error}")
+        return DEFAULT_RESULT.copy()
 
-        content = response.choices[0].message.content
+    content: Any = response.choices[0].message.content
 
-        if isinstance(content, dict):
-            return content
+    if isinstance(content, dict):
+        return _ensure_structure(content)
 
-        return json.loads(content)
+    try:
+        parsed = json.loads(content)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("[GPT] Parsing failed: %s", exc)
+        notify_telegram(f"[GPT] ❌ Error: {exc}")
+        error_data = DEFAULT_RESULT.copy()
+        error_data["summary"] = "GPT error: parsing failed"
+        try:
+            with open("gpt_forecast.txt", "w", encoding="utf-8") as f:
+                json.dump(error_data, f, indent=2, ensure_ascii=False)
+        except OSError as write_exc:  # pragma: no cover - diagnostics only
+            logger.warning("Could not write gpt_forecast.txt: %s", write_exc)
+        return error_data
 
-    except Exception as e:  # noqa: BLE001
-        logger.exception(f"[dev] GPT fallback error: {e}")
-        return {}
+    return _ensure_structure(parsed)
