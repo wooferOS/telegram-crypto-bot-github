@@ -30,11 +30,21 @@ from binance_api import (
     sell_asset,
     get_token_balance,
 )
-from ml_model import load_model, generate_features, predict_prob_up
+from ml_model import (
+    load_model,
+    generate_features,
+    predict_prob_up,
+    predict_trade_success,
+)
 from ml_utils import predict_proba
 from risk_utils import calculate_risk_reward, max_drawdown
 from utils import dynamic_tp_sl, calculate_expected_profit
-from binance_api import get_min_notional, get_lot_step, market_buy_symbol_by_amount
+from binance_api import (
+    get_min_notional,
+    get_lot_step,
+    market_buy_symbol_by_amount,
+    get_whale_alert,
+)
 from daily_analysis import split_telegram_message
 from history import add_trade
 import json
@@ -95,6 +105,8 @@ def _analyze_pair(
     closes = [float(k[4]) for k in klines]
     tp, sl = dynamic_tp_sl(closes, price)
 
+    whale_alert = get_whale_alert(pair)
+
     try:
         last4 = [float(k[4]) for k in klines[-4:]]
         vol = statistics.pstdev(last4) if len(last4) >= 2 else 0.0
@@ -142,6 +154,19 @@ def _analyze_pair(
     ret = [closes[i] / closes[i - 1] - 1 for i in range(1, len(closes))]
     dd = max_drawdown(ret)
 
+    token_data_ml = {
+        "expected_profit": expected_profit,
+        "prob_up": prob_up,
+        "score": final_score,
+        "whale_alert": whale_alert,
+        "volume": volume_usdt,
+        "rsi": float(features[0][3]) if 'features' in locals() else 0.0,
+        "trend": trend_score,
+        "previous_gain": ret[-1] if ret else 0.0,
+    }
+    ml_prob_history = predict_trade_success(token_data_ml)
+    final_score = ml_prob_history * expected_profit
+
     if expected_profit < 0.01 or prob_up < 0.45 or rrr < 1.0 or ml_proba < 0.45:
         logger.info(
             f"[dev] ⚠️ Пропущено {pair}: EP={expected_profit:.2f}, prob_up={prob_up:.2f}, ml={ml_proba:.2f}, RRR={rrr:.2f}"
@@ -168,6 +193,8 @@ def _analyze_pair(
         "sl": sl,
         "prob_up": prob_up,
         "ml_proba": ml_proba,
+        "ml_prob_history": ml_prob_history,
+        "whale_alert": whale_alert,
         "expected_profit": expected_profit,
         "trend_score": trend_score,
         "volatility_24h": volatility_24h,
