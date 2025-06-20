@@ -456,11 +456,12 @@ def sell_unprofitable_assets(
         reverse=True,
     )
     if not ranked:
-        return
+        return []
 
     top3_min = ranked[min(2, len(ranked) - 1)]
     usdt_before = get_binance_balances().get("USDT", 0.0)
     gpt_notes: List[str] = []
+
     if gpt_forecast:
         blocked = set(gpt_forecast.get("sell", []))
         tokens_to_consider = [a for a in portfolio if a not in blocked]
@@ -476,32 +477,36 @@ def sell_unprofitable_assets(
             continue
         if asset in {"USDT", "BUSD"} or amount <= 0:
             continue
+
         pair = asset if asset.endswith("USDT") else f"{asset}USDT"
         data = predictions.get(pair)
         if not data:
             continue
+
         prob = data.get("prob_up", 0.0)
         ep = data.get("expected_profit", 0.0)
         logger.info(
             f"[dev] 🔍 Оцінка продажу {asset}: prob_up={prob:.2f}, expected_profit={ep:.4f}, top3_min_profit={top3_min}"
         )
+
         if ep >= top3_min:
             continue
-        logger.info(f"[dev] 🧪 Пробуємо продати {asset}: amount={amount}")
+
         result = sell_asset(pair, amount)
         status = result.get("status")
-        if status in {"success", "converted"}:
-            logger.info(f"[dev] ✅ Продано {amount} {asset}")
-            TRADE_SUMMARY["sold"].append(f"- {amount:.4f} {asset} (EP: {ep:.2f})")
+
+        if status == "success":
             logger.info(f"[dev] ✅ Продано {amount} {asset} за ринком")
-            amount_left = get_token_balance(asset)
-            if amount_left < 10**-6:
-                logger.warning(f"[dev] Залишок {asset}: {amount_left} — замало для конвертації, буде втрачено.")
+        elif status == "converted":
+            logger.info(f"[dev] 🔄 Сконвертовано {amount} {asset}")
         else:
-            logger.warning(f"[dev] ⛔ Не вдалося ні продати, ні сконвертувати {asset}")
+            logger.warning(f"[dev] ⚠️ Не вдалося продати чи сконвертувати {asset}: {result.get('message')}")
+
+        continue  # Завжди продовжувати цикл
 
     usdt_after = get_binance_balances().get("USDT", 0.0)
     logger.info(f"[dev] 💰 Поточний баланс USDT: {usdt_after}")
+
     if abs(usdt_after - usdt_before) < 1e-8:
         logger.warning("[dev] ❗ Продаж не відбувся — баланс USDT залишився без змін")
 
