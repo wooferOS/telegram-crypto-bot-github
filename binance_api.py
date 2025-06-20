@@ -109,8 +109,8 @@ else:
 
 
 
-# Initialise Binance client lazily to avoid network calls during import
-client: Client | None = None
+# Initialise Binance client explicitly using credentials from ``config.py``
+client: Client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY, ping=not TEST_MODE)
 
 
 def _get_client() -> Client:
@@ -563,6 +563,9 @@ def convert_to_usdt(asset: str, amount: float):
 
 def get_account_balances() -> Dict[str, Dict[str, str]]:
     """Return mapping of tradable assets to their free and locked amounts."""
+
+    if not client:
+        raise ValueError("[BINANCE] ❌ Binance client not initialized")
 
     try:
         account = client.get_account()
