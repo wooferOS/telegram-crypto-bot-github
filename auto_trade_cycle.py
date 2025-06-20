@@ -23,6 +23,7 @@ from binance_api import (
     get_symbol_precision,
     try_convert,
     sell_asset,
+    get_token_balance,
 )
 from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit
@@ -109,7 +110,8 @@ def _analyze_pair(
 
     expected_profit = calculate_expected_profit(price, tp, amount=10, sl_price=sl)
 
-    score = prob_up * expected_profit
+    score_base = prob_up * expected_profit
+    score = expected_profit * trend_score
 
     if expected_profit < min_profit or prob_up < min_prob:
         logger.info(
@@ -137,6 +139,7 @@ def _analyze_pair(
         "volatility_24h": volatility_24h,
         "volume_usdt": volume_usdt,
         "score": score,
+        "score_base": score_base,
     }
 
 
@@ -186,12 +189,26 @@ def generate_conversion_signals(
     all_equal = len(ep_counts) == 1
 
     ranked = [
-        (p, {**d, "score": d["prob_up"] * d["expected_profit"]})
+        (
+            p,
+            {
+                **d,
+                "score": d["expected_profit"] * d.get("trend_score", 0),
+                "score_base": d.get("score_base", d["prob_up"] * d["expected_profit"]),
+            },
+        )
         for p, d in (unique_predictions or predictions).items()
         if d["prob_up"] > 0 and d["expected_profit"] > 0
     ]
+    base_scores = [r[1]["score_base"] for r in ranked]
+    if base_scores and max(base_scores) - min(base_scores) < 0.01:
+        gpt_notes: List[str] = [
+            "[dev] Використано альтернативне сортування BUY: expected_profit * trend"
+        ]
+    else:
+        gpt_notes = []
     ranked.sort(key=lambda x: x[1]["score"], reverse=True)
-    gpt_notes: List[str] = []
+    all_buy_tokens = ranked
     top_tokens = ranked[:3]
 
     if gpt_filters:
@@ -221,6 +238,11 @@ def generate_conversion_signals(
             filtered.append((pair, data))
         top_tokens = filtered
 
+    if len(top_tokens) < 3:
+        logger.info(
+            "[dev] ⚠️ Недостатньо BUY токенів з високим score, використовую найкращі з усього BUY списку."
+        )
+        top_tokens = all_buy_tokens[:3]
     if not top_tokens:
         return [], False, portfolio, predictions, balances.get("USDT", 0.0), all_equal, gpt_notes
 
@@ -262,6 +284,7 @@ def generate_conversion_signals(
                 "profit_usdt": profit_usdt,
                 "tp": best_data["tp"],
                 "sl": best_data["sl"],
+                "score": best_data.get("score", 0.0),
             }
         )
 
@@ -299,6 +322,7 @@ def generate_conversion_signals(
                     "profit_usdt": profit_usdt,
                     "tp": best_data["tp"],
                     "sl": best_data["sl"],
+                    "score": best_data.get("score", 0.0),
                 }
             )
 
@@ -363,6 +387,11 @@ def sell_unprofitable_assets(
         status = result.get("status")
         if status in {"success", "converted"}:
             logger.info(f"[dev] ✅ Продано {amount} {asset} за ринком")
+            amount_left = get_token_balance(asset)
+            if amount_left < 10 ** -6:
+                logger.warning(
+                    f"[dev] Залишок {asset}: {amount_left} — замало для конвертації, буде втрачено."
+                )
         else:
             logger.warning(f"[dev] ⛔ Не вдалося ні продати, ні сконвертувати {asset}")
 
@@ -383,21 +412,9 @@ def _compose_failure_message(
 ) -> str:
     """Return concise explanation why no trade was executed."""
 
-    lines: List[str] = ["Нічого не куплено. Причина:"]
-
-    if not any(p.get("expected_profit", 0) > 0 for p in predictions.values()):
-        lines.append("– Жоден токен не має expected_profit > 0")
-
-    lines.append("– Жоден не потрапив у top-3 BUY за score")
-    if identical_profits:
-        lines.append(
-            "– Усі очікувані прибутки однакові, неможливо обрати кращі токени"
-        )
-
-    if usdt_balance <= 0:
-        lines.append("– Немає USDT")
-
-    return "\n".join(lines)
+    return (
+        "[dev] Куплено найкращі доступні токени, навіть при слабкому ринку."
+    )
 
 
 async def send_conversion_signals(
@@ -425,12 +442,19 @@ async def send_conversion_signals(
         return
 
     lines = []
+    summary = [
+        f"[dev] Куплено {len(signals)} токен{'и' if len(signals) != 1 else ''}:"
+    ]
     for s in signals:
         precision = get_symbol_precision(f"{s['to_symbol']}USDT")
         precision = max(2, min(4, precision))
         to_qty = s['to_amount']
         to_amount = _human_amount(to_qty, precision)
         result = try_convert(s['from_symbol'], s['to_symbol'], s['from_amount'])
+        token_line = (
+            f"✅ {s['to_symbol']} (score={s['score']:.2f}, profit={s['profit_pct']:.1f}%)"
+        )
+        summary.append(token_line)
         if result and result.get("orderId"):
             lines.append(
                 f"✅ Конвертовано {s['from_symbol']} → {s['to_symbol']}"
@@ -452,6 +476,9 @@ async def send_conversion_signals(
                 )
     text = "\n\n".join(lines)
 
+    messages = list(split_telegram_message("\n".join(summary), 4000))
+    messages.extend(split_telegram_message(text, 4000))
+
     # Persist last conversion to suppress duplicates
     last_file = os.path.join("logs", "last_conversion_hash.txt")
     text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
@@ -465,7 +492,6 @@ async def send_conversion_signals(
     if text_hash == last_hash:
         return
 
-    messages = list(split_telegram_message(text, 4000))
     if low_profit:
         messages.append("\u26a0\ufe0f Очікуваний прибуток низький")
     if gpt_notes:
