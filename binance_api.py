@@ -110,7 +110,10 @@ else:
 
 
 # Initialise Binance client explicitly using credentials from ``config.py``
-client: Client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY, ping=not TEST_MODE)
+client: Client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+
+if not TEST_MODE:
+    client.ping()
 
 
 def _get_client() -> Client:
