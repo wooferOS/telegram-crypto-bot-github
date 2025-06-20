@@ -31,6 +31,7 @@ from binance_api import (
     get_token_balance,
     place_take_profit_order,
     place_stop_loss_order,
+    VALID_PAIRS,
 )
 from ml_model import (
     load_model,
@@ -780,6 +781,26 @@ async def main(chat_id: int) -> dict:
     }
 
     usdt_before = get_binance_balances().get("USDT", 0.0)
+
+    balances = get_binance_balances()
+    for symbol, amount in balances.items():
+        if symbol == "USDT":
+            continue
+        usdt_pair = f"{symbol.upper()}USDT"
+        if usdt_pair not in VALID_PAIRS:
+            logger.info(f"[dev] ⏭ {symbol} не торгується на Binance — пропускаємо")
+            continue
+
+        logger.info(f"[dev] 🔻 Спроба продати {amount:.6f} {symbol}")
+        result = sell_asset(usdt_pair, amount)
+
+        if result.get("status") == "success":
+            logger.info(f"[dev] ✅ Продано {amount:.6f} {symbol}")
+        elif result.get("status") == "converted":
+            logger.info(f"[dev] 🔁 Конвертовано {symbol} у USDT")
+        else:
+            logger.warning(f"[dev] ⚠️ Не вдалося продати або конвертувати {symbol}, пропускаємо")
+            continue
 
     (
         conversion_signals,

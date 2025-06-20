@@ -734,6 +734,7 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
     """Ринкова купівля ``symbol`` на вказану суму в USDT."""
 
     try:
+        logger.info(f"[dev] 🔼 Спроба купити {symbol} на {usdt_amount} USDT")
         price_data = client.get_symbol_ticker(symbol=symbol)
         current_price = float(price_data["price"])
 
