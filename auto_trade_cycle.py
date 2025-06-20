@@ -356,6 +356,7 @@ def generate_conversion_signals(
                 "price": best_data["price"],
                 "expected_profit": best_data.get("expected_profit", 0.0),
                 "prob_up": best_data.get("prob_up", 0.0),
+                "ml_proba": float(best_data.get("ml_proba", 0.5)),
                 "from_price": from_price,
                 "from_expected_profit": current.get("expected_profit", 0.0),
                 "from_prob_up": current.get("prob_up", 0.0),
@@ -398,6 +399,7 @@ def generate_conversion_signals(
                     "price": best_data["price"],
                     "expected_profit": best_data.get("expected_profit", 0.0),
                     "prob_up": best_data.get("prob_up", 0.0),
+                    "ml_proba": float(best_data.get("ml_proba", 0.5)),
                     "from_price": from_price,
                     "from_expected_profit": current.get("expected_profit", 0.0),
                     "from_prob_up": current.get("prob_up", 0.0),
@@ -639,7 +641,7 @@ async def send_conversion_signals(
         to_amount = _human_amount(to_qty, precision)
         result = try_convert(s["from_symbol"], s["to_symbol"], s["from_amount"])
         token_line = (
-            f"✅ {s['to_symbol']} ml={s['ml_proba']:.2f} exp={s['expected_profit']:.2f} "
+            f"✅ {s['to_symbol']} ml={s.get('ml_proba', 0.5):.2f} exp={s['expected_profit']:.2f} "
             f"RRR={s['rrr']:.2f} score={s['score']:.2f}"
         )
         summary.append(token_line)
