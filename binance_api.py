@@ -333,11 +333,25 @@ def get_binance_balances() -> Dict[str, float]:
             logging.info("✅ Binance API доступний")
 
             account = temp_client.get_account()
-            balances = {
+            raw_balances = {
                 asset["asset"]: float(asset["free"])
                 for asset in account["balances"]
                 if float(asset["free"]) > 0
             }
+
+            if not VALID_PAIRS:
+                refresh_valid_pairs()
+
+            balances: Dict[str, float] = {}
+            for asset, amount in raw_balances.items():
+                if asset in {"USDT", "BUSD"}:
+                    balances[asset] = amount
+                    continue
+
+                pair = _to_usdt_pair(asset)
+                if pair in VALID_PAIRS:
+                    balances[asset] = amount
+
             return balances
 
         except BinanceAPIException as e:
