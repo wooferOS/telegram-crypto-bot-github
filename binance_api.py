@@ -514,6 +514,9 @@ def try_convert(symbol_from: str, symbol_to: str, amount: float) -> Optional[dic
         return result
     except Exception as exc:  # pragma: no cover - network errors
         logger.error("❌ Помилка при конвертації %s: %s", symbol_from, exc)
+        msg = str(exc)
+        if "Signature for this request" in msg or "-1022" in msg:
+            return {"status": "error", "message": "invalid_signature"}
         if symbol_to == "USDT":
             try:
                 if _fallback_market_sell(symbol_from, amount):
@@ -546,6 +549,12 @@ def convert_to_usdt(asset: str, amount: float):
                 raise Exception(f"Convert API повернув помилку: {result}")
             logger.info("✅ Конвертовано %s %s у USDT", amount, asset)
             return result
+    except BinanceAPIException as exc:  # pragma: no cover - handle below
+        msg = str(exc)
+        if "Signature for this request" in msg or "-1022" in msg:
+            logger.warning("[dev] ⛔ convert_trade недоступний: %s", exc)
+            return {"status": "error", "message": "invalid_signature"}
+        logger.warning("convert_trade fallback: %s", exc)
     except Exception as exc:  # pragma: no cover - handle below
         logger.warning("convert_trade fallback: %s", exc)
 
