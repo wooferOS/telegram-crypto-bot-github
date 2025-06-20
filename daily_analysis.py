@@ -459,45 +459,63 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
 
     # 📝 Final report
     report_lines = []
-    report_lines.append(f"🕒 Звіт сформовано: {now.strftime('%Y-%m-%d %H:%M:%S')}\n")
-    report_lines.append("💰 Баланс:")
-    for t in token_data:
-        report_lines.append(f"{t['symbol']}: {t['amount']} ≈ ~{t['uah_value']}₴")
-    total_uah = round(
-        sum([t["uah_value"] for t in token_data]) + convert_to_uah(usdt_balance), 2
-    )
-    report_lines.append(f"Загальний баланс: {total_uah}₴\n⸻")
+    timestamp = now.strftime("%Y-%m-%d %H:%M:%S")
+    report_lines.append(f"🕒 Звіт сформовано: {timestamp}  ")
+    report_lines.append("💰 Баланс:  ")
 
-    balance_parts = [
-        f"{t['symbol']}: {t['amount']} ≈ ~{t['uah_value']}₴" for t in token_data
-    ]
+    balance_parts = []
+    for t in token_data:
+        balance_parts.append(
+            f"{t['symbol']}: {t['amount']:.4f} ≈ ~{t['uah_value']:.2f}₴"
+        )
     balance_parts.append(
-        f"USDT: {usdt_balance} ≈ ~{convert_to_uah(usdt_balance)}₴"
+        f"USDT: {usdt_balance:.4f} ≈ ~{convert_to_uah(usdt_balance):.2f}₴"
     )
+    report_lines.extend(balance_parts)
+    total_uah = round(
+        sum([t["uah_value"] for t in token_data]) + convert_to_uah(usdt_balance),
+        2,
+    )
+    report_lines.append(f"Загальний баланс: {total_uah:.2f}₴  \n")
+    report_lines.append("⸻  ")
+
     balance_str = ", ".join(balance_parts)
 
-    report_lines.append("📉 Що продаємо:")
-    if sell_recommendations:
-        for t in sell_recommendations:
-            report_lines.append(
-                f"{t['symbol']}: {t['amount']} ≈ ~{t['uah_value']}₴ (PnL = {t['pnl']}%)"
-            )
-    else:
-        report_lines.append("(порожньо)")
-    report_lines.append("\n⸻")
+    report_lines.append("📉 Що продаємо:  ")
+    sell_lines = []
+    for t in sell_recommendations:
+        received = t["amount"] * t["price"]
+        reason = f"прибуток {t['pnl']:.2f}%"
+        sell_lines.append(
+            f"{t['symbol']} {t['amount']:.4f} ({reason}) → {received:.2f} USDT"
+        )
+    if not sell_lines:
+        sell_lines.append("(порожньо)")
+    report_lines.extend(sell_lines)
+    report_lines.append("\n⸻  ")
 
-    if candidate_lines:
-        report_lines.append("📈 Що купуємо:")
-        report_lines.extend(candidate_lines)
-    else:
-        report_lines.append("📈 Що купуємо: (порожньо)")
-    report_lines.append("\n⸻")
+    report_lines.append("♻️ Що сконвертовано:  ")
+    convert_lines: list[str] = []
+    if not convert_lines:
+        convert_lines.append("(порожньо)")
+    report_lines.extend(convert_lines)
+    report_lines.append("\n⸻  ")
+
+    report_lines.append("📈 Що купуємо:  ")
+    buy_lines = []
+    for t in buy_plan:
+        reason = f"exp={t['expected_profit']:.2f}, prob={t['prob_up']:.2f}"
+        buy_lines.append(f"{t['symbol']} ({reason})")
+    if not buy_lines:
+        buy_lines.append("(порожньо)")
+    report_lines.extend(buy_lines)
+    report_lines.append("\n⸻  ")
 
     total_expected_profit = sum(t.get("expected_profit", 0) for t in buy_plan)
     expected_profit_usdt = round(total_expected_profit, 2)
     expected_profit_uah = convert_to_uah(expected_profit_usdt)
     report_lines.append(
-        f"💹 Очікуваний прибуток: {expected_profit_usdt} USDT ≈ {expected_profit_uah}₴ за 24г"
+        f"💹 Очікуваний прибуток: {expected_profit_usdt:.2f} USDT ≈ {expected_profit_uah:.2f}₴ за 24г"
     )
 
     scoreboard = [
