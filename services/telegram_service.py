@@ -5,6 +5,7 @@ import json
 import time
 import hashlib
 from aiogram import Bot
+import aiohttp
 
 DEV_TAG = "[dev]"
 
@@ -44,32 +45,20 @@ if os.path.exists(LAST_MESSAGE_FILE):
         logger.warning("Could not read %s: %s", LAST_MESSAGE_FILE, exc)
 
 
-async def send_messages(chat_id: int, messages: Iterable[str], *, min_interval: int = 1800) -> None:
-    """Send multiple messages to Telegram sequentially, skipping duplicates."""
-    assert TELEGRAM_TOKEN, "TELEGRAM_TOKEN не може бути порожнім"
-    bot = DevBot(token=TELEGRAM_TOKEN)
-    global _last_data
-    texts = [m.strip() for m in messages if m.strip()]
-    if not texts:
+async def send_messages(chat_id: int, messages: list[str]):
+    token = TELEGRAM_TOKEN
+    if not token or not chat_id:
         return
-    try:
-        for text in texts:
-            msg_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
-            now = time.time()
-            if msg_hash == _last_data.get("hash"):
-                logger.info("[dev] Duplicate message skipped")
-                continue
-            if now - float(_last_data.get("time", 0)) < min_interval:
-                logger.info("[dev] Message suppressed due to min_interval")
-                continue
-            await bot.send_message(chat_id, text)
-            _last_data = {"hash": msg_hash, "time": now}
+
+    async with aiohttp.ClientSession() as session:
+        for msg in messages:
             try:
-                os.makedirs(os.path.dirname(LAST_MESSAGE_FILE), exist_ok=True)
-                with open(LAST_MESSAGE_FILE, "w", encoding="utf-8") as f:
-                    json.dump(_last_data, f)
-            except OSError as exc:  # pragma: no cover - diagnostics only
-                logger.warning("Could not write %s: %s", LAST_MESSAGE_FILE, exc)
-    finally:
-        session = await bot.get_session()
-        await session.close()
+                await session.post(
+                    f"https://api.telegram.org/bot{token}/sendMessage",
+                    json={"chat_id": chat_id, "text": msg},
+                    timeout=aiohttp.ClientTimeout(total=10),
+                )
+            except Exception as exc:
+                logger.warning(
+                    "❌ Не вдалося надіслати повідомлення Telegram: %s", exc
+                )
