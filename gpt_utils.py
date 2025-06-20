@@ -4,10 +4,16 @@ import openai
 from config import OPENAI_API_KEY
 
 client = openai.OpenAI(api_key=OPENAI_API_KEY)
+logger = logging.getLogger(__name__)
+
 
 
 def ask_gpt(summary):
     try:
+        logger.info(
+            f"[dev] ➡️ GPT input:\n{json.dumps(summary, indent=2, ensure_ascii=False)}"
+        )
+
         balance_field = summary.get("balance", "")
         if isinstance(balance_field, dict):
             balance = ", ".join(
@@ -43,16 +49,19 @@ def ask_gpt(summary):
                 },
                 {"role": "user", "content": content},
             ],
-            temperature=0.7,
-            timeout=60
+            temperature=0.2,
+            response_format={"type": "json_object"},
+            timeout=60,
         )
         content = response.choices[0].message.content
         try:
             return json.loads(content)
         except Exception:
-            logging.warning("[dev] GPT response is not JSON, skipping")
-            return None
+            logger.warning(
+                f"[dev] ❌ GPT forecast is not JSON. Raw content:\n{content}"
+            )
+            return {"buy": [], "sell": [], "scores": {}}
 
     except Exception as e:
-        logging.warning(f"[dev] GPT error: {e}")
-        return None
+        logger.warning(f"[dev] GPT error: {e}")
+        return {"buy": [], "sell": [], "scores": {}}
