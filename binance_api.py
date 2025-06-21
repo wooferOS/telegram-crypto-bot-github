@@ -14,6 +14,7 @@ import hashlib
 import logging
 import decimal
 import json
+import math
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -500,6 +501,23 @@ def market_sell(symbol: str, quantity: float) -> dict:
         logger.error(f"\u274c Помилка при ринковому продажі {symbol}: {str(e)}")
         return {"status": "error", "message": str(e)}
 
+
+def sell_asset(symbol: str, amount: float) -> dict:
+    """Sell ``symbol`` with proper ``LOT_SIZE`` rounding."""
+
+    step = get_lot_step(symbol)
+    if step:
+        adjusted_amount = math.floor(amount / step) * step
+        adjusted_amount = round(adjusted_amount, int(abs(math.log10(step))))
+    else:
+        adjusted_amount = amount
+
+    logger.info(
+        f"[dev] ⚙️ Округлена кількість {symbol}: {adjusted_amount} (step={step})"
+    )
+    result = market_sell(symbol, adjusted_amount)
+    return result
+
 def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
     """Place a limit sell order on Binance."""
 
@@ -847,6 +865,26 @@ def get_symbol_precision(symbol: str) -> int:
             exc,
         )
     return 2
+
+
+def get_lot_step(symbol: str) -> float:
+    """Return ``LOT_SIZE`` step for trading ``symbol``."""
+
+    try:
+        data = get_exchange_info_cached()
+        for s in data.get("symbols", []):
+            if s["symbol"] == symbol:
+                for f in s.get("filters", []):
+                    if f.get("filterType") == "LOT_SIZE":
+                        return float(f.get("stepSize"))
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.warning(
+            "%s Помилка при отриманні LOT_SIZE для %s: %s",
+            TELEGRAM_LOG_PREFIX,
+            symbol,
+            exc,
+        )
+    return 0.0
 
 
 def get_full_asset_info() -> Dict[str, object]:
