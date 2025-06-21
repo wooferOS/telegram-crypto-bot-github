@@ -109,3 +109,10 @@ def get_gpt_forecast() -> dict:
         do_not_buy = []
 
     return {"recommend_buy": rec_buy, "do_not_buy": do_not_buy}
+
+
+def save_predictions(predictions: dict) -> None:
+    """Save ``predictions`` to ``logs/predictions.json``."""
+
+    with open("logs/predictions.json", "w") as f:
+        json.dump(predictions, f, indent=2)
