@@ -21,3 +21,4 @@ systemd/*.env
 /etc/systemd/system/auto-trade.*
 docs/systemd/auto-trade.*
 *.pyc
+config.py
