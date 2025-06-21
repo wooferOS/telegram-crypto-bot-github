@@ -868,15 +868,14 @@ async def main(chat_id: int) -> dict:
             continue
 
     (
-        conversion_signals,
-        to_buy,
-        to_sell,
-        filtered_tokens,
-        summary,
-        report_text,
+        top_tokens,
+        from_tokens,
+        actions,
+        explanations,
+        conversion_table,
         gpt_forecast,
         predictions,
-    ) = generate_conversion_signals(gpt_filters, gpt_forecast)
+    ) = generate_conversion_signals(filters, gpt_forecast)
 
     try:
         logger.info("[dev] Звіт:\n%s", report_text)
