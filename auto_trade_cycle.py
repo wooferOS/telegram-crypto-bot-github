@@ -707,6 +707,12 @@ async def buy_with_remaining_usdt(
         min_notional = get_min_notional(pair)
         notional = qty * price
         if notional < min_notional:
+            logger.warning(
+                "[dev] ⛔ Пропущено %s — занадто малий обсяг (%.2f < %.2f)",
+                symbol,
+                notional,
+                min_notional,
+            )
             continue
 
         logger.info(
@@ -719,11 +725,18 @@ async def buy_with_remaining_usdt(
         )
         logger.info("[dev] ⚠️ Купівля на залишок: %s — qty=%.6f price=%.6f", symbol, qty, price)
         result = market_buy_symbol_by_amount(symbol, usdt_balance)
+
         if result and result.get("status") == "success":
-            TRADE_SUMMARY["bought"].append(f"Залишок → {symbol} на {usdt_balance:.2f}")
+            TRADE_SUMMARY["bought"].append(
+                f"Залишок → {symbol} на {usdt_balance:.2f}"
+            )
             return symbol
         else:
-            logger.warning("[dev] ❗ Купівля на залишок %s не вдалася: %s", symbol, result)
+            logger.warning(
+                "[dev] ❗ Купівля на залишок %s не вдалася: %s",
+                symbol,
+                result,
+            )
             continue
 
     return None
