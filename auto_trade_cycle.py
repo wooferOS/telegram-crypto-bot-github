@@ -55,6 +55,7 @@ from binance_api import (
 from daily_analysis import split_telegram_message
 from history import add_trade
 import json
+from binance.helpers import round_step_size
 
 # These thresholds are more lenient for manual conversion suggestions
 # Generate signals even for modest opportunities
@@ -598,14 +599,11 @@ async def send_conversion_signals(
     predictions: Optional[Dict[str, Dict[str, float]]] = None,
     usdt_balance: float = 0.0,
     identical_profits: bool = False,
-    gpt_notes: Optional[List[str]] = None
+    gpt_notes: Optional[List[str]] = None,
 ) -> tuple[list[str], list[str]]:
     if not signals:
         logger.info("No conversion signals generated")
-        message = _compose_failure_message(
-            portfolio or {}, predictions or {}, usdt_balance,
-            identical_profits=identical_profits
-        )
+        message = _compose_failure_message(portfolio or {}, predictions or {}, usdt_balance, identical_profits=identical_profits)
         await send_messages(int(chat_id), [message])
         return [], []
 
@@ -622,10 +620,7 @@ async def send_conversion_signals(
         result = try_convert(s["from_symbol"], s["to_symbol"], s["from_amount"])
         if result and result.get("orderId"):
             lines.append(
-                f"✅ Конвертовано {s['from_symbol']} → {s['to_symbol']}\n"
-                f"FROM: {s['from_amount']:.4f}\nTO: ≈{to_amount}\n"
-                f"ML={s['ml_proba']:.2f}, exp={s['expected_profit']:.2f}, "
-                f"RRR={s.get('rrr', 0):.2f}, score={s.get('score', 0):.2f}"
+                f"✅ Конвертовано {s['from_symbol']} → {s['to_symbol']}\nFROM: {s['from_amount']:.4f}\nTO: ≈{to_amount}\nML={s['ml_proba']:.2f}, exp={s['expected_profit']:.2f}, RRR={s.get('rrr', 0):.2f}, score={s.get('score', 0):.2f}"
             )
             sold.append(f"- {s['from_amount']}{s['from_symbol']} → {s['to_symbol']}")
             bought.append(f"- {to_amount} {s['to_symbol']} (score: {s['score']:.2f}, expected_profit: {s['expected_profit']:.2f})")
@@ -636,23 +631,20 @@ async def send_conversion_signals(
     text = "\n\n".join(lines)
     messages = list(split_telegram_message("\n".join(summary), 4000))
     messages.extend(split_telegram_message(text, 4000))
-
-    # Persist last conversion to suppress duplicates
     last_file = os.path.join("logs", "last_conversion_hash.txt")
     text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
     last_hash = None
     if os.path.exists(last_file):
-        try:
-            with open(last_file, "r", encoding="utf-8") as f:
-                last_hash = f.read().strip() or None
-        except OSError:
-            last_hash = None
+        with open(last_file, "r", encoding="utf-8") as f:
+            last_hash = f.read().strip() or None
 
-    if low_profit:
-        messages.append("⚠️ Очікуваний прибуток низький")
-    if gpt_notes:
-        messages.extend(gpt_notes)
-    await send_messages(int(chat_id), messages)
+    if text_hash == last_hash:
+        if low_profit:
+            messages.append("⚠️ Очікуваний прибуток низький")
+        if gpt_notes:
+            messages.extend(gpt_notes)
+        await send_messages(int(chat_id), messages)
+        return sold, bought
 
     try:
         os.makedirs(os.path.dirname(last_file), exist_ok=True)
@@ -663,32 +655,47 @@ async def send_conversion_signals(
 
     TRADE_SUMMARY["sold"].extend(sold)
     TRADE_SUMMARY["bought"].extend(bought)
+    await send_messages(int(chat_id), messages)
     return sold, bought
 
 
 async def buy_with_remaining_usdt(
     usdt_balance: float,
-    top_tokens: list[tuple[str, dict]],
+    top_tokens: List[tuple[str, Dict[str, float]]],
     *,
     chat_id: int,
-) -> None:
-    """Use remaining USDT to buy the best token from ``top_tokens``."""
+) -> Optional[str]:
+    """Buy the best available token with the remaining USDT balance."""
 
-    if usdt_balance <= 0 or not top_tokens:
-        logger.info("[dev] Немає USDT для купівлі або немає токенів")
-        return
+    if usdt_balance <= 0:
+        return None
+    if not top_tokens:
+        top_tokens = []
 
-    pair, data = top_tokens[0]
-    logger.info(
-        f"[dev] 🛒 Купівля {pair} на залишок {usdt_balance:.2f} USDT"
-    )
-    result = market_buy(pair, usdt_balance)
-    if result.get("status") == "success":
-        msg = f"✅ Куплено {pair} на {usdt_balance:.2f} USDT"
-    else:
-        reason = result.get("message", "невідома помилка")
-        msg = f"❌ Не вдалося купити {pair}: {reason}"
-    await send_messages(int(chat_id), [msg])
+    tried_tokens = [p for p, _ in top_tokens]
+
+    for pair, data in top_tokens:
+        symbol = pair.replace("USDT", "")
+        price = get_symbol_price(pair)
+        if price <= 0:
+            continue
+        step = get_lot_step(pair)
+        qty = usdt_balance / price
+        qty = round_step_size(qty, step)
+        min_notional = get_min_notional(pair)
+        notional = qty * price
+        if notional < min_notional:
+            continue
+
+        logger.info("[dev] ⚠️ Купівля на залишок: %s — qty=%.6f price=%.6f", symbol, qty, price)
+        result = market_buy_symbol_by_amount(symbol, usdt_balance)
+        if result and result.get("status") == "success":
+            TRADE_SUMMARY["bought"].append(f"Залишок → {symbol} на {usdt_balance:.2f}")
+            return symbol
+        else:
+            logger.warning("[dev] ❗ Купівля на залишок %s не вдалася: %s", symbol, result)
+
+    return None
 
 
 async def main(chat_id: int) -> dict:
