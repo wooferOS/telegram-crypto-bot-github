@@ -779,6 +779,14 @@ async def main(chat_id: int) -> dict:
     # 2. Sell portfolio assets then buy with the updated USDT balance
     if usdt_balance > 0 and portfolio_tokens:
         sell_unprofitable_assets(balances, predictions, gpt_forecast)
+        # 🟢 Купити після продажу (оновлений баланс)
+        updated_balances = get_binance_balances()
+        await buy_with_remaining_usdt(
+            updated_balances.get("USDT", 0.0),
+            top_tokens,
+            chat_id=chat_id,
+            gpt_forecast=gpt_forecast,
+        )
         if "update_binance_cache" in globals():
             try:
                 update_binance_cache()  # type: ignore[func-returns-value]
