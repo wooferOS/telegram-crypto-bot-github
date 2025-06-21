@@ -679,6 +679,7 @@ async def buy_with_remaining_usdt(
     if usdt_balance <= 0:
         return None
     logger.info("[dev] 🧪 Купівля на залишок: top_tokens = %s", top_tokens)
+    tried_tokens = [p for p, _ in top_tokens]
     if not top_tokens:
         logger.warning("[dev] ⚠️ Купівля: top_tokens порожній — fallback на top-1.")
         try:
@@ -689,14 +690,9 @@ async def buy_with_remaining_usdt(
         if not fallback:
             logger.warning("[dev] ❌ Після фільтрації жодного токена — не буде купівлі")
             return None
-        top_tokens = fallback
+        top_tokens = [t for t in fallback if t[0] not in tried_tokens]
 
-    tried_tokens = [p for p, _ in top_tokens]
-
-    for i, (pair, data) in enumerate(top_tokens):
-        if i >= 3:
-            logger.warning("[dev] ⚠️ Зупинено купівлю: досягнуто 3 невдалих спроб")
-            break
+    for pair, data in top_tokens:
         symbol = pair.replace("USDT", "")
         price = get_symbol_price(pair)
         if price <= 0:
@@ -739,6 +735,7 @@ async def buy_with_remaining_usdt(
             )
             continue
 
+    logger.warning("[dev] ❌ Не вдалося купити жоден токен — завершення циклу")
     return None
 
 
