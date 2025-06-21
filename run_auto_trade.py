@@ -111,15 +111,16 @@ if __name__ == "__main__":
     # Sell assets with low expected profit before running the main cycle
     gpt_forecast = load_gpt_filters()
     gpt_filters = {"do_not_sell": gpt_forecast.get("sell", [])}
-(
-    _,
-    _,
-    _,
-    _,
-    _,
-    gpt_forecast,
-    predictions,
-) = generate_conversion_signals(gpt_filters, gpt_forecast)
+    (
+        _,
+        _,
+        _,
+        _,
+        _,
+        gpt_forecast,
+        predictions,
+    ) = generate_conversion_signals(gpt_filters, gpt_forecast)
+
 
     portfolio = {
         asset: amt
