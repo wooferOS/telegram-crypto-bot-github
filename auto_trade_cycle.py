@@ -565,135 +565,6 @@ def _compose_failure_message(
 
     return f"[dev] Без угод: {'; '.join(reasons)}."
 
-
-async def buy_with_remaining_usdt(
-    usdt_balance: float,
-    top_tokens: List[tuple[str, Dict[str, float]]],
-    *,
-    chat_id: int,
-) -> Optional[str]:
-    """Buy the best available token with the remaining USDT balance."""
-
-    if usdt_balance <= 0:
-        return None
-    if not top_tokens:
-        top_tokens = []
-
-    tried_tokens = [p for p, _ in top_tokens]
-
-    for pair, data in top_tokens:
-        symbol = pair.replace("USDT", "")
-        price = get_symbol_price(pair)
-        if price <= 0:
-            continue
-        qty = usdt_balance / price
-        step = get_lot_step(pair)
-        if qty < step:
-            logger.info("[dev] ⚠️ %s кількість %.6f нижче min_qty %.6f", symbol, qty, step)
-            continue
-        result = market_buy_symbol_by_amount(symbol, usdt_balance)
-        if result and result.get("status") != "error":
-            TRADE_SUMMARY["bought"].append(
-                f"- {qty:.4f} {symbol} (score: {data.get('score', 0):.2f}, expected_profit: {data.get('expected_profit', 0):.2f})"
-            )
-            add_trade(
-                symbol,
-                "BUY",
-                qty,
-                price,
-                source="fallback" if pair not in tried_tokens else "gpt",
-                expected_profit=data.get("expected_profit"),
-                prob_up=data.get("prob_up"),
-            )
-            tp = data.get("tp")
-            sl = data.get("sl")
-            place_take_profit_order(f"{symbol}USDT", qty, take_profit_price=tp)
-            place_stop_loss_order(f"{symbol}USDT", qty, stop_price=sl)
-            return symbol
-
-    model = load_model()
-    predictions: list[tuple[str, Dict[str, float]]] = []
-    for symbol in get_valid_usdt_symbols():
-        pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
-        if pair in tried_tokens:
-            continue
-        data = _analyze_pair(pair, model, 0.0, 0.0)
-        if data:
-            predictions.append((pair, data))
-
-    predictions.sort(key=lambda x: x[1]["score"], reverse=True)
-    fallback = predictions[:5]
-    if not fallback and predictions:
-        fallback = [max(predictions, key=lambda x: x[1]["score"])]
-    if not fallback:
-        # Force at least one token for fallback purchase even with weak score
-        for symbol in get_valid_usdt_symbols():
-            pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
-            data = _analyze_pair(pair, model, 0.0, 0.0)
-            if not data:
-                data = {
-                    "price": get_symbol_price(pair),
-                    "tp": 0.0,
-                    "sl": 0.0,
-                    "prob_up": 0.0,
-                    "ml_proba": 0.0,
-                    "ml_prob_history": 0.0,
-                    "whale_alert": 0.0,
-                    "expected_profit": 0.0,
-                    "trend_score": 0.0,
-                    "volatility_24h": 0.0,
-                    "trend_weight": 0.0,
-                    "volatility_weight": 0.0,
-                    "volume_usdt": 0.0,
-                    "score": 0.0,
-                    "score_base": 0.0,
-                    "risk_reward_ratio": 0.0,
-                    "drawdown": 0.0,
-                }
-            fallback = [(pair, data)]
-            break
-
-    if fallback:
-        symbols = ", ".join(p[0].replace("USDT", "") for p in fallback)
-        await send_messages(int(chat_id), [f"⚠️ Top-3 BUY токени недоступні — fallback до {symbols}"])
-        for pair, data in fallback:
-            symbol = pair.replace("USDT", "")
-            price = get_symbol_price(pair)
-            if price <= 0:
-                continue
-            qty = usdt_balance / price
-            step = get_lot_step(pair)
-            if qty < step:
-                continue
-            result = market_buy_symbol_by_amount(symbol, usdt_balance)
-            if result and result.get("status") != "error":
-                TRADE_SUMMARY["bought"].append(
-                    f"- {qty:.4f} {symbol} (score: {data.get('score', 0):.2f}, expected_profit: {data.get('expected_profit', 0):.2f})"
-                )
-                add_trade(
-                    symbol,
-                    "BUY",
-                    qty,
-                    price,
-                    source="fallback",
-                    expected_profit=data.get("expected_profit"),
-                    prob_up=data.get("prob_up"),
-                )
-                tp = data.get("tp")
-                sl = data.get("sl")
-                place_take_profit_order(f"{symbol}USDT", qty, take_profit_price=tp)
-                place_stop_loss_order(f"{symbol}USDT", qty, stop_price=sl)
-                return symbol
-
-    await send_messages(
-        int(chat_id),
-        [
-            f"❗ Нічого не куплено. Причина: баланс USDT={usdt_balance} або всі токени не відповідають min_qty."
-        ],
-    )
-    return None
-
-
 async def send_conversion_signals(
     signals: List[Dict[str, float]],
     *,
@@ -703,17 +574,13 @@ async def send_conversion_signals(
     predictions: Optional[Dict[str, Dict[str, float]]] = None,
     usdt_balance: float = 0.0,
     identical_profits: bool = False,
-    gpt_notes: Optional[List[str]] = None,
+    gpt_notes: Optional[List[str]] = None
 ) -> tuple[list[str], list[str]]:
-    """Convert assets automatically and report the result."""
-
     if not signals:
         logger.info("No conversion signals generated")
         message = _compose_failure_message(
-            portfolio or {},
-            predictions or {},
-            usdt_balance,
-            identical_profits=identical_profits,
+            portfolio or {}, predictions or {}, usdt_balance,
+            identical_profits=identical_profits
         )
         await send_messages(int(chat_id), [message])
         return [], []
@@ -722,109 +589,44 @@ async def send_conversion_signals(
     summary = [f"[dev] Куплено {len(signals)} токен{'и' if len(signals) != 1 else ''}:"]
     sold: list[str] = []
     bought: list[str] = []
+
     for s in signals:
         precision = get_symbol_precision(f"{s['to_symbol']}USDT")
         precision = max(2, min(4, precision))
         to_qty = s["to_amount"]
         to_amount = _human_amount(to_qty, precision)
         result = try_convert(s["from_symbol"], s["to_symbol"], s["from_amount"])
-
-        # TODO(dev): якщо convert не працює через Signature error — виконуємо ринковий sell+buy
-        if result and "Signature for this request is not valid" in str(result):
-            logger.warning("[dev] ⛔ Convert заблокований, fallback на ринковий sell+buy")
-            step = get_lot_step(f"{s['from_symbol']}USDT")
-            adjusted_amount = math.floor(s["from_amount"] / step) * step
-            sell_result = market_sell(f"{s['from_symbol']}USDT", adjusted_amount)
-            if sell_result.get("status") == "success":
-                buy_result = market_buy(s["to_symbol"] + "USDT", s["from_usdt"])
-                if buy_result.get("status") == "success":
-                    TRADE_SUMMARY["sold"].append(
-                        f"- {s['from_amount']:.4f} {s['from_symbol']} (manual convert fallback)"
-                    )
-                    TRADE_SUMMARY["bought"].append(
-                        f"- {buy_result['executedQty']} {s['to_symbol']} (score: {s.get('score', 0):.2f}, expected_profit: {s.get('expected_profit', 0):.2f})"
-                    )
-                    add_trade(
-                        s["from_symbol"], "SELL", s["from_amount"], s["from_price"], source="fallback",
-                        expected_profit=s.get("from_expected_profit"), prob_up=s.get("from_prob_up")
-                    )
-                    add_trade(
-                        s["to_symbol"], "BUY", float(buy_result["executedQty"]), s["price"], source="fallback",
-                        expected_profit=s.get("expected_profit"), prob_up=s.get("prob_up")
-                    )
-                    continue
-        token_line = (
-            f"✅ {s['to_symbol']} ml={s.get('ml_proba', 0.5):.2f} exp={s['expected_profit']:.2f} "
-            f"RRR={s.get('rrr', 0):.2f} score={s.get('score', 0):.2f}"
-        )
-        summary.append(token_line)
         if result and result.get("orderId"):
             lines.append(
-                f"✅ Конвертовано {s['from_symbol']} → {s['to_symbol']}"
-                f"\nFROM: {s['from_amount']:.4f}"
-                f"\nTO: ≈{to_amount}"
-                f"\nML={s['ml_proba']:.2f}, exp={s['expected_profit']:.2f}, RRR={s.get('rrr', 0):.2f}, score={s.get('score', 0):.2f}"
+                f"✅ Конвертовано {s['from_symbol']} → {s['to_symbol']}\n"
+                f"FROM: {s['from_amount']:.4f}\nTO: ≈{to_amount}\n"
+                f"ML={s['ml_proba']:.2f}, exp={s['expected_profit']:.2f}, "
+                f"RRR={s.get('rrr', 0):.2f}, score={s.get('score', 0):.2f}"
             )
             sold.append(f"- {s['from_amount']}{s['from_symbol']} → {s['to_symbol']}")
-            bought.append(
-                f"- {to_amount} {s['to_symbol']} (score: {s['score']:.2f}, expected_profit: {s['expected_profit']:.2f})"
-            )
-            add_trade(
-                s["from_symbol"],
-                "SELL",
-                s["from_amount"],
-                s.get("from_price", 0),
-                source="gpt",
-                expected_profit=s.get("from_expected_profit"),
-                prob_up=s.get("from_prob_up"),
-            )
-            add_trade(
-                s["to_symbol"],
-                "BUY",
-                to_qty,
-                s.get("price", 0),
-                source="gpt",
-                expected_profit=s.get("expected_profit"),
-                prob_up=s.get("prob_up"),
-            )
+            bought.append(f"- {to_amount} {s['to_symbol']} (score: {s['score']:.2f}, expected_profit: {s['expected_profit']:.2f})")
         else:
             reason = result.get("message", "невідома помилка") if result else "невідома помилка"
-            if "Signature for this request" in reason:
-                amount_str = _human_amount(s["from_amount"], 0)
-                lines.append(
-                    f"❗ Неможливо виконати convert для {amount_str}{s['from_symbol']} → {s['to_symbol']}. Binance ще не надав доступ до цього інструменту."
-                )
-            else:
-                lines.append(f"❌ Не вдалося конвертувати {s['from_symbol']} → {s['to_symbol']}" f"\nПричина: {reason}")
-    text = "\n\n".join(lines)
+            lines.append(f"❌ Не вдалося конвертувати {s['from_symbol']} → {s['to_symbol']}\nПричина: {reason}")
 
+    text = "\n\n".join(lines)
     messages = list(split_telegram_message("\n".join(summary), 4000))
     messages.extend(split_telegram_message(text, 4000))
 
-    # Persist last conversion to suppress duplicates
-    last_file = os.path.join("logs", "last_conversion_hash.txt")
-    text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
-    last_hash = None
-    if os.path.exists(last_file):
-        try:
-            with open(last_file, "r", encoding="utf-8") as f:
-                last_hash = f.read().strip() or None
-        except OSError:
-            last_hash = None
-    if text_hash == last_hash:
-        return sold, bought
-
     if low_profit:
-        messages.append("\u26a0\ufe0f Очікуваний прибуток низький")
+        messages.append("⚠️ Очікуваний прибуток низький")
     if gpt_notes:
         messages.extend(gpt_notes)
+
     await send_messages(int(chat_id), messages)
 
+    last_file = os.path.join("logs", "last_conversion_hash.txt")
+    text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
     try:
         os.makedirs(os.path.dirname(last_file), exist_ok=True)
         with open(last_file, "w", encoding="utf-8") as f:
             f.write(text_hash)
-    except OSError as exc:  # pragma: no cover - diagnostics only
+    except OSError as exc:
         logger.warning("Could not persist %s: %s", last_file, exc)
 
     TRADE_SUMMARY["sold"].extend(sold)
