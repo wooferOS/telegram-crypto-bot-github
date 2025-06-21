@@ -44,6 +44,7 @@ from config import (
     MIN_TRADE_AMOUNT,
     TRADE_LOOP_INTERVAL,
     MAX_AUTO_TRADE_ITERATIONS,
+    OPENAI_API_KEY,
 )
 from gpt_utils import ask_gpt
 from utils import (
@@ -317,7 +318,7 @@ def calculate_adaptive_filters(days: int = lookback_days) -> tuple[float, float]
     return adaptive_min_profit, adaptive_min_prob
 
 
-def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict]:
+async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict]:
     balances = get_binance_balances()
     usdt_balance = balances.get("USDT", 0) or 0
     now = datetime.datetime.now(pytz.timezone("Europe/Kyiv"))
@@ -574,7 +575,7 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict]:
         },
         "token_scores": predictions,
     }
-    gpt_result = ask_gpt(summary)
+    gpt_result = await ask_gpt(summary, OPENAI_API_KEY)
     if gpt_result == {}:
         log_and_telegram("[GPT] ⚠️ Порожній прогноз, можливо, сталася помилка")
     if gpt_result:
@@ -625,7 +626,7 @@ async def daily_analysis_task(bot: Bot, chat_id: int) -> None:
     for symbol in symbols:
         logger.info("\U0001f50d Analyzing %s", symbol)
 
-    report, _, _, forecast, predictions = generate_zarobyty_report()
+    report, _, _, forecast, predictions = await generate_zarobyty_report()
     if predictions:
         from gpt_utils import save_predictions
         save_predictions(predictions)
@@ -647,7 +648,7 @@ async def daily_analysis_task(bot: Bot, chat_id: int) -> None:
 
 async def send_zarobyty_forecast(bot, chat_id: int) -> None:
     """Send summarized GPT forecast."""
-    _, _, _, forecast, _ = generate_zarobyty_report()
+    _, _, _, forecast, _ = await generate_zarobyty_report()
     if forecast is None:
         await bot.send_message(chat_id, "GPT forecast unavailable")
         return
@@ -668,7 +669,7 @@ async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> No
 
     while iteration < max_iterations:
         try:
-            _, sell_recommendations, buy_candidates, _, _ = generate_zarobyty_report()
+            _, sell_recommendations, buy_candidates, _, _ = await generate_zarobyty_report()
             logger.info("🧾 SELL candidates: %d", len(sell_recommendations))
             logger.info("🧾 BUY candidates: %d", len(buy_candidates))
 
