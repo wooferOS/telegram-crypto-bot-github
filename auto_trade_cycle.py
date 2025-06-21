@@ -272,7 +272,7 @@ def generate_conversion_signals(
             },
         )
         for p, d in (unique_predictions or predictions).items()
-        if d["prob_up"] > 0 and d["expected_profit"] > 0
+        if d["expected_profit"] >= 0 or d.get("score", 0) >= 0.01
     ]
     base_scores = [r[1]["score_base"] for r in ranked]
     if base_scores and max(base_scores) - min(base_scores) < 0.01:
@@ -282,6 +282,7 @@ def generate_conversion_signals(
     ranked.sort(key=lambda x: x[1]["score"], reverse=True)
     all_buy_tokens = ranked
     top_tokens = ranked[:3]
+    logger.info("[dev] \U0001F9EA top_tokens: %s", top_tokens)
     filtered_tokens = top_tokens
 
     if gpt_filters:
