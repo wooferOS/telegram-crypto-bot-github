@@ -730,7 +730,9 @@ async def send_conversion_signals(
         # TODO(dev): якщо convert не працює через Signature error — виконуємо ринковий sell+buy
         if result and "Signature for this request is not valid" in str(result):
             logger.warning("[dev] ⛔ Convert заблокований, fallback на ринковий sell+buy")
-            sell_result = market_sell(f"{s['from_symbol']}USDT", s["from_amount"])
+            step = get_lot_step(f"{s['from_symbol']}USDT")
+            adjusted_amount = math.floor(s["from_amount"] / step) * step
+            sell_result = market_sell(f"{s['from_symbol']}USDT", adjusted_amount)
             if sell_result.get("status") == "success":
                 buy_result = market_buy(s["to_symbol"] + "USDT", s["from_usdt"])
                 if buy_result.get("status") == "success":
