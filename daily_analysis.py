@@ -581,6 +581,10 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
         logger.warning("[dev] ❌ GPT result is empty or invalid.")
         forecast = gpt_result
 
+    if not buy_plan and buy_candidates:
+        logger.info("⚠️ GPT filter empty — using top buy candidates")
+        buy_plan = sorted(buy_candidates, key=lambda x: x["score"], reverse=True)[:3]
+
     if not buy_plan and forecast and forecast.get("buy"):
         fallback_tokens = forecast["buy"]
         logger.info(
