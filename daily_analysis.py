@@ -573,7 +573,10 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
     if gpt_result == {}:
         log_and_telegram("[GPT] ⚠️ Порожній прогноз, можливо, сталася помилка")
     if gpt_result:
-        forecast = {**gpt_result, "adaptive_filters": adaptive_filters, "summary": summary}
+        forecast = {
+            "recommend_buy": gpt_result.get("buy", []),
+            "do_not_buy": gpt_result.get("sell", []),
+        }
         with open("gpt_forecast.txt", "w", encoding="utf-8") as f:
             json.dump(forecast, f, indent=2, ensure_ascii=False)
         logger.info("GPT forecast saved to gpt_forecast.txt")
@@ -586,22 +589,13 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
         logger.info("⚠️ GPT не рекомендував жоден токен — використано buy_candidates як fallback")
         buy_plan = sorted(buy_candidates, key=lambda x: x["score"], reverse=True)[:3]
 
-    if not buy_plan and forecast and forecast.get("buy"):
-        fallback_tokens = forecast["buy"]
+    if not buy_plan and forecast and forecast.get("recommend_buy"):
+        fallback_tokens = forecast["recommend_buy"]
         logger.info(
             "⚠️ GPT BUY fallback enabled — using tokens from GPT: %s", fallback_tokens
         )
         for sym in fallback_tokens:
-            if sym in forecast.get("token_scores", {}):
-                tok = forecast["token_scores"][sym]
-                buy_plan.append(
-                    {
-                        "symbol": sym + "USDT",
-                        "expected_profit": tok["expected_profit"],
-                        "prob_up": tok["prob_up"],
-                        "score": tok["score"],
-                    }
-                )
+            buy_plan.append({"symbol": sym + "USDT"})
 
     return report, sell_recommendations, buy_plan, forecast
 
@@ -630,10 +624,10 @@ async def daily_analysis_task(bot: Bot, chat_id: int) -> None:
     await send_message_parts(bot, chat_id, report)
     if forecast is not None:
         summary_lines = []
-        if forecast.get("buy"):
-            summary_lines.append("🤖 BUY: " + ", ".join(forecast["buy"]))
-        if forecast.get("sell"):
-            summary_lines.append("🤖 SELL: " + ", ".join(forecast["sell"]))
+        if forecast.get("recommend_buy"):
+            summary_lines.append("🤖 BUY: " + ", ".join(forecast["recommend_buy"]))
+        if forecast.get("do_not_buy"):
+            summary_lines.append("🤖 SELL: " + ", ".join(forecast["do_not_buy"]))
         if summary_lines:
             await bot.send_message(chat_id, "\n".join(summary_lines))
 
@@ -645,10 +639,10 @@ async def send_zarobyty_forecast(bot, chat_id: int) -> None:
         await bot.send_message(chat_id, "GPT forecast unavailable")
         return
     lines = []
-    if forecast.get("buy"):
-        lines.append("🤖 BUY: " + ", ".join(forecast["buy"]))
-    if forecast.get("sell"):
-        lines.append("🤖 SELL: " + ", ".join(forecast["sell"]))
+    if forecast.get("recommend_buy"):
+        lines.append("🤖 BUY: " + ", ".join(forecast["recommend_buy"]))
+    if forecast.get("do_not_buy"):
+        lines.append("🤖 SELL: " + ", ".join(forecast["do_not_buy"]))
     if lines:
         await bot.send_message(chat_id, "\n".join(lines))
 

@@ -67,21 +67,29 @@ FALLBACK_MIN_SCORE = 0.25
 logger = logging.getLogger(__name__)
 
 
-def load_gpt_filters() -> dict[str, str]:
-    """Read ``gpt_forecast.txt`` and return a symbol→action mapping."""
+def load_gpt_filters() -> dict[str, List[str]]:
+    """Read ``gpt_forecast.txt`` and return forecast data."""
+
     try:
         with open("gpt_forecast.txt", "r", encoding="utf-8") as f:
-            forecast = json.load(f)
+            data = json.load(f)
     except Exception as exc:  # pragma: no cover - diagnostics only
         logger.warning("[dev] ❗ Не вдалося завантажити GPT-прогноз: %s", exc)
-        return {}
+        return {"recommend_buy": [], "do_not_buy": []}
+
+    if not isinstance(data, dict):
+        return {"recommend_buy": [], "do_not_buy": []}
 
     logger.info(
         "GPT-фільтр: buy=%d, sell=%d",
-        len(forecast.get("buy", [])),
-        len(forecast.get("sell", [])),
+        len(data.get("recommend_buy", [])),
+        len(data.get("do_not_buy", [])),
     )
-    return forecast
+
+    return {
+        "recommend_buy": data.get("recommend_buy", []),
+        "do_not_buy": data.get("do_not_buy", []),
+    }
 
 
 def load_predictions() -> Dict[str, Dict[str, float]]:
@@ -229,8 +237,12 @@ def _analyze_pair(
     }
 
 
-def filter_top_tokens(predictions: dict, limit: int = 3) -> list[tuple[str, dict]]:
-    """Filter and rank tokens by basic score."""
+def filter_top_tokens(
+    predictions: dict,
+    limit: int = 3,
+    gpt_forecast: Optional[Dict[str, List[str]]] = None,
+) -> list[tuple[str, dict]]:
+    """Filter and rank tokens by basic score with optional GPT filtering."""
 
     ranked: list[tuple[str, dict]] = []
     for pair, data in predictions.items():
@@ -241,11 +253,25 @@ def filter_top_tokens(predictions: dict, limit: int = 3) -> list[tuple[str, dict
 
     ranked.sort(key=lambda x: x[1]["score"], reverse=True)
     filtered = ranked[:limit]
+
+    if gpt_forecast:
+        filtered = [
+            token
+            for token in filtered
+            if token[0].replace("USDT", "")
+            not in gpt_forecast.get("do_not_buy", [])
+        ]
+
+    if not filtered:
+        logger.warning("[dev] ⚠️ Усі токени відфільтровані GPT — fallback на top-3.")
+        filtered = ranked[:limit]
+
     if not filtered:
         logger.warning(
             "[dev] ⚠️ Усі токени відфільтровані — fallback на top-3."
         )
         filtered = ranked[:3]
+
     logger.info("[dev] 🧪 Після фільтрації: %s", filtered)
 
     return filtered
@@ -343,7 +369,7 @@ def generate_conversion_signals(
     # If GPT forecast is available but we already have buy candidates,
     # ignore the GPT buy list to avoid skipping viable tokens
     if gpt_forecast and not top_tokens:
-        allowed = set(gpt_forecast.get("buy", []))
+        allowed = set(gpt_forecast.get("recommend_buy", []))
         filtered = []
         for pair, data in all_buy_tokens:
             sym = pair.replace("USDT", "")
@@ -646,6 +672,7 @@ async def buy_with_remaining_usdt(
     top_tokens: List[tuple[str, Dict[str, float]]],
     *,
     chat_id: int,
+    gpt_forecast: Optional[Dict[str, List[str]]] = None,
 ) -> Optional[str]:
     """Buy the best available token with the remaining USDT balance."""
 
@@ -658,7 +685,7 @@ async def buy_with_remaining_usdt(
             predictions = load_predictions()
         except Exception:  # pragma: no cover - diagnostics only
             predictions = {}
-        fallback = filter_top_tokens(predictions, limit=1)
+        fallback = filter_top_tokens(predictions, limit=1, gpt_forecast=gpt_forecast)
         if not fallback:
             logger.warning("[dev] ❌ Після фільтрації жодного токена — не буде купівлі")
             return None
@@ -702,13 +729,12 @@ async def main(chat_id: int) -> dict:
     if not gpt_forecast:
         logger.warning("[dev] ❌ GPT-форекаст порожній")
     gpt_filters = {
-        "do_not_sell": gpt_forecast.get("sell", []),
-        "do_not_buy": [],
-        "recommend_buy": gpt_forecast.get("buy", []),
+        "do_not_buy": gpt_forecast.get("do_not_buy", []),
+        "recommend_buy": gpt_forecast.get("recommend_buy", []),
     }
     gpt_filtered = {
-        "buy": gpt_forecast.get("buy", []),
-        "sell": gpt_forecast.get("sell", []),
+        "buy": gpt_forecast.get("recommend_buy", []),
+        "sell": gpt_forecast.get("do_not_buy", []),
     }
     if not gpt_filtered["buy"]:
         logger.warning(
@@ -780,7 +806,12 @@ async def main(chat_id: int) -> dict:
     if not successfully_bought:
         logger.warning(f"[dev] ❌ Жодна купівля не відбулась, усі спроби не пройшли")
 
-    await buy_with_remaining_usdt(get_binance_balances().get("USDT", 0.0), reasons, chat_id=chat_id)
+    await buy_with_remaining_usdt(
+        get_binance_balances().get("USDT", 0.0),
+        reasons,
+        chat_id=chat_id,
+        gpt_forecast=gpt_forecast,
+    )
 
     usdt_final = get_binance_balances().get("USDT", 0.0)
 
