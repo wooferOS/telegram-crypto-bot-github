@@ -317,7 +317,7 @@ def calculate_adaptive_filters(days: int = lookback_days) -> tuple[float, float]
     return adaptive_min_profit, adaptive_min_prob
 
 
-def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
+def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict]:
     balances = get_binance_balances()
     usdt_balance = balances.get("USDT", 0) or 0
     now = datetime.datetime.now(pytz.timezone("Europe/Kyiv"))
@@ -548,6 +548,15 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
     }
 
     balance_dict = {k: v for k, v in balances.items() if v}
+    predictions = {
+        t["symbol"]: {
+            "expected_profit": t["expected_profit"],
+            "prob_up": t["prob_up"],
+            "score": t["score"],
+        }
+        for t in enriched_tokens
+    }
+
     summary = {
         "balance": balance_dict,
         "sell": [s.replace("USDT", "") for s in sell_symbols],
@@ -563,14 +572,7 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
             "adaptive_min_expected_profit": adaptive_min_profit,
             "adaptive_min_prob_up": adaptive_min_prob,
         },
-        "token_scores": {
-            t["symbol"]: {
-                "expected_profit": t["expected_profit"],
-                "prob_up": t["prob_up"],
-                "score": t["score"],
-            }
-            for t in enriched_tokens
-        },
+        "token_scores": predictions,
     }
     gpt_result = ask_gpt(summary)
     if gpt_result == {}:
@@ -600,7 +602,7 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
         for sym in fallback_tokens:
             buy_plan.append({"symbol": sym + "USDT"})
 
-    return report, sell_recommendations, buy_plan, forecast
+    return report, sell_recommendations, buy_plan, forecast, predictions
 
 
 def generate_daily_stats_report() -> str:
@@ -623,7 +625,15 @@ async def daily_analysis_task(bot: Bot, chat_id: int) -> None:
     for symbol in symbols:
         logger.info("\U0001f50d Analyzing %s", symbol)
 
-    report, _, _, forecast = generate_zarobyty_report()
+    report, _, _, forecast, predictions = generate_zarobyty_report()
+    if predictions:
+        from gpt_utils import save_predictions
+        save_predictions(predictions)
+    else:
+        logger.warning(
+            "[dev] ❌ Аналіз не згенерував predictions, нічого не збережено."
+        )
+
     await send_message_parts(bot, chat_id, report)
     if forecast is not None:
         summary_lines = []
@@ -637,7 +647,7 @@ async def daily_analysis_task(bot: Bot, chat_id: int) -> None:
 
 async def send_zarobyty_forecast(bot, chat_id: int) -> None:
     """Send summarized GPT forecast."""
-    _, _, _, forecast = generate_zarobyty_report()
+    _, _, _, forecast, _ = generate_zarobyty_report()
     if forecast is None:
         await bot.send_message(chat_id, "GPT forecast unavailable")
         return
@@ -658,7 +668,7 @@ async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> No
 
     while iteration < max_iterations:
         try:
-            _, sell_recommendations, buy_candidates, _ = generate_zarobyty_report()
+            _, sell_recommendations, buy_candidates, _, _ = generate_zarobyty_report()
             logger.info("🧾 SELL candidates: %d", len(sell_recommendations))
             logger.info("🧾 BUY candidates: %d", len(buy_candidates))
 
