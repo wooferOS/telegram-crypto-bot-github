@@ -631,21 +631,14 @@ def cancel_all_orders(symbol: str) -> None:
 def get_symbol_price(pair: str) -> float:
     """Return current price for ``pair`` quoted in USDT."""
 
+    url = f"{BINANCE_BASE_URL}/api/v3/ticker/price"
+    params = {"symbol": pair}
     try:
-        ticker = _get_client().get_symbol_ticker(symbol=pair)
-        return float(ticker["price"])
-    except BinanceAPIException as exc:  # pragma: no cover - API errors
-        msg = str(exc)
-        if "Invalid" in msg:
-            reason = "символ не існує"
-        elif "Signature" in msg:
-            reason = "не пройшла перевірку підпису"
-        else:
-            reason = msg
-        logger.warning("[dev] ❗ Binance API error for %s: %s", pair, reason)
-        return 0.0
-    except Exception as e:  # pragma: no cover - network errors
-        logger.warning(f"[dev] ❗ Binance API error for {pair}: {e}")
+        resp = requests.get(url, params=params, timeout=(3, 5))
+        resp.raise_for_status()
+        return float(resp.json()["price"])
+    except Exception as e:
+        logger.warning(f"[dev] ⚠️ Request failed in get_symbol_price: {e}")
         return 0.0
 
 
@@ -1344,11 +1337,11 @@ def get_candlestick_klines(symbol: str, interval: str = "1h", limit: int = 100) 
     logger.debug("get_candlestick_klines: %s -> %s", symbol, pair)
     params = {"symbol": pair, "interval": interval, "limit": limit}
     try:
-        response = requests.get(url, params=params, timeout=10)
+        response = requests.get(url, params=params, timeout=(3, 5))
         response.raise_for_status()
         return response.json()
     except Exception as e:  # pragma: no cover - network errors
-        logger.warning("❌ Klines error for %s: %s", symbol, e)
+        logger.warning(f"[dev] ⚠️ Request failed in get_candlestick_klines: {e}")
         return []
 
 
@@ -1657,11 +1650,11 @@ def get_candlestick_klines(symbol: str, interval: str = "1d", limit: int = 7):
     url = f"{BINANCE_BASE_URL}/api/v3/klines"
     params = {"symbol": pair, "interval": interval, "limit": limit}
     try:
-        resp = requests.get(url, params=params, timeout=(5, 10))
+        resp = requests.get(url, params=params, timeout=(3, 5))
         resp.raise_for_status()
         return resp.json()
     except Exception as exc:  # pragma: no cover - network errors
-        logger.warning("❌ Klines error for %s: %s", symbol, exc)
+        logger.warning(f"[dev] ⚠️ Request failed in get_candlestick_klines: {exc}")
         return []
 
 
