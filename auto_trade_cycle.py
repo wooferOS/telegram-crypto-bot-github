@@ -322,13 +322,14 @@ def generate_conversion_signals(
                 gpt_notes.append(f"⚠️ GPT не рекомендує купувати {sym}")
         top_tokens = filtered_tokens
 
-    if gpt_forecast:
+    # If GPT forecast is available but we already have buy candidates,
+    # ignore the GPT buy list to avoid skipping viable tokens
+    if gpt_forecast and not top_tokens:
         allowed = set(gpt_forecast.get("buy", []))
         filtered = []
-        for pair, data in top_tokens:
+        for pair, data in all_buy_tokens:
             sym = pair.replace("USDT", "")
             if allowed and sym not in allowed:
-                logger.info(f"[dev] ⏭️ GPT блокує покупку {sym}")
                 continue
             filtered.append((pair, data))
         top_tokens = filtered
