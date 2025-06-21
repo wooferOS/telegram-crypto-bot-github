@@ -514,7 +514,6 @@ def sell_unprofitable_assets(
         logger.info(f"[dev] ✅ SELL виконується: {pair}, кількість: {amount}")
         result = sell_asset(pair, amount)
         status = result.get("status")
-
         if status == "success":
             logger.info(f"[dev] ✅ Продано {amount} {asset} за ринком")
             sold_anything = True
@@ -522,7 +521,10 @@ def sell_unprofitable_assets(
             logger.info(f"[dev] 🔄 Сконвертовано {amount} {asset}")
             sold_anything = True
         else:
-            logger.warning(f"[dev] ⚠️ Не вдалося продати чи сконвертувати {asset}: {result.get('message')}")
+            reason = result.get("message", "невідома помилка")
+            logger.warning(
+                f"[dev] ⚠️ Не вдалося продати або сконвертувати {asset}: {reason}"
+            )
 
         continue  # Завжди продовжувати цикл
 
