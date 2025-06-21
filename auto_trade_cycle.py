@@ -230,6 +230,7 @@ def filter_top_tokens(predictions: dict, limit: int = 3) -> list[tuple[str, dict
     ranked.sort(key=lambda x: x[1]["score"], reverse=True)
     filtered = ranked[:limit]
     logger.info("[dev] 🧪 Після фільтрації: %s", filtered)
+    return filtered
     
 
 def generate_conversion_signals(
