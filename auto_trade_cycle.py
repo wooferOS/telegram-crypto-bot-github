@@ -281,7 +281,14 @@ def generate_conversion_signals(
         gpt_notes = []
     ranked.sort(key=lambda x: x[1]["score"], reverse=True)
     all_buy_tokens = ranked
-    top_tokens = ranked[:3]
+
+    top_tokens = [r for r in ranked if r[1]["expected_profit"] > 0 and r[1]["score"] > 0]
+    if not top_tokens:
+        logger.warning("[dev] ⚠️ Жодна монета не пройшла фільтр очікуваного прибутку > 0")
+        top_tokens = ranked[:3]  # fallback: хоча б щось купити
+    else:
+        top_tokens = top_tokens[:3]
+
     logger.info("[dev] \U0001F9EA top_tokens: %s", top_tokens)
     filtered_tokens = top_tokens
 
