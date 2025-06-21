@@ -745,7 +745,7 @@ async def main(chat_id: int) -> dict:
     try:
         from daily_analysis import generate_zarobyty_report
 
-        _, _, _, _, predictions = generate_zarobyty_report()
+        _, _, _, _, predictions = await generate_zarobyty_report()
     except Exception as exc:  # pragma: no cover - fallback to cache
         logger.warning("[dev] run_daily_analysis failed: %s", exc)
         predictions = load_predictions()

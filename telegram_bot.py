@@ -303,7 +303,7 @@ async def zarobyty_cmd(message: types.Message) -> None:
 
     await message.answer("⏳ Формую звіт...")
 
-    report, _, _, forecast, _ = generate_zarobyty_report()
+    report, _, _, forecast, _ = await generate_zarobyty_report()
     if not report:
         await message.answer(
             "⚠️ Звіт наразі недоступний. Спробуйте пізніше."
