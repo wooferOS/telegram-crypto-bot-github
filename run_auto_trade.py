@@ -17,12 +17,19 @@ from auto_trade_cycle import (
     load_gpt_filters,
     sell_unprofitable_assets,
 )
-from binance_api import get_symbol_price, get_binance_balances
+from binance_api import (
+    get_symbol_price,
+    get_binance_balances,
+    refresh_valid_pairs,
+)
 from history import _load_history
 from config import TRADE_LOOP_INTERVAL, CHAT_ID
 from services.telegram_service import send_messages
 
 logger = logging.getLogger(__name__)
+
+# Ensure VALID_PAIRS is up to date before trading begins
+refresh_valid_pairs()
 
 # Minimum allowed interval between automated runs (1 hour)
 MIN_AUTO_TRADE_INTERVAL = 3600
