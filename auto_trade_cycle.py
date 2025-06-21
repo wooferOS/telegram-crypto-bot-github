@@ -740,145 +740,92 @@ async def buy_with_remaining_usdt(
 
 
 async def main(chat_id: int) -> dict:
-    # Refresh GPT forecast file to avoid using stale data
+    """Simplified auto-trade cycle relying on daily predictions."""
+
     try:
-        with open("gpt_forecast.txt", "w", encoding="utf-8") as f:
-            json.dump({}, f)
-    except OSError as exc:  # pragma: no cover - diagnostics only
-        logger.warning("[dev] Не вдалося очистити gpt_forecast.txt: %s", exc)
+        from daily_analysis import generate_zarobyty_report
+
+        _, _, _, _, predictions = generate_zarobyty_report()
+    except Exception as exc:  # pragma: no cover - fallback to cache
+        logger.warning("[dev] run_daily_analysis failed: %s", exc)
+        predictions = load_predictions()
 
     gpt_forecast = load_gpt_filters()
-    if not gpt_forecast:
-        logger.warning("[dev] ❌ GPT-форекаст порожній")
-    gpt_filters = {
-        "do_not_buy": gpt_forecast.get("do_not_buy", []),
-        "recommend_buy": gpt_forecast.get("recommend_buy", []),
-    }
-    gpt_filtered = {
-        "buy": gpt_forecast.get("recommend_buy", []),
-        "sell": gpt_forecast.get("do_not_buy", []),
-    }
-    if not gpt_filtered["buy"]:
-        logger.warning(
-            "[dev] ⚠️ GPT не рекомендує купувати — fallback на ринкові top-3."
-        )
-    if not gpt_filtered["sell"]:
-        logger.warning(
-            "[dev] ⚠️ GPT не рекомендує продавати — все одно аналізуємо за expected_profit."
-        )
-
-    usdt_before = get_binance_balances().get("USDT", 0.0)
+    top_tokens = filter_top_tokens(predictions, limit=3, gpt_forecast=gpt_forecast)
 
     balances = get_binance_balances()
-    for symbol, amount in balances.items():
-        if symbol == "USDT":
-            continue
-        usdt_pair = f"{symbol.upper()}USDT"
-        if usdt_pair not in VALID_PAIRS:
-            logger.info(f"[dev] ⏭ {symbol} не торгується на Binance — пропускаємо")
-            continue
-
-        logger.info(f"[dev] 🔻 Спроба продати {amount:.6f} {symbol}")
-        result = sell_asset(usdt_pair, amount)
-
-        if result.get("status") == "success":
-            logger.info(f"[dev] ✅ Продано {amount:.6f} {symbol}")
-        elif result.get("status") == "converted":
-            logger.info(f"[dev] 🔁 Конвертовано {symbol} у USDT")
-        else:
-            logger.warning(f"[dev] ⚠️ Не вдалося продати або конвертувати {symbol}, пропускаємо")
-            continue
-
-    (
-        conversion_pairs,
-        top_buy,
-        sell_recommendations,
-        reasons,
-        all_predictions,
-        gpt_forecast,
-        predictions,
-    ) = generate_conversion_signals(gpt_filters, gpt_forecast)
-
-    try:
-        logger.info("[dev] Звіт:\n%s", all_predictions)
-    except UnicodeEncodeError:
-        logger.info("[dev] Звіт (без emoji):")
-        logger.info(all_predictions.encode("ascii", "ignore").decode())
-
-    sold, bought = await send_conversion_signals(conversion_pairs, chat_id=chat_id)
-
-    usdt_after = get_binance_balances().get("USDT", 0.0)
-
-    successfully_bought = False
-    for s in sorted(top_buy, key=lambda x: predictions.get(x + "USDT", {}).get("score", 0), reverse=True):
-        usdt_balance = get_binance_balances().get("USDT", 0.0)
-        try:
-            symbol = s + "USDT"
-            logger.info(f"[dev] 💸 Пробуємо купити {symbol} на {usdt_balance:.2f}")
-            buy_result = market_buy(symbol, usdt_balance)
-            if buy_result.get("status") == "filled":
-                logger.info(f"[dev] ✅ Купівля успішна: {symbol}")
-                TRADE_SUMMARY["bought"].append(f"{symbol} — успішно")
-                successfully_bought = True
-                break
-            else:
-                logger.warning(f"[dev] ❌ Купівля {symbol} не вдалася, пробуємо наступну")
-        except Exception as e:  # pragma: no cover - diagnostics only
-            logger.warning(f"[dev] ⚠️ Помилка при купівлі {symbol}: {e}")
-    if not successfully_bought:
-        logger.warning(f"[dev] ❌ Жодна купівля не відбулась, усі спроби не пройшли")
-
-    bought = await buy_with_remaining_usdt(
-        get_binance_balances().get("USDT", 0.0),
-        reasons,
-        chat_id=chat_id,
-        gpt_forecast=gpt_forecast,
-    )
-    if not bought:
-        logger.warning("[dev] ❌ Не вдалося купити жоден токен — завершення циклу")
-
-    usdt_final = get_binance_balances().get("USDT", 0.0)
-
-    balances = get_binance_balances()
-    logger.info(f"[dev] \U0001F4E6 Баланс оновлено: {balances}")
-    balance_line = ", ".join(f"{k} {v}" for k, v in balances.items())
-
-    buy_line = ""
-    if top_buy:
-        buy_line = ", ".join(
-            f"{sym} (score {predictions.get(sym+'USDT', {}).get('score', 0):.2f})"
-            for sym in top_buy
-        )
-    sell_line = ""
-    if sell_recommendations:
-        sell_line = ", ".join(
-            f"{sym} (EP {predictions.get(sym if sym.endswith('USDT') else sym+'USDT', {}).get('expected_profit', 0)*10:.1f}%)"
-            for sym in sell_recommendations
-        )
-
-    avg_profit = 0.0
-    if top_buy:
-        avg_profit = sum(
-            predictions.get(sym + 'USDT', {}).get('expected_profit', 0) for sym in top_buy
-        ) / len(top_buy) * 10
-
-    lines = [
-        "[dev] 🧠 GPT аналіз",
-        f"Баланс: {balance_line}",
+    usdt_before = balances.get("USDT", 0.0)
+    usdt_balance = usdt_before
+    portfolio_tokens = [
+        t for t in balances if t != "USDT" and f"{t}USDT" in VALID_PAIRS
     ]
-    lines.append(
-        f"✅ Купуємо: {buy_line}" if buy_line else "Жодна монета не пройшла фільтри"
-    )
-    if sell_line:
-        lines.append(f"📉 Продаємо: {sell_line}")
-    lines.append(f"\n💹 Очікуваний прибуток: {avg_profit:.1f}% за 24h")
-    await send_messages(int(chat_id), ["\n".join(lines)])
 
+    # 1. Buy if only USDT is available
+    if usdt_balance > 0 and not portfolio_tokens:
+        await buy_with_remaining_usdt(
+            usdt_balance,
+            top_tokens,
+            chat_id=chat_id,
+            gpt_forecast=gpt_forecast,
+        )
+        after = get_binance_balances().get("USDT", 0.0)
+        return {
+            "sold": TRADE_SUMMARY["sold"],
+            "bought": TRADE_SUMMARY["bought"],
+            "before": usdt_before,
+            "after": after,
+        }
+
+    # 2. Sell portfolio assets then buy with the updated USDT balance
+    if usdt_balance > 0 and portfolio_tokens:
+        sell_unprofitable_assets(balances, predictions, gpt_forecast)
+        if "update_binance_cache" in globals():
+            try:
+                update_binance_cache()  # type: ignore[func-returns-value]
+            except Exception as exc:  # pragma: no cover - optional
+                logger.warning("[dev] update_binance_cache failed: %s", exc)
+        balances = get_binance_balances()
+        usdt_balance = balances.get("USDT", 0.0)
+        await buy_with_remaining_usdt(
+            usdt_balance,
+            top_tokens,
+            chat_id=chat_id,
+            gpt_forecast=gpt_forecast,
+        )
+        after = get_binance_balances().get("USDT", 0.0)
+        return {
+            "sold": TRADE_SUMMARY["sold"],
+            "bought": TRADE_SUMMARY["bought"],
+            "before": usdt_before,
+            "after": after,
+        }
+
+    # 3. Sell or convert assets if no USDT balance
+    if usdt_balance == 0 and portfolio_tokens:
+        sold = sell_unprofitable_assets(balances, predictions, gpt_forecast)
+        if not sold:
+            try_convert(balances, predictions, gpt_forecast)
+        if "update_binance_cache" in globals():
+            try:
+                update_binance_cache()  # type: ignore[func-returns-value]
+            except Exception as exc:  # pragma: no cover - optional
+                logger.warning("[dev] update_binance_cache failed: %s", exc)
+        balances = get_binance_balances()
+        usdt_balance = balances.get("USDT", 0.0)
+        if usdt_balance > 0:
+            await buy_with_remaining_usdt(
+                usdt_balance,
+                top_tokens,
+                chat_id=chat_id,
+                gpt_forecast=gpt_forecast,
+            )
+
+    after = get_binance_balances().get("USDT", 0.0)
     return {
         "sold": TRADE_SUMMARY["sold"],
         "bought": TRADE_SUMMARY["bought"],
         "before": usdt_before,
-        "after": usdt_final,
+        "after": after,
     }
 
 
