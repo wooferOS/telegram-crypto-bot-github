@@ -613,15 +613,23 @@ async def send_conversion_signals(
     messages = list(split_telegram_message("\n".join(summary), 4000))
     messages.extend(split_telegram_message(text, 4000))
 
+    # Persist last conversion to suppress duplicates
+    last_file = os.path.join("logs", "last_conversion_hash.txt")
+    text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
+    last_hash = None
+    if os.path.exists(last_file):
+        try:
+            with open(last_file, "r", encoding="utf-8") as f:
+                last_hash = f.read().strip() or None
+        except OSError:
+            last_hash = None
+
     if low_profit:
         messages.append("⚠️ Очікуваний прибуток низький")
     if gpt_notes:
         messages.extend(gpt_notes)
-
     await send_messages(int(chat_id), messages)
 
-    last_file = os.path.join("logs", "last_conversion_hash.txt")
-    text_hash = hashlib.md5(text.encode("utf-8")).hexdigest()
     try:
         os.makedirs(os.path.dirname(last_file), exist_ok=True)
         with open(last_file, "w", encoding="utf-8") as f:
