@@ -30,8 +30,6 @@ def ask_gpt(prompt_dict: dict, model: str = "gpt-4o") -> dict:
     from openai import OpenAI
     from config import OPENAI_API_KEY
 
-    client = OpenAI(api_key=OPENAI_API_KEY)
-
     kwargs = {
         "model": model,
         "messages": [
@@ -49,7 +47,8 @@ def ask_gpt(prompt_dict: dict, model: str = "gpt-4o") -> dict:
         kwargs["response_format"] = {"type": "json_object"}
 
     try:
-        response = client.chat.completions.create(**kwargs)
+        with OpenAI(api_key=OPENAI_API_KEY) as client:
+            response = client.chat.completions.create(**kwargs)
     except Exception as exc:  # noqa: BLE001
         logger.exception("[GPT] API request failed: %s", exc)
         notify_telegram(f"[GPT] ❌ Error: {exc}")
