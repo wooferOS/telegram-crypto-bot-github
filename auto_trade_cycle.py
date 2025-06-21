@@ -241,12 +241,12 @@ def filter_top_tokens(predictions: dict, limit: int = 3) -> list[tuple[str, dict
 
     ranked.sort(key=lambda x: x[1]["score"], reverse=True)
     filtered = ranked[:limit]
-    logger.info("[dev] 🧪 Після фільтрації: %s", filtered)
     if not filtered:
         logger.warning(
             "[dev] ⚠️ Усі токени відфільтровані — fallback на top-3."
         )
-        return ranked[:limit]
+        filtered = ranked[:3]
+    logger.info("[dev] 🧪 Після фільтрації: %s", filtered)
 
     return filtered
     
@@ -513,92 +513,40 @@ def sell_unprofitable_assets(
     predictions: Dict[str, Dict[str, float]],
     gpt_forecast: Optional[Dict[str, List[str]]] = None,
 ) -> List[str]:
-    """Sell assets with expected profit below the top-3 threshold."""
+    """Sell all assets that are not in the top-3 by expected profit."""
 
     if not portfolio or not predictions:
         return []
 
-    ranked = sorted(
-        [d["expected_profit"] for d in predictions.values() if d["expected_profit"] > 0],
+    top3 = sorted(
+        predictions.items(),
+        key=lambda x: x[1].get("expected_profit", 0.0),
         reverse=True,
-    )
-    if not ranked:
-        logger.warning("[dev] ❌ Продаж: відсутні токени з прибутком > 0")
-        return []
+    )[:3]
+    top3_symbols = {p.replace("USDT", "") for p, _ in top3}
 
-    top3_min = ranked[min(2, len(ranked) - 1)]
-    usdt_before = get_binance_balances().get("USDT", 0.0)
-    gpt_notes: List[str] = []
-    sold_anything = False
+    to_sell = [
+        token for token in portfolio if token != "USDT" and token not in top3_symbols
+    ]
 
-    if gpt_forecast:
-        blocked = set(gpt_forecast.get("sell", []))
-        tokens_to_consider = [a for a in portfolio if a not in blocked]
-        for token in blocked:
-            if token in portfolio:
-                logger.info(f"[dev] ⛔ GPT не рекомендує продавати {token} — ігноруємо продаж")
-                gpt_notes.append(f"⛔ GPT заблокував продаж {token}")
-    else:
-        tokens_to_consider = list(portfolio.keys())
-
-    for asset, amount in portfolio.items():
-        pair = asset if asset.endswith("USDT") else f"{asset}USDT"
-        data = predictions.get(pair, {})
-        expected_profit = data.get("expected_profit", 0.0)
-        min_qty = get_lot_step(pair)
-        min_notional = get_min_notional(pair)
-        logger.info(
-            f"[dev] 🔍 Перевірка активу для продажу: {pair}, баланс={amount}, expected_profit={expected_profit:.2f}, min_qty={min_qty}, min_notional={min_notional}"
-        )
-
-        if expected_profit == 0.0:
-            # ⚠️ Пробуємо продати навіть якщо expected_profit == 0.0
-            logger.info(f"[dev] 🔄 Пробуємо продати {pair}, expected_profit={expected_profit}")
-
-        if asset not in tokens_to_consider:
+    for token in to_sell:
+        amount = portfolio.get(token, 0.0)
+        if amount <= 0:
             continue
-        if asset in {"USDT", "BUSD"} or amount <= 0:
-            continue
-
-        if not data:
-            continue
-
-        prob = data.get("prob_up", 0.0)
-        ep = expected_profit
-        logger.info(
-            f"[dev] 🔍 Оцінка продажу {asset}: prob_up={prob:.2f}, expected_profit={ep:.4f}, top3_min_profit={top3_min}"
-        )
-
-        if ep >= top3_min:
-            continue
-
-        logger.info(f"[dev] ✅ SELL виконується: {pair}, кількість: {amount}")
-        result = sell_asset(pair, amount)
-        status = result.get("status")
-        if status == "success":
-            logger.info(f"[dev] ✅ Продано {amount} {asset} за ринком")
-            sold_anything = True
-        elif status == "converted":
-            logger.info(f"[dev] 🔄 Сконвертовано {amount} {asset}")
-            sold_anything = True
+        pair = token if token.endswith("USDT") else f"{token}USDT"
+        logger.info(f"[dev] ✅ SELL: {pair}, кількість: {amount}")
+        result = market_sell(pair, amount)
+        if result.get("status") == "success":
+            logger.info(f"[dev] ✅ Продано {amount} {token}")
+        elif result.get("status") == "converted":
+            logger.info(f"[dev] 🔄 Сконвертовано {amount} {token}")
         else:
             reason = result.get("message", "невідома помилка")
             logger.warning(
-                f"[dev] ⚠️ Не вдалося продати або сконвертувати {asset}: {reason}"
+                f"[dev] ⚠️ Не вдалося продати або сконвертувати {token}: {reason}"
             )
 
-        continue  # Завжди продовжувати цикл
-
-    if not sold_anything:
-        logger.warning("[dev] ⚠️ Жоден актив не пройшов фільтр для продажу. Баланси переглянуті.")
-
-    usdt_after = get_binance_balances().get("USDT", 0.0)
-    logger.info(f"[dev] 💰 Поточний баланс USDT: {usdt_after}")
-
-    if abs(usdt_after - usdt_before) < 1e-8:
-        logger.warning("[dev] ❗ Продаж не відбувся — баланс USDT залишився без змін")
-
-    return gpt_notes
+    return []
 
 
 def _compose_failure_message(
@@ -703,6 +651,7 @@ async def buy_with_remaining_usdt(
 
     if usdt_balance <= 0:
         return None
+    logger.info("[dev] 🧪 Купівля на залишок: top_tokens = %s", top_tokens)
     if not top_tokens:
         logger.warning("[dev] ⚠️ Купівля: top_tokens порожній — fallback на top-1.")
         try:
@@ -711,6 +660,7 @@ async def buy_with_remaining_usdt(
             predictions = {}
         fallback = filter_top_tokens(predictions, limit=1)
         if not fallback:
+            logger.warning("[dev] ❌ Після фільтрації жодного токена — не буде купівлі")
             return None
         top_tokens = fallback
 
@@ -749,6 +699,8 @@ async def main(chat_id: int) -> dict:
         logger.warning("[dev] Не вдалося очистити gpt_forecast.txt: %s", exc)
 
     gpt_forecast = load_gpt_filters()
+    if not gpt_forecast:
+        logger.warning("[dev] ❌ GPT-форекаст порожній")
     gpt_filters = {
         "do_not_sell": gpt_forecast.get("sell", []),
         "do_not_buy": [],
