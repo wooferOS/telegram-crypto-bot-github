@@ -3,7 +3,7 @@
 import json
 import logging
 
-from typing import Any
+from typing import Any, Optional
 
 from binance_api import notify_telegram
 
@@ -24,61 +24,33 @@ def _ensure_structure(data: dict) -> dict:
     return result
 
 
-def ask_gpt(prompt_dict: dict, model: str = "gpt-4o") -> dict:
-    """Send ``prompt_dict`` to GPT and return the JSON response."""
+async def ask_gpt(messages: list, api_key: str) -> Optional[str]:
+    import aiohttp
 
-    from openai import OpenAI
-    from config import OPENAI_API_KEY
-
-    kwargs = {
-        "model": model,
-        "messages": [
-            {
-                "role": "user",
-                "content": (
-                    "Please return a valid JSON object with fields: buy, sell, scores, summary.\n\n"
-                    + json.dumps(prompt_dict)
-                ),
-            }
-        ],
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": "gpt-4o",
+        "messages": messages,
+        "temperature": 0.4,
+        "max_tokens": 1200,
     }
 
-    if model in ("gpt-4o", "gpt-4-turbo"):
-        kwargs["response_format"] = {"type": "json_object"}
-
     try:
-        with OpenAI(api_key=OPENAI_API_KEY) as client:
-            response = client.chat.completions.create(**kwargs)
-    except Exception as exc:  # noqa: BLE001
-        logger.exception("[GPT] API request failed: %s", exc)
-        notify_telegram(f"[GPT] ❌ Error: {exc}")
-        return DEFAULT_RESULT.copy()
-
-    if hasattr(response, "error") and response.error:
-        logger.error("[GPT] API error: %s", response.error)
-        notify_telegram(f"[GPT] ❌ Error: {response.error}")
-        return DEFAULT_RESULT.copy()
-
-    content: Any = response.choices[0].message.content
-
-    if isinstance(content, dict):
-        return _ensure_structure(content)
-
-    try:
-        parsed = json.loads(content)
-    except Exception as exc:  # noqa: BLE001
-        logger.error("[GPT] Parsing failed: %s", exc)
-        notify_telegram(f"[GPT] ❌ Error: {exc}")
-        error_data = DEFAULT_RESULT.copy()
-        error_data["summary"] = "GPT error: parsing failed"
-        try:
-            with open("gpt_forecast.txt", "w", encoding="utf-8") as f:
-                json.dump(error_data, f, indent=2, ensure_ascii=False)
-        except OSError as write_exc:  # pragma: no cover - diagnostics only
-            logger.warning("Could not write gpt_forecast.txt: %s", write_exc)
-        return error_data
-
-    return _ensure_structure(parsed)
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=payload, timeout=30) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return data["choices"][0]["message"]["content"]
+                else:
+                    logger.warning(f"[dev] ⚠️ GPT API error {resp.status}: {await resp.text()}")
+                    return None
+    except Exception as e:
+        logger.warning(f"[dev] ❌ GPT request failed: {e}")
+        return None
 
 
 def get_gpt_forecast() -> dict:
