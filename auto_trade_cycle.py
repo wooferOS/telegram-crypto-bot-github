@@ -215,6 +215,22 @@ def _analyze_pair(
     }
 
 
+def filter_top_tokens(predictions: dict, limit: int = 3) -> list[tuple[str, dict]]:
+    """Filter and rank tokens by basic score."""
+
+    ranked: list[tuple[str, dict]] = []
+    for pair, data in predictions.items():
+        ep = data.get("expected_profit", 0.0)
+        prob = data.get("prob_up", 0.0)
+        if ep > 0 and prob > 0.5:
+            score = prob * ep
+            ranked.append((pair, {**data, "score": score}))
+
+    ranked.sort(key=lambda x: x[1]["score"], reverse=True)
+    filtered = ranked[:limit]
+    logger.info("[dev] 🧪 Після фільтрації: %s", filtered)
+    
+
 def generate_conversion_signals(
     gpt_filters: Optional[Dict[str, List[str]]] = None,
     gpt_forecast: Optional[Dict[str, List[str]]] = None,
@@ -648,6 +664,31 @@ async def send_conversion_signals(
     TRADE_SUMMARY["sold"].extend(sold)
     TRADE_SUMMARY["bought"].extend(bought)
     return sold, bought
+
+
+async def buy_with_remaining_usdt(
+    usdt_balance: float,
+    top_tokens: list[tuple[str, dict]],
+    *,
+    chat_id: int,
+) -> None:
+    """Use remaining USDT to buy the best token from ``top_tokens``."""
+
+    if usdt_balance <= 0 or not top_tokens:
+        logger.info("[dev] Немає USDT для купівлі або немає токенів")
+        return
+
+    pair, data = top_tokens[0]
+    logger.info(
+        f"[dev] 🛒 Купівля {pair} на залишок {usdt_balance:.2f} USDT"
+    )
+    result = market_buy(pair, usdt_balance)
+    if result.get("status") == "success":
+        msg = f"✅ Куплено {pair} на {usdt_balance:.2f} USDT"
+    else:
+        reason = result.get("message", "невідома помилка")
+        msg = f"❌ Не вдалося купити {pair}: {reason}"
+    await send_messages(int(chat_id), [msg])
 
 
 async def main(chat_id: int) -> dict:
