@@ -113,7 +113,10 @@ if __name__ == "__main__":
 
     # Sell assets with low expected profit before running the main cycle
     gpt_forecast = load_gpt_filters()
-    gpt_filters = {"do_not_sell": gpt_forecast.get("sell", [])}
+    gpt_filters = {
+        "do_not_buy": gpt_forecast.get("do_not_buy", []),
+        "recommend_buy": gpt_forecast.get("recommend_buy", []),
+    }
     (
         _,
         _,
