@@ -202,7 +202,7 @@ def get_exchange_info_cached() -> Dict[str, object]:
 
     if os.path.exists(EXCHANGE_INFO_CACHE):
         mtime = os.path.getmtime(EXCHANGE_INFO_CACHE)
-        if time.time() - mtime < EXCHANGE_INFO_TTL:
+        if time.time() - mtime < EXCHANGE_INFO_TTL and "BTTCUSDT" in open(EXCHANGE_INFO_CACHE).read():
             with open(EXCHANGE_INFO_CACHE, "r", encoding="utf-8") as f:
                 return json.load(f)
 
