@@ -116,8 +116,6 @@ if __name__ == "__main__":
         _,
         _,
         _,
-        _,
-        _,
         gpt_forecast,
         predictions,
     ) = generate_conversion_signals(gpt_filters, gpt_forecast)
