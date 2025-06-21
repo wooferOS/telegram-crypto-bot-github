@@ -693,7 +693,10 @@ async def buy_with_remaining_usdt(
 
     tried_tokens = [p for p, _ in top_tokens]
 
-    for pair, data in top_tokens:
+    for i, (pair, data) in enumerate(top_tokens):
+        if i >= 3:
+            logger.warning("[dev] ⚠️ Зупинено купівлю: досягнуто 3 невдалих спроб")
+            break
         symbol = pair.replace("USDT", "")
         price = get_symbol_price(pair)
         if price <= 0:
@@ -706,6 +709,14 @@ async def buy_with_remaining_usdt(
         if notional < min_notional:
             continue
 
+        logger.info(
+            "[dev] ℹ️ Перевірка: %s — qty=%.6f, price=%.6f, notional=%.6f, min_notional=%.6f",
+            symbol,
+            qty,
+            price,
+            notional,
+            min_notional,
+        )
         logger.info("[dev] ⚠️ Купівля на залишок: %s — qty=%.6f price=%.6f", symbol, qty, price)
         result = market_buy_symbol_by_amount(symbol, usdt_balance)
         if result and result.get("status") == "success":
@@ -713,6 +724,7 @@ async def buy_with_remaining_usdt(
             return symbol
         else:
             logger.warning("[dev] ❗ Купівля на залишок %s не вдалася: %s", symbol, result)
+            continue
 
     return None
 
@@ -806,12 +818,14 @@ async def main(chat_id: int) -> dict:
     if not successfully_bought:
         logger.warning(f"[dev] ❌ Жодна купівля не відбулась, усі спроби не пройшли")
 
-    await buy_with_remaining_usdt(
+    bought = await buy_with_remaining_usdt(
         get_binance_balances().get("USDT", 0.0),
         reasons,
         chat_id=chat_id,
         gpt_forecast=gpt_forecast,
     )
+    if not bought:
+        logger.warning("[dev] ❌ Не вдалося купити жоден токен — завершення циклу")
 
     usdt_final = get_binance_balances().get("USDT", 0.0)
 
