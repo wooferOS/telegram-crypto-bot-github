@@ -410,13 +410,16 @@ def generate_zarobyty_report() -> tuple[str, list, list, dict | None]:
             fail += 1
     logger.debug("Symbols to analyze: %d success, %d skipped", success, fail)
 
+    symbols_for_analysis = symbols_to_analyze
+    symbols_for_analysis = symbols_for_analysis[:60]
+
     enriched_tokens: list[dict] = []
     buy_candidates: list[dict] = []
     model = load_model()
     if not model:
         logger.warning("\u26a0\ufe0f Модель недоступна")
 
-    for symbol in symbols_to_analyze:
+    for symbol in symbols_for_analysis:
         try:
             feature_vector, _, _ = generate_features(symbol)
             fv = np.asarray(feature_vector).reshape(1, -1)
