@@ -84,6 +84,19 @@ def load_gpt_filters() -> dict[str, str]:
     return forecast
 
 
+def load_predictions() -> Dict[str, Dict[str, float]]:
+    """Return stored predictions from disk if available."""
+    path = os.path.join("logs", "predictions.json")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+    except Exception as exc:  # pragma: no cover - diagnostics only
+        logger.warning("[dev] ❗ Не вдалося завантажити predictions: %s", exc)
+    return {}
+
+
 def _human_amount(amount: float, precision: int) -> str:
     """Return ``amount`` formatted for Telegram messages."""
     if amount >= 1_000_000:
@@ -230,11 +243,10 @@ def filter_top_tokens(predictions: dict, limit: int = 3) -> list[tuple[str, dict
     filtered = ranked[:limit]
     logger.info("[dev] 🧪 Після фільтрації: %s", filtered)
     if not filtered:
-        logger.warning("[dev] ⚠️ Усі токени відфільтровані — використано fallback.")
-
-    if not filtered:
-        logger.warning("[dev] 🛑 Фільтр порожній — fallback на top 3 по score")
-        filtered = sorted(ranked, key=lambda x: x[1]["score"], reverse=True)[:3]
+        logger.warning(
+            "[dev] ⚠️ Усі токени відфільтровані — fallback на top-3."
+        )
+        return ranked[:limit]
 
     return filtered
     
@@ -511,6 +523,7 @@ def sell_unprofitable_assets(
         reverse=True,
     )
     if not ranked:
+        logger.warning("[dev] ❌ Продаж: відсутні токени з прибутком > 0")
         return []
 
     top3_min = ranked[min(2, len(ranked) - 1)]
@@ -691,7 +704,15 @@ async def buy_with_remaining_usdt(
     if usdt_balance <= 0:
         return None
     if not top_tokens:
-        top_tokens = []
+        logger.warning("[dev] ⚠️ Купівля: top_tokens порожній — fallback на top-1.")
+        try:
+            predictions = load_predictions()
+        except Exception:  # pragma: no cover - diagnostics only
+            predictions = {}
+        fallback = filter_top_tokens(predictions, limit=1)
+        if not fallback:
+            return None
+        top_tokens = fallback
 
     tried_tokens = [p for p, _ in top_tokens]
 
@@ -733,6 +754,18 @@ async def main(chat_id: int) -> dict:
         "do_not_buy": [],
         "recommend_buy": gpt_forecast.get("buy", []),
     }
+    gpt_filtered = {
+        "buy": gpt_forecast.get("buy", []),
+        "sell": gpt_forecast.get("sell", []),
+    }
+    if not gpt_filtered["buy"]:
+        logger.warning(
+            "[dev] ⚠️ GPT не рекомендує купувати — fallback на ринкові top-3."
+        )
+    if not gpt_filtered["sell"]:
+        logger.warning(
+            "[dev] ⚠️ GPT не рекомендує продавати — все одно аналізуємо за expected_profit."
+        )
 
     usdt_before = get_binance_balances().get("USDT", 0.0)
 
