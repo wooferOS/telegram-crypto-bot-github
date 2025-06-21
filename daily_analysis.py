@@ -8,6 +8,7 @@ import pytz
 import statistics
 import logging
 import numpy as np
+import math
 
 # Lookback window for trade history metrics
 lookback_days = 30
@@ -30,6 +31,7 @@ from binance_api import (
     get_usdt_balance,
     get_token_balance,
     market_sell,
+    get_lot_step,
     is_symbol_valid,
     get_valid_usdt_symbols,
     get_all_valid_symbols,
@@ -669,7 +671,9 @@ async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> No
                 )
                 if amount and amount > 0:
                     try:
-                        result = market_sell(symbol, amount)
+                        step = get_lot_step(symbol)
+                        adjusted_amount = math.floor(amount / step) * step
+                        result = market_sell(symbol, adjusted_amount)
                         logger.info("✅ Продано %s: %s | %s", symbol, amount, result)
                         if result.get("status") == "success":
                             sold_any = True
