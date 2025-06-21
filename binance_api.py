@@ -14,6 +14,7 @@ import hashlib
 import logging
 import decimal
 import json
+import math
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -801,21 +802,29 @@ def market_sell(symbol: str, quantity: float) -> dict:
 def sell_asset(symbol: str, quantity: float) -> dict:
     """Sell ``symbol`` with fallback to ``_fallback_market_sell`` on failure."""
 
-    order = place_market_order(symbol, "SELL", quantity)
+    step = get_lot_step(symbol)
+    adjusted_amount = math.floor(quantity / step) * step
+    adjusted_amount = round(adjusted_amount, int(abs(math.log10(step))))
+
+    logger.info(
+        f"[dev] ⚙️ Округлена кількість {symbol}: {adjusted_amount} (step={step})"
+    )
+
+    order = place_market_order(symbol, "SELL", adjusted_amount)
     if order:
         return {"status": "market_order"}
 
     price = get_symbol_price(_to_usdt_pair(symbol))
     logger.warning(
-        f"[dev] ⚠️ Неможливо продати {symbol} — minNotional або minQty не виконано: кількість={quantity}, ціна={price}"
+        f"[dev] ⚠️ Неможливо продати {symbol} — minNotional або minQty не виконано: кількість={adjusted_amount}, ціна={price}"
     )
 
-    success = _fallback_market_sell(symbol, quantity)
+    success = _fallback_market_sell(symbol, adjusted_amount)
     if success:
         return {"status": "fallback_sell"}
 
     logger.error(
-        f"[dev] ❌ Fallback market_sell також не вдався: {symbol}, кількість={quantity}"
+        f"[dev] ❌ Fallback market_sell також не вдався: {symbol}, кількість={adjusted_amount}"
     )
     return {"status": "failed"}
 
