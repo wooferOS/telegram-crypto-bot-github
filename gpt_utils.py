@@ -80,3 +80,32 @@ def ask_gpt(prompt_dict: dict, model: str = "gpt-4o") -> dict:
         return error_data
 
     return _ensure_structure(parsed)
+
+
+def get_gpt_forecast() -> dict:
+    """Return GPT forecast from ``gpt_forecast.txt``.
+
+    If the file is missing or invalid, an empty forecast structure is
+    returned without raising an exception.
+    """
+
+    empty: dict = {"recommend_buy": [], "do_not_buy": []}
+    try:
+        with open("gpt_forecast.txt", "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as exc:  # pragma: no cover - diagnostics only
+        logger.warning("[dev] Could not read gpt_forecast.txt: %s", exc)
+        return empty
+
+    if not isinstance(data, dict):
+        return empty
+
+    rec_buy = data.get("recommend_buy") or data.get("buy") or []
+    do_not_buy = data.get("do_not_buy") or data.get("sell") or []
+
+    if not isinstance(rec_buy, list):
+        rec_buy = []
+    if not isinstance(do_not_buy, list):
+        do_not_buy = []
+
+    return {"recommend_buy": rec_buy, "do_not_buy": do_not_buy}
