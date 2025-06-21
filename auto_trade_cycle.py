@@ -455,19 +455,32 @@ def generate_conversion_signals(
             )
 
     to_buy = [p.replace("USDT", "") for p, _ in top_tokens]
-    to_sell: list[str] = []
-    for asset in portfolio:
-        pair = asset if asset.endswith("USDT") else f"{asset}USDT"
-        data = predictions.get(pair)
-        if not data:
+    sell_candidates: list[str] = []
+    for symbol, amount in portfolio.items():
+        pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
+        pred = predictions.get(pair)
+        if not pred:
             continue
-        if (
-            data.get("expected_profit", 0) >= 0.3
-            and data.get("score", 0) >= 0.3
-            and data.get("prob_up", 0) > 0.45
-            and data.get("risk_reward_ratio", 0) >= 1.5
-        ):
-            to_sell.append(asset)
+        prob = pred.get("prob_up", 0.0)
+        ep = pred.get("expected_profit", 0.0)
+        score = prob * ep
+        if score < 0.01:
+            sell_candidates.append(symbol)
+        else:
+            logger.info("[dev] ⛔ Пропущено %s — prob_up=%.2f, exp=%.2f", symbol, prob, ep)
+
+    if not sell_candidates:
+        logger.warning(
+            "[dev] ⚠️ Немає токенів для продажу — пробуємо fallback: продаємо найдешевші/нерухомі активи"
+        )
+        sorted_portfolio = sorted(portfolio.items(), key=lambda x: x[1])
+        for symbol, amount in sorted_portfolio:
+            if symbol in predictions and amount > 0:
+                sell_candidates.append(symbol)
+            if len(sell_candidates) >= 3:
+                break
+
+    to_sell = sell_candidates
     summary = [f"{p.replace('USDT', '')}: {d['expected_profit']:.2f}" for p, d in top_tokens]
     report_text = f"USDT balance: {balances.get('USDT', 0.0)}\n" + "\n".join(summary)
 
