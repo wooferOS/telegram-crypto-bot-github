@@ -13,6 +13,7 @@ import hmac
 import hashlib
 import logging
 import decimal
+import math
 import json
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -500,6 +501,21 @@ def market_sell(symbol: str, quantity: float) -> dict:
         logger.error(f"\u274c Помилка при ринковому продажі {symbol}: {str(e)}")
         return {"status": "error", "message": str(e)}
 
+
+def sell_asset(symbol: str, amount: float) -> dict:
+    """Sell ``amount`` of ``symbol`` using market order with step rounding."""
+
+    step = get_lot_step(symbol)
+
+    adjusted_amount = math.floor(amount / step) * step
+    adjusted_amount = round(adjusted_amount, int(abs(math.log10(step))))
+
+    logger.info(
+        f"[dev] \u2699\ufe0f \u041e\u043a\u0440\u0443\u0433\u043b\u0435\u043d\u0430 \u043a\u0456\u043b\u044c\u043a\u0456\u0441\u0442\u044c {symbol}: {adjusted_amount} (step={step})"
+    )
+    result = market_sell(symbol, adjusted_amount)
+    return result
+
 def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
     """Place a limit sell order on Binance."""
 
@@ -847,6 +863,25 @@ def get_symbol_precision(symbol: str) -> int:
             exc,
         )
     return 2
+
+
+def get_lot_step(symbol: str) -> float:
+    """Return LOT_SIZE step for symbol."""
+    try:
+        data = get_exchange_info_cached()
+        for s in data.get("symbols", []):
+            if s["symbol"] == symbol:
+                for f in s.get("filters", []):
+                    if f.get("filterType") == "LOT_SIZE":
+                        return float(f.get("stepSize"))
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.warning(
+            "%s Помилка при отриманні stepSize для %s: %s",
+            TELEGRAM_LOG_PREFIX,
+            symbol,
+            exc,
+        )
+    return 1.0
 
 
 def get_full_asset_info() -> Dict[str, object]:
