@@ -223,13 +223,19 @@ def filter_top_tokens(predictions: dict, limit: int = 3) -> list[tuple[str, dict
     for pair, data in predictions.items():
         ep = data.get("expected_profit", 0.0)
         prob = data.get("prob_up", 0.0)
-        if ep > 0 and prob > 0.5:
-            score = prob * ep
-            ranked.append((pair, {**data, "score": score}))
+        score = prob * ep
+        ranked.append((pair, {**data, "score": score}))
 
     ranked.sort(key=lambda x: x[1]["score"], reverse=True)
     filtered = ranked[:limit]
     logger.info("[dev] 🧪 Після фільтрації: %s", filtered)
+    if not filtered:
+        logger.warning("[dev] ⚠️ Усі токени відфільтровані — використано fallback.")
+
+    if not filtered:
+        logger.warning("[dev] 🛑 Фільтр порожній — fallback на top 3 по score")
+        filtered = sorted(ranked, key=lambda x: x[1]["score"], reverse=True)[:3]
+
     return filtered
     
 
