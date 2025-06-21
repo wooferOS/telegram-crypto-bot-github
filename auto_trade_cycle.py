@@ -547,7 +547,19 @@ def _compose_failure_message(
 ) -> str:
     """Return concise explanation why no trade was executed."""
 
-    return "[dev] Куплено найкращі доступні токени, навіть при слабкому ринку."
+    reasons: list[str] = []
+    if not portfolio:
+        reasons.append("немає активів для продажу")
+    if usdt_balance <= 0:
+        reasons.append("баланс USDT = 0")
+    if not predictions:
+        reasons.append("немає сигналів для купівлі")
+    if identical_profits:
+        reasons.append("усі пари мають однаковий expected_profit")
+    if not reasons:
+        reasons.append("ринок занадто слабкий")
+
+    return f"[dev] Без угод: {'; '.join(reasons)}."
 
 
 async def buy_with_remaining_usdt(
@@ -558,8 +570,10 @@ async def buy_with_remaining_usdt(
 ) -> Optional[str]:
     """Buy the best available token with the remaining USDT balance."""
 
-    if usdt_balance <= 0 or not top_tokens:
+    if usdt_balance <= 0:
         return None
+    if not top_tokens:
+        top_tokens = []
 
     tried_tokens = [p for p, _ in top_tokens]
 
@@ -599,18 +613,41 @@ async def buy_with_remaining_usdt(
         pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
         if pair in tried_tokens:
             continue
-        data = _analyze_pair(pair, model, MIN_EXPECTED_PROFIT, MIN_PROB_UP)
-        if data and (
-            data.get("prob_up", 0) >= MIN_PROB_UP
-            and data.get("expected_profit", 0) >= MIN_EXPECTED_PROFIT
-            and data.get("score", 0) >= FALLBACK_MIN_SCORE
-        ):
+        data = _analyze_pair(pair, model, 0.0, 0.0)
+        if data:
             predictions.append((pair, data))
 
     predictions.sort(key=lambda x: x[1]["score"], reverse=True)
     fallback = predictions[:5]
     if not fallback and predictions:
         fallback = [max(predictions, key=lambda x: x[1]["score"])]
+    if not fallback:
+        # Force at least one token for fallback purchase even with weak score
+        for symbol in get_valid_usdt_symbols():
+            pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
+            data = _analyze_pair(pair, model, 0.0, 0.0)
+            if not data:
+                data = {
+                    "price": get_symbol_price(pair),
+                    "tp": 0.0,
+                    "sl": 0.0,
+                    "prob_up": 0.0,
+                    "ml_proba": 0.0,
+                    "ml_prob_history": 0.0,
+                    "whale_alert": 0.0,
+                    "expected_profit": 0.0,
+                    "trend_score": 0.0,
+                    "volatility_24h": 0.0,
+                    "trend_weight": 0.0,
+                    "volatility_weight": 0.0,
+                    "volume_usdt": 0.0,
+                    "score": 0.0,
+                    "score_base": 0.0,
+                    "risk_reward_ratio": 0.0,
+                    "drawdown": 0.0,
+                }
+            fallback = [(pair, data)]
+            break
 
     if fallback:
         symbols = ", ".join(p[0].replace("USDT", "") for p in fallback)
@@ -647,7 +684,7 @@ async def buy_with_remaining_usdt(
     await send_messages(
         int(chat_id),
         [
-            f"❗ Нічого не куплено. Причина: баланс USDT = {usdt_balance}, але жоден BUY токен не доступний через min_qty."
+            f"❗ Нічого не куплено. Причина: баланс USDT={usdt_balance} або всі токени не відповідають min_qty."
         ],
     )
     return None
