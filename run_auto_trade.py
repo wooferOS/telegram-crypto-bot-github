@@ -1,5 +1,8 @@
 """Entry point for scheduled auto trade cycle with rate limiting."""
 
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+
 import argparse
 import asyncio
 import json
