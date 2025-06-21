@@ -1,3 +1,6 @@
+
+
+
 # pylint: disable=missing-docstring
 """Binance API helper module.
 
@@ -6,6 +9,19 @@ API and is designed for use in a Telegram bot.
 """
 
 from __future__ import annotations
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
+_session = requests.Session()
+retries = Retry(total=2, backoff_factor=0.3, status_forcelist=[429, 500, 502, 503, 504])
+
+adapter = HTTPAdapter(max_retries=retries)
+_session.mount("https://", adapter)
+
+
+
+
 
 import os
 import time
@@ -18,7 +34,6 @@ import math
 from datetime import datetime
 from typing import Dict, List, Optional
 
-import requests
 from binance.client import Client
 from binance.enums import (
     SIDE_BUY,
@@ -285,7 +300,7 @@ def get_account_info() -> Optional[Dict[str, object]]:
     url = f"{BINANCE_BASE_URL}/api/v3/account"
     params = sign_request({"timestamp": get_timestamp()})
     try:
-        resp = requests.get(url, headers=get_headers(), params=params, timeout=10)
+        resp = _session.get(url, headers=get_headers(), params=params, timeout=10)
         resp.raise_for_status()
         return resp.json()
     except requests.RequestException as exc:
@@ -634,7 +649,7 @@ def get_symbol_price(pair: str) -> float:
     url = f"{BINANCE_BASE_URL}/api/v3/ticker/price"
     params = {"symbol": pair}
     try:
-        resp = requests.get(url, params=params, timeout=(3, 5))
+        resp = _session.get(url, params=params, timeout=(3, 5))
         resp.raise_for_status()
         return float(resp.json()["price"])
     except Exception as e:
@@ -1018,7 +1033,7 @@ def get_open_orders(symbol: str | None = None) -> list:
     signed_params = sign_request(params)
     url = f"{BINANCE_BASE_URL}{endpoint}"
     try:
-        resp = requests.get(url, headers=get_headers(), params=signed_params, timeout=10)
+        resp = _session.get(url, headers=get_headers(), params=signed_params, timeout=10)
         resp.raise_for_status()
         return resp.json()
     except Exception as exc:  # pragma: no cover - network errors
@@ -1151,7 +1166,7 @@ def get_coin_price(symbol: str) -> Optional[float]:
     url = f"{BINANCE_BASE_URL}/api/v3/ticker/price"
     pair = _to_usdt_pair(symbol)
     try:
-        resp = requests.get(url, params={"symbol": pair}, timeout=5)
+        resp = _session.get(url, params={"symbol": pair}, timeout=5)
         resp.raise_for_status()
         return float(resp.json()["price"])
     except Exception as exc:
@@ -1281,7 +1296,7 @@ def get_last_price(symbol: str) -> float:
 
     url = f"{BINANCE_BASE_URL}/api/v3/ticker/price?symbol={symbol}"
     try:
-        resp = requests.get(url, timeout=5)
+        resp = _session.get(url, timeout=5)
         resp.raise_for_status()
         return float(resp.json()["price"])
     except Exception as exc:
@@ -1301,7 +1316,7 @@ def get_price_history_24h(symbol: str) -> Optional[List[float]]:
     pair = _to_usdt_pair(symbol)
     params = {"symbol": pair, "interval": "1h", "limit": 24}
     try:
-        resp = requests.get(url, params=params, timeout=5)
+        resp = _session.get(url, params=params, timeout=5)
         resp.raise_for_status()
         return [float(item[4]) for item in resp.json()]
     except Exception as exc:
@@ -1337,7 +1352,7 @@ def get_candlestick_klines(symbol: str, interval: str = "1h", limit: int = 100) 
     logger.debug("get_candlestick_klines: %s -> %s", symbol, pair)
     params = {"symbol": pair, "interval": interval, "limit": limit}
     try:
-        response = requests.get(url, params=params, timeout=(3, 5))
+        response = _session.get(url, params=params, timeout=(3, 5))
         response.raise_for_status()
         return response.json()
     except Exception as e:  # pragma: no cover - network errors
@@ -1469,7 +1484,7 @@ def get_top_tokens(limit: int = 50) -> List[Dict[str, object]]:
 
     url = f"{BINANCE_BASE_URL}/api/v3/ticker/24hr"
     try:
-        resp = requests.get(url, timeout=10)
+        resp = _session.get(url, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         filtered = [
@@ -1650,7 +1665,7 @@ def get_candlestick_klines(symbol: str, interval: str = "1d", limit: int = 7):
     url = f"{BINANCE_BASE_URL}/api/v3/klines"
     params = {"symbol": pair, "interval": interval, "limit": limit}
     try:
-        resp = requests.get(url, params=params, timeout=(3, 5))
+        resp = _session.get(url, params=params, timeout=(3, 5))
         resp.raise_for_status()
         return resp.json()
     except Exception as exc:  # pragma: no cover - network errors

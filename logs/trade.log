@@ -21784,3 +21784,656 @@ connector: <aiohttp.connector.TCPConnector object at 0x7f5261b94f10>
 2025-06-19 10:20:35,147 ERROR ❌ Помилка при конвертації 1000SATS: {'code': -1022, 'msg': 'Signature for this request is not valid.'}
 2025-06-19 10:20:35,376 WARNING [dev] ❗ Binance API error for 1000SATSBTTC: символ не існує
 2025-06-19 10:20:35,376 WARNING 1000SATS → BTTC не вдалося: {'code': -1022, 'msg': 'Signature for this request is not valid.'}
+2025-06-21 17:43:51,700 INFO GPT-фільтр: buy=0, sell=0
+2025-06-21 17:43:52,297 INFO ✅ Binance API доступний
+2025-06-21 17:43:53,055 INFO ✅ Binance API доступний
+2025-06-21 17:43:53,283 INFO GPT-фільтр: buy=0, sell=0
+2025-06-21 17:43:54,227 INFO ✅ Binance API доступний
+2025-06-21 17:43:55,425 INFO ✅ Binance API доступний
+2025-06-21 17:43:56,211 INFO ✅ Binance API доступний
+2025-06-21 17:43:56,441 INFO [dev] Звіт:
+[]
+2025-06-21 17:43:56,441 INFO No conversion signals generated
+2025-06-21 17:43:57,122 INFO ✅ Binance API доступний
+2025-06-21 17:43:57,353 WARNING [dev] ❌ Жодна купівля не відбулась, усі спроби не пройшли
+2025-06-21 17:43:57,872 INFO ✅ Binance API доступний
+2025-06-21 17:44:00,618 INFO is_symbol_valid(BTCUSDT) -> True (pair=BTCUSDT)
+2025-06-21 17:44:00,945 INFO [dev] ✅ Додано у BUY: BTC, score=0.31, trend=0.49, vol=81401$
+2025-06-21 17:44:01,811 INFO is_symbol_valid(ETHUSDT) -> True (pair=ETHUSDT)
+2025-06-21 17:44:02,154 INFO [dev] ✅ Додано у BUY: ETH, score=0.31, trend=0.48, vol=3232493$
+2025-06-21 17:44:03,018 INFO is_symbol_valid(BNBUSDT) -> True (pair=BNBUSDT)
+2025-06-21 17:44:03,381 INFO [dev] ✅ Додано у BUY: BNB, score=0.31, trend=0.49, vol=813235$
+2025-06-21 17:44:04,251 INFO is_symbol_valid(NEOUSDT) -> True (pair=NEOUSDT)
+2025-06-21 17:44:04,577 INFO [dev] ✅ Додано у BUY: NEO, score=0.31, trend=0.49, vol=4133372$
+2025-06-21 17:44:05,410 INFO is_symbol_valid(LTCUSDT) -> True (pair=LTCUSDT)
+2025-06-21 17:44:05,728 INFO [dev] ✅ Додано у BUY: LTC, score=0.31, trend=0.49, vol=1868068$
+2025-06-21 17:44:06,573 INFO is_symbol_valid(QTUMUSDT) -> True (pair=QTUMUSDT)
+2025-06-21 17:44:06,891 INFO [dev] ✅ Додано у BUY: QTUM, score=0.31, trend=0.48, vol=2714451$
+2025-06-21 17:44:07,722 INFO is_symbol_valid(ADAUSDT) -> True (pair=ADAUSDT)
+2025-06-21 17:44:08,034 INFO [dev] ✅ Додано у BUY: ADA, score=0.31, trend=0.47, vol=641059497$
+2025-06-21 17:44:08,851 INFO is_symbol_valid(XRPUSDT) -> True (pair=XRPUSDT)
+2025-06-21 17:44:09,171 INFO [dev] ✅ Додано у BUY: XRP, score=0.31, trend=0.49, vol=644101616$
+2025-06-21 17:44:09,989 INFO is_symbol_valid(TUSDUSDT) -> True (pair=TUSDUSDT)
+2025-06-21 17:44:10,301 INFO [dev] ⚠️ Пропущено TUSDUSDT: EP=0.62, prob_up=0.25, ml=0.25, RRR=1.34
+2025-06-21 17:44:11,124 INFO is_symbol_valid(IOTAUSDT) -> True (pair=IOTAUSDT)
+2025-06-21 17:44:11,446 INFO [dev] ✅ Додано у BUY: IOTA, score=0.31, trend=0.48, vol=79929564$
+2025-06-21 17:44:12,267 INFO is_symbol_valid(XLMUSDT) -> True (pair=XLMUSDT)
+2025-06-21 17:44:12,593 INFO [dev] ✅ Додано у BUY: XLM, score=0.31, trend=0.48, vol=254464878$
+2025-06-21 17:44:13,426 INFO is_symbol_valid(ONTUSDT) -> True (pair=ONTUSDT)
+2025-06-21 17:44:13,739 INFO [dev] ✅ Додано у BUY: ONT, score=0.31, trend=0.48, vol=19376651$
+2025-06-21 17:44:14,568 INFO is_symbol_valid(TRXUSDT) -> True (pair=TRXUSDT)
+2025-06-21 17:44:14,883 INFO [dev] ✅ Додано у BUY: TRX, score=0.31, trend=0.50, vol=2780446178$
+2025-06-21 17:44:15,707 INFO is_symbol_valid(ETCUSDT) -> True (pair=ETCUSDT)
+2025-06-21 17:44:16,023 INFO [dev] ✅ Додано у BUY: ETC, score=0.31, trend=0.49, vol=2166239$
+2025-06-21 17:44:16,849 INFO is_symbol_valid(ICXUSDT) -> True (pair=ICXUSDT)
+2025-06-21 17:44:17,203 INFO [dev] ✅ Додано у BUY: ICX, score=0.31, trend=0.49, vol=87810904$
+2025-06-21 17:44:18,062 INFO is_symbol_valid(VETUSDT) -> True (pair=VETUSDT)
+2025-06-21 17:44:18,374 INFO [dev] ✅ Додано у BUY: VET, score=0.31, trend=0.48, vol=1162806389$
+2025-06-21 17:44:19,192 INFO is_symbol_valid(USDCUSDT) -> True (pair=USDCUSDT)
+2025-06-21 17:44:19,511 INFO [dev] ⚠️ Пропущено USDCUSDT: EP=0.62, prob_up=0.39, ml=0.39, RRR=1.63
+2025-06-21 17:44:20,336 INFO is_symbol_valid(LINKUSDT) -> True (pair=LINKUSDT)
+2025-06-21 17:44:20,652 INFO [dev] ✅ Додано у BUY: LINK, score=0.31, trend=0.48, vol=15744691$
+2025-06-21 17:44:21,495 INFO is_symbol_valid(ONGUSDT) -> True (pair=ONGUSDT)
+2025-06-21 17:44:21,811 INFO [dev] ✅ Додано у BUY: ONG, score=0.31, trend=0.49, vol=39089406$
+2025-06-21 17:44:22,653 INFO is_symbol_valid(HOTUSDT) -> True (pair=HOTUSDT)
+2025-06-21 17:44:22,966 INFO [dev] ✅ Додано у BUY: HOT, score=0.31, trend=0.48, vol=5840597422$
+2025-06-21 17:44:23,793 INFO is_symbol_valid(ZILUSDT) -> True (pair=ZILUSDT)
+2025-06-21 17:44:24,104 INFO [dev] ✅ Додано у BUY: ZIL, score=0.31, trend=0.48, vol=581326152$
+2025-06-21 17:44:24,933 INFO is_symbol_valid(ZRXUSDT) -> True (pair=ZRXUSDT)
+2025-06-21 17:44:25,245 INFO [dev] ✅ Додано у BUY: ZRX, score=0.31, trend=0.48, vol=46052929$
+2025-06-21 17:44:26,072 INFO is_symbol_valid(FETUSDT) -> True (pair=FETUSDT)
+2025-06-21 17:44:26,387 INFO [dev] ✅ Додано у BUY: FET, score=0.31, trend=0.48, vol=243575604$
+2025-06-21 17:44:27,660 INFO is_symbol_valid(BATUSDT) -> True (pair=BATUSDT)
+2025-06-21 17:44:27,973 INFO [dev] ✅ Додано у BUY: BAT, score=0.31, trend=0.49, vol=61310395$
+2025-06-21 17:44:28,851 INFO is_symbol_valid(ZECUSDT) -> True (pair=ZECUSDT)
+2025-06-21 17:44:29,185 INFO [dev] ✅ Додано у BUY: ZEC, score=0.31, trend=0.48, vol=259628$
+2025-06-21 17:44:30,009 INFO is_symbol_valid(IOSTUSDT) -> True (pair=IOSTUSDT)
+2025-06-21 17:44:30,371 INFO [dev] ✅ Додано у BUY: IOST, score=0.31, trend=0.47, vol=3129668404$
+2025-06-21 17:44:31,224 INFO is_symbol_valid(CELRUSDT) -> True (pair=CELRUSDT)
+2025-06-21 17:44:31,539 INFO [dev] ✅ Додано у BUY: CELR, score=0.31, trend=0.47, vol=607579089$
+2025-06-21 17:44:32,376 INFO is_symbol_valid(DASHUSDT) -> True (pair=DASHUSDT)
+2025-06-21 17:44:32,698 INFO [dev] ✅ Додано у BUY: DASH, score=0.31, trend=0.49, vol=263193$
+2025-06-21 17:44:33,969 INFO is_symbol_valid(THETAUSDT) -> True (pair=THETAUSDT)
+2025-06-21 17:44:34,285 INFO [dev] ✅ Додано у BUY: THETA, score=0.31, trend=0.48, vol=23446217$
+2025-06-21 17:44:35,117 INFO is_symbol_valid(ENJUSDT) -> True (pair=ENJUSDT)
+2025-06-21 17:44:35,644 INFO [dev] ✅ Додано у BUY: ENJ, score=0.31, trend=0.48, vol=131217261$
+2025-06-21 17:44:36,490 INFO is_symbol_valid(ATOMUSDT) -> True (pair=ATOMUSDT)
+2025-06-21 17:44:36,805 INFO [dev] ✅ Додано у BUY: ATOM, score=0.31, trend=0.48, vol=6977424$
+2025-06-21 17:44:37,634 INFO is_symbol_valid(TFUELUSDT) -> True (pair=TFUELUSDT)
+2025-06-21 17:44:37,951 INFO [dev] ✅ Додано у BUY: TFUEL, score=0.31, trend=0.48, vol=173019014$
+2025-06-21 17:44:38,779 INFO is_symbol_valid(ONEUSDT) -> True (pair=ONEUSDT)
+2025-06-21 17:44:39,094 INFO [dev] ✅ Додано у BUY: ONE, score=0.31, trend=0.46, vol=1125129480$
+2025-06-21 17:44:39,914 INFO is_symbol_valid(ALGOUSDT) -> True (pair=ALGOUSDT)
+2025-06-21 17:44:40,226 INFO [dev] ✅ Додано у BUY: ALGO, score=0.31, trend=0.48, vol=201021171$
+2025-06-21 17:44:41,059 INFO is_symbol_valid(DOGEUSDT) -> True (pair=DOGEUSDT)
+2025-06-21 17:44:41,370 INFO [dev] ✅ Додано у BUY: DOGE, score=0.31, trend=0.48, vol=4518793553$
+2025-06-21 17:44:42,200 INFO is_symbol_valid(DUSKUSDT) -> True (pair=DUSKUSDT)
+2025-06-21 17:44:42,513 INFO [dev] ✅ Додано у BUY: DUSK, score=0.31, trend=0.49, vol=82001180$
+2025-06-21 17:44:43,358 INFO is_symbol_valid(ANKRUSDT) -> True (pair=ANKRUSDT)
+2025-06-21 17:44:43,888 INFO [dev] ✅ Додано у BUY: ANKR, score=0.31, trend=0.48, vol=510052125$
+2025-06-21 17:44:44,708 INFO is_symbol_valid(WINUSDT) -> True (pair=WINUSDT)
+2025-06-21 17:44:45,252 INFO [dev] ✅ Додано у BUY: WIN, score=0.29, trend=0.49, vol=50405921835$
+2025-06-21 17:44:46,081 INFO is_symbol_valid(COSUSDT) -> True (pair=COSUSDT)
+2025-06-21 17:44:46,604 INFO [dev] ✅ Додано у BUY: COS, score=0.31, trend=0.49, vol=2515399939$
+2025-06-21 17:44:47,422 INFO is_symbol_valid(MTLUSDT) -> True (pair=MTLUSDT)
+2025-06-21 17:44:47,735 INFO [dev] ✅ Додано у BUY: MTL, score=0.31, trend=0.49, vol=5583658$
+2025-06-21 17:44:48,569 INFO is_symbol_valid(DENTUSDT) -> True (pair=DENTUSDT)
+2025-06-21 17:44:48,920 INFO [dev] ✅ Додано у BUY: DENT, score=0.31, trend=0.48, vol=6996747240$
+2025-06-21 17:44:49,791 INFO is_symbol_valid(WANUSDT) -> True (pair=WANUSDT)
+2025-06-21 17:44:50,106 INFO [dev] ✅ Додано у BUY: WAN, score=0.31, trend=0.48, vol=10201696$
+2025-06-21 17:44:50,926 INFO is_symbol_valid(FUNUSDT) -> True (pair=FUNUSDT)
+2025-06-21 17:44:51,278 INFO [dev] ✅ Додано у BUY: FUN, score=0.31, trend=0.79, vol=21824629584$
+2025-06-21 17:44:52,134 INFO is_symbol_valid(CVCUSDT) -> True (pair=CVCUSDT)
+2025-06-21 17:44:52,443 INFO [dev] ✅ Додано у BUY: CVC, score=0.31, trend=0.50, vol=73411294$
+2025-06-21 17:44:53,279 INFO is_symbol_valid(CHZUSDT) -> True (pair=CHZUSDT)
+2025-06-21 17:44:53,588 INFO [dev] ✅ Додано у BUY: CHZ, score=0.31, trend=0.48, vol=253453006$
+2025-06-21 17:44:54,855 INFO is_symbol_valid(BANDUSDT) -> True (pair=BANDUSDT)
+2025-06-21 17:44:55,173 INFO [dev] ✅ Додано у BUY: BAND, score=0.31, trend=0.47, vol=6250109$
+2025-06-21 17:44:56,007 INFO is_symbol_valid(XTZUSDT) -> True (pair=XTZUSDT)
+2025-06-21 17:44:56,321 INFO [dev] ✅ Додано у BUY: XTZ, score=0.31, trend=0.47, vol=13862370$
+2025-06-21 17:44:57,145 INFO is_symbol_valid(RVNUSDT) -> True (pair=RVNUSDT)
+2025-06-21 17:44:57,462 INFO [dev] ✅ Додано у BUY: RVN, score=0.31, trend=0.45, vol=3906452389$
+2025-06-21 17:44:58,329 INFO is_symbol_valid(HBARUSDT) -> True (pair=HBARUSDT)
+2025-06-21 17:44:58,641 INFO [dev] ✅ Додано у BUY: HBAR, score=0.31, trend=0.48, vol=772769455$
+2025-06-21 17:44:59,451 INFO is_symbol_valid(NKNUSDT) -> True (pair=NKNUSDT)
+2025-06-21 17:44:59,776 INFO [dev] ✅ Додано у BUY: NKN, score=0.31, trend=0.48, vol=141086982$
+2025-06-21 17:45:01,072 INFO is_symbol_valid(STXUSDT) -> True (pair=STXUSDT)
+2025-06-21 17:45:01,474 INFO [dev] ✅ Додано у BUY: STX, score=0.31, trend=0.49, vol=33349444$
+2025-06-21 17:45:02,382 INFO is_symbol_valid(KAVAUSDT) -> True (pair=KAVAUSDT)
+2025-06-21 17:45:02,749 INFO [dev] ✅ Додано у BUY: KAVA, score=0.31, trend=0.48, vol=22699036$
+2025-06-21 17:45:03,629 INFO is_symbol_valid(ARPAUSDT) -> True (pair=ARPAUSDT)
+2025-06-21 17:45:03,986 INFO [dev] ✅ Додано у BUY: ARPA, score=0.31, trend=0.48, vol=792808924$
+2025-06-21 17:45:05,286 INFO is_symbol_valid(IOTXUSDT) -> True (pair=IOTXUSDT)
+2025-06-21 17:45:05,612 INFO [dev] ✅ Додано у BUY: IOTX, score=0.31, trend=0.49, vol=457244205$
+2025-06-21 17:45:06,441 INFO is_symbol_valid(RLCUSDT) -> True (pair=RLCUSDT)
+2025-06-21 17:45:06,759 INFO [dev] ✅ Додано у BUY: RLC, score=0.31, trend=0.48, vol=3138412$
+2025-06-21 17:45:07,611 INFO is_symbol_valid(BCHUSDT) -> True (pair=BCHUSDT)
+2025-06-21 17:45:08,144 INFO [dev] ✅ Додано у BUY: BCH, score=0.31, trend=0.51, vol=535987$
+2025-06-21 17:45:08,984 INFO is_symbol_valid(FTTUSDT) -> True (pair=FTTUSDT)
+2025-06-21 17:45:09,955 INFO [dev] ✅ Додано у BUY: FTT, score=0.31, trend=0.46, vol=5881092$
+2025-06-21 17:45:10,786 INFO is_symbol_valid(EURUSDT) -> True (pair=EURUSDT)
+2025-06-21 17:45:11,105 INFO [dev] ⚠️ Пропущено EURUSDT: EP=0.62, prob_up=0.34, ml=0.34, RRR=1.51
+2025-06-21 17:45:11,941 INFO is_symbol_valid(OGNUSDT) -> True (pair=OGNUSDT)
+2025-06-21 17:45:12,266 INFO [dev] ✅ Додано у BUY: OGN, score=0.31, trend=0.47, vol=153626187$
+2025-06-21 17:45:13,101 INFO is_symbol_valid(LSKUSDT) -> True (pair=LSKUSDT)
+2025-06-21 17:45:13,439 INFO [dev] ✅ Додано у BUY: LSK, score=0.31, trend=0.48, vol=9980314$
+2025-06-21 17:45:14,260 INFO is_symbol_valid(BNTUSDT) -> True (pair=BNTUSDT)
+2025-06-21 17:45:14,605 INFO [dev] ✅ Додано у BUY: BNT, score=0.31, trend=0.48, vol=3586563$
+2025-06-21 17:45:15,426 INFO is_symbol_valid(LTOUSDT) -> True (pair=LTOUSDT)
+2025-06-21 17:45:15,966 INFO [dev] ✅ Додано у BUY: LTO, score=0.31, trend=0.47, vol=69561909$
+2025-06-21 17:45:16,825 INFO is_symbol_valid(MBLUSDT) -> True (pair=MBLUSDT)
+2025-06-21 17:45:17,136 INFO [dev] ✅ Додано у BUY: MBL, score=0.31, trend=0.50, vol=3961710776$
+2025-06-21 17:45:17,962 INFO is_symbol_valid(COTIUSDT) -> True (pair=COTIUSDT)
+2025-06-21 17:45:18,509 INFO [dev] ✅ Додано у BUY: COTI, score=0.31, trend=0.49, vol=137671790$
+2025-06-21 17:45:19,330 INFO is_symbol_valid(DATAUSDT) -> True (pair=DATAUSDT)
+2025-06-21 17:45:19,646 INFO [dev] ✅ Додано у BUY: DATA, score=0.31, trend=0.50, vol=384984533$
+2025-06-21 17:45:20,472 INFO is_symbol_valid(SOLUSDT) -> True (pair=SOLUSDT)
+2025-06-21 17:45:20,800 INFO [dev] ✅ Додано у BUY: SOL, score=0.31, trend=0.48, vol=19347252$
+2025-06-21 17:45:21,650 INFO is_symbol_valid(CTSIUSDT) -> True (pair=CTSIUSDT)
+2025-06-21 17:45:22,006 INFO [dev] ✅ Додано у BUY: CTSI, score=0.31, trend=0.47, vol=75192333$
+2025-06-21 17:45:22,857 INFO is_symbol_valid(HIVEUSDT) -> True (pair=HIVEUSDT)
+2025-06-21 17:45:23,179 INFO [dev] ✅ Додано у BUY: HIVE, score=0.31, trend=0.48, vol=24377342$
+2025-06-21 17:45:23,991 INFO is_symbol_valid(CHRUSDT) -> True (pair=CHRUSDT)
+2025-06-21 17:45:24,546 INFO [dev] ✅ Додано у BUY: CHR, score=0.31, trend=0.47, vol=79092299$
+2025-06-21 17:45:25,386 INFO is_symbol_valid(ARDRUSDT) -> True (pair=ARDRUSDT)
+2025-06-21 17:45:25,696 INFO [dev] ✅ Додано у BUY: ARDR, score=0.31, trend=0.50, vol=80068390$
+2025-06-21 17:45:26,521 INFO is_symbol_valid(MDTUSDT) -> True (pair=MDTUSDT)
+2025-06-21 17:45:27,073 INFO [dev] ✅ Додано у BUY: MDT, score=0.31, trend=0.47, vol=403703883$
+2025-06-21 17:45:27,904 INFO is_symbol_valid(KNCUSDT) -> True (pair=KNCUSDT)
+2025-06-21 17:45:28,221 INFO [dev] ✅ Додано у BUY: KNC, score=0.31, trend=0.48, vol=9698058$
+2025-06-21 17:45:29,507 INFO is_symbol_valid(LRCUSDT) -> True (pair=LRCUSDT)
+2025-06-21 17:45:29,819 INFO [dev] ✅ Додано у BUY: LRC, score=0.31, trend=0.48, vol=55657495$
+2025-06-21 17:45:30,677 INFO is_symbol_valid(COMPUSDT) -> True (pair=COMPUSDT)
+2025-06-21 17:45:30,989 INFO [dev] ✅ Додано у BUY: COMP, score=0.31, trend=0.47, vol=869717$
+2025-06-21 17:45:31,820 INFO is_symbol_valid(SCUSDT) -> True (pair=SCUSDT)
+2025-06-21 17:45:32,140 INFO [dev] ✅ Додано у BUY: SC, score=0.31, trend=0.49, vol=1268786735$
+2025-06-21 17:45:32,983 INFO is_symbol_valid(ZENUSDT) -> True (pair=ZENUSDT)
+2025-06-21 17:45:33,300 INFO [dev] ✅ Додано у BUY: ZEN, score=0.31, trend=0.46, vol=2444504$
+2025-06-21 17:45:34,131 INFO is_symbol_valid(SNXUSDT) -> True (pair=SNXUSDT)
+2025-06-21 17:45:34,479 INFO [dev] ✅ Додано у BUY: SNX, score=0.31, trend=0.47, vol=10885156$
+2025-06-21 17:45:35,342 INFO is_symbol_valid(VTHOUSDT) -> True (pair=VTHOUSDT)
+2025-06-21 17:45:35,658 INFO [dev] ✅ Додано у BUY: VTHO, score=0.31, trend=0.48, vol=2323653262$
+2025-06-21 17:45:36,500 INFO is_symbol_valid(DGBUSDT) -> True (pair=DGBUSDT)
+2025-06-21 17:45:36,808 INFO [dev] ✅ Додано у BUY: DGB, score=0.31, trend=0.48, vol=354963148$
+2025-06-21 17:45:37,628 INFO is_symbol_valid(SXPUSDT) -> True (pair=SXPUSDT)
+2025-06-21 17:45:37,943 INFO [dev] ✅ Додано у BUY: SXP, score=0.31, trend=0.51, vol=108995964$
+2025-06-21 17:45:38,772 INFO is_symbol_valid(MKRUSDT) -> True (pair=MKRUSDT)
+2025-06-21 17:45:39,099 INFO [dev] ✅ Додано у BUY: MKR, score=0.31, trend=0.45, vol=42599$
+2025-06-21 17:45:39,924 INFO is_symbol_valid(DCRUSDT) -> True (pair=DCRUSDT)
+2025-06-21 17:45:40,258 INFO [dev] ✅ Додано у BUY: DCR, score=0.31, trend=0.48, vol=171694$
+2025-06-21 17:45:41,101 INFO is_symbol_valid(STORJUSDT) -> True (pair=STORJUSDT)
+2025-06-21 17:45:41,425 INFO [dev] ✅ Додано у BUY: STORJ, score=0.31, trend=0.49, vol=22749177$
+2025-06-21 17:45:42,266 INFO is_symbol_valid(MANAUSDT) -> True (pair=MANAUSDT)
+2025-06-21 17:45:42,588 INFO [dev] ✅ Додано у BUY: MANA, score=0.31, trend=0.48, vol=40185439$
+2025-06-21 17:45:43,418 INFO is_symbol_valid(YFIUSDT) -> True (pair=YFIUSDT)
+2025-06-21 17:45:43,723 INFO [dev] ⚠️ Пропущено YFIUSDT: Low volume EP=0.62, prob_up=0.51, ml=0.51, RRR=2.05
+2025-06-21 17:45:44,990 INFO is_symbol_valid(KMDUSDT) -> True (pair=KMDUSDT)
+2025-06-21 17:45:45,300 INFO [dev] ✅ Додано у BUY: KMD, score=0.31, trend=0.48, vol=19174997$
+2025-06-21 17:45:46,121 INFO is_symbol_valid(JSTUSDT) -> True (pair=JSTUSDT)
+2025-06-21 17:45:46,445 INFO [dev] ✅ Додано у BUY: JST, score=0.31, trend=0.51, vol=369897954$
+2025-06-21 17:45:47,269 INFO is_symbol_valid(CRVUSDT) -> True (pair=CRVUSDT)
+2025-06-21 17:45:47,616 INFO [dev] ✅ Додано у BUY: CRV, score=0.31, trend=0.48, vol=250160330$
+2025-06-21 17:45:48,467 INFO is_symbol_valid(SANDUSDT) -> True (pair=SANDUSDT)
+2025-06-21 17:45:48,775 INFO [dev] ✅ Додано у BUY: SAND, score=0.31, trend=0.48, vol=78470614$
+2025-06-21 17:45:49,610 INFO is_symbol_valid(NMRUSDT) -> True (pair=NMRUSDT)
+2025-06-21 17:45:49,938 INFO [dev] ✅ Додано у BUY: NMR, score=0.31, trend=0.48, vol=470121$
+2025-06-21 17:45:50,779 INFO is_symbol_valid(DOTUSDT) -> True (pair=DOTUSDT)
+2025-06-21 17:45:51,098 INFO [dev] ✅ Додано у BUY: DOT, score=0.31, trend=0.46, vol=33395732$
+2025-06-21 17:45:51,943 INFO is_symbol_valid(LUNAUSDT) -> True (pair=LUNAUSDT)
+2025-06-21 17:45:52,257 INFO [dev] ✅ Додано у BUY: LUNA, score=0.31, trend=0.47, vol=59356303$
+2025-06-21 17:45:53,105 INFO is_symbol_valid(RSRUSDT) -> True (pair=RSRUSDT)
+2025-06-21 17:45:53,437 INFO [dev] ✅ Додано у BUY: RSR, score=0.31, trend=0.48, vol=3297340767$
+2025-06-21 17:45:54,265 INFO is_symbol_valid(PAXGUSDT) -> True (pair=PAXGUSDT)
+2025-06-21 17:45:54,606 INFO [dev] ✅ Додано у BUY: PAXG, score=0.31, trend=0.49, vol=35723$
+2025-06-21 17:45:55,923 INFO is_symbol_valid(TRBUSDT) -> True (pair=TRBUSDT)
+2025-06-21 17:45:56,244 INFO [dev] ✅ Додано у BUY: TRB, score=0.31, trend=0.48, vol=1222665$
+2025-06-21 17:45:57,075 INFO is_symbol_valid(SUSHIUSDT) -> True (pair=SUSHIUSDT)
+2025-06-21 17:45:57,389 INFO [dev] ✅ Додано у BUY: SUSHI, score=0.31, trend=0.48, vol=33928992$
+2025-06-21 17:45:58,213 INFO is_symbol_valid(KSMUSDT) -> True (pair=KSMUSDT)
+2025-06-21 17:45:58,536 INFO [dev] ✅ Додано у BUY: KSM, score=0.31, trend=0.48, vol=532778$
+2025-06-21 17:45:59,350 INFO is_symbol_valid(EGLDUSDT) -> True (pair=EGLDUSDT)
+2025-06-21 17:45:59,663 INFO [dev] ✅ Додано у BUY: EGLD, score=0.31, trend=0.48, vol=600127$
+2025-06-21 17:46:00,507 INFO is_symbol_valid(DIAUSDT) -> True (pair=DIAUSDT)
+2025-06-21 17:46:00,849 INFO [dev] ✅ Додано у BUY: DIA, score=0.31, trend=0.47, vol=4732424$
+2025-06-21 17:46:01,700 INFO is_symbol_valid(RUNEUSDT) -> True (pair=RUNEUSDT)
+2025-06-21 17:46:02,030 INFO [dev] ✅ Додано у BUY: RUNE, score=0.31, trend=0.46, vol=47115647$
+2025-06-21 17:46:02,871 INFO is_symbol_valid(FIOUSDT) -> True (pair=FIOUSDT)
+2025-06-21 17:46:03,182 INFO [dev] ✅ Додано у BUY: FIO, score=0.31, trend=0.49, vol=161128682$
+2025-06-21 17:46:04,012 INFO is_symbol_valid(UMAUSDT) -> True (pair=UMAUSDT)
+2025-06-21 17:46:04,333 INFO [dev] ✅ Додано у BUY: UMA, score=0.31, trend=0.48, vol=9251039$
+2025-06-21 17:46:05,170 INFO is_symbol_valid(BELUSDT) -> True (pair=BELUSDT)
+2025-06-21 17:46:05,485 INFO [dev] ✅ Додано у BUY: BEL, score=0.31, trend=0.47, vol=25708131$
+2025-06-21 17:46:06,313 INFO is_symbol_valid(UNIUSDT) -> True (pair=UNIUSDT)
+2025-06-21 17:46:06,637 INFO [dev] ✅ Додано у BUY: UNI, score=0.31, trend=0.48, vol=83587945$
+2025-06-21 17:46:07,458 INFO is_symbol_valid(OXTUSDT) -> True (pair=OXTUSDT)
+2025-06-21 17:46:07,779 INFO [dev] ✅ Додано у BUY: OXT, score=0.31, trend=0.49, vol=57246460$
+2025-06-21 17:46:08,606 INFO is_symbol_valid(SUNUSDT) -> True (pair=SUNUSDT)
+2025-06-21 17:46:08,919 INFO [dev] ✅ Додано у BUY: SUN, score=0.31, trend=0.49, vol=350654889$
+2025-06-21 17:46:09,747 INFO is_symbol_valid(AVAXUSDT) -> True (pair=AVAXUSDT)
+2025-06-21 17:46:10,067 INFO [dev] ✅ Додано у BUY: AVAX, score=0.31, trend=0.47, vol=12266516$
+2025-06-21 17:46:10,878 INFO is_symbol_valid(FLMUSDT) -> True (pair=FLMUSDT)
+2025-06-21 17:46:11,203 INFO [dev] ✅ Додано у BUY: FLM, score=0.31, trend=0.46, vol=135423493$
+2025-06-21 17:46:12,026 INFO is_symbol_valid(UTKUSDT) -> True (pair=UTKUSDT)
+2025-06-21 17:46:12,344 INFO [dev] ✅ Додано у BUY: UTK, score=0.31, trend=0.49, vol=119308142$
+2025-06-21 17:46:13,164 INFO is_symbol_valid(XVSUSDT) -> True (pair=XVSUSDT)
+2025-06-21 17:46:13,471 INFO [dev] ✅ Додано у BUY: XVS, score=0.31, trend=0.49, vol=628756$
+2025-06-21 17:46:14,298 INFO is_symbol_valid(ALPHAUSDT) -> True (pair=ALPHAUSDT)
+2025-06-21 17:46:14,655 INFO [dev] ✅ Додано у BUY: ALPHA, score=0.31, trend=0.46, vol=266291627$
+2025-06-21 17:46:15,505 INFO is_symbol_valid(AAVEUSDT) -> True (pair=AAVEUSDT)
+2025-06-21 17:46:15,855 INFO [dev] ✅ Додано у BUY: AAVE, score=0.31, trend=0.46, vol=1147259$
+2025-06-21 17:46:16,686 INFO is_symbol_valid(NEARUSDT) -> True (pair=NEARUSDT)
+2025-06-21 17:46:16,998 INFO [dev] ✅ Додано у BUY: NEAR, score=0.31, trend=0.47, vol=58972532$
+2025-06-21 17:46:17,830 INFO is_symbol_valid(FILUSDT) -> True (pair=FILUSDT)
+2025-06-21 17:46:18,150 INFO [dev] ✅ Додано у BUY: FIL, score=0.31, trend=0.48, vol=24920471$
+2025-06-21 17:46:18,990 INFO is_symbol_valid(INJUSDT) -> True (pair=INJUSDT)
+2025-06-21 17:46:19,301 INFO [dev] ✅ Додано у BUY: INJ, score=0.31, trend=0.48, vol=6851833$
+2025-06-21 17:46:20,127 INFO is_symbol_valid(AUDIOUSDT) -> True (pair=AUDIOUSDT)
+2025-06-21 17:46:20,472 INFO [dev] ✅ Додано у BUY: AUDIO, score=0.31, trend=0.47, vol=65643585$
+2025-06-21 17:46:21,294 INFO is_symbol_valid(CTKUSDT) -> True (pair=CTKUSDT)
+2025-06-21 17:46:21,612 INFO [dev] ✅ Додано у BUY: CTK, score=0.31, trend=0.50, vol=38976231$
+2025-06-21 17:46:22,432 INFO is_symbol_valid(AXSUSDT) -> True (pair=AXSUSDT)
+2025-06-21 17:46:22,774 INFO [dev] ✅ Додано у BUY: AXS, score=0.31, trend=0.48, vol=6214800$
+2025-06-21 17:46:23,610 INFO is_symbol_valid(STRAXUSDT) -> True (pair=STRAXUSDT)
+2025-06-21 17:46:23,920 INFO [dev] ✅ Додано у BUY: STRAX, score=0.31, trend=0.49, vol=405938711$
+2025-06-21 17:46:24,745 INFO is_symbol_valid(ROSEUSDT) -> True (pair=ROSEUSDT)
+2025-06-21 17:46:25,068 INFO [dev] ✅ Додано у BUY: ROSE, score=0.31, trend=0.47, vol=418383088$
+2025-06-21 17:46:25,888 INFO is_symbol_valid(AVAUSDT) -> True (pair=AVAUSDT)
+2025-06-21 17:46:26,217 INFO [dev] ✅ Додано у BUY: AVA, score=0.31, trend=0.49, vol=5035524$
+2025-06-21 17:46:27,047 INFO is_symbol_valid(SKLUSDT) -> True (pair=SKLUSDT)
+2025-06-21 17:46:27,372 INFO [dev] ✅ Додано у BUY: SKL, score=0.31, trend=0.47, vol=255570202$
+2025-06-21 17:46:28,194 INFO is_symbol_valid(GRTUSDT) -> True (pair=GRTUSDT)
+2025-06-21 17:46:28,508 INFO [dev] ✅ Додано у BUY: GRT, score=0.31, trend=0.47, vol=200985199$
+2025-06-21 17:46:29,337 INFO is_symbol_valid(JUVUSDT) -> True (pair=JUVUSDT)
+2025-06-21 17:46:29,695 INFO [dev] ✅ Додано у BUY: JUV, score=0.31, trend=0.47, vol=4213256$
+2025-06-21 17:46:30,952 INFO is_symbol_valid(PSGUSDT) -> True (pair=PSGUSDT)
+2025-06-21 17:46:31,269 INFO [dev] ✅ Додано у BUY: PSG, score=0.31, trend=0.46, vol=3128222$
+2025-06-21 17:46:32,099 INFO is_symbol_valid(1INCHUSDT) -> True (pair=1INCHUSDT)
+2025-06-21 17:46:32,426 INFO [dev] ✅ Додано у BUY: 1INCH, score=0.31, trend=0.47, vol=36373138$
+2025-06-21 17:46:33,275 INFO is_symbol_valid(OGUSDT) -> True (pair=OGUSDT)
+2025-06-21 17:46:33,607 INFO [dev] ✅ Додано у BUY: OG, score=0.31, trend=0.48, vol=2267344$
+2025-06-21 17:46:34,466 INFO is_symbol_valid(ATMUSDT) -> True (pair=ATMUSDT)
+2025-06-21 17:46:34,790 INFO [dev] ✅ Додано у BUY: ATM, score=0.31, trend=0.48, vol=5534008$
+2025-06-21 17:46:35,631 INFO is_symbol_valid(ASRUSDT) -> True (pair=ASRUSDT)
+2025-06-21 17:46:35,939 INFO [dev] ✅ Додано у BUY: ASR, score=0.31, trend=0.53, vol=3495868$
+2025-06-21 17:46:36,768 INFO is_symbol_valid(CELOUSDT) -> True (pair=CELOUSDT)
+2025-06-21 17:46:37,092 INFO [dev] ✅ Додано у BUY: CELO, score=0.31, trend=0.48, vol=65783329$
+2025-06-21 17:46:37,916 INFO is_symbol_valid(RIFUSDT) -> True (pair=RIFUSDT)
+2025-06-21 17:46:38,227 INFO [dev] ✅ Додано у BUY: RIF, score=0.31, trend=0.49, vol=41963895$
+2025-06-21 17:46:39,039 INFO is_symbol_valid(TRUUSDT) -> True (pair=TRUUSDT)
+2025-06-21 17:46:39,355 INFO [dev] ✅ Додано у BUY: TRU, score=0.31, trend=0.46, vol=99348614$
+2025-06-21 17:46:40,184 INFO is_symbol_valid(CKBUSDT) -> True (pair=CKBUSDT)
+2025-06-21 17:46:40,497 INFO [dev] ✅ Додано у BUY: CKB, score=0.31, trend=0.48, vol=1592589176$
+2025-06-21 17:46:41,322 INFO is_symbol_valid(TWTUSDT) -> True (pair=TWTUSDT)
+2025-06-21 17:46:41,635 INFO [dev] ✅ Додано у BUY: TWT, score=0.31, trend=0.47, vol=6619589$
+2025-06-21 17:46:42,464 INFO is_symbol_valid(SFPUSDT) -> True (pair=SFPUSDT)
+2025-06-21 17:46:42,856 INFO [dev] ✅ Додано у BUY: SFP, score=0.31, trend=0.52, vol=5257864$
+2025-06-21 17:46:43,671 INFO is_symbol_valid(DODOUSDT) -> True (pair=DODOUSDT)
+2025-06-21 17:46:43,982 INFO [dev] ✅ Додано у BUY: DODO, score=0.31, trend=0.47, vol=91452571$
+2025-06-21 17:46:44,830 INFO is_symbol_valid(CAKEUSDT) -> True (pair=CAKEUSDT)
+2025-06-21 17:46:45,143 INFO [dev] ✅ Додано у BUY: CAKE, score=0.31, trend=0.48, vol=30337960$
+2025-06-21 17:46:45,981 INFO is_symbol_valid(ACMUSDT) -> True (pair=ACMUSDT)
+2025-06-21 17:46:46,292 INFO [dev] ✅ Додано у BUY: ACM, score=0.31, trend=0.48, vol=6103322$
+2025-06-21 17:46:47,121 INFO is_symbol_valid(FISUSDT) -> True (pair=FISUSDT)
+2025-06-21 17:46:47,438 INFO [dev] ✅ Додано у BUY: FIS, score=0.31, trend=0.46, vol=90200271$
+2025-06-21 17:46:48,259 INFO is_symbol_valid(OMUSDT) -> True (pair=OMUSDT)
+2025-06-21 17:46:49,211 INFO [dev] ✅ Додано у BUY: OM, score=0.31, trend=0.46, vol=143777990$
+2025-06-21 17:46:50,079 INFO is_symbol_valid(PONDUSDT) -> True (pair=PONDUSDT)
+2025-06-21 17:46:51,060 INFO [dev] ✅ Додано у BUY: POND, score=0.31, trend=0.45, vol=375614371$
+2025-06-21 17:46:51,899 INFO is_symbol_valid(DEGOUSDT) -> True (pair=DEGOUSDT)
+2025-06-21 17:46:52,880 INFO [dev] ✅ Додано у BUY: DEGO, score=0.31, trend=0.49, vol=8135564$
+2025-06-21 17:46:53,699 INFO is_symbol_valid(ALICEUSDT) -> True (pair=ALICEUSDT)
+2025-06-21 17:46:54,030 INFO [dev] ✅ Додано у BUY: ALICE, score=0.31, trend=0.47, vol=8732383$
+2025-06-21 17:46:54,851 INFO is_symbol_valid(PERPUSDT) -> True (pair=PERPUSDT)
+2025-06-21 17:46:55,168 INFO [dev] ✅ Додано у BUY: PERP, score=0.31, trend=0.47, vol=16875982$
+2025-06-21 17:46:55,995 INFO is_symbol_valid(SUPERUSDT) -> True (pair=SUPERUSDT)
+2025-06-21 17:46:56,304 INFO [dev] ✅ Додано у BUY: SUPER, score=0.31, trend=0.47, vol=19588928$
+2025-06-21 17:46:57,134 INFO is_symbol_valid(CFXUSDT) -> True (pair=CFXUSDT)
+2025-06-21 17:46:57,453 INFO [dev] ✅ Додано у BUY: CFX, score=0.31, trend=0.48, vol=172688998$
+2025-06-21 17:46:58,295 INFO is_symbol_valid(TKOUSDT) -> True (pair=TKOUSDT)
+2025-06-21 17:46:58,608 INFO [dev] ✅ Додано у BUY: TKO, score=0.31, trend=0.48, vol=19266451$
+2025-06-21 17:46:59,425 INFO is_symbol_valid(PUNDIXUSDT) -> True (pair=PUNDIXUSDT)
+2025-06-21 17:46:59,737 INFO [dev] ✅ Додано у BUY: PUNDIX, score=0.31, trend=0.49, vol=13934021$
+2025-06-21 17:47:00,577 INFO is_symbol_valid(TLMUSDT) -> True (pair=TLMUSDT)
+2025-06-21 17:47:00,898 INFO [dev] ✅ Додано у BUY: TLM, score=0.31, trend=0.47, vol=1203980165$
+2025-06-21 17:47:01,759 INFO is_symbol_valid(BARUSDT) -> True (pair=BARUSDT)
+2025-06-21 17:47:02,106 INFO [dev] ✅ Додано у BUY: BAR, score=0.31, trend=0.46, vol=2640364$
+2025-06-21 17:47:02,962 INFO is_symbol_valid(FORTHUSDT) -> True (pair=FORTHUSDT)
+2025-06-21 17:47:03,284 INFO [dev] ✅ Додано у BUY: FORTH, score=0.31, trend=0.49, vol=1184514$
+2025-06-21 17:47:04,563 INFO is_symbol_valid(BAKEUSDT) -> True (pair=BAKEUSDT)
+2025-06-21 17:47:04,896 INFO [dev] ✅ Додано у BUY: BAKE, score=0.31, trend=0.48, vol=55125188$
+2025-06-21 17:47:05,762 INFO is_symbol_valid(SLPUSDT) -> True (pair=SLPUSDT)
+2025-06-21 17:47:06,091 INFO [dev] ✅ Додано у BUY: SLP, score=0.31, trend=0.48, vol=2540457283$
+2025-06-21 17:47:06,923 INFO is_symbol_valid(SHIBUSDT) -> True (pair=SHIBUSDT)
+2025-06-21 17:47:07,242 INFO [dev] ✅ Додано у BUY: SHIB, score=0.25, trend=0.48, vol=7351217982725$
+2025-06-21 17:47:08,075 INFO is_symbol_valid(ICPUSDT) -> True (pair=ICPUSDT)
+2025-06-21 17:47:08,443 INFO [dev] ✅ Додано у BUY: ICP, score=0.31, trend=0.47, vol=11172503$
+2025-06-21 17:47:09,318 INFO is_symbol_valid(ARUSDT) -> True (pair=ARUSDT)
+2025-06-21 17:47:09,638 INFO [dev] ✅ Додано у BUY: AR, score=0.31, trend=0.46, vol=7505892$
+2025-06-21 17:47:10,457 INFO is_symbol_valid(MASKUSDT) -> True (pair=MASKUSDT)
+2025-06-21 17:47:10,768 INFO [dev] ✅ Додано у BUY: MASK, score=0.31, trend=0.46, vol=28800155$
+2025-06-21 17:47:11,601 INFO is_symbol_valid(LPTUSDT) -> True (pair=LPTUSDT)
+2025-06-21 17:47:11,915 INFO [dev] ✅ Додано у BUY: LPT, score=0.31, trend=0.46, vol=4955857$
+2025-06-21 17:47:12,744 INFO is_symbol_valid(XVGUSDT) -> True (pair=XVGUSDT)
+2025-06-21 17:47:13,064 INFO [dev] ✅ Додано у BUY: XVG, score=0.31, trend=0.47, vol=1173969868$
+2025-06-21 17:47:13,901 INFO is_symbol_valid(ATAUSDT) -> True (pair=ATAUSDT)
+2025-06-21 17:47:14,220 INFO [dev] ✅ Додано у BUY: ATA, score=0.31, trend=0.48, vol=51816266$
+2025-06-21 17:47:15,053 INFO is_symbol_valid(GTCUSDT) -> True (pair=GTCUSDT)
+2025-06-21 17:47:15,378 INFO [dev] ✅ Додано у BUY: GTC, score=0.31, trend=0.47, vol=6006276$
+2025-06-21 17:47:16,638 INFO is_symbol_valid(PHAUSDT) -> True (pair=PHAUSDT)
+2025-06-21 17:47:16,973 INFO [dev] ✅ Додано у BUY: PHA, score=0.31, trend=0.47, vol=73636020$
+2025-06-21 17:47:17,805 INFO is_symbol_valid(MLNUSDT) -> True (pair=MLNUSDT)
+2025-06-21 17:47:18,123 INFO [dev] ✅ Додано у BUY: MLN, score=0.31, trend=0.48, vol=409034$
+2025-06-21 17:47:18,942 INFO is_symbol_valid(DEXEUSDT) -> True (pair=DEXEUSDT)
+2025-06-21 17:47:19,261 INFO [dev] ✅ Додано у BUY: DEXE, score=0.31, trend=0.46, vol=898511$
+2025-06-21 17:47:20,099 INFO is_symbol_valid(C98USDT) -> True (pair=C98USDT)
+2025-06-21 17:47:20,414 INFO [dev] ✅ Додано у BUY: C98, score=0.31, trend=0.45, vol=181021296$
+2025-06-21 17:47:21,242 INFO is_symbol_valid(QNTUSDT) -> True (pair=QNTUSDT)
+2025-06-21 17:47:21,575 INFO [dev] ✅ Додано у BUY: QNT, score=0.31, trend=0.47, vol=184498$
+2025-06-21 17:47:22,400 INFO is_symbol_valid(FLOWUSDT) -> True (pair=FLOWUSDT)
+2025-06-21 17:47:22,722 INFO [dev] ✅ Додано у BUY: FLOW, score=0.31, trend=0.48, vol=24898506$
+2025-06-21 17:47:23,571 INFO is_symbol_valid(MINAUSDT) -> True (pair=MINAUSDT)
+2025-06-21 17:47:23,913 INFO [dev] ✅ Додано у BUY: MINA, score=0.31, trend=0.48, vol=71289310$
+2025-06-21 17:47:24,741 INFO is_symbol_valid(RAYUSDT) -> True (pair=RAYUSDT)
+2025-06-21 17:47:25,096 INFO [dev] ✅ Додано у BUY: RAY, score=0.31, trend=0.49, vol=50233599$
+2025-06-21 17:54:21,408 INFO GPT-фільтр: buy=0, sell=0
+2025-06-21 17:54:21,974 INFO ✅ Binance API доступний
+2025-06-21 17:54:22,748 INFO ✅ Binance API доступний
+2025-06-21 17:54:22,973 INFO GPT-фільтр: buy=0, sell=0
+2025-06-21 17:54:23,497 INFO ✅ Binance API доступний
+2025-06-21 17:54:24,250 INFO ✅ Binance API доступний
+2025-06-21 17:54:25,059 INFO ✅ Binance API доступний
+2025-06-21 17:54:25,287 INFO [dev] Звіт:
+[]
+2025-06-21 17:54:25,287 INFO No conversion signals generated
+2025-06-21 17:54:25,889 INFO ✅ Binance API доступний
+2025-06-21 17:54:26,122 WARNING [dev] ❌ Жодна купівля не відбулась, усі спроби не пройшли
+2025-06-21 17:54:26,665 INFO ✅ Binance API доступний
+2025-06-21 17:54:28,912 INFO is_symbol_valid(BTCUSDT) -> True (pair=BTCUSDT)
+2025-06-21 17:54:29,229 INFO [dev] ✅ Додано у BUY: BTC, score=0.31, trend=0.49, vol=81547$
+2025-06-21 17:54:30,338 INFO is_symbol_valid(ETHUSDT) -> True (pair=ETHUSDT)
+2025-06-21 17:54:30,663 INFO [dev] ✅ Додано у BUY: ETH, score=0.31, trend=0.48, vol=3236402$
+2025-06-21 17:54:31,779 INFO is_symbol_valid(BNBUSDT) -> True (pair=BNBUSDT)
+2025-06-21 17:54:32,106 INFO [dev] ✅ Додано у BUY: BNB, score=0.31, trend=0.49, vol=814423$
+2025-06-21 17:54:32,780 INFO is_symbol_valid(NEOUSDT) -> True (pair=NEOUSDT)
+2025-06-21 17:54:33,100 INFO [dev] ✅ Додано у BUY: NEO, score=0.31, trend=0.49, vol=4138209$
+2025-06-21 17:54:33,773 INFO is_symbol_valid(LTCUSDT) -> True (pair=LTCUSDT)
+2025-06-21 17:54:34,086 INFO [dev] ✅ Додано у BUY: LTC, score=0.31, trend=0.49, vol=1869603$
+2025-06-21 17:54:34,766 INFO is_symbol_valid(QTUMUSDT) -> True (pair=QTUMUSDT)
+2025-06-21 17:54:35,077 INFO [dev] ✅ Додано у BUY: QTUM, score=0.31, trend=0.48, vol=2717496$
+2025-06-21 17:54:35,751 INFO is_symbol_valid(ADAUSDT) -> True (pair=ADAUSDT)
+2025-06-21 17:54:36,064 INFO [dev] ✅ Додано у BUY: ADA, score=0.31, trend=0.47, vol=641527592$
+2025-06-21 17:54:36,739 INFO is_symbol_valid(XRPUSDT) -> True (pair=XRPUSDT)
+2025-06-21 17:54:37,052 INFO [dev] ✅ Додано у BUY: XRP, score=0.31, trend=0.49, vol=644447804$
+2025-06-21 17:54:37,718 INFO is_symbol_valid(TUSDUSDT) -> True (pair=TUSDUSDT)
+2025-06-21 17:54:38,029 INFO [dev] ⚠️ Пропущено TUSDUSDT: EP=0.62, prob_up=0.33, ml=0.33, RRR=1.48
+2025-06-21 17:54:38,707 INFO is_symbol_valid(IOTAUSDT) -> True (pair=IOTAUSDT)
+2025-06-21 17:54:39,025 INFO [dev] ✅ Додано у BUY: IOTA, score=0.31, trend=0.48, vol=80003523$
+2025-06-21 17:54:39,702 INFO is_symbol_valid(XLMUSDT) -> True (pair=XLMUSDT)
+2025-06-21 17:54:40,020 INFO [dev] ✅ Додано у BUY: XLM, score=0.31, trend=0.48, vol=254590992$
+2025-06-21 17:54:40,696 INFO is_symbol_valid(ONTUSDT) -> True (pair=ONTUSDT)
+2025-06-21 17:54:41,011 INFO [dev] ✅ Додано у BUY: ONT, score=0.31, trend=0.48, vol=19404808$
+2025-06-21 17:54:41,692 INFO is_symbol_valid(TRXUSDT) -> True (pair=TRXUSDT)
+2025-06-21 17:54:42,030 INFO [dev] ✅ Додано у BUY: TRX, score=0.31, trend=0.50, vol=2782581242$
+2025-06-21 17:54:42,706 INFO is_symbol_valid(ETCUSDT) -> True (pair=ETCUSDT)
+2025-06-21 17:54:43,016 INFO [dev] ✅ Додано у BUY: ETC, score=0.31, trend=0.49, vol=2168842$
+2025-06-21 17:54:44,133 INFO is_symbol_valid(ICXUSDT) -> True (pair=ICXUSDT)
+2025-06-21 17:54:44,451 INFO [dev] ✅ Додано у BUY: ICX, score=0.31, trend=0.49, vol=87854972$
+2025-06-21 17:54:45,117 INFO is_symbol_valid(VETUSDT) -> True (pair=VETUSDT)
+2025-06-21 17:54:45,429 INFO [dev] ✅ Додано у BUY: VET, score=0.31, trend=0.48, vol=1163546122$
+2025-06-21 17:54:46,097 INFO is_symbol_valid(USDCUSDT) -> True (pair=USDCUSDT)
+2025-06-21 17:54:46,408 INFO [dev] ⚠️ Пропущено USDCUSDT: EP=0.62, prob_up=0.39, ml=0.39, RRR=1.63
+2025-06-21 17:54:47,085 INFO is_symbol_valid(LINKUSDT) -> True (pair=LINKUSDT)
+2025-06-21 17:54:47,405 INFO [dev] ✅ Додано у BUY: LINK, score=0.31, trend=0.48, vol=15772174$
+2025-06-21 17:54:48,075 INFO is_symbol_valid(ONGUSDT) -> True (pair=ONGUSDT)
+2025-06-21 17:54:48,386 INFO [dev] ✅ Додано у BUY: ONG, score=0.31, trend=0.49, vol=39251704$
+2025-06-21 17:54:49,066 INFO is_symbol_valid(HOTUSDT) -> True (pair=HOTUSDT)
+2025-06-21 17:54:49,383 INFO [dev] ✅ Додано у BUY: HOT, score=0.31, trend=0.48, vol=5851219496$
+2025-06-21 17:54:50,059 INFO is_symbol_valid(ZILUSDT) -> True (pair=ZILUSDT)
+2025-06-21 17:54:50,380 INFO [dev] ✅ Додано у BUY: ZIL, score=0.31, trend=0.48, vol=581428017$
+2025-06-21 17:54:51,058 INFO is_symbol_valid(ZRXUSDT) -> True (pair=ZRXUSDT)
+2025-06-21 17:54:51,375 INFO [dev] ✅ Додано у BUY: ZRX, score=0.31, trend=0.48, vol=46089942$
+2025-06-21 17:54:52,043 INFO is_symbol_valid(FETUSDT) -> True (pair=FETUSDT)
+2025-06-21 17:54:52,366 INFO [dev] ✅ Додано у BUY: FET, score=0.31, trend=0.48, vol=243720949$
+2025-06-21 17:54:53,042 INFO is_symbol_valid(BATUSDT) -> True (pair=BATUSDT)
+2025-06-21 17:54:53,368 INFO [dev] ✅ Додано у BUY: BAT, score=0.31, trend=0.49, vol=61546392$
+2025-06-21 17:54:54,043 INFO is_symbol_valid(ZECUSDT) -> True (pair=ZECUSDT)
+2025-06-21 17:54:54,366 INFO [dev] ✅ Додано у BUY: ZEC, score=0.31, trend=0.48, vol=261623$
+2025-06-21 17:54:55,041 INFO is_symbol_valid(IOSTUSDT) -> True (pair=IOSTUSDT)
+2025-06-21 17:54:55,355 INFO [dev] ✅ Додано у BUY: IOST, score=0.31, trend=0.47, vol=3131887546$
+2025-06-21 17:54:56,027 INFO is_symbol_valid(CELRUSDT) -> True (pair=CELRUSDT)
+2025-06-21 17:54:56,337 INFO [dev] ✅ Додано у BUY: CELR, score=0.31, trend=0.47, vol=607676626$
+2025-06-21 17:54:57,015 INFO is_symbol_valid(DASHUSDT) -> True (pair=DASHUSDT)
+2025-06-21 17:54:57,331 INFO [dev] ✅ Додано у BUY: DASH, score=0.31, trend=0.49, vol=263255$
+2025-06-21 17:54:57,998 INFO is_symbol_valid(THETAUSDT) -> True (pair=THETAUSDT)
+2025-06-21 17:54:58,325 INFO [dev] ✅ Додано у BUY: THETA, score=0.31, trend=0.48, vol=23466319$
+2025-06-21 17:54:59,004 INFO is_symbol_valid(ENJUSDT) -> True (pair=ENJUSDT)
+2025-06-21 17:54:59,320 INFO [dev] ✅ Додано у BUY: ENJ, score=0.31, trend=0.48, vol=131304235$
+2025-06-21 17:54:59,997 INFO is_symbol_valid(ATOMUSDT) -> True (pair=ATOMUSDT)
+2025-06-21 17:55:00,342 INFO [dev] ✅ Додано у BUY: ATOM, score=0.31, trend=0.48, vol=6985641$
+2025-06-21 17:55:01,056 INFO is_symbol_valid(TFUELUSDT) -> True (pair=TFUELUSDT)
+2025-06-21 17:55:01,434 INFO [dev] ✅ Додано у BUY: TFUEL, score=0.31, trend=0.48, vol=173040239$
+2025-06-21 17:55:02,557 INFO is_symbol_valid(ONEUSDT) -> True (pair=ONEUSDT)
+2025-06-21 17:55:02,939 INFO [dev] ✅ Додано у BUY: ONE, score=0.31, trend=0.46, vol=1125732463$
+2025-06-21 17:55:04,050 INFO is_symbol_valid(ALGOUSDT) -> True (pair=ALGOUSDT)
+2025-06-21 17:55:04,369 INFO [dev] ✅ Додано у BUY: ALGO, score=0.31, trend=0.48, vol=201169670$
+2025-06-21 17:55:05,049 INFO is_symbol_valid(DOGEUSDT) -> True (pair=DOGEUSDT)
+2025-06-21 17:55:05,380 INFO [dev] ✅ Додано у BUY: DOGE, score=0.31, trend=0.48, vol=4523695352$
+2025-06-21 17:55:06,054 INFO is_symbol_valid(DUSKUSDT) -> True (pair=DUSKUSDT)
+2025-06-21 17:55:06,373 INFO [dev] ✅ Додано у BUY: DUSK, score=0.31, trend=0.49, vol=82128249$
+2025-06-21 17:55:07,045 INFO is_symbol_valid(ANKRUSDT) -> True (pair=ANKRUSDT)
+2025-06-21 17:55:07,372 INFO [dev] ✅ Додано у BUY: ANKR, score=0.31, trend=0.48, vol=510724060$
+2025-06-21 17:55:08,495 INFO is_symbol_valid(WINUSDT) -> True (pair=WINUSDT)
+2025-06-21 17:55:08,817 INFO [dev] ✅ Додано у BUY: WIN, score=0.30, trend=0.49, vol=50426280429$
+2025-06-21 17:55:09,500 INFO is_symbol_valid(COSUSDT) -> True (pair=COSUSDT)
+2025-06-21 17:55:09,817 INFO [dev] ✅ Додано у BUY: COS, score=0.31, trend=0.49, vol=2516916466$
+2025-06-21 17:55:10,488 INFO is_symbol_valid(MTLUSDT) -> True (pair=MTLUSDT)
+2025-06-21 17:55:10,802 INFO [dev] ✅ Додано у BUY: MTL, score=0.31, trend=0.49, vol=5584558$
+2025-06-21 17:55:11,475 INFO is_symbol_valid(DENTUSDT) -> True (pair=DENTUSDT)
+2025-06-21 17:55:11,788 INFO [dev] ✅ Додано у BUY: DENT, score=0.31, trend=0.48, vol=7001826675$
+2025-06-21 17:55:12,465 INFO is_symbol_valid(WANUSDT) -> True (pair=WANUSDT)
+2025-06-21 17:55:12,792 INFO [dev] ✅ Додано у BUY: WAN, score=0.31, trend=0.48, vol=10212041$
+2025-06-21 17:55:13,911 INFO is_symbol_valid(FUNUSDT) -> True (pair=FUNUSDT)
+2025-06-21 17:55:14,222 INFO [dev] ✅ Додано у BUY: FUN, score=0.31, trend=0.79, vol=21950229898$
+2025-06-21 17:55:14,899 INFO is_symbol_valid(CVCUSDT) -> True (pair=CVCUSDT)
+2025-06-21 17:55:15,218 INFO [dev] ✅ Додано у BUY: CVC, score=0.31, trend=0.50, vol=73766799$
+2025-06-21 17:55:15,890 INFO is_symbol_valid(CHZUSDT) -> True (pair=CHZUSDT)
+2025-06-21 17:55:16,199 INFO [dev] ✅ Додано у BUY: CHZ, score=0.31, trend=0.48, vol=254292044$
+2025-06-21 17:55:17,310 INFO is_symbol_valid(BANDUSDT) -> True (pair=BANDUSDT)
+2025-06-21 17:55:17,625 INFO [dev] ✅ Додано у BUY: BAND, score=0.31, trend=0.47, vol=6252486$
+2025-06-21 17:55:18,302 INFO is_symbol_valid(XTZUSDT) -> True (pair=XTZUSDT)
+2025-06-21 17:55:18,632 INFO [dev] ✅ Додано у BUY: XTZ, score=0.31, trend=0.47, vol=13873420$
+2025-06-21 17:55:19,303 INFO is_symbol_valid(RVNUSDT) -> True (pair=RVNUSDT)
+2025-06-21 17:55:19,616 INFO [dev] ✅ Додано у BUY: RVN, score=0.31, trend=0.45, vol=3918453288$
+2025-06-21 17:55:20,290 INFO is_symbol_valid(HBARUSDT) -> True (pair=HBARUSDT)
+2025-06-21 17:55:20,610 INFO [dev] ✅ Додано у BUY: HBAR, score=0.31, trend=0.48, vol=773252676$
+2025-06-21 17:55:21,718 INFO is_symbol_valid(NKNUSDT) -> True (pair=NKNUSDT)
+2025-06-21 17:55:22,027 INFO [dev] ✅ Додано у BUY: NKN, score=0.31, trend=0.48, vol=141198447$
+2025-06-21 17:55:22,701 INFO is_symbol_valid(STXUSDT) -> True (pair=STXUSDT)
+2025-06-21 17:55:23,013 INFO [dev] ✅ Додано у BUY: STX, score=0.31, trend=0.49, vol=33491221$
+2025-06-21 17:55:23,680 INFO is_symbol_valid(KAVAUSDT) -> True (pair=KAVAUSDT)
+2025-06-21 17:55:23,994 INFO [dev] ✅ Додано у BUY: KAVA, score=0.31, trend=0.48, vol=22708519$
+2025-06-21 17:55:24,670 INFO is_symbol_valid(ARPAUSDT) -> True (pair=ARPAUSDT)
+2025-06-21 17:55:24,995 INFO [dev] ✅ Додано у BUY: ARPA, score=0.31, trend=0.48, vol=792983786$
+2025-06-21 17:55:25,669 INFO is_symbol_valid(IOTXUSDT) -> True (pair=IOTXUSDT)
+2025-06-21 17:55:25,983 INFO [dev] ✅ Додано у BUY: IOTX, score=0.31, trend=0.49, vol=457442978$
+2025-06-21 17:55:26,653 INFO is_symbol_valid(RLCUSDT) -> True (pair=RLCUSDT)
+2025-06-21 17:55:26,965 INFO [dev] ✅ Додано у BUY: RLC, score=0.31, trend=0.48, vol=3139082$
+2025-06-21 17:55:27,630 INFO is_symbol_valid(BCHUSDT) -> True (pair=BCHUSDT)
+2025-06-21 17:55:27,942 INFO [dev] ✅ Додано у BUY: BCH, score=0.31, trend=0.51, vol=536169$
+2025-06-21 17:55:28,613 INFO is_symbol_valid(FTTUSDT) -> True (pair=FTTUSDT)
+2025-06-21 17:55:28,934 INFO [dev] ✅ Додано у BUY: FTT, score=0.31, trend=0.46, vol=5910582$
+2025-06-21 17:55:29,617 INFO is_symbol_valid(EURUSDT) -> True (pair=EURUSDT)
+2025-06-21 17:55:29,931 INFO [dev] ⚠️ Пропущено EURUSDT: EP=0.62, prob_up=0.33, ml=0.33, RRR=1.50
+2025-06-21 17:55:30,599 INFO is_symbol_valid(OGNUSDT) -> True (pair=OGNUSDT)
+2025-06-21 17:55:30,918 INFO [dev] ✅ Додано у BUY: OGN, score=0.31, trend=0.47, vol=153717998$
+2025-06-21 17:55:31,596 INFO is_symbol_valid(LSKUSDT) -> True (pair=LSKUSDT)
+2025-06-21 17:55:31,935 INFO [dev] ✅ Додано у BUY: LSK, score=0.31, trend=0.48, vol=9987406$
+2025-06-21 17:55:32,606 INFO is_symbol_valid(BNTUSDT) -> True (pair=BNTUSDT)
+2025-06-21 17:55:32,915 INFO [dev] ✅ Додано у BUY: BNT, score=0.31, trend=0.48, vol=3587400$
+2025-06-21 17:55:33,596 INFO is_symbol_valid(LTOUSDT) -> True (pair=LTOUSDT)
+2025-06-21 17:55:33,905 INFO [dev] ✅ Додано у BUY: LTO, score=0.31, trend=0.47, vol=69582616$
+2025-06-21 17:55:34,587 INFO is_symbol_valid(MBLUSDT) -> True (pair=MBLUSDT)
+2025-06-21 17:55:34,901 INFO [dev] ✅ Додано у BUY: MBL, score=0.31, trend=0.50, vol=3965255377$
+2025-06-21 17:55:35,573 INFO is_symbol_valid(COTIUSDT) -> True (pair=COTIUSDT)
+2025-06-21 17:55:35,908 INFO [dev] ✅ Додано у BUY: COTI, score=0.31, trend=0.49, vol=138035734$
+2025-06-21 17:55:36,586 INFO is_symbol_valid(DATAUSDT) -> True (pair=DATAUSDT)
+2025-06-21 17:55:36,896 INFO [dev] ✅ Додано у BUY: DATA, score=0.31, trend=0.50, vol=385104260$
+2025-06-21 17:55:37,564 INFO is_symbol_valid(SOLUSDT) -> True (pair=SOLUSDT)
+2025-06-21 17:55:37,922 INFO [dev] ✅ Додано у BUY: SOL, score=0.31, trend=0.48, vol=19394808$
+2025-06-21 17:55:38,595 INFO is_symbol_valid(CTSIUSDT) -> True (pair=CTSIUSDT)
+2025-06-21 17:55:38,939 INFO [dev] ✅ Додано у BUY: CTSI, score=0.31, trend=0.47, vol=75216034$
+2025-06-21 17:55:39,609 INFO is_symbol_valid(HIVEUSDT) -> True (pair=HIVEUSDT)
+2025-06-21 17:55:39,924 INFO [dev] ✅ Додано у BUY: HIVE, score=0.31, trend=0.47, vol=24395560$
+2025-06-21 17:55:40,597 INFO is_symbol_valid(CHRUSDT) -> True (pair=CHRUSDT)
+2025-06-21 17:55:40,904 INFO [dev] ✅ Додано у BUY: CHR, score=0.31, trend=0.47, vol=79164368$
+2025-06-21 17:55:41,583 INFO is_symbol_valid(ARDRUSDT) -> True (pair=ARDRUSDT)
+2025-06-21 17:55:41,893 INFO [dev] ✅ Додано у BUY: ARDR, score=0.31, trend=0.50, vol=80231501$
+2025-06-21 17:55:42,576 INFO is_symbol_valid(MDTUSDT) -> True (pair=MDTUSDT)
+2025-06-21 17:55:42,895 INFO [dev] ✅ Додано у BUY: MDT, score=0.31, trend=0.47, vol=403882518$
+2025-06-21 17:55:43,578 INFO is_symbol_valid(KNCUSDT) -> True (pair=KNCUSDT)
+2025-06-21 17:55:43,897 INFO [dev] ✅ Додано у BUY: KNC, score=0.31, trend=0.48, vol=9702233$
+2025-06-21 17:55:44,574 INFO is_symbol_valid(LRCUSDT) -> True (pair=LRCUSDT)
+2025-06-21 17:55:44,896 INFO [dev] ✅ Додано у BUY: LRC, score=0.31, trend=0.48, vol=55682415$
+2025-06-21 17:55:45,568 INFO is_symbol_valid(COMPUSDT) -> True (pair=COMPUSDT)
+2025-06-21 17:55:45,881 INFO [dev] ✅ Додано у BUY: COMP, score=0.31, trend=0.47, vol=869973$
+2025-06-21 17:55:46,562 INFO is_symbol_valid(SCUSDT) -> True (pair=SCUSDT)
+2025-06-21 17:55:46,879 INFO [dev] ✅ Додано у BUY: SC, score=0.31, trend=0.49, vol=1271521706$
+2025-06-21 17:55:47,553 INFO is_symbol_valid(ZENUSDT) -> True (pair=ZENUSDT)
+2025-06-21 17:55:47,873 INFO [dev] ✅ Додано у BUY: ZEN, score=0.31, trend=0.46, vol=2446130$
+2025-06-21 17:55:48,550 INFO is_symbol_valid(SNXUSDT) -> True (pair=SNXUSDT)
+2025-06-21 17:55:48,859 INFO [dev] ✅ Додано у BUY: SNX, score=0.31, trend=0.47, vol=10897994$
+2025-06-21 17:55:49,539 INFO is_symbol_valid(VTHOUSDT) -> True (pair=VTHOUSDT)
+2025-06-21 17:55:49,852 INFO [dev] ✅ Додано у BUY: VTHO, score=0.31, trend=0.48, vol=2327646872$
+2025-06-21 17:55:50,529 INFO is_symbol_valid(DGBUSDT) -> True (pair=DGBUSDT)
+2025-06-21 17:55:50,850 INFO [dev] ✅ Додано у BUY: DGB, score=0.31, trend=0.48, vol=355134803$
+2025-06-21 17:55:51,521 INFO is_symbol_valid(SXPUSDT) -> True (pair=SXPUSDT)
+2025-06-21 17:55:51,843 INFO [dev] ✅ Додано у BUY: SXP, score=0.31, trend=0.51, vol=109129625$
+2025-06-21 17:55:52,521 INFO is_symbol_valid(MKRUSDT) -> True (pair=MKRUSDT)
+2025-06-21 17:55:52,833 INFO [dev] ✅ Додано у BUY: MKR, score=0.31, trend=0.45, vol=42604$
+2025-06-21 17:55:53,507 INFO is_symbol_valid(DCRUSDT) -> True (pair=DCRUSDT)
+2025-06-21 17:55:53,827 INFO [dev] ✅ Додано у BUY: DCR, score=0.31, trend=0.48, vol=171782$
+2025-06-21 17:55:54,499 INFO is_symbol_valid(STORJUSDT) -> True (pair=STORJUSDT)
+2025-06-21 17:55:54,845 INFO [dev] ✅ Додано у BUY: STORJ, score=0.31, trend=0.49, vol=22759906$
+2025-06-21 17:55:55,520 INFO is_symbol_valid(MANAUSDT) -> True (pair=MANAUSDT)
+2025-06-21 17:55:55,843 INFO [dev] ✅ Додано у BUY: MANA, score=0.31, trend=0.48, vol=40221525$
+2025-06-21 17:55:56,521 INFO is_symbol_valid(YFIUSDT) -> True (pair=YFIUSDT)
+2025-06-21 17:55:56,845 INFO [dev] ⚠️ Пропущено YFIUSDT: Low volume EP=0.62, prob_up=0.51, ml=0.51, RRR=2.05
+2025-06-21 17:55:57,525 INFO is_symbol_valid(KMDUSDT) -> True (pair=KMDUSDT)
+2025-06-21 17:55:57,839 INFO [dev] ✅ Додано у BUY: KMD, score=0.31, trend=0.48, vol=19196550$
+2025-06-21 17:55:58,520 INFO is_symbol_valid(JSTUSDT) -> True (pair=JSTUSDT)
+2025-06-21 17:55:58,856 INFO [dev] ✅ Додано у BUY: JST, score=0.31, trend=0.51, vol=370190915$
+2025-06-21 17:55:59,523 INFO is_symbol_valid(CRVUSDT) -> True (pair=CRVUSDT)
+2025-06-21 17:55:59,850 INFO [dev] ✅ Додано у BUY: CRV, score=0.31, trend=0.48, vol=250355206$
+2025-06-21 17:56:00,528 INFO is_symbol_valid(SANDUSDT) -> True (pair=SANDUSDT)
+2025-06-21 17:56:00,856 INFO [dev] ✅ Додано у BUY: SAND, score=0.31, trend=0.48, vol=78576318$
+2025-06-21 17:56:01,533 INFO is_symbol_valid(NMRUSDT) -> True (pair=NMRUSDT)
+2025-06-21 17:56:01,880 INFO [dev] ✅ Додано у BUY: NMR, score=0.31, trend=0.48, vol=470350$
+2025-06-21 17:56:02,563 INFO is_symbol_valid(DOTUSDT) -> True (pair=DOTUSDT)
+2025-06-21 17:56:02,893 INFO [dev] ✅ Додано у BUY: DOT, score=0.31, trend=0.46, vol=33501011$
+2025-06-21 17:56:03,571 INFO is_symbol_valid(LUNAUSDT) -> True (pair=LUNAUSDT)
+2025-06-21 17:56:03,899 INFO [dev] ✅ Додано у BUY: LUNA, score=0.31, trend=0.47, vol=59401552$
+2025-06-21 17:56:04,572 INFO is_symbol_valid(RSRUSDT) -> True (pair=RSRUSDT)
+2025-06-21 17:56:04,891 INFO [dev] ✅ Додано у BUY: RSR, score=0.31, trend=0.48, vol=3299018200$
+2025-06-21 17:56:05,570 INFO is_symbol_valid(PAXGUSDT) -> True (pair=PAXGUSDT)
+2025-06-21 17:56:05,886 INFO [dev] ✅ Додано у BUY: PAXG, score=0.31, trend=0.49, vol=35734$
+2025-06-21 17:56:07,438 INFO is_symbol_valid(TRBUSDT) -> True (pair=TRBUSDT)
+2025-06-21 17:56:07,758 INFO [dev] ✅ Додано у BUY: TRB, score=0.31, trend=0.48, vol=1223842$
+2025-06-21 17:56:08,432 INFO is_symbol_valid(SUSHIUSDT) -> True (pair=SUSHIUSDT)
+2025-06-21 17:56:08,817 INFO [dev] ✅ Додано у BUY: SUSHI, score=0.31, trend=0.48, vol=33980691$
+2025-06-21 17:56:09,497 INFO is_symbol_valid(KSMUSDT) -> True (pair=KSMUSDT)
+2025-06-21 17:56:09,831 INFO [dev] ✅ Додано у BUY: KSM, score=0.31, trend=0.48, vol=533110$
+2025-06-21 17:56:10,502 INFO is_symbol_valid(EGLDUSDT) -> True (pair=EGLDUSDT)
+2025-06-21 17:56:10,833 INFO [dev] ✅ Додано у BUY: EGLD, score=0.31, trend=0.48, vol=600420$
+2025-06-21 17:56:11,499 INFO is_symbol_valid(DIAUSDT) -> True (pair=DIAUSDT)
+2025-06-21 17:56:12,466 INFO [dev] ✅ Додано у BUY: DIA, score=0.31, trend=0.47, vol=4733104$
+2025-06-21 17:56:13,143 INFO is_symbol_valid(RUNEUSDT) -> True (pair=RUNEUSDT)
+2025-06-21 17:56:13,660 INFO [dev] ✅ Додано у BUY: RUNE, score=0.31, trend=0.46, vol=47130410$
+2025-06-21 17:56:14,339 INFO is_symbol_valid(FIOUSDT) -> True (pair=FIOUSDT)
+2025-06-21 17:56:14,874 INFO [dev] ✅ Додано у BUY: FIO, score=0.31, trend=0.49, vol=161152092$
+2025-06-21 17:56:15,553 INFO is_symbol_valid(UMAUSDT) -> True (pair=UMAUSDT)
+2025-06-21 17:56:16,096 INFO [dev] ✅ Додано у BUY: UMA, score=0.31, trend=0.48, vol=9273423$
+2025-06-21 17:56:16,763 INFO is_symbol_valid(BELUSDT) -> True (pair=BELUSDT)
+2025-06-21 17:56:17,083 INFO [dev] ✅ Додано у BUY: BEL, score=0.31, trend=0.47, vol=25728949$
+2025-06-21 17:56:17,762 INFO is_symbol_valid(UNIUSDT) -> True (pair=UNIUSDT)
+2025-06-21 17:56:18,079 INFO [dev] ✅ Додано у BUY: UNI, score=0.31, trend=0.49, vol=83667662$
+2025-06-21 17:56:18,763 INFO is_symbol_valid(OXTUSDT) -> True (pair=OXTUSDT)
+2025-06-21 17:56:19,081 INFO [dev] ✅ Додано у BUY: OXT, score=0.31, trend=0.49, vol=57271484$
+2025-06-21 17:56:19,754 INFO is_symbol_valid(SUNUSDT) -> True (pair=SUNUSDT)
+2025-06-21 17:56:20,337 INFO [dev] ✅ Додано у BUY: SUN, score=0.31, trend=0.49, vol=350821499$
+2025-06-21 17:56:21,016 INFO is_symbol_valid(AVAXUSDT) -> True (pair=AVAXUSDT)
+2025-06-21 17:56:21,336 INFO [dev] ✅ Додано у BUY: AVAX, score=0.31, trend=0.47, vol=12279990$
+2025-06-21 17:56:22,011 INFO is_symbol_valid(FLMUSDT) -> True (pair=FLMUSDT)
+2025-06-21 17:56:22,319 INFO [dev] ✅ Додано у BUY: FLM, score=0.31, trend=0.46, vol=135448383$
+2025-06-21 17:56:22,992 INFO is_symbol_valid(UTKUSDT) -> True (pair=UTKUSDT)
+2025-06-21 17:56:23,306 INFO [dev] ✅ Додано у BUY: UTK, score=0.31, trend=0.49, vol=119503237$
+2025-06-21 17:56:23,985 INFO is_symbol_valid(XVSUSDT) -> True (pair=XVSUSDT)
+2025-06-21 17:56:24,297 INFO [dev] ✅ Додано у BUY: XVS, score=0.31, trend=0.49, vol=629386$
+2025-06-21 17:56:24,980 INFO is_symbol_valid(ALPHAUSDT) -> True (pair=ALPHAUSDT)
+2025-06-21 17:56:25,301 INFO [dev] ✅ Додано у BUY: ALPHA, score=0.31, trend=0.46, vol=267130816$
+2025-06-21 17:56:25,967 INFO is_symbol_valid(AAVEUSDT) -> True (pair=AAVEUSDT)
+2025-06-21 17:56:26,499 INFO [dev] ✅ Додано у BUY: AAVE, score=0.31, trend=0.46, vol=1147711$
+2025-06-21 17:56:27,180 INFO is_symbol_valid(NEARUSDT) -> True (pair=NEARUSDT)
+2025-06-21 17:56:27,500 INFO [dev] ✅ Додано у BUY: NEAR, score=0.31, trend=0.47, vol=59078110$
+2025-06-21 17:56:28,165 INFO is_symbol_valid(FILUSDT) -> True (pair=FILUSDT)
+2025-06-21 17:56:28,483 INFO [dev] ✅ Додано у BUY: FIL, score=0.31, trend=0.48, vol=24942999$
+2025-06-21 17:56:29,160 INFO is_symbol_valid(INJUSDT) -> True (pair=INJUSDT)
+2025-06-21 17:56:29,691 INFO [dev] ✅ Додано у BUY: INJ, score=0.31, trend=0.48, vol=6853729$
+2025-06-21 17:56:30,364 INFO is_symbol_valid(AUDIOUSDT) -> True (pair=AUDIOUSDT)
+2025-06-21 17:56:30,891 INFO [dev] ✅ Додано у BUY: AUDIO, score=0.31, trend=0.47, vol=65676567$
+2025-06-21 17:56:31,558 INFO is_symbol_valid(CTKUSDT) -> True (pair=CTKUSDT)
+2025-06-21 17:56:31,887 INFO [dev] ✅ Додано у BUY: CTK, score=0.31, trend=0.50, vol=38980267$
+2025-06-21 17:56:32,569 INFO is_symbol_valid(AXSUSDT) -> True (pair=AXSUSDT)
+2025-06-21 17:56:32,881 INFO [dev] ✅ Додано у BUY: AXS, score=0.31, trend=0.48, vol=6218873$
+2025-06-21 17:56:33,557 INFO is_symbol_valid(STRAXUSDT) -> True (pair=STRAXUSDT)
+2025-06-21 17:56:33,878 INFO [dev] ✅ Додано у BUY: STRAX, score=0.31, trend=0.49, vol=405948240$
+2025-06-21 17:56:34,547 INFO is_symbol_valid(ROSEUSDT) -> True (pair=ROSEUSDT)
+2025-06-21 17:56:34,862 INFO [dev] ✅ Додано у BUY: ROSE, score=0.31, trend=0.47, vol=418721894$
+2025-06-21 17:56:35,528 INFO is_symbol_valid(AVAUSDT) -> True (pair=AVAUSDT)
+2025-06-21 17:56:35,839 INFO [dev] ✅ Додано у BUY: AVA, score=0.31, trend=0.49, vol=5036947$
+2025-06-21 17:56:36,515 INFO is_symbol_valid(SKLUSDT) -> True (pair=SKLUSDT)
+2025-06-21 17:56:36,828 INFO [dev] ✅ Додано у BUY: SKL, score=0.31, trend=0.47, vol=255597937$
+2025-06-21 17:56:37,505 INFO is_symbol_valid(GRTUSDT) -> True (pair=GRTUSDT)
+2025-06-21 17:56:37,812 INFO [dev] ✅ Додано у BUY: GRT, score=0.31, trend=0.47, vol=201180158$
+2025-06-21 17:56:38,481 INFO is_symbol_valid(JUVUSDT) -> True (pair=JUVUSDT)
+2025-06-21 17:56:38,811 INFO [dev] ✅ Додано у BUY: JUV, score=0.31, trend=0.47, vol=4219733$
+2025-06-21 17:56:39,485 INFO is_symbol_valid(PSGUSDT) -> True (pair=PSGUSDT)
+2025-06-21 17:56:39,798 INFO [dev] ✅ Додано у BUY: PSG, score=0.31, trend=0.46, vol=3129796$
+2025-06-21 18:01:37,702 INFO GPT-фільтр: buy=0, sell=0
+2025-06-21 18:01:38,280 INFO ✅ Binance API доступний
+2025-06-21 18:01:39,032 INFO ✅ Binance API доступний
+2025-06-21 18:01:39,264 INFO GPT-фільтр: buy=0, sell=0
+2025-06-21 18:01:39,793 INFO ✅ Binance API доступний
+2025-06-21 18:01:40,547 INFO ✅ Binance API доступний
+2025-06-21 18:01:41,342 INFO ✅ Binance API доступний
+2025-06-21 18:01:41,572 INFO [dev] Звіт:
+[]
+2025-06-21 18:35:44,711 INFO GPT-фільтр: buy=0, sell=0
+2025-06-21 18:35:45,298 INFO ✅ Binance API доступний
+2025-06-21 18:35:46,039 INFO ✅ Binance API доступний
+2025-06-21 18:35:46,268 INFO GPT-фільтр: buy=0, sell=0
+2025-06-21 18:35:46,785 INFO ✅ Binance API доступний
+2025-06-21 18:35:47,532 INFO ✅ Binance API доступний
+2025-06-21 18:35:48,332 INFO ✅ Binance API доступний
+2025-06-21 18:35:48,559 INFO [dev] Звіт:
+[]
+2025-06-21 18:47:54,777 INFO GPT-фільтр: buy=0, sell=0
+2025-06-21 18:47:55,344 INFO ✅ Binance API доступний
+2025-06-21 18:47:56,110 INFO ✅ Binance API доступний
+2025-06-21 18:47:56,340 INFO GPT-фільтр: buy=0, sell=0
+2025-06-21 18:47:56,871 INFO ✅ Binance API доступний
+2025-06-21 18:47:57,618 INFO ✅ Binance API доступний
+2025-06-21 18:47:58,420 INFO ✅ Binance API доступний
+2025-06-21 18:47:58,646 INFO [dev] Звіт:
+[]
+2025-06-21 18:53:53,648 INFO GPT-фільтр: buy=0, sell=0
+2025-06-21 18:53:54,262 INFO ✅ Binance API доступний
+2025-06-21 18:53:55,017 INFO ✅ Binance API доступний
+2025-06-21 18:53:55,251 INFO GPT-фільтр: buy=0, sell=0
+2025-06-21 18:53:55,794 INFO ✅ Binance API доступний
+2025-06-21 18:53:56,976 INFO ✅ Binance API доступний
+2025-06-21 18:53:58,218 INFO ✅ Binance API доступний
+2025-06-21 18:53:58,449 INFO [dev] Звіт:
+[]
+2025-06-21 18:53:58,449 INFO No conversion signals generated
+2025-06-21 18:53:59,021 INFO ✅ Binance API доступний
+2025-06-21 18:53:59,247 WARNING [dev] ❌ Жодна купівля не відбулась, усі спроби не пройшли
