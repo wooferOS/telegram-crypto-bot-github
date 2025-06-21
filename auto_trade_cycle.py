@@ -868,27 +868,27 @@ async def main(chat_id: int) -> dict:
             continue
 
     (
-        top_tokens,
-        from_tokens,
-        actions,
-        explanations,
-        conversion_table,
+        conversion_pairs,
+        top_buy,
+        sell_recommendations,
+        reasons,
+        all_predictions,
         gpt_forecast,
         predictions,
-    ) = generate_conversion_signals(filters, gpt_forecast)
+    ) = generate_conversion_signals(gpt_filters, gpt_forecast)
 
     try:
-        logger.info("[dev] Звіт:\n%s", report_text)
+        logger.info("[dev] Звіт:\n%s", all_predictions)
     except UnicodeEncodeError:
         logger.info("[dev] Звіт (без emoji):")
-        logger.info(report_text.encode("ascii", "ignore").decode())
+        logger.info(all_predictions.encode("ascii", "ignore").decode())
 
-    sold, bought = await send_conversion_signals(conversion_signals, chat_id=chat_id)
+    sold, bought = await send_conversion_signals(conversion_pairs, chat_id=chat_id)
 
     usdt_after = get_binance_balances().get("USDT", 0.0)
 
     successfully_bought = False
-    for s in sorted(to_buy, key=lambda x: predictions.get(x + "USDT", {}).get("score", 0), reverse=True):
+    for s in sorted(top_buy, key=lambda x: predictions.get(x + "USDT", {}).get("score", 0), reverse=True):
         usdt_balance = get_binance_balances().get("USDT", 0.0)
         try:
             symbol = s + "USDT"
@@ -906,7 +906,7 @@ async def main(chat_id: int) -> dict:
     if not successfully_bought:
         logger.warning(f"[dev] ❌ Жодна купівля не відбулась, усі спроби не пройшли")
 
-    await buy_with_remaining_usdt(get_binance_balances().get("USDT", 0.0), filtered_tokens, chat_id=chat_id)
+    await buy_with_remaining_usdt(get_binance_balances().get("USDT", 0.0), reasons, chat_id=chat_id)
 
     usdt_final = get_binance_balances().get("USDT", 0.0)
 
@@ -915,23 +915,23 @@ async def main(chat_id: int) -> dict:
     balance_line = ", ".join(f"{k} {v}" for k, v in balances.items())
 
     buy_line = ""
-    if to_buy:
+    if top_buy:
         buy_line = ", ".join(
             f"{sym} (score {predictions.get(sym+'USDT', {}).get('score', 0):.2f})"
-            for sym in to_buy
+            for sym in top_buy
         )
     sell_line = ""
-    if to_sell:
+    if sell_recommendations:
         sell_line = ", ".join(
             f"{sym} (EP {predictions.get(sym if sym.endswith('USDT') else sym+'USDT', {}).get('expected_profit', 0)*10:.1f}%)"
-            for sym in to_sell
+            for sym in sell_recommendations
         )
 
     avg_profit = 0.0
-    if to_buy:
+    if top_buy:
         avg_profit = sum(
-            predictions.get(sym + 'USDT', {}).get('expected_profit', 0) for sym in to_buy
-        ) / len(to_buy) * 10
+            predictions.get(sym + 'USDT', {}).get('expected_profit', 0) for sym in top_buy
+        ) / len(top_buy) * 10
 
     lines = [
         "[dev] 🧠 GPT аналіз",
