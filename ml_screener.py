@@ -16,11 +16,11 @@ client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 def get_valid_symbols() -> List[str]:
     """Return all active USDT trading pairs from Binance."""
     return [
-        s["symbol"]
-        for s in client.get_exchange_info()["symbols"]
-        if s["quoteAsset"] == "USDT"
-        and s["status"] == "TRADING"
-        and s["isSpotTradingAllowed"]
+        s.get('symbol')
+        for s in client.get_exchange_info().get("symbols")
+        if s.get("quoteAsset") == "USDT"
+        and s.get("status") == "TRADING"
+        and s.get('isSpotTradingAllowed')
     ]
 
 
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     for t in tokens:
         logger.info(
             "%s: prob_up=%.2f, expected=%s",
-            t["symbol"],
-            t["prob_up"],
-            t["expected_profit"],
+            t.get('symbol'),
+            t.get('prob_up'),
+            t.get('expected_profit'),
         )

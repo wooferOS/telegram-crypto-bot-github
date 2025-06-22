@@ -356,8 +356,8 @@ async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict
         trades = get_my_trades(pair)
         indicators = calculate_indicators(klines)
         average_buy_price = (
-            sum([float(t["price"]) * float(t["qty"]) for t in trades])
-            / sum([float(t["qty"]) for t in trades])
+            sum([float(t.get('price')) * float(t.get('qty')) for t in trades])
+            / sum([float(t.get('qty')) for t in trades])
             if trades
             else price
         )
@@ -384,17 +384,17 @@ async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict
         )
 
     # 🔻 Sell recommendations
-    sell_recommendations = [t for t in token_data if t["pnl"] >= 0.0]
-    sell_symbols = {t["symbol"] for t in sell_recommendations}
+    sell_recommendations = [t for t in token_data if t.get('pnl') >= 0.0]
+    sell_symbols = {t.get('symbol') for t in sell_recommendations}
     exchange_rate_uah = get_usdt_to_uah_rate()
     usdt_from_sales = (
-        sum([t["uah_value"] for t in sell_recommendations]) / exchange_rate_uah
+        sum([t.get('uah_value') for t in sell_recommendations]) / exchange_rate_uah
     )
     available_usdt = round(usdt_balance + usdt_from_sales, 2)
 
     # 🔍 Candidates to analyze
-    symbols_from_balance = set(t["symbol"].upper() for t in token_data)
-    market_symbols = set(t["symbol"].upper() for t in get_top_tokens(limit=50))
+    symbols_from_balance = set(t.get('symbol').upper() for t in token_data)
+    market_symbols = set(t.get('symbol').upper() for t in get_top_tokens(limit=50))
 
     valid_symbols = get_valid_usdt_symbols()
     logger.debug(
@@ -466,21 +466,21 @@ async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict
             logger.warning(f"⚠️ Пропущено {symbol}: {str(e)}")
             continue
 
-    buy_candidates.sort(key=lambda x: x["score"], reverse=True)
+    buy_candidates.sort(key=lambda x: x.get('score'), reverse=True)
 
     # Якщо немає сильних кандидатів — fallback до найкращого доступного
     if not buy_candidates and enriched_tokens:
-        enriched_tokens.sort(key=lambda x: x["score"], reverse=True)
+        enriched_tokens.sort(key=lambda x: x.get('score'), reverse=True)
         fallback = enriched_tokens[0]
         logger.info(
             "\u26a0\ufe0f No candidates passed filters, forcing fallback: %s",
-            fallback["symbol"],
+            fallback.get('symbol'),
         )
         buy_candidates.append(fallback)  # Додаємо, навіть якщо не проходить фільтр
 
     # 🟢 Сортуємо й обираємо токени на купівлю (TOP 3)
-    buy_plan = sorted(buy_candidates, key=lambda x: x["score"], reverse=True)[:3]
-    candidate_lines = [t["symbol"] for t in buy_plan[:3]]
+    buy_plan = sorted(buy_candidates, key=lambda x: x.get('score'), reverse=True)[:3]
+    candidate_lines = [t.get('symbol') for t in buy_plan[:3]]
 
     # 📝 Final report
     report_lines = []
@@ -491,14 +491,14 @@ async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict
     balance_parts = []
     for t in token_data:
         balance_parts.append(
-            f"{t['symbol']}: {t['amount']:.4f} ≈ ~{t['uah_value']:.2f}₴"
+            f"{t.get('symbol')}: {t.get('amount'):.4f} ≈ ~{t.get('uah_value'):.2f}₴"
         )
     balance_parts.append(
         f"USDT: {usdt_balance:.4f} ≈ ~{convert_to_uah(usdt_balance):.2f}₴"
     )
     report_lines.extend(balance_parts)
     total_uah = round(
-        sum([t["uah_value"] for t in token_data]) + convert_to_uah(usdt_balance),
+        sum([t.get('uah_value') for t in token_data]) + convert_to_uah(usdt_balance),
         2,
     )
     report_lines.append(f"Загальний баланс: {total_uah:.2f}₴  \n")
@@ -509,10 +509,10 @@ async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict
     report_lines.append("📉 Що продаємо:  ")
     sell_lines = []
     for t in sell_recommendations:
-        received = t["amount"] * t["price"]
-        reason = f"прибуток {t['pnl']:.2f}%"
+        received = t.get('amount') * t.get('price')
+        reason = f"прибуток {t.get('pnl'):.2f}%"
         sell_lines.append(
-            f"{t['symbol']} {t['amount']:.4f} ({reason}) → {received:.2f} USDT"
+            f"{t.get('symbol')} {t.get('amount'):.4f} ({reason}) → {received:.2f} USDT"
         )
     if not sell_lines:
         sell_lines.append("(порожньо)")
@@ -529,8 +529,8 @@ async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict
     report_lines.append("📈 Що купуємо:  ")
     buy_lines = []
     for t in buy_plan:
-        reason = f"exp={t['expected_profit']:.2f}, prob={t['prob_up']:.2f}"
-        buy_lines.append(f"{t['symbol']} ({reason})")
+        reason = f"exp={t.get('expected_profit'):.2f}, prob={t.get('prob_up'):.2f}"
+        buy_lines.append(f"{t.get('symbol')} ({reason})")
     if not buy_lines:
         buy_lines.append("(порожньо)")
     report_lines.extend(buy_lines)
@@ -544,8 +544,8 @@ async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict
     )
 
     scoreboard = [
-        f"{t['symbol']}: score={t['score']:.4f}"
-        for t in sorted(enriched_tokens, key=lambda x: x['score'], reverse=True)[:3]
+        f"{t.get('symbol')}: score={t.get('score'):.4f}"
+        for t in sorted(enriched_tokens, key=lambda x: x.get('score'), reverse=True)[:3]
     ]
 
     report = "\n".join(report_lines)
@@ -558,15 +558,15 @@ async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict
 
     balance_dict = {k: v for k, v in balances.items() if v}
     predictions = {
-        t["symbol"]: {
-            "expected_profit": t["expected_profit"],
-            "prob_up": t["prob_up"],
-            "score": t["score"],
+        t.get('symbol'): {
+            "expected_profit": t.get('expected_profit'),
+            "prob_up": t.get('prob_up'),
+            "score": t.get('score'),
         }
         for t in enriched_tokens
     }
 
-    top_5_tokens = sorted(enriched_tokens, key=lambda x: x["score"], reverse=True)[:5]
+    top_5_tokens = sorted(enriched_tokens, key=lambda x: x.get('score'), reverse=True)[:5]
     logger.info("[dev] \U0001f4c8 Top-5 токенів:\n%s", json.dumps(top_5_tokens, indent=2))
 
     market_trend = get_sentiment()
@@ -575,8 +575,8 @@ async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict
     summary += "\U0001f4a1 Top 5 tokens by score:\n"
     for t in top_5_tokens:
         summary += (
-            f" - {t['symbol']}: score={t['score']:.4f}, "
-            f"expected_profit={t['expected_profit']:.2f}, prob_up={t['prob_up']:.2f}\n"
+            f" - {t.get('symbol')}: score={t.get('score'):.4f}, "
+            f"expected_profit={t.get('expected_profit'):.2f}, prob_up={t.get('prob_up'):.2f}\n"
         )
 
     summary += (
@@ -612,10 +612,10 @@ async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict
     if not buy_plan and buy_candidates:
         logger.info("⚠️ GPT filter empty — using top buy candidates")
         logger.info("⚠️ GPT не рекомендував жоден токен — використано buy_candidates як fallback")
-        buy_plan = sorted(buy_candidates, key=lambda x: x["score"], reverse=True)[:3]
+        buy_plan = sorted(buy_candidates, key=lambda x: x.get('score'), reverse=True)[:3]
 
     if not buy_plan and forecast and forecast.get("recommend_buy"):
-        fallback_tokens = forecast["recommend_buy"]
+        fallback_tokens = forecast.get('recommend_buy')
         logger.info(
             "⚠️ GPT BUY fallback enabled — using tokens from GPT: %s", fallback_tokens
         )
@@ -658,9 +658,9 @@ async def daily_analysis_task(bot: Bot, chat_id: int) -> None:
     if forecast is not None:
         summary_lines = []
         if forecast.get("recommend_buy"):
-            summary_lines.append("🤖 BUY: " + ", ".join(forecast["recommend_buy"]))
+            summary_lines.append("🤖 BUY: " + ", ".join(forecast.get('recommend_buy')))
         if forecast.get("do_not_buy"):
-            summary_lines.append("🤖 SELL: " + ", ".join(forecast["do_not_buy"]))
+            summary_lines.append("🤖 SELL: " + ", ".join(forecast.get('do_not_buy')))
         if summary_lines:
             await bot.send_message(chat_id, "\n".join(summary_lines))
 
@@ -673,9 +673,9 @@ async def send_zarobyty_forecast(bot, chat_id: int) -> None:
         return
     lines = []
     if forecast.get("recommend_buy"):
-        lines.append("🤖 BUY: " + ", ".join(forecast["recommend_buy"]))
+        lines.append("🤖 BUY: " + ", ".join(forecast.get('recommend_buy')))
     if forecast.get("do_not_buy"):
-        lines.append("🤖 SELL: " + ", ".join(forecast["do_not_buy"]))
+        lines.append("🤖 SELL: " + ", ".join(forecast.get('do_not_buy')))
     if lines:
         await bot.send_message(chat_id, "\n".join(lines))
 
@@ -695,7 +695,7 @@ async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> No
             sold_any = False
 
             for token in sell_recommendations:
-                symbol = token["symbol"]
+                symbol = token.get('symbol')
                 amount = (
                     token.get("balance")
                     or token.get("amount")
@@ -740,10 +740,10 @@ async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> No
                     iteration += 1
                     continue
                 for candidate in buy_candidates:
-                    pair = candidate["symbol"].upper()
+                    pair = candidate.get('symbol').upper()
                     if pair not in valid_pairs:
                         continue
-                    price = get_symbol_price(candidate["symbol"])
+                    price = get_symbol_price(candidate.get('symbol'))
                     if price is None or price <= 0:
                         continue
 
@@ -758,28 +758,28 @@ async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> No
                         continue
                     try:
                         order = place_market_order(
-                            candidate["symbol"], "BUY", amount_usdt
+                            candidate.get('symbol'), "BUY", amount_usdt
                         )
                         qty = amount_usdt / price
                         if isinstance(order, dict):
                             qty = float(order.get("executedQty", qty))
-                        log_trade("BUY", candidate["symbol"], qty, price)
-                        add_trade(candidate["symbol"], "BUY", qty, price)
+                        log_trade("BUY", candidate.get('symbol'), qty, price)
+                        add_trade(candidate.get('symbol'), "BUY", qty, price)
 
-                        klines = get_klines(candidate["symbol"])
+                        klines = get_klines(candidate.get('symbol'))
                         closes = [float(k[4]) for k in klines]
                         tp, sl = dynamic_tp_sl(closes, price)
                         orders = get_open_orders(pair)
                         has_tp = any(o.get("type") == "LIMIT" for o in orders)
                         has_sl = any(o.get("type") == "STOP_LOSS_LIMIT" for o in orders)
                         if not (has_tp and has_sl):
-                            result = update_tp_sl_order(candidate["symbol"], tp, sl)
+                            result = update_tp_sl_order(candidate.get('symbol'), tp, sl)
                             if result:
                                 from telegram_bot import bot, ADMIN_CHAT_ID
 
                                 await bot.send_message(
                                     ADMIN_CHAT_ID,
-                                    f"\u267b\ufe0f TP/SL встановлено для {candidate['symbol']}: TP={tp}, SL={sl}",
+                                    f"\u267b\ufe0f TP/SL встановлено для {candidate.get('symbol')}: TP={tp}, SL={sl}",
                                 )
                         break
                     except Exception as exc:  # noqa: BLE001
@@ -876,7 +876,7 @@ def filter_adaptive_smart_buy(candidates):
             )
             continue
 
-        rsi = token["indicators"].get("rsi", 50)
+        rsi = token.get('indicators').get("rsi", 50)
         rr = token.get("risk_reward", 0)
 
         if rsi < 40 and rr > 1.5:

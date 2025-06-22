@@ -115,7 +115,7 @@ async def check_tp_sl_execution() -> None:
         if need_update:
             result = update_tp_sl_order(symbol, new_tp, new_sl)
             if result:
-                active_orders[symbol] = {"tp_id": result["tp"], "sl_id": result["sl"]}
+                active_orders[symbol] = {"tp_id": result.get('tp'), "sl_id": result.get('sl')}
                 await notify_updated_order(pair, new_tp, new_sl)
 
 # Reply keyboard with main actions
@@ -221,7 +221,7 @@ async def handle_take_profit_new(callback_query: CallbackQuery) -> None:
     target_price = round(buy_price * (1 + target_profit_percent / 100), 8)
 
     result = create_take_profit_order(symbol, quantity, target_price)
-    if result["success"]:
+    if result.get('success'):
         await bot.send_message(
             callback_query.from_user.id,
             f"✅ Ордер на фіксацію прибутку {symbol} встановлено за ціною {target_price}",
@@ -229,7 +229,7 @@ async def handle_take_profit_new(callback_query: CallbackQuery) -> None:
     else:
         await bot.send_message(
             callback_query.from_user.id,
-            f"❌ Помилка при встановленні Take Profit: {result['error']}",
+            f"❌ Помилка при встановленні Take Profit: {result.get('error')}",
         )
 
 
@@ -237,8 +237,8 @@ async def handle_take_profit_new(callback_query: CallbackQuery) -> None:
 async def take_profit_callback_handler(
     callback_query: types.CallbackQuery, callback_data: dict
 ) -> None:
-    symbol = callback_data["symbol"]
-    amount = float(callback_data["amount"])
+    symbol = callback_data.get('symbol')
+    amount = float(callback_data.get('amount'))
 
     try:
         result = place_limit_sell(symbol, amount)
@@ -325,7 +325,7 @@ async def zarobyty_cmd(message: types.Message) -> None:
     for symbol, data in profitable_to_sell.items():
         btn = InlineKeyboardButton(
             text=f"Фіксувати прибуток {symbol}",
-            callback_data=take_profit_cb.new(symbol=symbol, amount=str(data["amount"]))
+            callback_data=take_profit_cb.new(symbol=symbol, amount=str(data.get('amount')))
         )
         keyboard.add(btn)
 
@@ -334,9 +334,9 @@ async def zarobyty_cmd(message: types.Message) -> None:
     if forecast is not None:
         parts = []
         if forecast.get("buy"):
-            parts.append("🤖 BUY: " + ", ".join(forecast["buy"]))
+            parts.append("🤖 BUY: " + ", ".join(forecast.get('buy')))
         if forecast.get("sell"):
-            parts.append("🤖 SELL: " + ", ".join(forecast["sell"]))
+            parts.append("🤖 SELL: " + ", ".join(forecast.get('sell')))
         if parts:
             await message.answer("\n".join(parts))
 
@@ -575,7 +575,7 @@ async def handle_sell_callback(callback_query: types.CallbackQuery):
     try:
         result = sell_token_market(token)
         await callback_query.message.answer(
-            f"✅ Продано {result['executedQty']} {token} за {result['cummulativeQuoteQty']} USDT"
+            f"✅ Продано {result.get('executedQty')} {token} за {result.get('cummulativeQuoteQty')} USDT"
         )
     except Exception as e:
         await callback_query.message.answer(
@@ -587,7 +587,11 @@ async def handle_buy_callback(callback_query: types.CallbackQuery):
     amount_in_usdt = 10
     try:
         order = market_buy_symbol_by_amount(token, amount_in_usdt)
-        price = float(order["fills"][0]["price"]) if "fills" in order and order["fills"] else None
+        price = (
+            float(order.get("fills")[0].get("price"))
+            if "fills" in order and order.get("fills")
+            else None
+        )
         if not price:
             await callback_query.message.answer(f"❌ Купівля {token} не вдалася: немає ціни виконання")
             return
@@ -614,7 +618,7 @@ async def handle_take_profit_callback(callback_query: types.CallbackQuery):
     token = callback_query.data.split("_", 1)[1]
     try:
         price_data = get_token_price(token)
-        current_price = float(price_data["price"])
+        current_price = float(price_data.get('price'))
         target_profit_percent = 10  # Прибуток у %
         take_profit_price = round(current_price * (1 + target_profit_percent / 100), 6)
         balance = get_token_balance(token)
@@ -652,7 +656,7 @@ async def handle_smart_buy_callback(callback_query: types.CallbackQuery):
     token = callback_query.data.split("_", 1)[1]
     try:
         price_data = get_token_price(token)
-        current_price = float(price_data["price"])
+        current_price = float(price_data.get('price'))
         stop_price = round(current_price * 0.99, 6)
         usdt_to_use = 10
 
@@ -697,8 +701,8 @@ async def handle_edit_orders(message: types.Message) -> None:
     buttons = [
         [
             InlineKeyboardButton(
-                f"❌ Скасувати {o['symbol']} ({o['side']})",
-                callback_data=f"cancel_{o['orderId']}",
+                f"❌ Скасувати {o.get('symbol')} ({o.get('side')})",
+                callback_data=f"cancel_{o.get('orderId')}",
             )
         ]
         for o in open_orders
@@ -818,19 +822,19 @@ def register_change_tp_sl_handler(dp: Dispatcher) -> None:
             await message.reply("Невірне число TP")
             return
         pending[message.from_user.id]["tp"] = tp
-        symbol = pending[message.from_user.id]["symbol"]
+        symbol = pending[message.from_user.id].get("symbol")
         await message.reply(f"Введіть новий SL для {symbol}:", reply_markup=types.ForceReply())
 
     @dp.message_handler(lambda m: m.from_user.id in pending and "tp" in pending[m.from_user.id])
     async def receive_sl(message: types.Message) -> None:
         data = pending.pop(message.from_user.id)
-        symbol = data["symbol"]
+        symbol = data.get('symbol')
         try:
             sl = float(message.text.replace(",", "."))
         except ValueError:
             await message.reply("Невірне число SL")
             return
-        success = modify_order(symbol, data["tp"], sl)
+        success = modify_order(symbol, data.get('tp'), sl)
         if success:
             await message.reply(f"✅ Ордер для {symbol} оновлено")
         else:
