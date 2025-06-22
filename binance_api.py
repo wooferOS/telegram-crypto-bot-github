@@ -289,11 +289,11 @@ def load_tradable_usdt_symbols() -> set[str]:
     return cached_usdt_pairs
 
 
-def get_valid_symbols(quote: str = "USDT") -> list[str]:
-    """Return list of tradable symbols quoted in ``quote``."""
+def get_valid_symbols() -> list[str]:
+    """Return list of tradable USDT pairs from Binance."""
 
     try:
-        exchange_info = get_exchange_info_cached()
+        info = _get_client().get_exchange_info()
     except Exception as exc:  # pragma: no cover - network errors
         logger.error(
             "%s Не вдалося отримати exchange info: %s", TELEGRAM_LOG_PREFIX, exc
@@ -301,12 +301,12 @@ def get_valid_symbols(quote: str = "USDT") -> list[str]:
         return []
 
     return [
-        s.get('symbol').upper()
-        for s in exchange_info.get("symbols", [])
+        s["symbol"]
+        for s in info.get("symbols", [])
         if (
-            s.get("quoteAsset") == quote
-            and s.get("status") == "TRADING"
+            s.get("status") == "TRADING"
             and s.get("isSpotTradingAllowed")
+            and s.get("quoteAsset") == "USDT"
         )
     ]
 
@@ -314,7 +314,7 @@ def get_valid_symbols(quote: str = "USDT") -> list[str]:
 def get_valid_usdt_symbols() -> list[str]:
     """Return list of tradable USDT pairs from Binance."""
 
-    symbols = get_valid_symbols("USDT")
+    symbols = get_valid_symbols()
     logger.info("[dev] Всього доступних USDT пар: %d", len(symbols))
     return symbols
 
