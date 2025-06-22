@@ -129,15 +129,8 @@ if __name__ == "__main__":
 
     # Створити predictions.json, якщо він відсутній
     if not os.path.exists("predictions.json"):
-        logger.warning(
-            "[dev] Відсутній predictions.json — генеруємо заново через generate_zarobyty_report()"
-        )
-        try:
-            asyncio.run(generate_zarobyty_report())
-        except Exception as e:
-            logger.warning(
-                f"[dev] Помилка під час створення predictions.json: {e}"
-            )
+        from daily_analysis import generate_zarobyty_report
+        asyncio.run(generate_zarobyty_report())
     (
         _,
         _,
