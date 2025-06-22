@@ -125,7 +125,7 @@ def _analyze_pair(
 
     price = get_symbol_price(pair)
     if price == 0:
-        logger.info(f"[dev] ⛔ Пропускаємо {pair} — ціна недоступна")
+        logger.info(f"[dev] Пропускаємо {pair} — ціна недоступна")
         return None
 
     klines = get_candlestick_klines(pair)
@@ -199,22 +199,22 @@ def _analyze_pair(
 
     if expected_profit < 0.01 or prob_up < 0.45 or rrr < 1.0 or ml_proba < 0.45:
         logger.info(
-            f"[dev] ⚠️ Пропущено {pair}: EP={expected_profit:.2f}, prob_up={prob_up:.2f}, ml={ml_proba:.2f}, RRR={rrr:.2f}"
+            f"[dev] Пропущено {pair}: EP={expected_profit:.2f}, prob_up={prob_up:.2f}, ml={ml_proba:.2f}, RRR={rrr:.2f}"
         )
         return None
     elif trend_score < 0.3:
         logger.info(
-            f"[dev] ⚠️ Пропущено {pair}: Low trend EP={expected_profit:.2f}, prob_up={prob_up:.2f}, ml={ml_proba:.2f}, RRR={rrr:.2f}"
+            f"[dev] Пропущено {pair}: Low trend EP={expected_profit:.2f}, prob_up={prob_up:.2f}, ml={ml_proba:.2f}, RRR={rrr:.2f}"
         )
         return None
     elif volume_usdt < 10000:
         logger.info(
-            f"[dev] ⚠️ Пропущено {pair}: Low volume EP={expected_profit:.2f}, prob_up={prob_up:.2f}, ml={ml_proba:.2f}, RRR={rrr:.2f}"
+            f"[dev] Пропущено {pair}: Low volume EP={expected_profit:.2f}, prob_up={prob_up:.2f}, ml={ml_proba:.2f}, RRR={rrr:.2f}"
         )
         return None
     else:
         logger.info(
-            f"[dev] ✅ Додано у BUY: {pair.replace('USDT','')}, score={final_score:.2f}, trend={trend_score:.2f}, vol={volume_usdt:.0f}$"
+            f"[dev] Додано у BUY: {pair.replace('USDT','')}, score={final_score:.2f}, trend={trend_score:.2f}, vol={volume_usdt:.0f}$"
         )
 
     return {
@@ -273,7 +273,7 @@ def filter_top_tokens(
         )
         filtered = ranked[:3]
 
-    logger.info("[dev] 🧪 Після фільтрації: %s", filtered)
+    logger.info("[dev] Після фільтрації: %s", filtered)
 
     return filtered
     
@@ -313,7 +313,7 @@ def generate_conversion_signals(
     market_pairs = market_pairs[:50]
 
     for pair in market_pairs:
-        logger.info(f"[dev] 🔍 Аналізуємо {pair}...")
+        logger.info(f"[dev] Аналізуємо {pair}...")
         data = _analyze_pair(pair, model, min_profit, min_prob)
         if data:
             predictions[pair] = data
@@ -352,7 +352,7 @@ def generate_conversion_signals(
     else:
         top_tokens = top_tokens[:3]
 
-    logger.info("[dev] \U0001F9EA top_tokens: %s", top_tokens)
+    logger.info("[dev] top_tokens: %s", top_tokens)
     filtered_tokens = top_tokens
 
     if gpt_filters:
@@ -363,7 +363,7 @@ def generate_conversion_signals(
         for t in top_tokens:
             sym = t[0].replace("USDT", "")
             if sym in gpt_filters.get("do_not_buy", []) and t not in filtered_tokens:
-                logger.info(f"[dev] ⚠️ GPT не рекомендує купувати {sym}")
+                logger.info(f"[dev] GPT не рекомендує купувати {sym}")
                 gpt_notes.append(f"⚠️ GPT не рекомендує купувати {sym}")
         top_tokens = filtered_tokens
 
@@ -394,7 +394,7 @@ def generate_conversion_signals(
         filtered_tokens = top_tokens
 
     if len(top_tokens) < 3:
-        logger.info("[dev] ⚠️ Недостатньо BUY токенів з високим score, використовую найкращі з усього BUY списку.")
+        logger.info("[dev] Недостатньо BUY токенів з високим score, використовую найкращі з усього BUY списку.")
         top_tokens = all_buy_tokens[:3]
     if not top_tokens:
         return [], [], [], [], [], "", gpt_forecast
@@ -404,7 +404,7 @@ def generate_conversion_signals(
     low_profit = False
     if best_data["expected_profit"] <= CONVERSION_MIN_EXPECTED_PROFIT:
         logger.info(
-            "\u26a0\ufe0f Low expected profit %.4f USDT for %s",
+            "Low expected profit %.4f USDT for %s",
             best_data["expected_profit"],
             best_pair,
         )
@@ -506,7 +506,7 @@ def generate_conversion_signals(
         if score < 0.01:
             sell_candidates.append(symbol)
         else:
-            logger.info("[dev] ⛔ Пропущено %s — prob_up=%.2f, exp=%.2f", symbol, prob, ep)
+            logger.info("[dev] Пропущено %s — prob_up=%.2f, exp=%.2f", symbol, prob, ep)
 
     if not sell_candidates:
         logger.warning(
@@ -563,14 +563,14 @@ def sell_unprofitable_assets(
         if amount <= 0:
             continue
         pair = token if token.endswith("USDT") else f"{token}USDT"
-        logger.info(f"[dev] ✅ SELL: {pair}, кількість: {amount}")
+        logger.info(f"[dev] SELL: {pair}, кількість: {amount}")
         result = market_sell(pair, amount)
         if result.get("status") == "success":
-            logger.info(f"[dev] ✅ Продано {amount} {token}")
+            logger.info(f"[dev] Продано {amount} {token}")
             TRADE_SUMMARY["sold"].append(f"{token} ({amount:.6f})")
             sold_tokens.append(token)
         elif result.get("status") == "converted":
-            logger.info(f"[dev] 🔄 Сконвертовано {amount} {token}")
+            logger.info(f"[dev] Сконвертовано {amount} {token}")
             sold_tokens.append(token)
         else:
             reason = result.get("message", "невідома помилка")
@@ -579,7 +579,7 @@ def sell_unprofitable_assets(
             )
 
     if not sold_tokens:
-        logger.info("[dev] ❌ Нічого не продано")
+        logger.info("[dev] Нічого не продано")
 
     return sold_tokens
 
@@ -594,7 +594,7 @@ def convert_portfolio_to_usdt(portfolio: Dict[str, float]) -> list[str]:
         result = convert_to_usdt(asset, amount)
         if result and result.get("status") != "error":
             logger.info(
-                f"[dev] 🔄 Конвертовано {amount} {asset} у USDT"
+                f"[dev] Конвертовано {amount} {asset} у USDT"
             )
             TRADE_SUMMARY["sold"].append(f"{asset} ({amount:.6f})")
             converted.append(asset)
@@ -713,7 +713,7 @@ async def buy_with_remaining_usdt(
     if usdt_balance <= 0:
         logger.warning("[dev] ⚠️ Купівля неможлива — баланс USDT = 0")
         return None
-    logger.info("[dev] 🧪 Купівля на залишок: top_tokens = %s", top_tokens)
+    logger.info("[dev] Купівля на залишок: top_tokens = %s", top_tokens)
     tried_tokens = [p for p, _ in top_tokens]
     if not top_tokens:
         logger.warning("[dev] ⚠️ Купівля: top_tokens порожній — fallback на top-1.")
@@ -747,14 +747,14 @@ async def buy_with_remaining_usdt(
             continue
 
         logger.info(
-            "[dev] ℹ️ Перевірка: %s — qty=%.6f, price=%.6f, notional=%.6f, min_notional=%.6f",
+            "[dev] Перевірка: %s — qty=%.6f, price=%.6f, notional=%.6f, min_notional=%.6f",
             symbol,
             qty,
             price,
             notional,
             min_notional,
         )
-        logger.info("[dev] ⚠️ Купівля на залишок: %s — qty=%.6f price=%.6f", symbol, qty, price)
+        logger.info("[dev] Купівля на залишок: %s — qty=%.6f price=%.6f", symbol, qty, price)
         result = market_buy_symbol_by_amount(symbol, usdt_balance)
 
         if result and result.get("status") == "success":
@@ -796,8 +796,8 @@ async def main(chat_id: int) -> dict:
 
     balances = get_binance_balances()
     usdt_before = balances.get("USDT", 0.0)
-    logger.info("[dev] \ud83d\udcb0 Баланс USDT перед трейдом: %.4f", usdt_before)
-    logger.info("[dev] \ud83d\udcc8 Портфель: %s", balances)
+    logger.info("[dev] Баланс USDT перед трейдом: %.4f", usdt_before)
+    logger.info("[dev] Портфель: %s", balances)
     usdt_balance = usdt_before
     portfolio_tokens = [
         t for t in balances if t != "USDT" and f"{t}USDT" in VALID_PAIRS
@@ -811,9 +811,9 @@ async def main(chat_id: int) -> dict:
             chat_id=chat_id,
             gpt_forecast=gpt_forecast,
         )
-        logger.info("[dev] \U0001F9FE TRADE_SUMMARY: %s", TRADE_SUMMARY)
+        logger.info("[dev] TRADE_SUMMARY: %s", TRADE_SUMMARY)
         after = get_binance_balances().get("USDT", 0.0)
-        logger.info("[dev] \ud83d\udcb0 Баланс USDT після трейду: %.4f", after)
+        logger.info("[dev] Баланс USDT після трейду: %.4f", after)
         return {
             "sold": TRADE_SUMMARY["sold"],
             "bought": TRADE_SUMMARY["bought"],
@@ -832,7 +832,7 @@ async def main(chat_id: int) -> dict:
             chat_id=chat_id,
             gpt_forecast=gpt_forecast,
         )
-        logger.info("[dev] \U0001F9FE TRADE_SUMMARY: %s", TRADE_SUMMARY)
+        logger.info("[dev] TRADE_SUMMARY: %s", TRADE_SUMMARY)
         if "update_binance_cache" in globals():
             try:
                 update_binance_cache()  # type: ignore[func-returns-value]
@@ -846,9 +846,9 @@ async def main(chat_id: int) -> dict:
             chat_id=chat_id,
             gpt_forecast=gpt_forecast,
         )
-        logger.info("[dev] \U0001F9FE TRADE_SUMMARY: %s", TRADE_SUMMARY)
+        logger.info("[dev] TRADE_SUMMARY: %s", TRADE_SUMMARY)
         after = get_binance_balances().get("USDT", 0.0)
-        logger.info("[dev] \ud83d\udcb0 Баланс USDT після трейду: %.4f", after)
+        logger.info("[dev] Баланс USDT після трейду: %.4f", after)
         return {
             "sold": TRADE_SUMMARY["sold"],
             "bought": TRADE_SUMMARY["bought"],
@@ -878,10 +878,10 @@ async def main(chat_id: int) -> dict:
                 chat_id=chat_id,
                 gpt_forecast=gpt_forecast,
             )
-            logger.info("[dev] \U0001F9FE TRADE_SUMMARY: %s", TRADE_SUMMARY)
+            logger.info("[dev] TRADE_SUMMARY: %s", TRADE_SUMMARY)
 
     after = get_binance_balances().get("USDT", 0.0)
-    logger.info("[dev] \ud83d\udcb0 Баланс USDT після трейду: %.4f", after)
+    logger.info("[dev] Баланс USDT після трейду: %.4f", after)
     return {
         "sold": TRADE_SUMMARY["sold"],
         "bought": TRADE_SUMMARY["bought"],
