@@ -4,7 +4,7 @@ import logging
 
 import math
 import statistics
-from decimal import Decimal
+from decimal import Decimal, getcontext
 import decimal
 import numpy as np
 import datetime
@@ -56,6 +56,7 @@ from binance_api import (
     get_whale_alert,
     market_buy,
     market_sell,
+    get_min_qty,
 )
 from daily_analysis import split_telegram_message
 from history import add_trade
@@ -741,6 +742,15 @@ async def buy_with_remaining_usdt(
 ) -> Optional[str]:
     """Buy the best available token with the remaining USDT balance."""
 
+    from decimal import Decimal, getcontext
+
+    def is_qty_valid(qty: float, step: float, min_qty: float) -> bool:
+        getcontext().prec = 18
+        d_qty = Decimal(str(qty))
+        d_step = Decimal(str(step))
+        d_min = Decimal(str(min_qty))
+        return ((d_qty - d_min) % d_step) == 0
+
     if usdt_balance <= 0:
         logger.warning("[dev] ⚠️ Купівля неможлива — баланс USDT = 0")
         return None
@@ -768,6 +778,15 @@ async def buy_with_remaining_usdt(
         step_size = get_lot_step(pair)[1]
         raw_qty = usdt_balance / price
         qty = adjust_qty_to_step(raw_qty, step_size)
+        min_qty = get_min_qty(pair)
+        if not is_qty_valid(qty, step_size, min_qty):
+            logger.warning(
+                "[dev] ⛔ qty %.8f не відповідає stepSize %.8f + minQty %.8f",
+                qty,
+                step_size,
+                min_qty,
+            )
+            continue
         logger.info(
             "[dev] 🧮 Коригування qty: raw=%.8f, stepSize=%.10f → final=%.8f",
             raw_qty,
