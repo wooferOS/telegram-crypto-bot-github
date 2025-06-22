@@ -302,7 +302,9 @@ def get_valid_symbols(quote: str = "USDT") -> list[str]:
 def get_valid_usdt_symbols() -> list[str]:
     """Return list of tradable USDT pairs from Binance."""
 
-    return get_valid_symbols("USDT")
+    symbols = get_valid_symbols("USDT")
+    logger.info("[dev] Всього доступних USDT пар: %d", len(symbols))
+    return symbols
 
 
 def get_all_valid_symbols() -> list[str]:
@@ -313,7 +315,8 @@ def get_all_valid_symbols() -> list[str]:
 # NOTE: Loading trading pairs requires network access which is undesirable
 # during automated testing. The call is now deferred until explicitly
 # requested by the application.
-# refresh_valid_pairs()
+refresh_valid_pairs()
+logger.info("[init] VALID_PAIRS loaded: %d pairs", len(VALID_PAIRS))
 
 
 # ---------------------------------------------------------------------------
@@ -683,6 +686,8 @@ def get_symbol_price(pair: str) -> float:
         resp.raise_for_status()
         return float(resp.json()["price"])
     except Exception as e:
+        if pair not in VALID_PAIRS:
+            logger.warning(f"[dev] ⛔ {pair} не знайдено в VALID_PAIRS")
         logger.warning(f"[dev] ⚠️ Request failed in get_symbol_price: {e}")
         return 0.0
 

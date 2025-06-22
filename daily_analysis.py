@@ -347,7 +347,8 @@ async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict
         pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
 
         price = get_symbol_price(pair)
-        if price is None:
+        if not price or price == 0.0:
+            logger.warning(f"[dev] ⛔ Пропущено {pair}: немає ціни")
             continue
         uah_value = convert_to_uah(price * amount)
         klines = get_klines(pair)

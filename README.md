@@ -65,3 +65,21 @@ pip install aiohttp openai python-binance numpy scikit-learn
    Не використовуйте змінні середовища або `.env`. Бот читає ключі лише з `config.py`.
 
 Please ensure GitHub Actions are enabled in your fork.
+
+## 🔧 Встановлення залежностей
+
+```bash
+pip install -r requirements.txt
+```
+
+### Мінімальні залежності:
+
+* python-binance
+* requests
+* numpy
+* scikit-learn
+* pytz
+* aiohttp
+* python-telegram-bot
+* matplotlib
+* pandas
