@@ -4,6 +4,8 @@ import logging
 
 import math
 import statistics
+from decimal import Decimal
+import decimal
 import numpy as np
 import datetime
 
@@ -750,9 +752,12 @@ async def buy_with_remaining_usdt(
         price = get_symbol_price(pair)
         if price <= 0:
             continue
-        precision = get_lot_step(pair)
-        qty = usdt_balance / price
-        qty = round(qty, precision)
+        lot_info = get_lot_step(pair)
+        step = Decimal(str(lot_info.get("step_size", 1)))
+        precision = abs(step.normalize().as_tuple().exponent)
+        qty = Decimal(str(usdt_balance / price)).quantize(
+            step, rounding=decimal.ROUND_DOWN
+        )
         min_notional = get_min_notional(pair)
         notional = qty * price
         if notional < min_notional:
