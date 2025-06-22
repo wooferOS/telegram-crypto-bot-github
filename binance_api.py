@@ -807,13 +807,16 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
             return {"status": "error", "message": "no_price"}
 
         quantity = round(amount / price, 6)
-        order = client.create_order(
+        result = client.create_order(
             symbol=pair,
             side=SIDE_BUY,
             type=ORDER_TYPE_MARKET,
             quantity=quantity,
         )
-        return {**order, "status": "success"}
+        if result.get("status") != "FILLED":
+            logger.warning("[dev] ❌ Ордер не виконано повністю: %s", result)
+            return {"status": "error", "message": "Order not filled"}
+        return {"status": "success", "message": "Filled"}
     except BinanceAPIException as e:  # pragma: no cover - network errors
         logger.warning("[dev] Binance buy error for %s: %s", pair, e)
         return {"status": "error", "message": str(e)}
