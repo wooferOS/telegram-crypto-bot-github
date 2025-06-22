@@ -320,6 +320,7 @@ def calculate_adaptive_filters(days: int = lookback_days) -> tuple[float, float]
 
 
 async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict]:
+    refresh_valid_pairs()
     balances = get_binance_balances()
     usdt_balance = balances.get("USDT", 0) or 0
     now = datetime.datetime.now(pytz.timezone("Europe/Kyiv"))
@@ -559,42 +560,34 @@ async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict
         for t in enriched_tokens
     }
 
-    summary = {
-        "balance": balance_dict,
-        "sell": [s.replace("USDT", "") for s in sell_symbols],
-        "buy": [c.replace("USDT", "") for c in candidate_lines],
-        "total_profit": str(expected_profit_usdt),
-        "market_trend": get_sentiment(),
-        "filters": {
-            "min_score": 0.3,
-            "min_expected_profit": 0.2,
-            "min_prob_up": 0.45,
-            "min_volatility": 1.0,
-            "min_volume": 10_000_000,
-            "adaptive_min_expected_profit": adaptive_min_profit,
-            "adaptive_min_prob_up": adaptive_min_prob,
-        },
-        "token_scores": predictions,
-    }
+    top_5_tokens = sorted(enriched_tokens, key=lambda x: x["score"], reverse=True)[:5]
+    logger.info("[dev] \U0001f4c8 Top-5 токенів:\n%s", json.dumps(top_5_tokens, indent=2))
 
-    summary_text = json.dumps(summary, ensure_ascii=False)
-    summary_text += (
-        "\n\n❗️Please return only a valid JSON object with this format:\n"
+    market_trend = get_sentiment()
+    summary = f"\U0001f4ca Available balance: {usdt_balance:.2f} USDT\n"
+    summary += f"\u27f3 Market trend: {market_trend}\n"
+    summary += "\U0001f4a1 Top 5 tokens by score:\n"
+    for t in top_5_tokens:
+        summary += (
+            f" - {t['symbol']}: score={t['score']:.4f}, "
+            f"expected_profit={t['expected_profit']:.2f}, prob_up={t['prob_up']:.2f}\n"
+        )
+
+    summary += (
+        "\n\n❗️Output only valid JSON in this format:\n"
         '{"buy": ["TOKEN1", "TOKEN2"], "do_not_buy": ["TOKEN3"]}\n'
-        "Do not include any explanations, markdown, or extra text. Only return raw JSON."
+        "No text. No markdown. No explanation. Just raw JSON."
     )
-    gpt_text = await ask_gpt(summary_text, max_tokens=100)
+
+    gpt_text = await ask_gpt(summary, max_tokens=300)
 
     try:
         gpt_result = json.loads(gpt_text)
-        if not isinstance(gpt_result, dict):
-            raise ValueError("GPT did not return a dictionary")
-    except Exception as e:
+    except Exception:
         logger.warning(
             "[dev] ❌ Неможливо розпарсити GPT відповідь як JSON:\n%s",
             gpt_text,
         )
-        logger.warning("[GPT] ⚠️ Порожній прогноз, можливо, сталася помилка")
         gpt_result = {"buy": [], "do_not_buy": []}
     if gpt_result == {}:
         log_and_telegram("[GPT] ⚠️ Порожній прогноз, можливо, сталася помилка")
