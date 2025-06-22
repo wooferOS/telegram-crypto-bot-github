@@ -11,7 +11,10 @@ from log_setup import setup_logging
 import os
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
-from config import MIN_EXPECTED_PROFIT, MIN_PROB_UP
+from config import (
+    MIN_EXPECTED_PROFIT,
+    MIN_PROB_UP,
+)
 from typing import Dict, List, Optional
 from collections import Counter
 from constants import TRADE_SUMMARY

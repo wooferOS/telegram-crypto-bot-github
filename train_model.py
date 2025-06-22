@@ -9,7 +9,10 @@ import os
 import time
 import subprocess
 import logging
-from config import BINANCE_API_KEY, BINANCE_SECRET_KEY
+from config import (
+    BINANCE_API_KEY,
+    BINANCE_SECRET_KEY,
+)
 
 client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 

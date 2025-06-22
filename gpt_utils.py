@@ -6,6 +6,7 @@ import logging
 from typing import Any, Optional
 
 from binance_api import notify_telegram
+from config import OPENAI_API_KEY
 
 
 logger = logging.getLogger(__name__)
@@ -24,12 +25,14 @@ def _ensure_structure(data: dict) -> dict:
     return result
 
 
-async def ask_gpt(messages: list, api_key: str) -> Optional[str]:
+async def ask_gpt(messages: list) -> Optional[str]:
+    """Send ``messages`` to OpenAI using the ``OPENAI_API_KEY`` from config."""
+
     import aiohttp
 
     url = "https://api.openai.com/v1/chat/completions"
     headers = {
-        "Authorization": f"Bearer {api_key}",
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
         "Content-Type": "application/json",
     }
 

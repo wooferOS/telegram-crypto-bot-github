@@ -50,7 +50,6 @@ from binance.exceptions import BinanceAPIException
 
 # ``logger`` is provided by utils
 TELEGRAM_LOG_PREFIX = "\ud83d\udce1 [BINANCE]"
-TEST_MODE = os.getenv("BINANCE_TEST_MODE") == "1"
 
 from config import (
     BINANCE_API_KEY,
@@ -58,7 +57,10 @@ from config import (
     TELEGRAM_TOKEN,
     CHAT_ID,
     ADMIN_CHAT_ID,
+    BINANCE_TEST_MODE,
 )
+
+TEST_MODE = BINANCE_TEST_MODE
 
 # Credentials are provided via ``config.py`` on the server.
 BINANCE_BASE_URL = "https://api.binance.com"

@@ -1,6 +1,9 @@
 from typing import List, Dict
 from binance.client import Client
-from config import BINANCE_API_KEY, BINANCE_SECRET_KEY
+from config import (
+    BINANCE_API_KEY,
+    BINANCE_SECRET_KEY,
+)
 
 from binance_api import get_symbol_price, get_candlestick_klines as get_klines
 import numpy as np

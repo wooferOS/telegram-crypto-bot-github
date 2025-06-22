@@ -18,7 +18,10 @@ from telegram_bot import (
 )
 from binance_api import get_open_orders
 from daily_analysis import auto_trade_loop
-from config import MAX_MONITOR_ITERATIONS, MAX_AUTO_TRADE_ITERATIONS
+from config import (
+    MAX_MONITOR_ITERATIONS,
+    MAX_AUTO_TRADE_ITERATIONS,
+)
 
 setup_logging()
 

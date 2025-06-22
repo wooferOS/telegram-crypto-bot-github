@@ -56,7 +56,10 @@ from binance_api import (
 )
 from alerts import check_daily_alerts
 
-from config import TELEGRAM_TOKEN, ADMIN_CHAT_ID
+from config import (
+    TELEGRAM_TOKEN,
+    ADMIN_CHAT_ID,
+)
 
 take_profit_cb = CallbackData("tp", "symbol", "amount")
 
