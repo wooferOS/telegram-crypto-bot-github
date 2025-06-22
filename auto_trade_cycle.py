@@ -35,6 +35,7 @@ from binance_api import (
     get_token_balance,
     place_take_profit_order,
     place_stop_loss_order,
+    refresh_valid_pairs,
     VALID_PAIRS,
 )
 from ml_model import (
