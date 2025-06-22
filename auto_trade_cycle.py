@@ -311,6 +311,11 @@ def generate_conversion_signals(
     model = load_model()
     min_profit = gpt_forecast.get("adaptive_filters", {}).get("min_expected_profit", 0.3) if gpt_forecast else 0.3
     min_prob = gpt_forecast.get("adaptive_filters", {}).get("min_prob_up", 0.6) if gpt_forecast else 0.6
+    if "update_binance_cache" in globals():
+        try:
+            update_binance_cache()
+        except Exception as exc:
+            logger.warning("[dev] ⚠️ Не вдалося оновити кеш балансу: %s", exc)
     balances = get_binance_balances()
     portfolio = {a: amt for a, amt in balances.items() if a not in {"USDT", "BUSD"} and amt > 0}
     if not portfolio:
@@ -845,6 +850,11 @@ async def main(chat_id: int) -> dict:
     gpt_forecast = load_gpt_filters()
     top_tokens = filter_top_tokens(predictions, limit=3, gpt_forecast=gpt_forecast)
 
+    if "update_binance_cache" in globals():
+        try:
+            update_binance_cache()
+        except Exception as exc:
+            logger.warning("[dev] ⚠️ Не вдалося оновити кеш балансу: %s", exc)
     balances = get_binance_balances()
     usdt_before = balances.get("USDT", 0.0)
     logger.info("[dev] Баланс USDT перед трейдом: %.4f", usdt_before)
@@ -866,6 +876,11 @@ async def main(chat_id: int) -> dict:
             gpt_forecast=gpt_forecast,
         )
         logger.info("[dev] TRADE_SUMMARY: %s", TRADE_SUMMARY)
+        if "update_binance_cache" in globals():
+            try:
+                update_binance_cache()
+            except Exception as exc:
+                logger.warning("[dev] ⚠️ Не вдалося оновити кеш балансу: %s", exc)
         after = get_binance_balances().get("USDT", 0.0)
         logger.info("[dev] Баланс USDT після трейду: %.4f", after)
         return {
@@ -879,6 +894,11 @@ async def main(chat_id: int) -> dict:
     if usdt_balance > 0 and portfolio_tokens:
         sell_unprofitable_assets(balances, predictions, gpt_forecast)
         # 🟢 Купити після продажу (оновлений баланс)
+        if "update_binance_cache" in globals():
+            try:
+                update_binance_cache()
+            except Exception as exc:
+                logger.warning("[dev] ⚠️ Не вдалося оновити кеш балансу: %s", exc)
         updated_balances = get_binance_balances()
         await buy_with_remaining_usdt(
             updated_balances.get("USDT", 0.0),
@@ -892,6 +912,11 @@ async def main(chat_id: int) -> dict:
                 update_binance_cache()  # type: ignore[func-returns-value]
             except Exception as exc:  # pragma: no cover - optional
                 logger.warning("[dev] update_binance_cache failed: %s", exc)
+        if "update_binance_cache" in globals():
+            try:
+                update_binance_cache()
+            except Exception as exc:
+                logger.warning("[dev] ⚠️ Не вдалося оновити кеш балансу: %s", exc)
         balances = get_binance_balances()
         usdt_balance = balances.get("USDT", 0.0)
         await buy_with_remaining_usdt(
@@ -901,6 +926,11 @@ async def main(chat_id: int) -> dict:
             gpt_forecast=gpt_forecast,
         )
         logger.info("[dev] TRADE_SUMMARY: %s", TRADE_SUMMARY)
+        if "update_binance_cache" in globals():
+            try:
+                update_binance_cache()
+            except Exception as exc:
+                logger.warning("[dev] ⚠️ Не вдалося оновити кеш балансу: %s", exc)
         after = get_binance_balances().get("USDT", 0.0)
         logger.info("[dev] Баланс USDT після трейду: %.4f", after)
         return {
@@ -923,6 +953,11 @@ async def main(chat_id: int) -> dict:
                 update_binance_cache()  # type: ignore[func-returns-value]
             except Exception as exc:  # pragma: no cover - optional
                 logger.warning("[dev] update_binance_cache failed: %s", exc)
+        if "update_binance_cache" in globals():
+            try:
+                update_binance_cache()
+            except Exception as exc:
+                logger.warning("[dev] ⚠️ Не вдалося оновити кеш балансу: %s", exc)
         balances = get_binance_balances()
         usdt_balance = balances.get("USDT", 0.0)
         if usdt_balance > 0:
@@ -934,6 +969,11 @@ async def main(chat_id: int) -> dict:
             )
             logger.info("[dev] TRADE_SUMMARY: %s", TRADE_SUMMARY)
 
+    if "update_binance_cache" in globals():
+        try:
+            update_binance_cache()
+        except Exception as exc:
+            logger.warning("[dev] ⚠️ Не вдалося оновити кеш балансу: %s", exc)
     after = get_binance_balances().get("USDT", 0.0)
     logger.info("[dev] Баланс USDT після трейду: %.4f", after)
     return {
