@@ -9,6 +9,8 @@ import statistics
 import logging
 import numpy as np
 import math
+from decimal import Decimal
+import decimal
 
 # Lookback window for trade history metrics
 lookback_days = 30
@@ -703,11 +705,14 @@ async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> No
                 )
                 if amount and amount > 0:
                     try:
-                        precision = get_lot_step(symbol)
-                        step_size = 10 ** (-precision)
-                        adjusted_amount = math.floor(amount / step_size) * step_size
-                        adjusted_amount = round(adjusted_amount, precision)
-                        result = market_sell(symbol, adjusted_amount)
+                        lot_info = get_lot_step(symbol)
+                        step = Decimal(str(lot_info.get("step_size", 1)))
+                        precision = abs(step.normalize().as_tuple().exponent)
+                        adjusted_amount = (Decimal(str(amount)) // step) * step
+                        adjusted_amount = adjusted_amount.quantize(
+                            step, rounding=decimal.ROUND_DOWN
+                        )
+                        result = market_sell(symbol, float(adjusted_amount))
                         logger.info("✅ Продано %s: %s | %s", symbol, amount, result)
                         if result.get("status") == "success":
                             sold_any = True
