@@ -20,6 +20,7 @@ from binance_api import (
     get_candlestick_klines as get_klines,
     get_recent_trades as get_my_trades,
     get_top_tokens,
+    get_top_symbols_by_volume,
     load_tradable_usdt_symbols,
     get_usdt_to_uah_rate,
     place_market_order,
@@ -74,7 +75,8 @@ from telegram import Bot
 
 import time
 
-symbols = get_valid_usdt_symbols()
+# Новий список топ-60 символів для аналізу
+TRADING_SYMBOLS = get_top_symbols_by_volume(limit=60)
 VALID_PAIRS = get_all_valid_symbols()
 
 logger = logging.getLogger(__name__)
@@ -101,7 +103,7 @@ def log_and_telegram(message: str) -> None:
 
 async def get_trading_symbols() -> list[str]:
     """Return list of trading symbols available for analysis."""
-    return get_valid_usdt_symbols()
+    return TRADING_SYMBOLS
 
 
 def split_telegram_message(text: str, chunk_size: int = 4000) -> list[str]:
@@ -397,7 +399,7 @@ async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict
     symbols_to_analyze: list[str] = []
     success = 0
     fail = 0
-    for sym in symbols:
+    for sym in TRADING_SYMBOLS:
         pair = sym if sym.endswith("USDT") else f"{sym}USDT"
         if is_symbol_valid(pair):
             symbols_to_analyze.append(pair)

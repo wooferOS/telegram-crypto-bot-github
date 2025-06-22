@@ -1539,6 +1539,32 @@ def get_top_tokens(limit: int = 50) -> List[Dict[str, object]]:
         return []
 
 
+def get_top_symbols_by_volume(limit: int = 60) -> list[str]:
+    """Return top symbols by 24h quote volume."""
+
+    url = "https://api.binance.com/api/v3/ticker/24hr"
+    try:
+        response = requests.get(url, timeout=(3, 5))
+        data = response.json()
+        filtered = [
+            item["symbol"]
+            for item in data
+            if item["symbol"].endswith("USDT")
+            and not item["symbol"].startswith(("USD", "BUSD", "TUSD"))
+        ]
+        sorted_pairs = sorted(
+            filtered,
+            key=lambda s: next(
+                (float(i["quoteVolume"]) for i in data if i["symbol"] == s), 0
+            ),
+            reverse=True,
+        )
+        return [s.replace("USDT", "") for s in sorted_pairs[:limit]]
+    except Exception as e:  # pragma: no cover - network errors
+        logger.warning(f"[dev] ⚠️ Failed to fetch top symbols: {e}")
+        return []
+
+
 def is_asset_supported(symbol: str, whitelist: Optional[List[str]] = None) -> bool:
     """Check whether a symbol is supported by the bot."""
 
