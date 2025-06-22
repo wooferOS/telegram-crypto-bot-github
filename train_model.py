@@ -22,11 +22,11 @@ def get_all_usdt_symbols(min_volume=500000):
     result = []
     for t in tickers:
         if (
-            t["symbol"].endswith("USDT")
-            and not t["symbol"].startswith(("USDT", "XUSD", "TUSD", "EUR", "BIFI", "USDP"))
+            t.get('symbol').endswith("USDT")
+            and not t.get('symbol').startswith(("USDT", "XUSD", "TUSD", "EUR", "BIFI", "USDP"))
             and float(t.get("quoteVolume", 0)) > min_volume
         ):
-            result.append(t["symbol"])
+            result.append(t.get('symbol'))
     return list(set(result))
 
 

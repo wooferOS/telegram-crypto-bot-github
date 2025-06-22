@@ -186,7 +186,7 @@ def refresh_valid_pairs() -> None:
     try:
         info = get_exchange_info_cached()
         VALID_PAIRS = {
-            s["symbol"]
+            s.get('symbol')
             for s in info.get("symbols", [])
             if s.get("quoteAsset") == "USDT"
             and s.get("status") == "TRADING"
@@ -268,7 +268,7 @@ def load_tradable_usdt_symbols() -> set[str]:
         return cached_usdt_pairs
     info = get_exchange_info()
     pairs = [
-        s["symbol"]
+        s.get('symbol')
         for s in info.get("symbols", [])
         if s.get("quoteAsset") == "USDT" and s.get("status") == "TRADING"
     ]
@@ -289,7 +289,7 @@ def get_valid_symbols(quote: str = "USDT") -> list[str]:
         return []
 
     return [
-        s["symbol"].upper()
+        s.get('symbol').upper()
         for s in exchange_info.get("symbols", [])
         if (
             s.get("quoteAsset") == quote
@@ -383,9 +383,9 @@ def get_binance_balances() -> Dict[str, float]:
 
             account = temp_client.get_account()
             raw_balances = {
-                asset["asset"]: float(asset["free"])
-                for asset in account["balances"]
-                if float(asset["free"]) > 0
+                asset.get('asset'): float(asset.get('free'))
+                for asset in account.get('balances')
+                if float(asset.get('free')) > 0
             }
 
             if not VALID_PAIRS:
@@ -564,7 +564,7 @@ def try_convert(symbol_from: str, symbol_to: str, amount: float) -> Optional[dic
         if "quoteId" not in data:
             raise Exception(data)
 
-        quote_id = data["quoteId"]
+        quote_id = data.get('quoteId')
         accept_url = f"{BINANCE_BASE_URL}/sapi/v1/convert/acceptQuote"
         accept_params = {
             "quoteId": quote_id,
@@ -684,7 +684,7 @@ def get_symbol_price(pair: str) -> float:
     try:
         resp = _session.get(url, params=params, timeout=(3, 5))
         resp.raise_for_status()
-        return float(resp.json()["price"])
+        return float(resp.json().get("price"))
     except Exception as e:
         if pair not in VALID_PAIRS:
             logger.warning(f"[dev] ⛔ {pair} не знайдено в VALID_PAIRS")
@@ -794,20 +794,20 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
     try:
         logger.info(f"[dev] 🔼 Спроба купити {symbol} на {usdt_amount} USDT")
         price_data = client.get_symbol_ticker(symbol=symbol)
-        current_price = float(price_data["price"])
+        current_price = float(price_data.get('price'))
 
         quantity = round(usdt_amount / current_price, 6)
 
         order = client.order_market_buy(symbol=symbol, quantity=quantity)
 
         logger.info(
-            f"\u2705 Куплено {quantity} {symbol} на {usdt_amount} USDT. Ордер ID: {order['orderId']}"
+            f"\u2705 Куплено {quantity} {symbol} на {usdt_amount} USDT. Ордер ID: {order.get('orderId')}"
         )
         return {
             "status": "success",
-            "order_id": order["orderId"],
+            "order_id": order.get('orderId'),
             "symbol": symbol,
-            "executedQty": order["executedQty"],
+            "executedQty": order.get('executedQty'),
             "price": current_price,
         }
 
@@ -1135,7 +1135,7 @@ def cancel_tp_sl_if_market_changed(symbol: str) -> None:
         else:
             continue
         if price and abs(current - price) / price > 0.05:
-            cancel_order(int(o["orderId"]), pair)
+            cancel_order(int(o.get('orderId')), pair)
 
 
 def get_active_orders() -> Dict[str, object]:
@@ -1203,7 +1203,7 @@ def get_coin_price(symbol: str) -> Optional[float]:
     try:
         resp = _session.get(url, params={"symbol": pair}, timeout=5)
         resp.raise_for_status()
-        return float(resp.json()["price"])
+        return float(resp.json().get("price"))
     except Exception as exc:
         logger.error(
             "%s Помилка при отриманні ціни %sUSDT: %s", TELEGRAM_LOG_PREFIX, symbol, exc
@@ -1216,7 +1216,7 @@ def get_symbol_precision(symbol: str) -> int:
     try:
         data = get_exchange_info_cached()
         for s in data.get("symbols", []):
-            if s["symbol"] == symbol:
+            if s.get("symbol") == symbol:
                 for f in s.get("filters", []):
                     if f.get("filterType") == "LOT_SIZE":
                         step = float(f.get("stepSize"))
@@ -1236,7 +1236,7 @@ def get_min_notional(symbol: str) -> float:
     try:
         data = get_exchange_info_cached()
         for s in data.get("symbols", []):
-            if s["symbol"] == symbol:
+            if s.get("symbol") == symbol:
                 for f in s.get("filters", []):
                     if f.get("filterType") == "MIN_NOTIONAL":
                         return float(f.get("minNotional"))
@@ -1255,7 +1255,7 @@ def get_lot_step(symbol: str) -> float:
     try:
         data = get_exchange_info_cached()
         for s in data.get("symbols", []):
-            if s["symbol"] == symbol:
+            if s.get("symbol") == symbol:
                 for f in s.get("filters", []):
                     if f.get("filterType") == "LOT_SIZE":
                         return float(f.get("stepSize"))
@@ -1333,7 +1333,7 @@ def get_last_price(symbol: str) -> float:
     try:
         resp = _session.get(url, timeout=5)
         resp.raise_for_status()
-        return float(resp.json()["price"])
+        return float(resp.json().get("price"))
     except Exception as exc:
         logger.warning(
             "%s Помилка при отриманні останньої ціни %s: %s",
@@ -1415,7 +1415,7 @@ def get_real_pnl_data() -> Dict[str, Dict[str, float]]:
         return result
 
     for pos in account.get("balances", []):
-        asset = pos["asset"]
+        asset = pos.get('asset')
         amount = float(pos.get("free", 0))
         if amount == 0 or asset == "USDT":
             continue
@@ -1426,8 +1426,8 @@ def get_real_pnl_data() -> Dict[str, Dict[str, float]]:
             if not trades:
                 continue
 
-            total_cost = sum(float(t["price"]) * float(t["qty"]) for t in trades)
-            total_qty = sum(float(t["qty"]) for t in trades)
+            total_cost = sum(float(t.get('price')) * float(t.get('qty')) for t in trades)
+            total_qty = sum(float(t.get('qty')) for t in trades)
 
             if total_qty == 0:
                 continue
@@ -1466,7 +1466,7 @@ def get_all_spot_symbols() -> List[str]:
     try:
         info = get_exchange_info_cached()
         return [
-            s["baseAsset"]
+            s.get('baseAsset')
             for s in info.get("symbols", [])
             if s.get("quoteAsset") == "USDT" and s.get("status") == "TRADING"
         ]
@@ -1535,7 +1535,7 @@ def get_top_tokens(limit: int = 50) -> List[Dict[str, object]]:
 
         result: List[Dict[str, object]] = []
         for item in sorted_tokens[:limit]:
-            symbol = item["symbol"].replace("USDT", "")
+            symbol = item.get('symbol').replace("USDT", "")
             price = float(item.get("lastPrice", 0))
             high = float(item.get("highPrice", 0))
             low = float(item.get("lowPrice", 0))
@@ -1582,15 +1582,15 @@ def get_top_symbols_by_volume(limit: int = 60) -> list[str]:
         response = requests.get(url, timeout=(3, 5))
         data = response.json()
         filtered = [
-            item["symbol"]
+            item.get('symbol')
             for item in data
-            if item["symbol"].endswith("USDT")
-            and not item["symbol"].startswith(("USD", "BUSD", "TUSD"))
+            if item.get('symbol').endswith("USDT")
+            and not item.get('symbol').startswith(("USD", "BUSD", "TUSD"))
         ]
         sorted_pairs = sorted(
             filtered,
             key=lambda s: next(
-                (float(i["quoteVolume"]) for i in data if i["symbol"] == s), 0
+                (float(i.get('quoteVolume')) for i in data if i.get("symbol") == s), 0
             ),
             reverse=True,
         )
@@ -1618,7 +1618,7 @@ def get_all_tokens_with_balance(threshold: float = 0.00001) -> list:
     for asset in info.get("balances", []):
         free = float(asset.get("free", 0))
         if free > threshold:
-            tokens.append(asset["asset"])
+            tokens.append(asset.get('asset'))
 
     return tokens
 
