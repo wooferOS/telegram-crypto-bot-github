@@ -19,6 +19,7 @@ from auto_trade_cycle import (
     generate_conversion_signals,
     load_gpt_filters,
     sell_unprofitable_assets,
+    generate_zarobyty_report,
 )
 from binance_api import (
     get_symbol_price,
@@ -118,6 +119,18 @@ if __name__ == "__main__":
         "do_not_buy": gpt_forecast.get("do_not_buy", []),
         "recommend_buy": gpt_forecast.get("recommend_buy", []),
     }
+
+    # Створити predictions.json, якщо він відсутній
+    if not os.path.exists("predictions.json"):
+        logger.warning(
+            "[dev] Відсутній predictions.json — генеруємо заново через generate_zarobyty_report()"
+        )
+        try:
+            asyncio.run(generate_zarobyty_report())
+        except Exception as e:
+            logger.warning(
+                f"[dev] Помилка під час створення predictions.json: {e}"
+            )
     (
         _,
         _,
