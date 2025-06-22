@@ -779,6 +779,12 @@ async def buy_with_remaining_usdt(
         raw_qty = usdt_balance / price
         qty = adjust_qty_to_step(raw_qty, step_size)
         min_qty = get_min_qty(pair)
+        logger.info(
+            "[dev] 🧮 Перевірка qty=%.8f, stepSize=%.8f, minQty=%.8f",
+            qty,
+            step_size,
+            min_qty,
+        )
         if not is_qty_valid(qty, step_size, min_qty):
             logger.warning(
                 "[dev] ⛔ qty %.8f не відповідає stepSize %.8f + minQty %.8f",
