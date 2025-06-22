@@ -33,7 +33,11 @@ async def ask_gpt(messages: list, api_key: str) -> Optional[str]:
         "Content-Type": "application/json",
     }
 
-    if not isinstance(messages, list):
+    if isinstance(messages, str):
+        messages = [{"role": "user", "content": messages}]
+    elif isinstance(messages, dict):
+        messages = [{"role": "user", "content": json.dumps(messages)}]
+    elif not isinstance(messages, list):
         messages = [messages]
 
     payload = {
