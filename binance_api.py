@@ -30,6 +30,7 @@ import hashlib
 from utils import logger
 from log_setup import setup_logging
 import decimal
+from decimal import Decimal
 import json
 import math
 from datetime import datetime
