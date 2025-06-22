@@ -1,8 +1,9 @@
 import logging
-import os
 import pytest
+import binance_api
 
-os.environ["BINANCE_TEST_MODE"] = "1"
+# Enable test mode without environment variables
+binance_api.TEST_MODE = True
 
 from binance_api import (
     get_usdt_balance,

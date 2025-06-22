@@ -45,7 +45,6 @@ from config import (
     MIN_TRADE_AMOUNT,
     TRADE_LOOP_INTERVAL,
     MAX_AUTO_TRADE_ITERATIONS,
-    OPENAI_API_KEY,
 )
 from gpt_utils import ask_gpt
 from utils import (
@@ -577,7 +576,7 @@ async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict
         },
         "token_scores": predictions,
     }
-    gpt_result = await ask_gpt(summary, OPENAI_API_KEY)
+    gpt_result = await ask_gpt(summary)
     import json
 
     try:
