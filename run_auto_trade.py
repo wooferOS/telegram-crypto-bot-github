@@ -184,10 +184,10 @@ if __name__ == "__main__":
             lines = ["[dev] 🧾 Звіт:"]
             if summary.get("sold"):
                 lines.append("\n🔁 Продано:")
-                lines.extend(summary["sold"])
+                lines.extend(summary.get('sold'))
             if summary.get("bought"):
                 lines.append("\n📈 Куплено:")
-                lines.extend(summary["bought"])
+                lines.extend(summary.get('bought'))
             lines.append(f"\n💰 Баланс до: {summary.get('before', 0):.2f} USDT")
             lines.append(f"💰 Баланс після: {summary.get('after', 0):.2f} USDT")
             lines.append("\n✅ Завершено успішно.")
