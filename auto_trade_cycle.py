@@ -298,6 +298,14 @@ def generate_conversion_signals(
     whether the expected profit was below ``CONVERSION_MIN_EXPECTED_PROFIT``.
     """
 
+    refresh_valid_pairs()
+    logger.info("[dev] ✅ VALID_PAIRS оновлено: %d пар", len(VALID_PAIRS))
+    if not VALID_PAIRS:
+        logger.error(
+            "[dev] ❌ VALID_PAIRS порожній — неможливо отримати дані з Binance"
+        )
+        return [], [], [], [], [], "", gpt_forecast
+
     model = load_model()
     min_profit = gpt_forecast.get("adaptive_filters", {}).get("min_expected_profit", 0.3) if gpt_forecast else 0.3
     min_prob = gpt_forecast.get("adaptive_filters", {}).get("min_prob_up", 0.6) if gpt_forecast else 0.6
