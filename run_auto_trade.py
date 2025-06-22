@@ -134,10 +134,12 @@ if __name__ == "__main__":
         for asset, amt in get_binance_balances().items()
         if asset not in {"USDT", "BUSD"} and amt > 0
     }
-    sell_unprofitable_assets(portfolio, predictions, gpt_forecast)
+    sold_before = sell_unprofitable_assets(portfolio, predictions, gpt_forecast)
 
     elapsed = _time_since_last_run()
-    if elapsed >= AUTO_INTERVAL:
+    if elapsed >= AUTO_INTERVAL or sold_before:
+        if elapsed < AUTO_INTERVAL and sold_before:
+            logger.info("[dev] ⏱️ Запуск поза інтервалом через продаж активів")
         MAX_ATTEMPTS = 5
         attempt = 0
         summary = {"sold": [], "bought": []}
