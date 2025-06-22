@@ -793,9 +793,18 @@ async def buy_with_remaining_usdt(
         price = get_symbol_price(pair)
         if price <= 0:
             continue
-        step_size, min_qty = get_lot_step(pair)
+        step_size = get_lot_step(pair)
+        min_qty = get_min_qty(pair)
         raw_qty = usdt_balance / price
-        qty = adjust_qty_to_step(raw_qty, step_size, min_qty)
+        qty = raw_qty
+        step_tmp = get_lot_step(symbol)
+        qty = adjust_qty_to_step(qty, step_tmp)
+        logger.info(
+            "[dev] 🔢 LOT_SIZE step=%.10f, adjusted_qty=%.10f",
+            step_tmp,
+            qty,
+        )
+        qty = adjust_qty_to_step(qty, step_size, min_qty)
         logger.warning(
             "[dev] DEBUG: qty=%.8f, step_size=%.8f, min_qty=%.8f",
             qty,
