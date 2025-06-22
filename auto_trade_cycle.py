@@ -747,6 +747,8 @@ async def buy_with_remaining_usdt(
             return None
         top_tokens = [t for t in fallback if t[0] not in tried_tokens]
 
+    bought_anything = False
+
     for pair, data in top_tokens:
         symbol = pair.replace("USDT", "")
         price = get_symbol_price(pair)
@@ -760,9 +762,18 @@ async def buy_with_remaining_usdt(
         )
         min_notional = get_min_notional(pair)
         notional = qty * price
+
+        if qty <= 0:
+            logger.warning(
+                "[dev] ⛔ Пропущено %s — qty = 0 (баланс: %.4f, price: %.4f)",
+                symbol,
+                usdt_balance,
+                price,
+            )
+            continue
         if notional < min_notional:
             logger.warning(
-                "[dev] ⛔ Пропущено %s — занадто малий обсяг (%.2f < %.2f)",
+                "[dev] ⛔ Пропущено %s — notional %.4f < minNotional %.4f",
                 symbol,
                 notional,
                 min_notional,
@@ -781,16 +792,28 @@ async def buy_with_remaining_usdt(
         result = market_buy_symbol_by_amount(symbol, usdt_balance)
 
         if result.get("status") != "success":
-            logger.warning(
-                "[dev] ❌ Binance повернув помилку, угода не відбулась: %s",
-                result,
-            )
+            logger.warning("[dev] ❌ Binance повернув помилку, угода не відбулась: %s", result)
             continue
 
-        TRADE_SUMMARY.get('bought').append(
-            f"Залишок → {symbol} на {usdt_balance:.2f}"
-        )
+        TRADE_SUMMARY.get('bought').append(f"Залишок → {symbol} на {usdt_balance:.2f}")
+        bought_anything = True
         return symbol
+
+    if not bought_anything and top_tokens:
+        fallback = top_tokens[0]
+        fallback_symbol = fallback[0].replace("USDT", "")
+        logger.warning(
+            "[dev] ⚠️ Використано fallback: купівля першого токена без перевірок — %s",
+            fallback_symbol,
+        )
+        result = market_buy_symbol_by_amount(fallback_symbol, usdt_balance)
+        if result.get("status") == "success":
+            TRADE_SUMMARY.get('bought').append(
+                f"Fallback → {fallback_symbol} на {usdt_balance:.2f}"
+            )
+            return fallback_symbol
+        else:
+            logger.warning("[dev] ❌ Fallback купівля не вдалася: %s", result)
 
     logger.warning(
         "[dev] ❌ Не вдалося купити жоден токен — завершення циклу"
