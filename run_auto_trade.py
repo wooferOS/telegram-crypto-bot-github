@@ -26,6 +26,7 @@ from binance_api import (
     get_symbol_price,
     get_binance_balances,
     refresh_valid_pairs,
+    VALID_PAIRS,
 )
 from history import _load_history
 from config import (
@@ -107,12 +108,12 @@ def backtest() -> None:
     print(f"Backtest success rate: {successes}/{total} = {rate:.1f}%")
 
 if __name__ == "__main__":
+    refresh_valid_pairs()
     parser = argparse.ArgumentParser()
     parser.add_argument("--backtest", action="store_true", help="run backtest only")
     args = parser.parse_args()
 
     setup_logging()
-    refresh_valid_pairs()
     logger.info("[dev] ✅ VALID_PAIRS оновлено: %d пар", len(VALID_PAIRS))
     if not VALID_PAIRS:
         logger.error(
