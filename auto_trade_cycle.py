@@ -71,6 +71,12 @@ FALLBACK_MIN_SCORE = 0.25
 logger = logging.getLogger(__name__)
 
 
+def adjust_qty_to_step(qty: float, step: float) -> float:
+    """Round ``qty`` down to comply with ``step`` size."""
+
+    return math.floor(qty / step) * step
+
+
 def load_gpt_filters() -> dict[str, List[str]]:
     """Read ``gpt_forecast.txt`` and return forecast data."""
 
@@ -759,12 +765,9 @@ async def buy_with_remaining_usdt(
         price = get_symbol_price(pair)
         if price <= 0:
             continue
-        lot_step, _ = get_lot_step(pair)
-        step = Decimal(str(1 / (10 ** lot_step)))
-        precision = lot_step
-        qty = Decimal(str(usdt_balance / price)).quantize(
-            step, rounding=decimal.ROUND_DOWN
-        )
+        step_size = get_lot_step(pair)[1]
+        raw_qty = usdt_balance / price
+        qty = adjust_qty_to_step(raw_qty, step_size)
         min_notional = get_min_notional(pair)
         notional = qty * price
 
