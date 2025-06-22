@@ -71,19 +71,14 @@ FALLBACK_MIN_SCORE = 0.25
 logger = logging.getLogger(__name__)
 
 
-def adjust_qty_to_step(qty: float, step: float, min_qty: float = 0.0) -> float:
-    """Round ``qty`` down to comply with ``step`` size taking ``min_qty`` into account."""
+def adjust_qty_to_step(qty: float, step: Decimal) -> float:
+    """Adjust quantity down to the nearest multiple of ``step``."""
 
-    from decimal import Decimal, ROUND_DOWN, getcontext
-
-    getcontext().prec = 18
-    d_qty = Decimal(str(qty))
-    d_step = Decimal(str(step))
-    d_min = Decimal(str(min_qty))
-    if d_step == 0:
-        return float(d_qty)
-    adjusted = ((d_qty - d_min) // d_step) * d_step + d_min
-    return float(adjusted.quantize(d_step, rounding=ROUND_DOWN))
+    q = Decimal(str(qty))
+    adjusted = (q // step) * step
+    result = float(adjusted)
+    logger.info("step_size=%s adjusted_qty=%s", step, result)
+    return result
 
 
 def load_gpt_filters() -> dict[str, List[str]]:
@@ -804,7 +799,7 @@ async def buy_with_remaining_usdt(
             step_tmp,
             qty,
         )
-        qty = adjust_qty_to_step(qty, step_size, min_qty)
+        qty = adjust_qty_to_step(qty, step_size)
         logger.warning(
             "[dev] DEBUG: qty=%.8f, step_size=%.8f, min_qty=%.8f",
             qty,

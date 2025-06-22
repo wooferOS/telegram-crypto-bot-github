@@ -97,19 +97,14 @@ def _to_usdt_pair(symbol: str) -> str:
     return pair
 
 
-def adjust_qty_to_step(qty: float, step: float, min_qty: float = 0.0) -> float:
-    """Округлити ``qty`` вниз до допустимого ``step`` з урахуванням ``min_qty``."""
+def adjust_qty_to_step(qty: float, step: Decimal) -> float:
+    """Round ``qty`` down to the nearest ``step`` size."""
 
-    from decimal import Decimal, ROUND_DOWN, getcontext
-
-    getcontext().prec = 18
-    d_qty = Decimal(str(qty))
-    d_step = Decimal(str(step))
-    d_min = Decimal(str(min_qty))
-    if d_step == 0:
-        return float(d_qty)
-    adjusted = ((d_qty - d_min) // d_step) * d_step + d_min
-    return float(adjusted.quantize(d_step, rounding=ROUND_DOWN))
+    q = Decimal(str(qty))
+    adjusted = (q // step) * step
+    result = float(adjusted)
+    logger.info("step_size=%s adjusted_qty=%s", step, result)
+    return result
 
 
 def log_tp_sl_change(symbol: str, action: str, tp: float, sl: float) -> None:
@@ -790,8 +785,7 @@ def place_market_order(
                 )
         else:
             step_size = get_lot_step(pair)
-            min_qty = get_min_qty(pair)
-            qty = adjust_qty_to_step(amount, step_size, min_qty)
+            qty = adjust_qty_to_step(amount, step_size)
             order = _get_client().create_order(
                 symbol=pair,
                 side=Client.SIDE_SELL,
@@ -829,8 +823,7 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
 
         quantity = amount / price
         step_size = get_lot_step(pair)
-        min_qty = get_min_qty(pair)
-        quantity = adjust_qty_to_step(quantity, step_size, min_qty)
+        quantity = adjust_qty_to_step(quantity, step_size)
         result = client.create_order(
             symbol=pair,
             side=SIDE_BUY,
@@ -860,7 +853,7 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
         qty = usdt_amount / current_price
         step_size = get_lot_step(pair)
         min_qty = get_min_qty(pair)
-        qty_adj = adjust_qty_to_step(qty, step_size, min_qty)
+        qty_adj = adjust_qty_to_step(qty, step_size)
         logger.debug("[dev] 🧮 qty=%s step=%s adjusted=%s", qty, step_size, qty_adj)
         if qty_adj < min_qty:
             logger.warning(
@@ -898,7 +891,7 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
                     return order
             except BinanceAPIException as e:
                 if "LOT_SIZE" in str(e):
-                    qty_adj = adjust_qty_to_step(qty_adj - step_size, step_size, min_qty)
+                    qty_adj = adjust_qty_to_step(qty_adj - float(step_size), step_size)
                     if qty_adj < min_qty or qty_adj <= 0:
                         break
                     continue
@@ -924,7 +917,7 @@ def market_sell(symbol: str, quantity: float) -> dict:
         step_size = get_lot_step(symbol)
         min_qty = get_min_qty(symbol)
         price = get_symbol_price(symbol)
-        qty = adjust_qty_to_step(quantity, step_size, min_qty)
+        qty = adjust_qty_to_step(quantity, step_size)
         min_notional = get_min_notional(symbol)
 
         if qty < min_qty or qty == 0 or qty * price < min_notional:
@@ -942,7 +935,7 @@ def market_sell(symbol: str, quantity: float) -> dict:
                 return {**order, "status": "success"}
             except BinanceAPIException as e:
                 if "LOT_SIZE" in str(e):
-                    qty = adjust_qty_to_step(qty - step_size, step_size, min_qty)
+                    qty = adjust_qty_to_step(qty - float(step_size), step_size)
                     if qty < min_qty or qty <= 0:
                         break
                     continue
@@ -997,8 +990,7 @@ def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
     try:
         pair = _to_usdt_pair(symbol)
         step_size = get_lot_step(pair)
-        min_qty = get_min_qty(pair)
-        qty = adjust_qty_to_step(quantity, step_size, min_qty)
+        qty = adjust_qty_to_step(quantity, step_size)
         order = client.create_order(
             symbol=pair,
             side="SELL",
@@ -1019,8 +1011,7 @@ def place_limit_sell(symbol: str, quantity: float) -> dict:
     price = get_symbol_price(pair)
     try:
         step_size = get_lot_step(pair)
-        min_qty = get_min_qty(pair)
-        qty = adjust_qty_to_step(quantity, step_size, min_qty)
+        qty = adjust_qty_to_step(quantity, step_size)
         order = client.create_order(
             symbol=pair,
             side="SELL",
@@ -1063,8 +1054,7 @@ def place_take_profit_order(
 
     try:
         step_size = get_lot_step(symbol)
-        min_qty = get_min_qty(symbol)
-        qty = adjust_qty_to_step(quantity, step_size, min_qty)
+        qty = adjust_qty_to_step(quantity, step_size)
         response = client.create_order(
             symbol=symbol,
             side=SIDE_SELL,
@@ -1090,8 +1080,7 @@ def create_take_profit_order(symbol: str, quantity: float, target_price: float) 
     try:
         price_str = f"{target_price:.8f}".rstrip("0").rstrip(".")
         step_size = get_lot_step(symbol)
-        min_qty = get_min_qty(symbol)
-        qty = adjust_qty_to_step(quantity, step_size, min_qty)
+        qty = adjust_qty_to_step(quantity, step_size)
         quantity_str = f"{qty:.8f}".rstrip("0").rstrip(".")
         order = client.create_order(
             symbol=symbol,
@@ -1114,8 +1103,7 @@ def place_stop_limit_buy_order(
     try:
         pair = _to_usdt_pair(symbol)
         step_size = get_lot_step(pair)
-        min_qty = get_min_qty(pair)
-        qty = adjust_qty_to_step(quantity, step_size, min_qty)
+        qty = adjust_qty_to_step(quantity, step_size)
         order = client.create_order(
             symbol=pair,
             side="BUY",
@@ -1144,8 +1132,7 @@ def place_stop_limit_sell_order(
     try:
         pair = _to_usdt_pair(symbol)
         step_size = get_lot_step(pair)
-        min_qty = get_min_qty(pair)
-        qty = adjust_qty_to_step(quantity, step_size, min_qty)
+        qty = adjust_qty_to_step(quantity, step_size)
         order = client.create_order(
             symbol=pair,
             side="SELL",
@@ -1173,8 +1160,7 @@ def place_stop_loss_order(
 
     try:
         step_size = get_lot_step(symbol)
-        min_qty = get_min_qty(symbol)
-        qty = adjust_qty_to_step(quantity, step_size, min_qty)
+        qty = adjust_qty_to_step(quantity, step_size)
         order = client.create_order(
             symbol=symbol,
             side=SIDE_SELL,
@@ -1404,15 +1390,14 @@ def get_symbol_filters(symbol: str) -> list[dict]:
     return []
 
 
-def get_lot_step(symbol: str) -> float:
-    """Return LOT_SIZE ``stepSize`` for trading ``symbol``."""
+def get_lot_step(symbol: str) -> Decimal:
+    """Return the stepSize for LOT_SIZE as Decimal."""
 
-    filters = get_symbol_filters(symbol)
-    for f in filters:
-        if f["filterType"] == "LOT_SIZE":
-            step = float(f.get("stepSize", "1"))
-            return round(step, 8)
-    return 1.0
+    info = client.get_symbol_info(symbol)
+    for f in info.get("filters", []):
+        if f.get("filterType") == "LOT_SIZE":
+            return Decimal(f["stepSize"])
+    raise ValueError(f"LOT_SIZE not found for {symbol}")
 
 
 def get_min_qty(symbol: str) -> float:
@@ -1812,8 +1797,7 @@ def place_limit_sell_order(symbol: str, quantity: float, price: float) -> dict:
     """
     try:
         step_size = get_lot_step(symbol)
-        min_qty = get_min_qty(symbol)
-        qty = adjust_qty_to_step(quantity, step_size, min_qty)
+        qty = adjust_qty_to_step(quantity, step_size)
         response = client.create_order(
             symbol=symbol,
             side=Client.SIDE_SELL,
@@ -1839,8 +1823,7 @@ def place_take_profit_order_auto(symbol: str, quantity: float | None = None, tar
 
         pair = _to_usdt_pair(symbol)
         step_size = get_lot_step(pair)
-        min_qty = get_min_qty(pair)
-        qty = adjust_qty_to_step(quantity, step_size, min_qty)
+        qty = adjust_qty_to_step(quantity, step_size)
         params = {
             "symbol": pair,
             "side": "SELL",
@@ -1868,8 +1851,7 @@ def place_stop_loss_order_auto(symbol: str, quantity: float | None = None, stop_
 
         pair = _to_usdt_pair(symbol)
         step_size = get_lot_step(pair)
-        min_qty = get_min_qty(pair)
-        qty = adjust_qty_to_step(quantity, step_size, min_qty)
+        qty = adjust_qty_to_step(quantity, step_size)
         params = {
             "symbol": pair,
             "side": "SELL",
