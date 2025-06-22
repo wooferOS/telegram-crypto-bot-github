@@ -603,7 +603,7 @@ def convert_portfolio_to_usdt(portfolio: Dict[str, float]) -> list[str]:
         if asset in {"USDT", "BUSD"} or amount <= 0:
             continue
         result = convert_to_usdt(asset, amount)
-        if result and result.get("status") != "error":
+        if result and result.get("status") == "success":
             logger.info(
                 f"[dev] Конвертовано {amount} {asset} у USDT"
             )
@@ -671,14 +671,21 @@ async def send_conversion_signals(
         to_qty = s.get('to_amount')
         to_amount = _human_amount(to_qty, precision)
         result = try_convert(s.get('from_symbol'), s.get('to_symbol'), s.get('from_amount'))
-        if result and result.get("orderId"):
+        if result and result.get("status") == "success":
             lines.append(
                 f"✅ Конвертовано {s.get('from_symbol')} → {s.get('to_symbol')}\nFROM: {s.get('from_amount'):.4f}\nTO: ≈{to_amount}\nML={s.get('ml_proba'):.2f}, exp={s.get('expected_profit'):.2f}, RRR={s.get('rrr', 0):.2f}, score={s.get('score', 0):.2f}"
             )
             sold.append(f"- {s.get('from_amount')}{s.get('from_symbol')} → {s.get('to_symbol')}")
             bought.append(f"- {to_amount} {s.get('to_symbol')} (score: {s.get('score'):.2f}, expected_profit: {s.get('expected_profit'):.2f})")
+        elif result and result.get("status") != "success":
+            logger.warning(
+                "[dev] ❌ Binance повернув помилку, угода не відбулась: %s",
+                result,
+            )
+            reason = result.get("message", "невідома помилка")
+            lines.append(f"❌ Не вдалося конвертувати {s.get('from_symbol')} → {s.get('to_symbol')}\nПричина: {reason}")
         else:
-            reason = result.get("message", "невідома помилка") if result else "невідома помилка"
+            reason = "невідома помилка"
             lines.append(f"❌ Не вдалося конвертувати {s.get('from_symbol')} → {s.get('to_symbol')}\nПричина: {reason}")
 
     text = "\n\n".join(lines)
@@ -768,18 +775,17 @@ async def buy_with_remaining_usdt(
         logger.info("[dev] Купівля на залишок: %s — qty=%.6f price=%.6f", symbol, qty, price)
         result = market_buy_symbol_by_amount(symbol, usdt_balance)
 
-        if result and result.get("status") == "success":
-            TRADE_SUMMARY.get('bought').append(
-                f"Залишок → {symbol} на {usdt_balance:.2f}"
-            )
-            return symbol
-        else:
+        if result.get("status") != "success":
             logger.warning(
-                "[dev] ❗ Купівля на залишок %s не вдалася: %s",
-                symbol,
+                "[dev] ❌ Binance повернув помилку, угода не відбулась: %s",
                 result,
             )
             continue
+
+        TRADE_SUMMARY.get('bought').append(
+            f"Залишок → {symbol} на {usdt_balance:.2f}"
+        )
+        return symbol
 
     logger.warning(
         "[dev] ❌ Не вдалося купити жоден токен — завершення циклу"
