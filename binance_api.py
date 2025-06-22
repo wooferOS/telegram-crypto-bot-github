@@ -27,7 +27,8 @@ import os
 import time
 import hmac
 import hashlib
-import logging
+from utils import logger
+from log_setup import setup_logging
 import decimal
 import json
 import math
@@ -47,7 +48,7 @@ from binance.exceptions import BinanceAPIException
 
 
 
-logger = logging.getLogger(__name__)
+# ``logger`` is provided by utils
 TELEGRAM_LOG_PREFIX = "\ud83d\udce1 [BINANCE]"
 TEST_MODE = os.getenv("BINANCE_TEST_MODE") == "1"
 
@@ -335,18 +336,18 @@ def get_binance_balances() -> Dict[str, float]:
         temp_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
 
         if BINANCE_API_KEY and BINANCE_SECRET_KEY:
-            logging.debug(
+            logger.debug(
                 f"[DEBUG] API: {BINANCE_API_KEY[:8]}..., SECRET: {BINANCE_SECRET_KEY[:8]}..."
             )
         else:
-            logging.warning(
+            logger.warning(
                 "[ERROR] Binance ключі відсутні (None). Запуск можливий лише після налаштування config.py на сервері."
             )
 
         try:
             # Тестовий пінг до Binance
             temp_client.ping()
-            logging.info("✅ Binance API доступний")
+            logger.info("✅ Binance API доступний")
 
             account = temp_client.get_account()
             raw_balances = {
@@ -371,15 +372,15 @@ def get_binance_balances() -> Dict[str, float]:
             return balances
 
         except BinanceAPIException as e:
-            logging.error(f"📛 [BINANCE] Помилка при отриманні балансу: {e}")
+            logger.error(f"📛 [BINANCE] Помилка при отриманні балансу: {e}")
             if e.code == -2015:
-                logging.error(
+                logger.error(
                     "❌ Можливо: (1) ключ недійсний, (2) немає прав, (3) IP не в whitelist."
                 )
             raise e
 
     except Exception as ex:  # pragma: no cover - diagnostics must not fail
-        logging.exception("❗ Невідома помилка при ініціалізації Binance клієнта")
+        logger.exception("❗ Невідома помилка при ініціалізації Binance клієнта")
         return {}
 
 
@@ -1589,7 +1590,7 @@ def get_all_tokens_with_balance(threshold: float = 0.00001) -> list:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    setup_logging()
     logger.info("🔧 Binance API модуль запущено напряму.")
     logger.info("➡️ Поточний портфель:")
     for asset, value in get_current_portfolio().items():

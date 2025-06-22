@@ -2,20 +2,23 @@ import logging
 import statistics
 import os
 import datetime
-from typing import List, Dict
+from typing import List, Dict, TYPE_CHECKING
 
-from binance_api import (
-    get_usdt_to_uah_rate,
-    get_price_history_24h,
-    get_symbol_price,
-    get_candlestick_klines as get_klines,
-)
+if TYPE_CHECKING:  # Avoid circular import at runtime
+    from binance_api import (
+        get_usdt_to_uah_rate,
+        get_price_history_24h,
+        get_symbol_price,
+        get_candlestick_klines as get_klines,
+    )
 
 logger = logging.getLogger(__name__)
 
 
 def convert_to_uah(amount_usdt: float) -> float:
     """Convert amount in USDT to UAH."""
+    from binance_api import get_usdt_to_uah_rate
+
     return round(amount_usdt * get_usdt_to_uah_rate(), 2)
 
 
@@ -60,6 +63,8 @@ def dynamic_tp_sl(closes: List[float], price: float) -> tuple[float, float]:
 
 def estimate_profit_debug(symbol: str) -> float:
     try:
+        from binance_api import get_symbol_price, get_candlestick_klines as get_klines
+
         pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
         price = get_symbol_price(pair)
         if price is None or price <= 0:
@@ -145,6 +150,8 @@ def get_sector(symbol: str) -> str:
 
 def analyze_btc_correlation(symbol: str) -> float:
     """Return correlation of token prices with BTC scaled to 0..1."""
+    from binance_api import get_price_history_24h
+
     token_prices = get_price_history_24h(symbol)
     btc_prices = get_price_history_24h("BTC")
     if not token_prices or not btc_prices:

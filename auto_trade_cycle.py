@@ -572,7 +572,7 @@ def sell_unprofitable_assets(
                 f"[dev] ⚠️ Не вдалося продати або сконвертувати {token}: {reason}"
             )
 
-    return []
+    return to_sell
 
 
 def _compose_failure_message(
@@ -735,7 +735,9 @@ async def buy_with_remaining_usdt(
             )
             continue
 
-    logger.warning("[dev] ❌ Не вдалося купити жоден токен — завершення циклу")
+    logger.warning(
+        "[dev] ❌ Не вдалося купити жоден токен — завершення трейд-циклу без дій"
+    )
     return None
 
 
@@ -755,6 +757,8 @@ async def main(chat_id: int) -> dict:
 
     balances = get_binance_balances()
     usdt_before = balances.get("USDT", 0.0)
+    logger.info("[dev] \ud83d\udcb0 Баланс USDT перед трейдом: %.4f", usdt_before)
+    logger.info("[dev] \ud83d\udcc8 Портфель: %s", balances)
     usdt_balance = usdt_before
     portfolio_tokens = [
         t for t in balances if t != "USDT" and f"{t}USDT" in VALID_PAIRS
@@ -769,6 +773,7 @@ async def main(chat_id: int) -> dict:
             gpt_forecast=gpt_forecast,
         )
         after = get_binance_balances().get("USDT", 0.0)
+        logger.info("[dev] \ud83d\udcb0 Баланс USDT після трейду: %.4f", after)
         return {
             "sold": TRADE_SUMMARY["sold"],
             "bought": TRADE_SUMMARY["bought"],
@@ -801,6 +806,7 @@ async def main(chat_id: int) -> dict:
             gpt_forecast=gpt_forecast,
         )
         after = get_binance_balances().get("USDT", 0.0)
+        logger.info("[dev] \ud83d\udcb0 Баланс USDT після трейду: %.4f", after)
         return {
             "sold": TRADE_SUMMARY["sold"],
             "bought": TRADE_SUMMARY["bought"],
@@ -812,6 +818,7 @@ async def main(chat_id: int) -> dict:
     if usdt_balance == 0 and portfolio_tokens:
         sold = sell_unprofitable_assets(balances, predictions, gpt_forecast)
         if not sold:
+            logger.warning("[dev] \ud83d\udca4 Нічого не продано. Можливо, всі токени в топ-3.")
             try_convert(balances, predictions, gpt_forecast)
         if "update_binance_cache" in globals():
             try:
@@ -829,6 +836,7 @@ async def main(chat_id: int) -> dict:
             )
 
     after = get_binance_balances().get("USDT", 0.0)
+    logger.info("[dev] \ud83d\udcb0 Баланс USDT після трейду: %.4f", after)
     return {
         "sold": TRADE_SUMMARY["sold"],
         "bought": TRADE_SUMMARY["bought"],
