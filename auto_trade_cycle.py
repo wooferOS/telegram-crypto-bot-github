@@ -791,10 +791,13 @@ async def main(chat_id: int) -> dict:
     """Simplified auto-trade cycle relying on daily predictions."""
 
     from constants import TRADE_SUMMARY
-    TRADE_SUMMARY.clear()
+    TRADE_SUMMARY.setdefault("sold", [])
+    TRADE_SUMMARY.setdefault("bought", [])
+    TRADE_SUMMARY.setdefault("errors", [])
 
     TRADE_SUMMARY["sold"].clear()
     TRADE_SUMMARY["bought"].clear()
+    TRADE_SUMMARY["errors"].clear()
 
     try:
         from daily_analysis import generate_zarobyty_report
