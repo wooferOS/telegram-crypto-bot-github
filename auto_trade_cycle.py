@@ -566,6 +566,7 @@ def sell_unprofitable_assets(
         result = market_sell(pair, amount)
         if result.get("status") == "success":
             logger.info(f"[dev] ✅ Продано {amount} {token}")
+            TRADE_SUMMARY["sold"].append(f"{token} ({amount:.6f})")
             sold_tokens.append(token)
         elif result.get("status") == "converted":
             logger.info(f"[dev] 🔄 Сконвертовано {amount} {token}")
@@ -742,6 +743,7 @@ async def buy_with_remaining_usdt(
     logger.warning(
         "[dev] ❌ Не вдалося купити жоден токен — завершення циклу"
     )
+    logger.warning("[dev] ❌ Нічого не куплено — завершення трейд-циклу")
     return None
 
 
@@ -776,6 +778,7 @@ async def main(chat_id: int) -> dict:
             chat_id=chat_id,
             gpt_forecast=gpt_forecast,
         )
+        logger.info("[dev] \U0001F9FE TRADE_SUMMARY: %s", TRADE_SUMMARY)
         after = get_binance_balances().get("USDT", 0.0)
         logger.info("[dev] \ud83d\udcb0 Баланс USDT після трейду: %.4f", after)
         return {
@@ -796,6 +799,7 @@ async def main(chat_id: int) -> dict:
             chat_id=chat_id,
             gpt_forecast=gpt_forecast,
         )
+        logger.info("[dev] \U0001F9FE TRADE_SUMMARY: %s", TRADE_SUMMARY)
         if "update_binance_cache" in globals():
             try:
                 update_binance_cache()  # type: ignore[func-returns-value]
@@ -809,6 +813,7 @@ async def main(chat_id: int) -> dict:
             chat_id=chat_id,
             gpt_forecast=gpt_forecast,
         )
+        logger.info("[dev] \U0001F9FE TRADE_SUMMARY: %s", TRADE_SUMMARY)
         after = get_binance_balances().get("USDT", 0.0)
         logger.info("[dev] \ud83d\udcb0 Баланс USDT після трейду: %.4f", after)
         return {
@@ -838,6 +843,7 @@ async def main(chat_id: int) -> dict:
                 chat_id=chat_id,
                 gpt_forecast=gpt_forecast,
             )
+            logger.info("[dev] \U0001F9FE TRADE_SUMMARY: %s", TRADE_SUMMARY)
 
     after = get_binance_balances().get("USDT", 0.0)
     logger.info("[dev] \ud83d\udcb0 Баланс USDT після трейду: %.4f", after)
