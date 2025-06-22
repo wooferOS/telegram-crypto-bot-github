@@ -599,8 +599,15 @@ def try_convert(symbol_from: str, symbol_to: str, amount: float) -> Optional[dic
                     fallback_exc,
                 )
         try:
-            get_symbol_price(f"{symbol_from}{symbol_to}")
-        except Exception:  # pragma: no cover - price fetch issues
+            pair = f"{symbol_from}{symbol_to}"
+            min_qty_info = get_lot_step(pair)
+            min_notional = get_min_notional(pair)
+            logger.warning(
+                "[dev] Filter failure: minQty=%s, minNotional=%s, LOT_SIZE",
+                min_qty_info[1],
+                min_notional,
+            )
+        except Exception:
             pass
         msg = f"{symbol_from} \u2192 {symbol_to} не вдалося: {exc}"  # type: ignore[arg-type]
         logger.warning(msg)
@@ -744,8 +751,8 @@ def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[s
                 quoteOrderQty=amount,
             )
         else:
-            lot_info = get_lot_step(pair)
-            step = Decimal(str(lot_info.get("step_size", 1)))
+            lot_step, _ = get_lot_step(pair)
+            step = Decimal(str(1 / (10 ** lot_step)))
             qty = Decimal(str(amount)).quantize(step, rounding=decimal.ROUND_DOWN)
             order = _get_client().create_order(
                 symbol=pair,
@@ -806,54 +813,40 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
         price_data = client.get_symbol_ticker(symbol=pair)
         current_price = float(price_data.get("price"))
 
-        qty = Decimal(str(usdt_amount / current_price))
-        filters = get_lot_step(pair)
-        step = Decimal(str(filters.get("step_size", 0.0))) or Decimal("1")
-        min_qty = Decimal(str(filters.get("min_qty", 0.0)))
-        min_notional = Decimal(str(filters.get("min_notional", 0.0)))
+        qty = usdt_amount / current_price
+        lot_step, min_qty = get_lot_step(pair)
+        step = 1 / (10 ** lot_step) if lot_step else 1
+        qty = round(qty, lot_step)
+        min_notional = get_min_notional(pair)
 
-        qty = qty.quantize(step, rounding=decimal.ROUND_DOWN)
-        price_dec = Decimal(str(current_price))
-
-        if qty < min_qty or qty * price_dec < min_notional:
+        if qty < min_qty or qty == 0 or qty * current_price < min_notional:
             logger.warning(
-                "[dev] ❌ LOT_SIZE error: qty=%s, step=%s, min_qty=%s",
+                "[dev] ❌ qty < min_qty (%.8f < %.8f) — ордер відхилено",
                 qty,
-                step,
                 min_qty,
             )
-            return {"status": "error", "message": "qty too small"}
+            return {"status": "error", "message": "qty below min_qty"}
 
-        try:
-            order = client.order_market_buy(symbol=pair, quantity=float(qty))
-            if not order or order.get("status") not in {"FILLED", "PARTIALLY_FILLED", "NEW"}:
-                logger.warning("[dev] ❌ Купівля не вдалася: %s", order)
-                return {
-                    "status": "error",
-                    "message": order.get("msg", "невідома помилка") if isinstance(order, dict) else "невідома помилка",
-                }
-            return {**order, "status": "success"}
-        except BinanceAPIException as e:
-            if "LOT_SIZE" in str(e):
-                while qty > min_qty:
-                    qty -= step
-                    qty = qty.quantize(step, rounding=decimal.ROUND_DOWN)
-                    if qty < min_qty:
+        for _ in range(10):
+            try:
+                order = client.order_market_buy(symbol=pair, quantity=float(qty))
+                if order and order.get("status") in {"FILLED", "PARTIALLY_FILLED", "NEW"}:
+                    return {**order, "status": "success"}
+            except BinanceAPIException as e:
+                if "LOT_SIZE" in str(e):
+                    qty = round(qty - step, lot_step)
+                    if qty < min_qty or qty <= 0:
                         break
-                    try:
-                        order = client.order_market_buy(symbol=pair, quantity=float(qty))
-                        if order and order.get("status") in {"FILLED", "PARTIALLY_FILLED", "NEW"}:
-                            return {**order, "status": "success"}
-                    except BinanceAPIException:
-                        continue
-                logger.warning(
-                    "[dev] ❌ Binance LOT_SIZE: qty=%s, step=%s, min_qty=%s — не вдалося",
-                    qty,
-                    step,
-                    min_qty,
-                )
-                return {"status": "error", "message": "LOT_SIZE filter failure"}
-            raise
+                    continue
+                logger.error("❌ Помилка при ринковій купівлі %s: %s", symbol, e)
+                return {"status": "error", "message": str(e)}
+        logger.warning(
+            "[dev] ❌ Binance LOT_SIZE: qty=%s, step=%s, min_qty=%s — не вдалося",
+            qty,
+            step,
+            min_qty,
+        )
+        return {"status": "error", "message": "LOT_SIZE filter failure"}
 
     except BinanceAPIException as e:
         logger.error("❌ Помилка при ринковій купівлі %s: %s", symbol, e)
@@ -864,34 +857,33 @@ def market_sell(symbol: str, quantity: float) -> dict:
     """Виконує ринковий продаж криптовалюти на вказану кількість."""
 
     try:
-        filters = get_lot_step(symbol)
-        step = Decimal(str(filters.get("step_size", 0.0))) or Decimal("1")
-        min_qty = Decimal(str(filters.get("min_qty", 0.0)))
-        min_notional = Decimal(str(filters.get("min_notional", 0.0)))
+        lot_step, min_qty = get_lot_step(symbol)
+        step = 1 / (10 ** lot_step) if lot_step else 1
+        price = get_symbol_price(symbol)
+        qty = round(quantity, lot_step)
+        min_notional = get_min_notional(symbol)
 
-        price = Decimal(str(get_symbol_price(symbol)))
-        qty = Decimal(str(quantity)).quantize(step, rounding=decimal.ROUND_DOWN)
-
-        if qty < min_qty or qty * price < min_notional:
+        if qty < min_qty or qty == 0 or qty * price < min_notional:
             logger.warning(
-                "[dev] ❌ LOT_SIZE error: qty=%s, step=%s, min_qty=%s",
+                "[dev] ❌ qty < min_qty (%.8f < %.8f) — ордер відхилено",
                 qty,
-                step,
                 min_qty,
             )
-            return {"status": "error", "message": "qty too small"}
+            return {"status": "error", "message": "qty below min_qty"}
 
-        while qty >= min_qty:
+        for _ in range(10):
             try:
                 order = client.order_market_sell(symbol=symbol, quantity=float(qty))
                 logger.info("✅ Продано %s %s", qty, symbol)
                 return {**order, "status": "success"}
             except BinanceAPIException as e:
-                if "LOT_SIZE" not in str(e):
-                    logger.error("❌ Помилка при продажі %s: %s", symbol, e)
-                    return {"status": "error", "message": str(e)}
-                qty -= step
-                qty = qty.quantize(step, rounding=decimal.ROUND_DOWN)
+                if "LOT_SIZE" in str(e):
+                    qty = round(qty - step, lot_step)
+                    if qty < min_qty or qty <= 0:
+                        break
+                    continue
+                logger.error("❌ Помилка при продажі %s: %s", symbol, e)
+                return {"status": "error", "message": str(e)}
 
         logger.warning(
             "[dev] ❌ Binance LOT_SIZE: qty=%s, step=%s, min_qty=%s — не вдалося",
@@ -908,9 +900,9 @@ def market_sell(symbol: str, quantity: float) -> dict:
 def sell_asset(symbol: str, quantity: float) -> dict:
     """Sell ``symbol`` with fallback to ``_fallback_market_sell`` on failure."""
 
-    lot_info = get_lot_step(symbol)
-    step = Decimal(str(lot_info.get("step_size", 1)))
-    precision = abs(step.normalize().as_tuple().exponent)
+    lot_step, _ = get_lot_step(symbol)
+    step = Decimal(str(1 / (10 ** lot_step)))
+    precision = lot_step
     adjusted_amount = (Decimal(str(quantity)) // step) * step
     adjusted_amount = adjusted_amount.quantize(step, rounding=decimal.ROUND_DOWN)
 
@@ -1315,36 +1307,22 @@ def get_min_notional(symbol: str) -> float:
     return 0.0
 
 
-def get_lot_step(symbol: str) -> dict:
-    """Return trading filters for ``symbol`` related to quantity and pricing."""
+def get_lot_step(symbol: str) -> tuple[int, float]:
+    """Return LOT_SIZE precision and minQty for ``symbol``."""
 
     try:
         info = client.get_symbol_info(symbol)
-        filters = info.get("filters", [])
-
-        lot_filter = next(
-            (f for f in filters if f.get("filterType") == "LOT_SIZE"), {}
-        )
-        notional_filter = next(
-            (f for f in filters if f.get("filterType") == "MIN_NOTIONAL"), {}
-        )
-        percent_filter = next(
-            (f for f in filters if f.get("filterType") == "PERCENT_PRICE"), {}
-        )
-
-        return {
-            "step_size": float(lot_filter.get("stepSize", 0.0)),
-            "min_qty": float(lot_filter.get("minQty", 0.0)),
-            "max_qty": float(lot_filter.get("maxQty", 0.0)),
-            "min_notional": float(notional_filter.get("minNotional", 0.0)),
-            "multiplier_up": float(percent_filter.get("multiplierUp", 0.0)),
-            "multiplier_down": float(percent_filter.get("multiplierDown", 0.0)),
-        }
+        for f in info.get("filters", []):
+            if f.get("filterType") == "LOT_SIZE":
+                step_size = f.get("stepSize", "1")
+                step_precision = abs(Decimal(step_size).as_tuple().exponent)
+                min_qty = float(f.get("minQty", 0.0))
+                return step_precision, min_qty
     except Exception as e:  # pragma: no cover - network errors
         logger.warning(
             "[dev] ❌ Не вдалося отримати фільтри для %s: %s", symbol, e
         )
-        return {}
+    return 0, 0.0
 
 
 def get_min_quantity(symbol: str) -> float:
@@ -1374,9 +1352,9 @@ def _fallback_market_sell(asset: str, quantity: float) -> bool:
         return False
 
     min_notional = get_min_notional(pair)
-    lot_info = get_lot_step(pair)
-    step = Decimal(str(lot_info.get("step_size", 1)))
-    precision = abs(step.normalize().as_tuple().exponent)
+    lot_step, _ = get_lot_step(pair)
+    step = Decimal(str(1 / (10 ** lot_step)))
+    precision = lot_step
     qty = (Decimal(str(quantity)) // step) * step
     qty = qty.quantize(step, rounding=decimal.ROUND_DOWN)
     if qty <= 0:
