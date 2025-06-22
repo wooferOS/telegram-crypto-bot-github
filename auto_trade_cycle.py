@@ -551,11 +551,12 @@ def sell_unprofitable_assets(
     )[:3]
     top3_symbols = {p.replace("USDT", "") for p, _ in top3}
 
+    sold_tokens = []
+
     to_sell = [
         token for token in portfolio if token != "USDT" and token not in top3_symbols
     ]
 
-    sold_tokens: list[str] = []
     for token in to_sell:
         amount = portfolio.get(token, 0.0)
         if amount <= 0:
@@ -568,6 +569,7 @@ def sell_unprofitable_assets(
             sold_tokens.append(token)
         elif result.get("status") == "converted":
             logger.info(f"[dev] 🔄 Сконвертовано {amount} {token}")
+            sold_tokens.append(token)
         else:
             reason = result.get("message", "невідома помилка")
             logger.warning(

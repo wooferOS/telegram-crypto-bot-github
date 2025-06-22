@@ -142,10 +142,16 @@ if __name__ == "__main__":
         attempt = 0
         summary = {"sold": [], "bought": []}
 
+        sold: list[str] | None = []
+        bought: list[str] | None = []
+
         while attempt < MAX_ATTEMPTS:
             summary = asyncio.run(main(int(ADMIN_CHAT_ID)))
             sold = summary.get("sold")
             bought = summary.get("bought")
+            logger.info(
+                f"[dev] Спроба {attempt + 1}: продано: {sold}, куплено: {bought}"
+            )
             if sold or bought:
                 break
             attempt += 1
@@ -166,7 +172,9 @@ if __name__ == "__main__":
             lines.append("\n✅ Завершено успішно.")
             asyncio.run(send_messages(int(CHAT_ID), ["\n".join(lines)]))
         else:
-            logger.warning("[dev] ❗ Досягнуто максимум спроб. Жодна угода не виконана.")
+            logger.warning(
+                "[dev] ❌ Після 5 спроб не вдалося виконати жодної угоди"
+            )
     else:
         minutes = int(elapsed / 60)
         msg = (
