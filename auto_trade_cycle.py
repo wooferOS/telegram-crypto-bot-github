@@ -51,6 +51,7 @@ from risk_utils import calculate_risk_reward, max_drawdown
 from utils import dynamic_tp_sl, calculate_expected_profit
 from binance_api import (
     get_min_notional,
+    get_min_qty,
     get_lot_step,
     market_buy_symbol_by_amount,
     get_whale_alert,
