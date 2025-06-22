@@ -94,6 +94,12 @@ def _to_usdt_pair(symbol: str) -> str:
     return pair
 
 
+def adjust_qty_to_step(qty: float, step: float) -> float:
+    """Округлити qty вниз до допустимого stepSize (LOT_SIZE)."""
+
+    return math.floor(qty / step) * step
+
+
 def log_tp_sl_change(symbol: str, action: str, tp: float, sl: float) -> None:
     """Append TP/SL change information to ``LOG_FILE``."""
 
@@ -130,12 +136,13 @@ else:
 
 
 # Initialise Binance client explicitly using credentials from ``config.py``
-client: Client = Client(
-    api_key=BINANCE_API_KEY,
-    api_secret=BINANCE_SECRET_KEY,
-)
+client: Client | None = None
 
 if not BINANCE_TEST_MODE:
+    client = Client(
+        api_key=BINANCE_API_KEY,
+        api_secret=BINANCE_SECRET_KEY,
+    )
     try:
         client.ping()
     except Exception as e:
@@ -728,7 +735,9 @@ def get_token_price(symbol: str) -> dict:
         return {"symbol": base, "price": "0"}
 
 
-def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[str, object]]:
+def place_market_order(
+    symbol: str, side: str, amount: float, *, quantity: float | None = None
+) -> Optional[Dict[str, object]]:
     """Place a market order for ``symbol`` on Binance."""
 
     if TEST_MODE:
@@ -744,12 +753,20 @@ def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[s
             return None
     try:
         if side.upper() == "BUY":
-            order = _get_client().create_order(
-                symbol=pair,
-                side=Client.SIDE_BUY,
-                type=Client.ORDER_TYPE_MARKET,
-                quoteOrderQty=amount,
-            )
+            if quantity is not None:
+                order = _get_client().create_order(
+                    symbol=pair,
+                    side=Client.SIDE_BUY,
+                    type=Client.ORDER_TYPE_MARKET,
+                    quantity=float(quantity),
+                )
+            else:
+                order = _get_client().create_order(
+                    symbol=pair,
+                    side=Client.SIDE_BUY,
+                    type=Client.ORDER_TYPE_MARKET,
+                    quoteOrderQty=amount,
+                )
         else:
             lot_step, _ = get_lot_step(pair)
             step = Decimal(str(1 / (10 ** lot_step)))
@@ -814,35 +831,55 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
         current_price = float(price_data.get("price"))
 
         qty = usdt_amount / current_price
-        lot_step, min_qty = get_lot_step(pair)
+        lot_step, _ = get_lot_step(pair)
         step = 1 / (10 ** lot_step) if lot_step else 1
-        qty = round(qty, lot_step)
+        qty_adj = adjust_qty_to_step(qty, step)
+        min_qty = get_min_qty(pair)
+        if qty_adj < min_qty:
+            logger.warning(
+                "[dev] ❌ qty %s для %s менше за minQty %s — пропущено",
+                qty_adj,
+                pair,
+                min_qty,
+            )
+            return {"status": "error", "message": "qty below min_qty"}
+
+        logger.info(
+            "[dev] Кориговано qty для %s: з %s → %s (stepSize: %s)",
+            pair,
+            qty,
+            qty_adj,
+            step,
+        )
+
         min_notional = get_min_notional(pair)
 
-        if qty < min_qty or qty == 0 or qty * current_price < min_notional:
+        if qty_adj == 0 or qty_adj * current_price < min_notional:
             logger.warning(
                 "[dev] ❌ qty < min_qty (%.8f < %.8f) — ордер відхилено",
-                qty,
+                qty_adj,
                 min_qty,
             )
             return {"status": "error", "message": "qty below min_qty"}
 
         for _ in range(10):
             try:
-                order = client.order_market_buy(symbol=pair, quantity=float(qty))
-                if order and order.get("status") in {"FILLED", "PARTIALLY_FILLED", "NEW"}:
+                order = place_market_order(symbol, "BUY", usdt_amount, quantity=float(qty_adj))
+                if order and isinstance(order, dict) and order.get("status") in {"FILLED", "PARTIALLY_FILLED", "NEW"}:
                     return {**order, "status": "success"}
+                if order and not isinstance(order, dict):
+                    return order
             except BinanceAPIException as e:
                 if "LOT_SIZE" in str(e):
-                    qty = round(qty - step, lot_step)
-                    if qty < min_qty or qty <= 0:
+                    qty_adj = adjust_qty_to_step(qty_adj - step, step)
+                    if qty_adj < min_qty or qty_adj <= 0:
                         break
                     continue
                 logger.error("❌ Помилка при ринковій купівлі %s: %s", symbol, e)
                 return {"status": "error", "message": str(e)}
         logger.warning(
             "[dev] ❌ Binance LOT_SIZE: qty=%s, step=%s, min_qty=%s — не вдалося",
-            qty,
+            qty_adj,
             step,
             min_qty,
         )
@@ -1323,6 +1360,19 @@ def get_lot_step(symbol: str) -> tuple[int, float]:
             "[dev] ❌ Не вдалося отримати фільтри для %s: %s", symbol, e
         )
     return 0, 0.0
+
+
+def get_min_qty(symbol: str) -> float:
+    """Return ``LOT_SIZE`` minQty for ``symbol``."""
+
+    try:
+        info = client.get_symbol_info(symbol)
+        for f in info.get("filters", []):
+            if f["filterType"] == "LOT_SIZE":
+                return float(f["minQty"])
+    except Exception as e:  # pragma: no cover - network errors
+        logger.warning("[dev] ❌ Не вдалося отримати minQty для %s: %s", symbol, e)
+    return 0.0
 
 
 def get_min_quantity(symbol: str) -> float:
