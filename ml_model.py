@@ -37,7 +37,8 @@ def get_klines(symbol: str, interval: str = "1h", limit: int = 1000):
         )
         return data
     except Exception as e:
-        logger.warning(f"[dev] ⚠️ get_klines() failed for {symbol}: {e}")
+        if "Invalid symbol" not in str(e):
+            logger.warning(f"[dev] ⚠️ get_klines() failed for {symbol}: {e}")
         return []
 
 def add_technical_indicators(df):
