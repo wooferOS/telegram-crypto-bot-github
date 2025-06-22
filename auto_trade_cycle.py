@@ -56,7 +56,6 @@ from binance_api import (
     get_whale_alert,
     market_buy,
     market_sell,
-    get_min_qty,
 )
 from daily_analysis import split_telegram_message
 from history import add_trade
@@ -81,6 +80,8 @@ def adjust_qty_to_step(qty: float, step: float, min_qty: float = 0.0) -> float:
     d_qty = Decimal(str(qty))
     d_step = Decimal(str(step))
     d_min = Decimal(str(min_qty))
+    if d_step == 0:
+        return float(d_qty)
     adjusted = ((d_qty - d_min) // d_step) * d_step + d_min
     return float(adjusted.quantize(d_step, rounding=ROUND_DOWN))
 
@@ -792,9 +793,8 @@ async def buy_with_remaining_usdt(
         price = get_symbol_price(pair)
         if price <= 0:
             continue
-        step_size = get_lot_step(pair)[1]
+        step_size, min_qty = get_lot_step(pair)
         raw_qty = usdt_balance / price
-        min_qty = get_min_qty(pair)
         qty = adjust_qty_to_step(raw_qty, step_size, min_qty)
         logger.warning(
             "[dev] DEBUG: qty=%.8f, step_size=%.8f, min_qty=%.8f",
