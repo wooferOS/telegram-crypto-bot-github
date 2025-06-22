@@ -577,16 +577,18 @@ async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict
         "token_scores": predictions,
     }
     gpt_text = await ask_gpt(summary, max_tokens=100)
-    import json
 
     try:
         gpt_result = json.loads(gpt_text)
-    except json.JSONDecodeError:
+        if not isinstance(gpt_result, dict):
+            raise ValueError("GPT did not return a dictionary")
+    except Exception as e:
         logger.warning(
             "[dev] ❌ Неможливо розпарсити GPT відповідь як JSON:\n%s",
             gpt_text,
         )
-        gpt_result = {}
+        logger.warning("[GPT] ⚠️ Порожній прогноз, можливо, сталася помилка")
+        gpt_result = {"buy": [], "do_not_buy": []}
     if gpt_result == {}:
         log_and_telegram("[GPT] ⚠️ Порожній прогноз, можливо, сталася помилка")
     if gpt_result:
