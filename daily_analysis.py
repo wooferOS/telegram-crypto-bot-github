@@ -705,9 +705,8 @@ async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> No
                 )
                 if amount and amount > 0:
                     try:
-                        lot_step, _ = get_lot_step(symbol)
-                        step = Decimal(str(1 / (10 ** lot_step)))
-                        precision = lot_step
+                        step_size, _ = get_lot_step(symbol)
+                        step = Decimal(str(step_size))
                         adjusted_amount = (Decimal(str(amount)) // step) * step
                         adjusted_amount = adjusted_amount.quantize(
                             step, rounding=decimal.ROUND_DOWN
