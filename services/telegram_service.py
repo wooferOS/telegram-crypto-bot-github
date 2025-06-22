@@ -28,7 +28,9 @@ class DevBot(Bot):
         text = _format_dev_message(text)
         return await super().send_message(chat_id, text, *args, **kwargs)
 
-from config import TELEGRAM_TOKEN
+from config import (
+    TELEGRAM_TOKEN,
+)
 
 logger = logging.getLogger(__name__)
 

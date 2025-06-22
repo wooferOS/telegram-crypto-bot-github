@@ -28,7 +28,11 @@ from binance_api import (
     refresh_valid_pairs,
 )
 from history import _load_history
-from config import TRADE_LOOP_INTERVAL, CHAT_ID, ADMIN_CHAT_ID
+from config import (
+    TRADE_LOOP_INTERVAL,
+    CHAT_ID,
+    ADMIN_CHAT_ID,
+)
 from services.telegram_service import send_messages
 
 logger = logging.getLogger(__name__)
