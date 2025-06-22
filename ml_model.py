@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+import functools
 
 import joblib
 import numpy as np
@@ -25,27 +26,37 @@ def load_model():
         return joblib.load(MODEL_PATH)
     return None
 
-def get_klines(symbol: str, interval: str = "1h", limit: int = 500) -> pd.DataFrame:
-    """Fetch klines for a symbol with basic error handling."""
-    pair = _to_usdt_pair(symbol)
-    if not is_symbol_valid(symbol):
-        logging.warning("%s not valid for klines", pair)
-        return pd.DataFrame()
+def get_klines(symbol: str, interval: str = "1h", limit: int = 1000):
+    # ⛑️ Встановлюємо таймаут у Binance SDK session (5 секунд)
+    client.session.request = functools.partial(client.session.request, timeout=5)
     try:
-        # Binance ``Client.get_klines`` accepts only symbol, interval and limit
-        # parameters. Passing ``timeout`` causes API error ``code -1104``.
         data = client.get_klines(
-            symbol=pair,
+            symbol=f"{symbol}USDT",
             interval=interval,
             limit=limit,
         )
-    except Exception as e:  # noqa: BLE001
-        logging.warning(f"[dev] ML get_klines error: {e}")
-        return pd.DataFrame()
+        return data
+    except Exception as e:
+        logger.warning(f"[dev] ⚠️ get_klines() failed for {symbol}: {e}")
+        return []
 
+def add_technical_indicators(df):
+    df["rsi"] = ta.momentum.RSIIndicator(close=df["close"]).rsi()
+    df["macd"] = ta.trend.MACD(close=df["close"]).macd()
+    df["ema"] = ta.trend.EMAIndicator(close=df["close"], window=14).ema_indicator()
+    df["sma"] = ta.trend.SMAIndicator(close=df["close"], window=14).sma_indicator()
+    df["atr"] = ta.volatility.AverageTrueRange(high=df["high"], low=df["low"], close=df["close"]).average_true_range()
+    return df
+
+def generate_features(symbol: str):
+    """Generate ML features for the given trading symbol."""
+    try:
+        data = get_klines(symbol)
+    except Exception as e:  # noqa: BLE001
+        logger.warning(f"⚠️ get_klines failed for {symbol}: {e}")
+        raise
     if not data:
-        logging.warning("[dev] ML get_klines returned no data for %s", pair)
-        return pd.DataFrame()
+        raise ValueError(f"\u26A0\uFE0F No data for {symbol}")
 
     df = pd.DataFrame(
         data,
@@ -65,25 +76,6 @@ def get_klines(symbol: str, interval: str = "1h", limit: int = 500) -> pd.DataFr
         ],
     )
     df = df[["timestamp", "open", "high", "low", "close", "volume"]].astype(float)
-    return df
-
-def add_technical_indicators(df):
-    df["rsi"] = ta.momentum.RSIIndicator(close=df["close"]).rsi()
-    df["macd"] = ta.trend.MACD(close=df["close"]).macd()
-    df["ema"] = ta.trend.EMAIndicator(close=df["close"], window=14).ema_indicator()
-    df["sma"] = ta.trend.SMAIndicator(close=df["close"], window=14).sma_indicator()
-    df["atr"] = ta.volatility.AverageTrueRange(high=df["high"], low=df["low"], close=df["close"]).average_true_range()
-    return df
-
-def generate_features(symbol: str):
-    """Generate ML features for the given trading symbol."""
-    try:
-        df = get_klines(symbol)
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"⚠️ get_klines failed for {symbol}: {e}")
-        raise
-    if df.empty:
-        raise ValueError(f"\u26A0\uFE0F No data for {symbol}")
 
     df = add_technical_indicators(df)
 
