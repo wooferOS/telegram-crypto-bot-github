@@ -576,7 +576,14 @@ async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict
         },
         "token_scores": predictions,
     }
-    gpt_text = await ask_gpt(summary, max_tokens=100)
+
+    summary_text = json.dumps(summary, ensure_ascii=False)
+    summary_text += (
+        "\n\n❗️Please return only a valid JSON object with this format:\n"
+        '{"buy": ["TOKEN1", "TOKEN2"], "do_not_buy": ["TOKEN3"]}\n'
+        "Do not include any explanations, markdown, or extra text. Only return raw JSON."
+    )
+    gpt_text = await ask_gpt(summary_text, max_tokens=100)
 
     try:
         gpt_result = json.loads(gpt_text)
