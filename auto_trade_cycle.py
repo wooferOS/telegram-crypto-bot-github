@@ -768,6 +768,12 @@ async def buy_with_remaining_usdt(
         step_size = get_lot_step(pair)[1]
         raw_qty = usdt_balance / price
         qty = adjust_qty_to_step(raw_qty, step_size)
+        logger.info(
+            "[dev] 🧮 Коригування qty: raw=%.8f, stepSize=%.10f → final=%.8f",
+            raw_qty,
+            step_size,
+            qty,
+        )
         min_notional = get_min_notional(pair)
         notional = qty * price
 
