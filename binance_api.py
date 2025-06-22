@@ -30,7 +30,7 @@ import hashlib
 from utils import logger
 from log_setup import setup_logging
 import decimal
-from decimal import Decimal
+from decimal import Decimal, getcontext
 import json
 import math
 from datetime import datetime
@@ -743,11 +743,13 @@ def place_market_order(symbol: str, side: str, amount: float) -> Optional[Dict[s
                 quoteOrderQty=amount,
             )
         else:
+            lot_step = get_lot_step(pair)
+            qty = round(amount, lot_step)
             order = _get_client().create_order(
                 symbol=pair,
                 side=Client.SIDE_SELL,
                 type=Client.ORDER_TYPE_MARKET,
-                quantity=amount,
+                quantity=qty,
             )
         logger.info("✅ Order placed: %s", order)
         return order
@@ -1278,20 +1280,20 @@ def get_min_notional(symbol: str) -> float:
 
 
 def get_lot_step(symbol: str) -> int:
-    """Return LOT_SIZE precision (number of decimal places)."""
+    """Return number of decimal places allowed by LOT_SIZE for a symbol."""
     try:
         info = client.get_symbol_info(symbol)
-        for f in info["filters"]:
-            if f["filterType"] == "LOT_SIZE":
-                step_size = float(f["stepSize"])
-                return abs(Decimal(str(step_size)).as_tuple().exponent)
+        for f in info.get("filters", []):
+            if f.get("filterType") == "LOT_SIZE":
+                step_size = Decimal(f["stepSize"])
+                # e.g. Decimal("0.00001000") -> 5
+                return abs(step_size.normalize().as_tuple().exponent)
+        return 0
     except Exception as e:  # pragma: no cover - network errors
         logger.warning(
-            "[dev] ❌ Не вдалося отримати LOT_SIZE для %s: %s",
-            symbol,
-            e,
+            f"[dev] ❌ Не вдалося отримати LOT_SIZE для {symbol}: {e}"
         )
-    return 6
+        return 0
 
 
 def get_min_quantity(symbol: str) -> float:
