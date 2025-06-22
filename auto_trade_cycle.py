@@ -778,6 +778,9 @@ async def buy_with_remaining_usdt(
 async def main(chat_id: int) -> dict:
     """Simplified auto-trade cycle relying on daily predictions."""
 
+    from constants import TRADE_SUMMARY
+    TRADE_SUMMARY.clear()
+
     TRADE_SUMMARY["sold"].clear()
     TRADE_SUMMARY["bought"].clear()
 
