@@ -97,7 +97,9 @@ def _to_usdt_pair(symbol: str) -> str:
 def adjust_qty_to_step(qty: float, step: float) -> float:
     """Округлити qty вниз до допустимого stepSize (LOT_SIZE)."""
 
-    return math.floor(qty / step) * step
+    from decimal import Decimal, ROUND_DOWN
+
+    return float(Decimal(str(qty)).quantize(Decimal(str(step)), rounding=ROUND_DOWN))
 
 
 def log_tp_sl_change(symbol: str, action: str, tp: float, sl: float) -> None:
@@ -806,7 +808,10 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
             logger.warning("[dev] ⛔ Price unavailable for %s", pair)
             return {"status": "error", "message": "no_price"}
 
-        quantity = round(amount / price, 6)
+        quantity = amount / price
+        lot_step, _ = get_lot_step(pair)
+        step = 1 / (10 ** lot_step) if lot_step else 1
+        quantity = adjust_qty_to_step(quantity, step)
         result = client.create_order(
             symbol=pair,
             side=SIDE_BUY,
