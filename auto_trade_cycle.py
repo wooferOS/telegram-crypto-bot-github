@@ -831,6 +831,9 @@ async def buy_with_remaining_usdt(
             step_size,
             qty,
         )
+        logger.debug(
+            f"[dev] 🪙 {symbol}: qty={raw_qty}, step_size={step_size}, adjusted_qty={qty}"
+        )
         min_notional = get_min_notional(pair)
         notional = qty * price
 
