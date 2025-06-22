@@ -113,7 +113,12 @@ if __name__ == "__main__":
 
     setup_logging()
     refresh_valid_pairs()
-    logger.info("[dev] ✅ VALID_PAIRS оновлено")
+    logger.info("[dev] ✅ VALID_PAIRS оновлено: %d пар", len(VALID_PAIRS))
+    if not VALID_PAIRS:
+        logger.error(
+            "[dev] ❌ VALID_PAIRS порожній — неможливо отримати дані з Binance"
+        )
+        raise SystemExit(1)
     logger.info("[dev] 🚀 Автоматичний трейдинг запущено")
 
     if args.backtest:

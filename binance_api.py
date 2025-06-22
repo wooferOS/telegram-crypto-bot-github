@@ -129,7 +129,11 @@ else:
 
 
 # Initialise Binance client explicitly using credentials from ``config.py``
-client: Client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+client: Client = Client(
+    api_key=BINANCE_API_KEY,
+    api_secret=BINANCE_SECRET_KEY,
+    ping=not BINANCE_TEST_MODE,
+)
 
 if not TEST_MODE:
     client.ping()
@@ -143,14 +147,22 @@ def _get_client() -> Client:
             raise RuntimeError("Binance client unavailable in test mode")
         if not BINANCE_API_KEY or not BINANCE_SECRET_KEY:
             raise RuntimeError("Binance API keys are missing")
-        client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
+        client = Client(
+            BINANCE_API_KEY,
+            BINANCE_SECRET_KEY,
+            ping=not BINANCE_TEST_MODE,
+        )
     return client
 
 
 def get_binance_client() -> Client:
     """Return a fresh Binance ``Client`` using credentials from config."""
 
-    return Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+    return Client(
+        api_key=BINANCE_API_KEY,
+        api_secret=BINANCE_SECRET_KEY,
+        ping=not BINANCE_TEST_MODE,
+    )
 
 # Set of currently tradable USDT pairs
 VALID_PAIRS: set[str] = set()
@@ -335,7 +347,11 @@ def get_binance_balances() -> Dict[str, float]:
     """Return available balances with automatic API diagnostics."""
 
     try:
-        temp_client = Client(BINANCE_API_KEY, BINANCE_SECRET_KEY)
+        temp_client = Client(
+            BINANCE_API_KEY,
+            BINANCE_SECRET_KEY,
+            ping=not BINANCE_TEST_MODE,
+        )
 
         if BINANCE_API_KEY and BINANCE_SECRET_KEY:
             logger.debug(
@@ -348,7 +364,8 @@ def get_binance_balances() -> Dict[str, float]:
 
         try:
             # Тестовий пінг до Binance
-            temp_client.ping()
+            if not BINANCE_TEST_MODE:
+                temp_client.ping()
             logger.info("✅ Binance API доступний")
 
             account = temp_client.get_account()
