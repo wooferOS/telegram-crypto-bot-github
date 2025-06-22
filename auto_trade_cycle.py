@@ -75,7 +75,9 @@ logger = logging.getLogger(__name__)
 def adjust_qty_to_step(qty: float, step: float) -> float:
     """Round ``qty`` down to comply with ``step`` size."""
 
-    return math.floor(qty / step) * step
+    from decimal import Decimal, ROUND_DOWN
+
+    return float(Decimal(str(qty)).quantize(Decimal(str(step)), rounding=ROUND_DOWN))
 
 
 def load_gpt_filters() -> dict[str, List[str]]:
@@ -750,7 +752,13 @@ async def buy_with_remaining_usdt(
         d_step = Decimal(str(step))
         d_min = Decimal(str(min_qty))
         logger.warning(
-            "[dev] DEBUG VALID: (qty - min_qty) % step_size = %.8f",
+            "[dev] 🔍 Перевірка qty=%.8f, stepSize=%.8f, minQty=%.8f",
+            qty,
+            step,
+            min_qty,
+        )
+        logger.warning(
+            "[dev] 🔬 MOD = %.12f",
             (d_qty - d_min) % d_step,
         )
         return ((d_qty - d_min) % d_step) == 0
