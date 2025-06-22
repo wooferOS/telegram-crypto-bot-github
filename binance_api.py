@@ -582,7 +582,7 @@ def try_convert(symbol_from: str, symbol_to: str, amount: float) -> Optional[dic
         result = accept_resp.json()
         if "orderId" not in result:
             raise Exception(result)
-        return result
+        return {**result, "status": "success"}
     except Exception as exc:  # pragma: no cover - network errors
         logger.error("❌ Помилка при конвертації %s: %s", symbol_from, exc)
         msg = str(exc)
@@ -619,7 +619,7 @@ def convert_to_usdt(asset: str, amount: float):
             if result.get("status") != "SUCCESS":
                 raise Exception(f"Convert API повернув помилку: {result}")
             logger.info("✅ Конвертовано %s %s у USDT", amount, asset)
-            return result
+            return {**result, "status": "success"}
     except BinanceAPIException as exc:  # pragma: no cover - handle below
         msg = str(exc)
         if "Signature for this request" in msg or "-1022" in msg:
@@ -787,7 +787,7 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
             type=ORDER_TYPE_MARKET,
             quantity=quantity,
         )
-        return order
+        return {**order, "status": "success"}
     except BinanceAPIException as e:  # pragma: no cover - network errors
         logger.warning("[dev] Binance buy error for %s: %s", pair, e)
         return {"status": "error", "message": str(e)}
@@ -819,7 +819,14 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
             return {"status": "error", "message": "qty too small"}
 
         try:
-            return client.order_market_buy(symbol=pair, quantity=qty)
+            order = client.order_market_buy(symbol=pair, quantity=qty)
+            if not order or order.get("status") not in {"FILLED", "PARTIALLY_FILLED", "NEW"}:
+                logger.warning("[dev] ❌ Купівля не вдалася: %s", order)
+                return {
+                    "status": "error",
+                    "message": order.get("msg", "невідома помилка") if isinstance(order, dict) else "невідома помилка",
+                }
+            return {**order, "status": "success"}
         except BinanceAPIException as e:
             if "LOT_SIZE" in str(e):
                 for _ in range(3):
@@ -827,7 +834,9 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
                     if qty < min_qty:
                         break
                     try:
-                        return client.order_market_buy(symbol=pair, quantity=qty)
+                        order = client.order_market_buy(symbol=pair, quantity=qty)
+                        if order and order.get("status") in {"FILLED", "PARTIALLY_FILLED", "NEW"}:
+                            return {**order, "status": "success"}
                     except BinanceAPIException:
                         continue
                 logger.warning(
