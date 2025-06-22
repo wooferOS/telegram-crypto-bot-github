@@ -29,6 +29,7 @@ from binance_api import (
     get_valid_usdt_symbols,
     get_symbol_precision,
     try_convert,
+    convert_to_usdt,
     sell_asset,
     get_token_balance,
     place_take_profit_order,
@@ -577,7 +578,35 @@ def sell_unprofitable_assets(
                 f"[dev] ⚠️ Не вдалося продати або сконвертувати {token}: {reason}"
             )
 
+    if not sold_tokens:
+        logger.info("[dev] ❌ Нічого не продано")
+
     return sold_tokens
+
+
+def convert_portfolio_to_usdt(portfolio: Dict[str, float]) -> list[str]:
+    """Convert all assets in ``portfolio`` to USDT using Binance Convert."""
+
+    converted: list[str] = []
+    for asset, amount in portfolio.items():
+        if asset in {"USDT", "BUSD"} or amount <= 0:
+            continue
+        result = convert_to_usdt(asset, amount)
+        if result and result.get("status") != "error":
+            logger.info(
+                f"[dev] 🔄 Конвертовано {amount} {asset} у USDT"
+            )
+            TRADE_SUMMARY["sold"].append(f"{asset} ({amount:.6f})")
+            converted.append(asset)
+        else:
+            logger.warning(
+                f"[dev] ⚠️ Не вдалося конвертувати {asset}: {result}"
+            )
+
+    if not converted:
+        logger.warning("[dev] ❌ Жоден актив не вдалося конвертувати в USDT")
+
+    return converted
 
 
 def _compose_failure_message(
@@ -682,6 +711,7 @@ async def buy_with_remaining_usdt(
     """Buy the best available token with the remaining USDT balance."""
 
     if usdt_balance <= 0:
+        logger.warning("[dev] ⚠️ Купівля неможлива — баланс USDT = 0")
         return None
     logger.info("[dev] 🧪 Купівля на залишок: top_tokens = %s", top_tokens)
     tried_tokens = [p for p, _ in top_tokens]
@@ -749,6 +779,9 @@ async def buy_with_remaining_usdt(
 
 async def main(chat_id: int) -> dict:
     """Simplified auto-trade cycle relying on daily predictions."""
+
+    TRADE_SUMMARY["sold"].clear()
+    TRADE_SUMMARY["bought"].clear()
 
     try:
         from daily_analysis import generate_zarobyty_report
@@ -827,8 +860,10 @@ async def main(chat_id: int) -> dict:
     if usdt_balance == 0 and portfolio_tokens:
         sold = sell_unprofitable_assets(balances, predictions, gpt_forecast)
         if not sold:
-            logger.warning("[dev] \ud83d\udca4 Нічого не продано. Можливо, всі токени в топ-3.")
-            try_convert(balances, predictions, gpt_forecast)
+            logger.warning(
+                "[dev] \ud83d\udca4 Нічого не продано. Спробуємо конвертацію в USDT."
+            )
+            sold = convert_portfolio_to_usdt(balances)
         if "update_binance_cache" in globals():
             try:
                 update_binance_cache()  # type: ignore[func-returns-value]
