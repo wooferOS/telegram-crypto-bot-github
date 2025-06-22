@@ -132,11 +132,13 @@ else:
 client: Client = Client(
     api_key=BINANCE_API_KEY,
     api_secret=BINANCE_SECRET_KEY,
-    ping=not BINANCE_TEST_MODE,
 )
 
-if not TEST_MODE:
-    client.ping()
+if not BINANCE_TEST_MODE:
+    try:
+        client.ping()
+    except Exception as e:
+        logger.warning("[dev] \u2757 Binance ping failed: %s", e)
 
 
 def _get_client() -> Client:
@@ -150,19 +152,28 @@ def _get_client() -> Client:
         client = Client(
             BINANCE_API_KEY,
             BINANCE_SECRET_KEY,
-            ping=not BINANCE_TEST_MODE,
         )
+        if not BINANCE_TEST_MODE:
+            try:
+                client.ping()
+            except Exception as e:
+                logger.warning("[dev] \u2757 Binance ping failed: %s", e)
     return client
 
 
 def get_binance_client() -> Client:
     """Return a fresh Binance ``Client`` using credentials from config."""
 
-    return Client(
+    client_obj = Client(
         api_key=BINANCE_API_KEY,
         api_secret=BINANCE_SECRET_KEY,
-        ping=not BINANCE_TEST_MODE,
     )
+    if not BINANCE_TEST_MODE:
+        try:
+            client_obj.ping()
+        except Exception as e:
+            logger.warning("[dev] \u2757 Binance ping failed: %s", e)
+    return client_obj
 
 # Set of currently tradable USDT pairs
 VALID_PAIRS: set[str] = set()
@@ -350,7 +361,6 @@ def get_binance_balances() -> Dict[str, float]:
         temp_client = Client(
             BINANCE_API_KEY,
             BINANCE_SECRET_KEY,
-            ping=not BINANCE_TEST_MODE,
         )
 
         if BINANCE_API_KEY and BINANCE_SECRET_KEY:
