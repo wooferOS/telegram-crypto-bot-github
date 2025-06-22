@@ -752,9 +752,9 @@ async def buy_with_remaining_usdt(
         price = get_symbol_price(pair)
         if price <= 0:
             continue
-        lot_info = get_lot_step(pair)
-        step = Decimal(str(lot_info.get("step_size", 1)))
-        precision = abs(step.normalize().as_tuple().exponent)
+        lot_step, _ = get_lot_step(pair)
+        step = Decimal(str(1 / (10 ** lot_step)))
+        precision = lot_step
         qty = Decimal(str(usdt_balance / price)).quantize(
             step, rounding=decimal.ROUND_DOWN
         )
