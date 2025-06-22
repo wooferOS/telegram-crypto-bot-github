@@ -898,7 +898,7 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
                     return order
             except BinanceAPIException as e:
                 if "LOT_SIZE" in str(e):
-                    qty_adj = adjust_qty_to_step(qty_adj - step, step, min_qty)
+                    qty_adj = adjust_qty_to_step(qty_adj - step_size, step_size, min_qty)
                     if qty_adj < min_qty or qty_adj <= 0:
                         break
                     continue
@@ -907,7 +907,7 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
         logger.warning(
             "[dev] ❌ Binance LOT_SIZE: qty=%s, step=%s, min_qty=%s — не вдалося",
             qty_adj,
-            step,
+            step_size,
             min_qty,
         )
         return {"status": "error", "message": "LOT_SIZE filter failure"}
