@@ -22,6 +22,21 @@ def convert_to_uah(amount_usdt: float) -> float:
     return round(amount_usdt * get_usdt_to_uah_rate(), 2)
 
 
+def adjust_qty_to_step(qty: float, step: float, min_qty: float = 0.0) -> float:
+    """Round ``qty`` down to comply with ``step`` size taking ``min_qty`` into account."""
+
+    from decimal import Decimal, ROUND_DOWN, getcontext
+
+    getcontext().prec = 18
+    d_qty = Decimal(str(qty))
+    d_step = Decimal(str(step))
+    d_min = Decimal(str(min_qty))
+    if d_step == 0:
+        return float(d_qty)
+    adjusted = ((d_qty - d_min) // d_step) * d_step + d_min
+    return float(adjusted.quantize(d_step, rounding=ROUND_DOWN))
+
+
 def calculate_rr(klines: List[List[float]]) -> float:
     """Return simple risk/reward ratio based on last 20 candles."""
     if not klines:
