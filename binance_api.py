@@ -183,17 +183,21 @@ def refresh_valid_pairs() -> None:
     """Refresh ``VALID_PAIRS`` from Binance exchange info."""
 
     global VALID_PAIRS
+    VALID_PAIRS.clear()
     try:
-        info = get_exchange_info_cached()
-        VALID_PAIRS = {
-            s.get('symbol')
-            for s in info.get("symbols", [])
-            if s.get("quoteAsset") == "USDT"
-            and s.get("status") == "TRADING"
-            and s.get("isSpotTradingAllowed")
-        }
+        data = client.get_exchange_info()
+        all_pairs = [
+            s["symbol"]
+            for s in data["symbols"]
+            if s["quoteAsset"] == "USDT"
+            and s["status"] == "TRADING"
+            and s["isSpotTradingAllowed"]
+            and not s["symbol"].startswith(("USD", "BUSD", "TUSD"))
+        ][:100]
+        VALID_PAIRS.update(all_pairs)
+        logger.info("✅ VALID_PAIRS оновлено: %d пар", len(VALID_PAIRS))
     except Exception as e:  # pragma: no cover - network errors
-        logger.warning(f"⚠️ Не вдалося оновити VALID_PAIRS: {e}")
+        logger.warning("❌ Не вдалося оновити VALID_PAIRS: %s", e)
 
 
 # ---------------------------------------------------------------------------
@@ -793,26 +797,47 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
 
     try:
         logger.info(f"[dev] 🔼 Спроба купити {symbol} на {usdt_amount} USDT")
-        price_data = client.get_symbol_ticker(symbol=symbol)
-        current_price = float(price_data.get('price'))
+        pair = _to_usdt_pair(symbol)
+        price_data = client.get_symbol_ticker(symbol=pair)
+        current_price = float(price_data.get("price"))
 
-        quantity = round(usdt_amount / current_price, 6)
+        qty = usdt_amount / current_price
+        lot_step = get_lot_step(pair)
+        min_qty = get_min_quantity(pair)
+        qty = round(qty, lot_step)
 
-        order = client.order_market_buy(symbol=symbol, quantity=quantity)
+        if qty == 0 or qty < min_qty:
+            logger.warning(
+                "[dev] ❌ Binance LOT_SIZE: qty=%.8f < min_qty=%.8f для %s",
+                qty,
+                min_qty,
+                symbol,
+            )
+            return {"status": "error", "message": "qty too small"}
 
-        logger.info(
-            f"\u2705 Куплено {quantity} {symbol} на {usdt_amount} USDT. Ордер ID: {order.get('orderId')}"
-        )
-        return {
-            "status": "success",
-            "order_id": order.get('orderId'),
-            "symbol": symbol,
-            "executedQty": order.get('executedQty'),
-            "price": current_price,
-        }
+        try:
+            return client.order_market_buy(symbol=pair, quantity=qty)
+        except BinanceAPIException as e:
+            if "LOT_SIZE" in str(e):
+                for _ in range(3):
+                    qty = round(qty * 0.95, lot_step)
+                    if qty < min_qty:
+                        break
+                    try:
+                        return client.order_market_buy(symbol=pair, quantity=qty)
+                    except BinanceAPIException:
+                        continue
+                logger.warning(
+                    "[dev] ❌ Binance LOT_SIZE: qty=%.8f, step=%d, min_qty=%.8f — не вдалося",
+                    qty,
+                    lot_step,
+                    min_qty,
+                )
+                return {"status": "error", "message": "LOT_SIZE filter failure"}
+            raise
 
     except BinanceAPIException as e:
-        logger.error(f"\u274c Помилка при ринковій купівлі {symbol}: {str(e)}")
+        logger.error("❌ Помилка при ринковій купівлі %s: %s", symbol, e)
         return {"status": "error", "message": str(e)}
 
 
@@ -845,12 +870,13 @@ def market_sell(symbol: str, quantity: float) -> dict:
 def sell_asset(symbol: str, quantity: float) -> dict:
     """Sell ``symbol`` with fallback to ``_fallback_market_sell`` on failure."""
 
-    step = get_lot_step(symbol)
-    adjusted_amount = math.floor(quantity / step) * step
-    adjusted_amount = round(adjusted_amount, int(abs(math.log10(step))))
+    precision = get_lot_step(symbol)
+    step_size = 10 ** (-precision)
+    adjusted_amount = math.floor(quantity / step_size) * step_size
+    adjusted_amount = round(adjusted_amount, precision)
 
     logger.info(
-        f"[dev] ⚙️ Округлена кількість {symbol}: {adjusted_amount} (step={step})"
+        f"[dev] ⚙️ Округлена кількість {symbol}: {adjusted_amount} (step={precision})"
     )
 
     order = place_market_order(symbol, "SELL", adjusted_amount)
@@ -1250,21 +1276,35 @@ def get_min_notional(symbol: str) -> float:
     return 0.0
 
 
-def get_lot_step(symbol: str) -> float:
-    """Return ``LOT_SIZE`` step for trading ``symbol``."""
+def get_lot_step(symbol: str) -> int:
+    """Return LOT_SIZE precision (number of decimal places)."""
     try:
-        data = get_exchange_info_cached()
-        for s in data.get("symbols", []):
-            if s.get("symbol") == symbol:
-                for f in s.get("filters", []):
-                    if f.get("filterType") == "LOT_SIZE":
-                        return float(f.get("stepSize"))
-    except Exception as exc:  # pragma: no cover - network errors
+        info = client.get_symbol_info(symbol)
+        for f in info["filters"]:
+            if f["filterType"] == "LOT_SIZE":
+                step_size = float(f["stepSize"])
+                return abs(Decimal(str(step_size)).as_tuple().exponent)
+    except Exception as e:  # pragma: no cover - network errors
         logger.warning(
-            "%s Помилка при отриманні LOT_SIZE для %s: %s",
-            TELEGRAM_LOG_PREFIX,
+            "[dev] ❌ Не вдалося отримати LOT_SIZE для %s: %s",
             symbol,
-            exc,
+            e,
+        )
+    return 6
+
+
+def get_min_quantity(symbol: str) -> float:
+    """Return LOT_SIZE minQty for trading ``symbol``."""
+    try:
+        info = client.get_symbol_info(symbol)
+        for f in info["filters"]:
+            if f["filterType"] == "LOT_SIZE":
+                return float(f["minQty"])
+    except Exception as e:  # pragma: no cover - network errors
+        logger.warning(
+            "[dev] ❌ Не вдалося отримати minQty для %s: %s",
+            symbol,
+            e,
         )
     return 0.0
 
@@ -1280,10 +1320,9 @@ def _fallback_market_sell(asset: str, quantity: float) -> bool:
         return False
 
     min_notional = get_min_notional(pair)
-    step = get_lot_step(pair)
-    precision = get_symbol_precision(pair)
-
-    qty = round(quantity - (quantity % step), precision)
+    precision = get_lot_step(pair)
+    step_size = 10 ** (-precision)
+    qty = round(quantity - (quantity % step_size), precision)
     if qty <= 0:
         return False
 

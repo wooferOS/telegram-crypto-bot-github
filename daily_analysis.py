@@ -703,8 +703,10 @@ async def auto_trade_loop(max_iterations: int = MAX_AUTO_TRADE_ITERATIONS) -> No
                 )
                 if amount and amount > 0:
                     try:
-                        step = get_lot_step(symbol)
-                        adjusted_amount = math.floor(amount / step) * step
+                        precision = get_lot_step(symbol)
+                        step_size = 10 ** (-precision)
+                        adjusted_amount = math.floor(amount / step_size) * step_size
+                        adjusted_amount = round(adjusted_amount, precision)
                         result = market_sell(symbol, adjusted_amount)
                         logger.info("✅ Продано %s: %s | %s", symbol, amount, result)
                         if result.get("status") == "success":
