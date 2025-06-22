@@ -94,12 +94,17 @@ def _to_usdt_pair(symbol: str) -> str:
     return pair
 
 
-def adjust_qty_to_step(qty: float, step: float) -> float:
-    """Округлити qty вниз до допустимого stepSize (LOT_SIZE)."""
+def adjust_qty_to_step(qty: float, step: float, min_qty: float = 0.0) -> float:
+    """Округлити ``qty`` вниз до допустимого ``step`` з урахуванням ``min_qty``."""
 
-    from decimal import Decimal, ROUND_DOWN
+    from decimal import Decimal, ROUND_DOWN, getcontext
 
-    return float(Decimal(str(qty)).quantize(Decimal(str(step)), rounding=ROUND_DOWN))
+    getcontext().prec = 18
+    d_qty = Decimal(str(qty))
+    d_step = Decimal(str(step))
+    d_min = Decimal(str(min_qty))
+    adjusted = ((d_qty - d_min) // d_step) * d_step + d_min
+    return float(adjusted.quantize(d_step, rounding=ROUND_DOWN))
 
 
 def log_tp_sl_change(symbol: str, action: str, tp: float, sl: float) -> None:
@@ -809,9 +814,9 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
             return {"status": "error", "message": "no_price"}
 
         quantity = amount / price
-        lot_step, _ = get_lot_step(pair)
+        lot_step, min_qty = get_lot_step(pair)
         step = 1 / (10 ** lot_step) if lot_step else 1
-        quantity = adjust_qty_to_step(quantity, step)
+        quantity = adjust_qty_to_step(quantity, step, min_qty)
         result = client.create_order(
             symbol=pair,
             side=SIDE_BUY,
@@ -841,8 +846,8 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
         qty = usdt_amount / current_price
         lot_step, _ = get_lot_step(pair)
         step = 1 / (10 ** lot_step) if lot_step else 1
-        qty_adj = adjust_qty_to_step(qty, step)
         min_qty = get_min_qty(pair)
+        qty_adj = adjust_qty_to_step(qty, step, min_qty)
         if qty_adj < min_qty:
             logger.warning(
                 "[dev] ❌ qty %s для %s менше за minQty %s — пропущено",
@@ -879,7 +884,7 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
                     return order
             except BinanceAPIException as e:
                 if "LOT_SIZE" in str(e):
-                    qty_adj = adjust_qty_to_step(qty_adj - step, step)
+                    qty_adj = adjust_qty_to_step(qty_adj - step, step, min_qty)
                     if qty_adj < min_qty or qty_adj <= 0:
                         break
                     continue
