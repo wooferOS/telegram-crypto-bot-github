@@ -17,7 +17,7 @@ from binance_api import (
     get_binance_balances,
     get_symbol_price,
     get_candlestick_klines as get_price_history,
-    get_candlestick_klines as get_klines,
+    get_klines_safe as get_klines,
     get_recent_trades as get_my_trades,
     get_top_tokens,
     get_top_symbols_by_volume,
@@ -38,7 +38,6 @@ from binance_api import (
     get_all_valid_symbols,
     refresh_valid_pairs,
 )
-from binance_api import get_candlestick_klines
 from config import (
     MIN_PROB_UP,
     MIN_EXPECTED_PROFIT,

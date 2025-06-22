@@ -10,7 +10,7 @@ import ta
 from binance.client import Client
 from sklearn.ensemble import RandomForestClassifier
 
-from binance_api import _to_usdt_pair, is_symbol_valid
+from binance_api import _to_usdt_pair, is_symbol_valid, get_klines_safe
 
 MODEL_PATH = "model.joblib"
 
@@ -30,15 +30,9 @@ def load_model():
     return None
 
 def get_klines(symbol: str, interval: str = "1h", limit: int = 1000):
-    # ⛑️ Встановлюємо таймаут у Binance SDK session (5 секунд)
-    client.session.request = functools.partial(client.session.request, timeout=5)
+    pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
     try:
-        data = client.get_klines(
-            symbol=f"{symbol}USDT",
-            interval=interval,
-            limit=limit,
-        )
-        return data
+        return get_klines_safe(pair, interval=interval, limit=limit)
     except Exception as e:
         if "Invalid symbol" not in str(e):
             logger.warning(f"[dev] ⚠️ get_klines() failed for {symbol}: {e}")

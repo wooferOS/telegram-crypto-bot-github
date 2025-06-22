@@ -1745,3 +1745,15 @@ def test_valid_pairs() -> None:
             logger.info(f"✅ {symbol} — OK")
 
 
+def get_klines_safe(pair: str, interval: str = "1h", limit: int = 1000) -> list:
+    """Безпечне отримання свічок — тільки якщо пара в VALID_PAIRS"""
+    if pair not in VALID_PAIRS:
+        logger.warning(f"[dev] ⚠️ Symbol {pair} not in VALID_PAIRS — skipping")
+        return []
+    try:
+        return client.get_klines(symbol=pair, interval=interval, limit=limit)
+    except Exception as e:  # pragma: no cover - network errors
+        logger.warning(f"[dev] ⚠️ get_klines() failed for {pair}: {e}")
+        return []
+
+
