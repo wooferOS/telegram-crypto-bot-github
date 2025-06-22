@@ -587,6 +587,11 @@ async def handle_buy_callback(callback_query: types.CallbackQuery):
     amount_in_usdt = 10
     try:
         order = market_buy_symbol_by_amount(token, amount_in_usdt)
+        if order.get("status") != "success":
+            await callback_query.message.answer(
+                f"❌ Купівля {token} не вдалася: {order.get('message', 'невідома помилка')}"
+            )
+            return
         price = (
             float(order.get("fills")[0].get("price"))
             if "fills" in order and order.get("fills")
