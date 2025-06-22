@@ -555,6 +555,7 @@ def sell_unprofitable_assets(
         token for token in portfolio if token != "USDT" and token not in top3_symbols
     ]
 
+    sold_tokens: list[str] = []
     for token in to_sell:
         amount = portfolio.get(token, 0.0)
         if amount <= 0:
@@ -564,6 +565,7 @@ def sell_unprofitable_assets(
         result = market_sell(pair, amount)
         if result.get("status") == "success":
             logger.info(f"[dev] ✅ Продано {amount} {token}")
+            sold_tokens.append(token)
         elif result.get("status") == "converted":
             logger.info(f"[dev] 🔄 Сконвертовано {amount} {token}")
         else:
@@ -572,7 +574,7 @@ def sell_unprofitable_assets(
                 f"[dev] ⚠️ Не вдалося продати або сконвертувати {token}: {reason}"
             )
 
-    return to_sell
+    return sold_tokens
 
 
 def _compose_failure_message(
@@ -736,7 +738,7 @@ async def buy_with_remaining_usdt(
             continue
 
     logger.warning(
-        "[dev] ❌ Не вдалося купити жоден токен — завершення трейд-циклу без дій"
+        "[dev] ❌ Не вдалося купити жоден токен — завершення циклу"
     )
     return None
 

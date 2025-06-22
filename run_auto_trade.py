@@ -26,7 +26,7 @@ from binance_api import (
     refresh_valid_pairs,
 )
 from history import _load_history
-from config import TRADE_LOOP_INTERVAL, CHAT_ID
+from config import TRADE_LOOP_INTERVAL, CHAT_ID, ADMIN_CHAT_ID
 from services.telegram_service import send_messages
 
 logger = logging.getLogger(__name__)
@@ -106,6 +106,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     setup_logging()
+    logger.info("[dev] 🚀 Автоматичний трейдинг запущено")
 
     if args.backtest:
         backtest()
@@ -142,7 +143,7 @@ if __name__ == "__main__":
         summary = {"sold": [], "bought": []}
 
         while attempt < MAX_ATTEMPTS:
-            summary = asyncio.run(main(int(CHAT_ID)))
+            summary = asyncio.run(main(int(ADMIN_CHAT_ID)))
             sold = summary.get("sold")
             bought = summary.get("bought")
             if sold or bought:
