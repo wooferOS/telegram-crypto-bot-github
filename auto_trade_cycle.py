@@ -58,7 +58,6 @@ from binance_api import (
 from daily_analysis import split_telegram_message
 from history import add_trade
 import json
-from binance.helpers import round_step_size
 
 # These thresholds are more lenient for manual conversion suggestions
 # Generate signals even for modest opportunities
@@ -744,9 +743,9 @@ async def buy_with_remaining_usdt(
         price = get_symbol_price(pair)
         if price <= 0:
             continue
-        step = get_lot_step(pair)
+        precision = get_lot_step(pair)
         qty = usdt_balance / price
-        qty = round_step_size(qty, step)
+        qty = round(qty, precision)
         min_notional = get_min_notional(pair)
         notional = qty * price
         if notional < min_notional:
