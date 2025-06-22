@@ -321,6 +321,12 @@ def calculate_adaptive_filters(days: int = lookback_days) -> tuple[float, float]
 
 async def generate_zarobyty_report() -> tuple[str, list, list, dict | None, dict]:
     refresh_valid_pairs()
+    logger.info("[dev] ✅ VALID_PAIRS оновлено: %d пар", len(VALID_PAIRS))
+    if not VALID_PAIRS:
+        logger.error(
+            "[dev] ❌ VALID_PAIRS порожній — неможливо отримати дані з Binance"
+        )
+        return "", [], [], None, {}
     balances = get_binance_balances()
     usdt_balance = balances.get("USDT", 0) or 0
     now = datetime.datetime.now(pytz.timezone("Europe/Kyiv"))
