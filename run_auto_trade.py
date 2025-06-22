@@ -19,8 +19,9 @@ from auto_trade_cycle import (
     generate_conversion_signals,
     load_gpt_filters,
     sell_unprofitable_assets,
-    generate_zarobyty_report,
 )
+
+from daily_analysis import generate_zarobyty_report
 from binance_api import (
     get_symbol_price,
     get_binance_balances,
