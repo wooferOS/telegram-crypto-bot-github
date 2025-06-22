@@ -103,6 +103,8 @@ def adjust_qty_to_step(qty: float, step: float, min_qty: float = 0.0) -> float:
     d_qty = Decimal(str(qty))
     d_step = Decimal(str(step))
     d_min = Decimal(str(min_qty))
+    if d_step == 0:
+        return float(d_qty)
     adjusted = ((d_qty - d_min) // d_step) * d_step + d_min
     return float(adjusted.quantize(d_step, rounding=ROUND_DOWN))
 
