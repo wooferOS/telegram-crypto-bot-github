@@ -32,6 +32,10 @@ async def ask_gpt(messages: list, api_key: str) -> Optional[str]:
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
+
+    if not isinstance(messages, list):
+        messages = [messages]
+
     payload = {
         "model": "gpt-4o",
         "messages": messages,

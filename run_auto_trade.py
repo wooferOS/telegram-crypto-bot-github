@@ -108,6 +108,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     setup_logging()
+    refresh_valid_pairs()
+    logger.info("[dev] ✅ VALID_PAIRS оновлено")
     logger.info("[dev] 🚀 Автоматичний трейдинг запущено")
 
     if args.backtest:
