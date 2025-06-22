@@ -768,8 +768,16 @@ def place_market_order(
             logger.warning("⚠️ Після оновлення %s все ще не знайдено", pair)
             return None
     try:
+        price = get_symbol_price(pair)
+        step_size = get_lot_step(pair)
         if side.upper() == "BUY":
             if quantity is not None:
+                logger.debug(
+                    "[dev] 🧪 Перевірка перед create_order: qty=%.8f, step_size=%.8f, price=%.8f",
+                    float(quantity),
+                    step_size,
+                    price,
+                )
                 order = _get_client().create_order(
                     symbol=pair,
                     side=Client.SIDE_BUY,
@@ -777,6 +785,13 @@ def place_market_order(
                     quantity=float(quantity),
                 )
             else:
+                qty_calc = amount / price if price else amount
+                logger.debug(
+                    "[dev] 🧪 Перевірка перед create_order: qty=%.8f, step_size=%.8f, price=%.8f",
+                    qty_calc,
+                    step_size,
+                    price,
+                )
                 order = _get_client().create_order(
                     symbol=pair,
                     side=Client.SIDE_BUY,
@@ -784,8 +799,13 @@ def place_market_order(
                     quoteOrderQty=amount,
                 )
         else:
-            step_size = get_lot_step(pair)
             qty = adjust_qty_to_step(amount, step_size)
+            logger.debug(
+                "[dev] 🧪 Перевірка перед create_order: qty=%.8f, step_size=%.8f, price=%.8f",
+                qty,
+                step_size,
+                price,
+            )
             order = _get_client().create_order(
                 symbol=pair,
                 side=Client.SIDE_SELL,
@@ -824,6 +844,12 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
         quantity = amount / price
         step_size = get_lot_step(pair)
         quantity = adjust_qty_to_step(quantity, step_size)
+        logger.debug(
+            "[dev] 🧪 Перевірка перед create_order: qty=%.8f, step_size=%.8f, price=%.8f",
+            quantity,
+            step_size,
+            price,
+        )
         result = client.create_order(
             symbol=pair,
             side=SIDE_BUY,
@@ -853,14 +879,18 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
         qty = usdt_amount / current_price
         step_size = get_lot_step(pair)
         min_qty = get_min_qty(pair)
+        min_notional = get_min_notional(pair)
         qty_adj = adjust_qty_to_step(qty, step_size)
         logger.debug("[dev] 🧮 qty=%s step=%s adjusted=%s", qty, step_size, qty_adj)
-        if qty_adj < min_qty:
+        notional = qty_adj * current_price
+        if qty_adj < min_qty or notional < min_notional:
             logger.warning(
-                "[dev] ❌ qty %s для %s менше за minQty %s — пропущено",
+                "[dev] ❌ Покупка відхилена: qty=%.8f, min_qty=%.8f, notional=%.8f, min_notional=%.8f — символ %s",
                 qty_adj,
-                pair,
                 min_qty,
+                notional,
+                min_notional,
+                pair,
             )
             return {"status": "error", "message": "qty below min_qty"}
 
@@ -871,16 +901,6 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
             qty_adj,
             step_size,
         )
-
-        min_notional = get_min_notional(pair)
-
-        if qty_adj == 0 or qty_adj * current_price < min_notional:
-            logger.warning(
-                "[dev] ❌ qty < min_qty (%.8f < %.8f) — ордер відхилено",
-                qty_adj,
-                min_qty,
-            )
-            return {"status": "error", "message": "qty below min_qty"}
 
         for _ in range(10):
             try:
@@ -919,12 +939,16 @@ def market_sell(symbol: str, quantity: float) -> dict:
         price = get_symbol_price(symbol)
         qty = adjust_qty_to_step(quantity, step_size)
         min_notional = get_min_notional(symbol)
+        notional = qty * price
 
-        if qty < min_qty or qty == 0 or qty * price < min_notional:
+        if qty < min_qty or qty == 0 or notional < min_notional:
             logger.warning(
-                "[dev] ❌ qty < min_qty (%.8f < %.8f) — ордер відхилено",
+                "[dev] ❌ Покупка відхилена: qty=%.8f, min_qty=%.8f, notional=%.8f, min_notional=%.8f — символ %s",
                 qty,
                 min_qty,
+                notional,
+                min_notional,
+                symbol,
             )
             return {"status": "error", "message": "qty below min_qty"}
 
@@ -991,6 +1015,12 @@ def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
         pair = _to_usdt_pair(symbol)
         step_size = get_lot_step(pair)
         qty = adjust_qty_to_step(quantity, step_size)
+        logger.debug(
+            "[dev] 🧪 Перевірка перед create_order: qty=%.8f, step_size=%.8f, price=%.8f",
+            qty,
+            step_size,
+            price,
+        )
         order = client.create_order(
             symbol=pair,
             side="SELL",
@@ -1012,6 +1042,12 @@ def place_limit_sell(symbol: str, quantity: float) -> dict:
     try:
         step_size = get_lot_step(pair)
         qty = adjust_qty_to_step(quantity, step_size)
+        logger.debug(
+            "[dev] 🧪 Перевірка перед create_order: qty=%.8f, step_size=%.8f, price=%.8f",
+            qty,
+            step_size,
+            price,
+        )
         order = client.create_order(
             symbol=pair,
             side="SELL",
@@ -1055,6 +1091,12 @@ def place_take_profit_order(
     try:
         step_size = get_lot_step(symbol)
         qty = adjust_qty_to_step(quantity, step_size)
+        logger.debug(
+            "[dev] 🧪 Перевірка перед create_order: qty=%.8f, step_size=%.8f, price=%.8f",
+            qty,
+            step_size,
+            take_profit_price,
+        )
         response = client.create_order(
             symbol=symbol,
             side=SIDE_SELL,
@@ -1082,6 +1124,12 @@ def create_take_profit_order(symbol: str, quantity: float, target_price: float) 
         step_size = get_lot_step(symbol)
         qty = adjust_qty_to_step(quantity, step_size)
         quantity_str = f"{qty:.8f}".rstrip("0").rstrip(".")
+        logger.debug(
+            "[dev] 🧪 Перевірка перед create_order: qty=%.8f, step_size=%.8f, price=%.8f",
+            qty,
+            step_size,
+            target_price,
+        )
         order = client.create_order(
             symbol=symbol,
             side='SELL',
@@ -1104,6 +1152,12 @@ def place_stop_limit_buy_order(
         pair = _to_usdt_pair(symbol)
         step_size = get_lot_step(pair)
         qty = adjust_qty_to_step(quantity, step_size)
+        logger.debug(
+            "[dev] 🧪 Перевірка перед create_order: qty=%.8f, step_size=%.8f, price=%.8f",
+            qty,
+            step_size,
+            limit_price,
+        )
         order = client.create_order(
             symbol=pair,
             side="BUY",
@@ -1133,6 +1187,12 @@ def place_stop_limit_sell_order(
         pair = _to_usdt_pair(symbol)
         step_size = get_lot_step(pair)
         qty = adjust_qty_to_step(quantity, step_size)
+        logger.debug(
+            "[dev] 🧪 Перевірка перед create_order: qty=%.8f, step_size=%.8f, price=%.8f",
+            qty,
+            step_size,
+            limit_price,
+        )
         order = client.create_order(
             symbol=pair,
             side="SELL",
@@ -1161,6 +1221,12 @@ def place_stop_loss_order(
     try:
         step_size = get_lot_step(symbol)
         qty = adjust_qty_to_step(quantity, step_size)
+        logger.debug(
+            "[dev] 🧪 Перевірка перед create_order: qty=%.8f, step_size=%.8f, price=%.8f",
+            qty,
+            step_size,
+            stop_price,
+        )
         order = client.create_order(
             symbol=symbol,
             side=SIDE_SELL,
@@ -1440,15 +1506,32 @@ def _fallback_market_sell(asset: str, quantity: float) -> bool:
         return False
 
     min_notional = get_min_notional(pair)
+    min_qty = get_min_qty(pair)
     step_size = get_lot_step(pair)
     step = Decimal(str(step_size))
     qty = (Decimal(str(quantity)) // step) * step
     qty = qty.quantize(step, rounding=decimal.ROUND_DOWN)
     if qty <= 0:
+        logger.warning(
+            "[dev] ❌ Покупка відхилена: qty=%.8f, min_qty=%.8f, notional=%.8f, min_notional=%.8f — символ %s",
+            float(qty),
+            min_qty,
+            float(qty) * price,
+            min_notional,
+            pair,
+        )
         return False
 
     notional = qty * price
     if notional < min_notional:
+        logger.warning(
+            "[dev] ❌ Покупка відхилена: qty=%.8f, min_qty=%.8f, notional=%.8f, min_notional=%.8f — символ %s",
+            float(qty),
+            min_qty,
+            notional,
+            min_notional,
+            pair,
+        )
         return False
 
     try:
@@ -1798,6 +1881,12 @@ def place_limit_sell_order(symbol: str, quantity: float, price: float) -> dict:
     try:
         step_size = get_lot_step(symbol)
         qty = adjust_qty_to_step(quantity, step_size)
+        logger.debug(
+            "[dev] 🧪 Перевірка перед create_order: qty=%.8f, step_size=%.8f, price=%.8f",
+            qty,
+            step_size,
+            price,
+        )
         response = client.create_order(
             symbol=symbol,
             side=Client.SIDE_SELL,
