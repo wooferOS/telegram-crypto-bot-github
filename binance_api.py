@@ -857,6 +857,7 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
         qty = usdt_amount / current_price
         step_size, min_qty = get_lot_step(pair)
         qty_adj = adjust_qty_to_step(qty, step_size, min_qty)
+        logger.debug("[dev] 🧮 qty=%s step=%s adjusted=%s", qty, step_size, qty_adj)
         if qty_adj < min_qty:
             logger.warning(
                 "[dev] ❌ qty %s для %s менше за minQty %s — пропущено",
