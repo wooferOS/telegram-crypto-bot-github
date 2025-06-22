@@ -996,12 +996,15 @@ def place_sell_order(symbol: str, quantity: float, price: float) -> bool:
 
     try:
         pair = _to_usdt_pair(symbol)
+        step_size = get_lot_step(pair)
+        min_qty = get_min_qty(pair)
+        qty = adjust_qty_to_step(quantity, step_size, min_qty)
         order = client.create_order(
             symbol=pair,
             side="SELL",
             type="LIMIT",
             timeInForce="GTC",
-            quantity=round(quantity, 6),
+            quantity=qty,
             price=str(round(price, 5)),
         )
         return True
@@ -1015,12 +1018,15 @@ def place_limit_sell(symbol: str, quantity: float) -> dict:
     pair = _to_usdt_pair(symbol)
     price = get_symbol_price(pair)
     try:
+        step_size = get_lot_step(pair)
+        min_qty = get_min_qty(pair)
+        qty = adjust_qty_to_step(quantity, step_size, min_qty)
         order = client.create_order(
             symbol=pair,
             side="SELL",
             type="LIMIT",
             timeInForce="GTC",
-            quantity=round(quantity, 6),
+            quantity=qty,
             price=str(round(price, 6)),
         )
         return {"success": True, "order": order}
@@ -1056,11 +1062,14 @@ def place_take_profit_order(
         take_profit_price = round(current_price * (1 + profit_percent / 100), 8)
 
     try:
+        step_size = get_lot_step(symbol)
+        min_qty = get_min_qty(symbol)
+        qty = adjust_qty_to_step(quantity, step_size, min_qty)
         response = client.create_order(
             symbol=symbol,
             side=SIDE_SELL,
             type=ORDER_TYPE_LIMIT,
-            quantity=quantity,
+            quantity=qty,
             timeInForce=TIME_IN_FORCE_GTC,
             price=str(take_profit_price),
         )
@@ -1080,7 +1089,10 @@ def create_take_profit_order(symbol: str, quantity: float, target_price: float) 
 
     try:
         price_str = f"{target_price:.8f}".rstrip("0").rstrip(".")
-        quantity_str = f"{quantity:.8f}".rstrip("0").rstrip(".")
+        step_size = get_lot_step(symbol)
+        min_qty = get_min_qty(symbol)
+        qty = adjust_qty_to_step(quantity, step_size, min_qty)
+        quantity_str = f"{qty:.8f}".rstrip("0").rstrip(".")
         order = client.create_order(
             symbol=symbol,
             side='SELL',
@@ -1101,12 +1113,15 @@ def place_stop_limit_buy_order(
 
     try:
         pair = _to_usdt_pair(symbol)
+        step_size = get_lot_step(pair)
+        min_qty = get_min_qty(pair)
+        qty = adjust_qty_to_step(quantity, step_size, min_qty)
         order = client.create_order(
             symbol=pair,
             side="BUY",
             type="STOP_LOSS_LIMIT",
             timeInForce="GTC",
-            quantity=round(quantity, 6),
+            quantity=qty,
             price=str(round(limit_price, 6)),
             stopPrice=str(round(stop_price, 6)),
         )
@@ -1128,12 +1143,15 @@ def place_stop_limit_sell_order(
 
     try:
         pair = _to_usdt_pair(symbol)
+        step_size = get_lot_step(pair)
+        min_qty = get_min_qty(pair)
+        qty = adjust_qty_to_step(quantity, step_size, min_qty)
         order = client.create_order(
             symbol=pair,
             side="SELL",
             type="STOP_LOSS_LIMIT",
             timeInForce="GTC",
-            quantity=round(quantity, 6),
+            quantity=qty,
             price=str(round(limit_price, 6)),
             stopPrice=str(round(stop_price, 6)),
         )
@@ -1154,12 +1172,15 @@ def place_stop_loss_order(
     """Створити стандартний Stop Loss ордер."""
 
     try:
+        step_size = get_lot_step(symbol)
+        min_qty = get_min_qty(symbol)
+        qty = adjust_qty_to_step(quantity, step_size, min_qty)
         order = client.create_order(
             symbol=symbol,
             side=SIDE_SELL,
             type=ORDER_TYPE_STOP_LOSS_LIMIT,
             timeInForce=TIME_IN_FORCE_GTC,
-            quantity=round(quantity, 6),
+            quantity=qty,
             price=str(stop_price),
             stopPrice=str(stop_price),
         )
@@ -1389,7 +1410,8 @@ def get_lot_step(symbol: str) -> float:
     filters = get_symbol_filters(symbol)
     for f in filters:
         if f["filterType"] == "LOT_SIZE":
-            return float(f.get("stepSize", "1"))
+            step = float(f.get("stepSize", "1"))
+            return round(step, 8)
     return 1.0
 
 
@@ -1789,12 +1811,15 @@ def place_limit_sell_order(symbol: str, quantity: float, price: float) -> dict:
     Виставляє лімітний ордер на продаж з ціною Take Profit.
     """
     try:
+        step_size = get_lot_step(symbol)
+        min_qty = get_min_qty(symbol)
+        qty = adjust_qty_to_step(quantity, step_size, min_qty)
         response = client.create_order(
             symbol=symbol,
             side=Client.SIDE_SELL,
             type=Client.ORDER_TYPE_LIMIT,
             timeInForce=Client.TIME_IN_FORCE_GTC,
-            quantity=round(quantity, 5),
+            quantity=qty,
             price=str(price)
         )
         logger.info(f"✅ Виставлено лімітний ордер на продаж {symbol} по {price}")
@@ -1810,14 +1835,17 @@ def place_take_profit_order_auto(symbol: str, quantity: float | None = None, tar
     try:
         if quantity is None:
             balance = get_token_balance(symbol.replace("USDT", ""))
-            quantity = round(balance * 0.99, 5)
+            quantity = balance * 0.99
 
         pair = _to_usdt_pair(symbol)
+        step_size = get_lot_step(pair)
+        min_qty = get_min_qty(pair)
+        qty = adjust_qty_to_step(quantity, step_size, min_qty)
         params = {
             "symbol": pair,
             "side": "SELL",
             "type": "LIMIT",
-            "quantity": quantity,
+            "quantity": qty,
             "price": str(target_price),
             "timeInForce": "GTC",
         }
@@ -1836,14 +1864,17 @@ def place_stop_loss_order_auto(symbol: str, quantity: float | None = None, stop_
     try:
         if quantity is None:
             balance = get_token_balance(symbol.replace("USDT", ""))
-            quantity = round(balance * 0.99, 5)
+            quantity = balance * 0.99
 
         pair = _to_usdt_pair(symbol)
+        step_size = get_lot_step(pair)
+        min_qty = get_min_qty(pair)
+        qty = adjust_qty_to_step(quantity, step_size, min_qty)
         params = {
             "symbol": pair,
             "side": "SELL",
             "type": "STOP_LOSS_LIMIT",
-            "quantity": quantity,
+            "quantity": qty,
             "stopPrice": str(stop_price),
             "price": str(stop_price),
             "timeInForce": "GTC",

@@ -22,20 +22,17 @@ def convert_to_uah(amount_usdt: float) -> float:
     return round(amount_usdt * get_usdt_to_uah_rate(), 2)
 
 
+from decimal import Decimal, ROUND_DOWN
+
+
 def adjust_qty_to_step(qty: float, step_size: float) -> float:
-    """Округлює кількість вниз відповідно до stepSize фільтру LOT_SIZE"""
+    """Округлює qty вниз до кратного step_size згідно фільтра LOT_SIZE"""
 
-    import decimal
-
-    precision = abs(decimal.Decimal(str(step_size)).as_tuple().exponent)
-    adjusted_qty = float(
-        round(
-            decimal.Decimal(qty)
-            - decimal.Decimal(qty) % decimal.Decimal(step_size),
-            precision,
-        )
+    precision = abs(Decimal(str(step_size)).as_tuple().exponent)
+    adjusted_qty = Decimal(str(qty)).quantize(
+        Decimal(str(step_size)), rounding=ROUND_DOWN
     )
-    return adjusted_qty
+    return float(adjusted_qty)
 
 
 def calculate_rr(klines: List[List[float]]) -> float:
