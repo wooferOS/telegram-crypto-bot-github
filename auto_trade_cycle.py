@@ -749,6 +749,10 @@ async def buy_with_remaining_usdt(
         d_qty = Decimal(str(qty))
         d_step = Decimal(str(step))
         d_min = Decimal(str(min_qty))
+        logger.warning(
+            "[dev] DEBUG VALID: (qty - min_qty) % step_size = %.8f",
+            (d_qty - d_min) % d_step,
+        )
         return ((d_qty - d_min) % d_step) == 0
 
     if usdt_balance <= 0:
@@ -779,6 +783,12 @@ async def buy_with_remaining_usdt(
         raw_qty = usdt_balance / price
         qty = adjust_qty_to_step(raw_qty, step_size)
         min_qty = get_min_qty(pair)
+        logger.warning(
+            "[dev] DEBUG: qty=%.8f, step_size=%.8f, min_qty=%.8f",
+            qty,
+            step_size,
+            min_qty,
+        )
         logger.info(
             "[dev] 🧮 Перевірка qty=%.8f, stepSize=%.8f, minQty=%.8f",
             qty,
