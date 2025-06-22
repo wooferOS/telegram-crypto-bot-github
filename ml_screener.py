@@ -5,7 +5,7 @@ from config import (
     BINANCE_SECRET_KEY,
 )
 
-from binance_api import get_symbol_price, get_candlestick_klines as get_klines
+from binance_api import get_symbol_price, get_klines_safe as get_klines
 import numpy as np
 from ml_model import load_model, generate_features, predict_prob_up
 from utils import dynamic_tp_sl, calculate_expected_profit

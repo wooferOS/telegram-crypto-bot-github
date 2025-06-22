@@ -9,7 +9,7 @@ if TYPE_CHECKING:  # Avoid circular import at runtime
         get_usdt_to_uah_rate,
         get_price_history_24h,
         get_symbol_price,
-        get_candlestick_klines as get_klines,
+        get_klines_safe as get_klines,
     )
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,7 @@ def dynamic_tp_sl(closes: List[float], price: float) -> tuple[float, float]:
 
 def estimate_profit_debug(symbol: str) -> float:
     try:
-        from binance_api import get_symbol_price, get_candlestick_klines as get_klines
+        from binance_api import get_symbol_price, get_klines_safe as get_klines
 
         pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
         price = get_symbol_price(pair)
