@@ -14,9 +14,7 @@ warnings.filterwarnings("ignore", category=UserWarning)
 from config import MIN_EXPECTED_PROFIT, MIN_PROB_UP
 from typing import Dict, List, Optional
 from collections import Counter
-
-# Summary of executed trades for reporting
-TRADE_SUMMARY = {"sold": [], "bought": []}
+from constants import TRADE_SUMMARY
 
 
 # Configuration values are provided explicitly by callers
