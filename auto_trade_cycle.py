@@ -856,6 +856,9 @@ async def main(chat_id: int) -> dict:
 
     # 1. Buy if only USDT is available
     if usdt_balance > 0 and not portfolio_tokens:
+        logger.info(
+            "[dev] \ud83d\udcb0 Вхід у режим купівлі на весь баланс USDT — portfolio_tokens порожній"
+        )
         await buy_with_remaining_usdt(
             usdt_balance,
             top_tokens,
