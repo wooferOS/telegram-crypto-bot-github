@@ -25,7 +25,7 @@ def _ensure_structure(data: dict) -> dict:
     return result
 
 
-async def ask_gpt(messages: list) -> Optional[str]:
+async def ask_gpt(messages: list, max_tokens: int = 1200) -> Optional[str]:
     """Send ``messages`` to OpenAI using the ``OPENAI_API_KEY`` from config."""
 
     import aiohttp
@@ -51,7 +51,7 @@ async def ask_gpt(messages: list) -> Optional[str]:
         "model": "gpt-4o",
         "messages": messages,
         "temperature": 0.4,
-        "max_tokens": 1200,
+        "max_tokens": max_tokens,
     }
 
     try:
