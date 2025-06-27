@@ -573,8 +573,12 @@ def convert_small_balance(from_asset: str, to_asset: str = "USDT") -> None:
         )
 
 
-def try_convert(symbol_from: str, symbol_to: str, amount: float) -> Optional[dict]:
+def try_convert(symbol_from: str, symbol_to: str, amount: float, *, reason: str = "") -> Optional[dict]:
     """Attempt conversion via Binance Convert API."""
+
+    logger.info(
+        f"[dev] 🔁 Конверсія {symbol_from} → {symbol_to} через convert, причина: {reason}"
+    )
 
     try:
         url = f"{BINANCE_BASE_URL}/sapi/v1/convert/getQuote"
@@ -607,6 +611,9 @@ def try_convert(symbol_from: str, symbol_to: str, amount: float) -> Optional[dic
         return {**result, "status": "success"}
     except Exception as exc:  # pragma: no cover - network errors
         logger.error("❌ Помилка при конвертації %s: %s", symbol_from, exc)
+        logger.warning(
+            f"[dev] ❌ Convert не вдався: {symbol_from}, причина: {reason}"
+        )
         msg = str(exc)
         if "Signature for this request" in msg or "-1022" in msg:
             return {"status": "error", "message": "invalid_signature"}
@@ -660,7 +667,7 @@ def convert_to_usdt(asset: str, amount: float):
     except Exception as exc:  # pragma: no cover - handle below
         logger.warning("convert_trade fallback: %s", exc)
 
-    return try_convert(asset, "USDT", amount)
+    return try_convert(asset, "USDT", amount, reason="convert_to_usdt")
 
 
 def get_account_balances() -> Dict[str, Dict[str, str]]:
@@ -955,8 +962,12 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
         return {"status": "error", "message": str(e)}
 
 
-def market_sell(symbol: str, quantity: float) -> dict:
+def market_sell(symbol: str, quantity: float, expected_profit: float = 0.0) -> dict:
     """Виконує ринковий продаж криптовалюти на вказану кількість."""
+
+    logger.info(
+        f"[dev] 📤 Спроба продати: {symbol}, баланс={quantity:.8f}, expected_profit={expected_profit:.4f}"
+    )
 
     try:
         step_size = get_lot_step(symbol)
@@ -967,20 +978,17 @@ def market_sell(symbol: str, quantity: float) -> dict:
         notional = qty * price
 
         if qty < min_qty or qty == 0 or notional < min_notional:
+            reason = "filter"
             logger.warning(
-                "[dev] ❌ Покупка відхилена: qty=%.8f, min_qty=%.8f, notional=%.8f, min_notional=%.8f — символ %s",
-                qty,
-                min_qty,
-                notional,
-                min_notional,
-                symbol,
+                f"[dev] ⚠️ Продаж заблоковано: {symbol}, причина: {reason}"
             )
             return {"status": "error", "message": "qty below min_qty"}
 
         for _ in range(10):
             try:
                 order = client.order_market_sell(symbol=symbol, quantity=float(qty))
-                logger.info("✅ Продано %s %s", qty, symbol)
+                received_amount = qty * price
+                logger.info(f"[dev] ✅ Продано {symbol} → USDT ≈ {received_amount:.4f}")
                 return {**order, "status": "success"}
             except BinanceAPIException as e:
                 if "LOT_SIZE" in str(e):
