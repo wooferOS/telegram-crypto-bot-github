@@ -60,6 +60,7 @@ async def send_messages(chat_id: int, messages: list[str]):
                     json={"chat_id": chat_id, "text": msg},
                     timeout=aiohttp.ClientTimeout(total=10),
                 )
+                logger.info("[dev] 📬 Звіт надіслано в Telegram")
             except Exception as exc:
                 logger.warning(
                     "❌ Не вдалося надіслати повідомлення Telegram: %s", exc

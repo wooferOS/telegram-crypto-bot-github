@@ -697,7 +697,12 @@ async def send_conversion_signals(
         precision = max(2, min(4, precision))
         to_qty = s.get('to_amount')
         to_amount = _human_amount(to_qty, precision)
-        result = try_convert(s.get('from_symbol'), s.get('to_symbol'), s.get('from_amount'))
+        result = try_convert(
+            s.get('from_symbol'),
+            s.get('to_symbol'),
+            s.get('from_amount'),
+            reason="auto_trade_cycle",
+        )
         if result and result.get("status") == "success":
             lines.append(
                 f"✅ Конвертовано {s.get('from_symbol')} → {s.get('to_symbol')}\nFROM: {s.get('from_amount'):.4f}\nTO: ≈{to_amount}\nML={s.get('ml_proba'):.2f}, exp={s.get('expected_profit'):.2f}, RRR={s.get('rrr', 0):.2f}, score={s.get('score', 0):.2f}"
@@ -791,7 +796,7 @@ async def buy_with_remaining_usdt(
     logger.info("[dev] Купівля на залишок: top_tokens = %s", top_tokens)
     tried_tokens = [p for p, _ in top_tokens]
     if not top_tokens:
-        logger.warning("[dev] ⚠️ Купівля: top_tokens порожній — fallback на top-1.")
+        logger.warning("[dev] ❕ top_tokens порожній — fallback на найкращу доступну пару")
         try:
             predictions = load_predictions()
         except Exception:  # pragma: no cover - diagnostics only
@@ -809,6 +814,9 @@ async def buy_with_remaining_usdt(
         price = get_symbol_price(pair)
         if price <= 0:
             continue
+        logger.info(
+            f"[dev] 🛒 Купівля: {symbol}, USDT={usdt_balance:.4f}, score={data.get('score', 0):.4f}"
+        )
         step_size = get_lot_step(pair)
         min_qty = get_min_qty(pair)
         raw_qty = usdt_balance / price
@@ -884,10 +892,7 @@ async def buy_with_remaining_usdt(
         if result.get("status") != "success":
             reason = result.get("message", "невідома помилка")
             logger.warning(
-                "[dev] ❗ Купівля не відбулась: qty=%s, min_notional=%s, причина: %s",
-                result.get("qty"),
-                result.get("min_notional"),
-                reason,
+                f"[dev] ❌ Купівля не відбулась: {symbol}, qty={result.get('qty', 0):.8f}, причина: {reason}"
             )
             continue
 
@@ -921,6 +926,8 @@ async def buy_with_remaining_usdt(
 async def main(chat_id: int) -> dict:
     """Simplified auto-trade cycle relying on daily predictions."""
 
+    logger.info("[dev] 🔄 Старт трейд-циклу")
+
     from constants import TRADE_SUMMARY
     TRADE_SUMMARY.setdefault("sold", [])
     TRADE_SUMMARY.setdefault("bought", [])
@@ -942,7 +949,7 @@ async def main(chat_id: int) -> dict:
     top_tokens = filter_top_tokens(predictions, limit=3, gpt_forecast=gpt_forecast)
 
     if not top_tokens:
-        logger.warning("[dev] ❗ top_tokens порожній — fallback на найкращу пару")
+        logger.warning("[dev] ❕ top_tokens порожній — fallback на найкращу доступну пару")
         sorted_preds = sorted(
             predictions.items(),
             key=lambda x: x[1].get("score", x[1].get("prob_up", 0) * x[1].get("expected_profit", 0)),
@@ -950,16 +957,18 @@ async def main(chat_id: int) -> dict:
         )
         top_tokens = sorted_preds[:3]
 
+    logger.info(f"[dev] 🎯 Top токени для купівлі: {top_tokens}")
+
     if "update_binance_cache" in globals():
         try:
             update_binance_cache()
         except Exception as exc:
             logger.warning("[dev] ⚠️ Не вдалося оновити кеш балансу: %s", exc)
     balances = get_binance_balances()
-    usdt_before = balances.get("USDT", 0.0)
-    logger.info("[dev] Баланс USDT перед трейдом: %.4f", usdt_before)
+    usdt_balance = balances.get("USDT", 0.0)
+    logger.info(f"[dev] 💰 Баланс USDT: {usdt_balance:.4f}")
     logger.info("[dev] Портфель: %s", balances)
-    usdt_balance = usdt_before
+    usdt_before = usdt_balance
     portfolio_tokens = [
         t for t in balances if t != "USDT" and f"{t}USDT" in VALID_PAIRS
     ]
@@ -975,6 +984,7 @@ async def main(chat_id: int) -> dict:
             chat_id=chat_id,
             gpt_forecast=gpt_forecast,
         )
+        logger.info("[dev] 📬 Спроба виконати купівлю завершена")
         logger.info("[dev] TRADE_SUMMARY: %s", TRADE_SUMMARY)
         if "update_binance_cache" in globals():
             try:
@@ -983,6 +993,7 @@ async def main(chat_id: int) -> dict:
                 logger.warning("[dev] ⚠️ Не вдалося оновити кеш балансу: %s", exc)
         after = get_binance_balances().get("USDT", 0.0)
         logger.info("[dev] Баланс USDT після трейду: %.4f", after)
+        logger.info("[dev] ✅ Завершення трейд-циклу")
         return {
             "sold": TRADE_SUMMARY.get('sold'),
             "bought": TRADE_SUMMARY.get('bought'),
@@ -1006,6 +1017,7 @@ async def main(chat_id: int) -> dict:
             chat_id=chat_id,
             gpt_forecast=gpt_forecast,
         )
+        logger.info("[dev] 📬 Спроба виконати купівлю завершена")
         logger.info("[dev] TRADE_SUMMARY: %s", TRADE_SUMMARY)
         if "update_binance_cache" in globals():
             try:
@@ -1025,6 +1037,7 @@ async def main(chat_id: int) -> dict:
             chat_id=chat_id,
             gpt_forecast=gpt_forecast,
         )
+        logger.info("[dev] 📬 Спроба виконати купівлю завершена")
         logger.info("[dev] TRADE_SUMMARY: %s", TRADE_SUMMARY)
         if "update_binance_cache" in globals():
             try:
@@ -1033,6 +1046,7 @@ async def main(chat_id: int) -> dict:
                 logger.warning("[dev] ⚠️ Не вдалося оновити кеш балансу: %s", exc)
         after = get_binance_balances().get("USDT", 0.0)
         logger.info("[dev] Баланс USDT після трейду: %.4f", after)
+        logger.info("[dev] ✅ Завершення трейд-циклу")
         return {
             "sold": TRADE_SUMMARY.get('sold'),
             "bought": TRADE_SUMMARY.get('bought'),
@@ -1067,6 +1081,7 @@ async def main(chat_id: int) -> dict:
                 chat_id=chat_id,
                 gpt_forecast=gpt_forecast,
             )
+            logger.info("[dev] 📬 Спроба виконати купівлю завершена")
             logger.info("[dev] TRADE_SUMMARY: %s", TRADE_SUMMARY)
 
     if "update_binance_cache" in globals():
@@ -1076,6 +1091,7 @@ async def main(chat_id: int) -> dict:
             logger.warning("[dev] ⚠️ Не вдалося оновити кеш балансу: %s", exc)
     after = get_binance_balances().get("USDT", 0.0)
     logger.info("[dev] Баланс USDT після трейду: %.4f", after)
+    logger.info("[dev] ✅ Завершення трейд-циклу")
     return {
         "sold": TRADE_SUMMARY.get('sold'),
         "bought": TRADE_SUMMARY.get('bought'),
