@@ -574,6 +574,13 @@ def sell_unprofitable_assets(
     if not portfolio or not predictions:
         return []
 
+    profitable = [
+        asset
+        for asset in portfolio
+        if predictions.get(asset if asset.endswith("USDT") else f"{asset}USDT", {}).get("expected_profit", 0) > 0
+    ]
+    logger.info(f"[dev] 🔍 Перевірка активів на продаж: {profitable}")
+
     top3 = sorted(
         predictions.items(),
         key=lambda x: x[1].get("expected_profit", 0.0),
@@ -598,6 +605,8 @@ def sell_unprofitable_assets(
             logger.info(f"[dev] Продано {amount} {token}")
             TRADE_SUMMARY.get('sold').append(f"{token} ({amount:.6f})")
             sold_tokens.append(token)
+            usdt_after = get_binance_balances().get("USDT", 0.0)
+            logger.info(f"[dev] 💰 Доступно після продажу: {usdt_after:.2f}")
         elif result.get("status") == "converted":
             logger.info(f"[dev] Сконвертовано {amount} {token}")
             sold_tokens.append(token)
@@ -768,6 +777,17 @@ async def buy_with_remaining_usdt(
     if usdt_balance <= 0:
         logger.warning("[dev] ⚠️ Купівля неможлива — баланс USDT = 0")
         return None
+
+    logger.info("[dev] ➕ Купівля: top_tokens=%s, USDT=%.2f", top_tokens, usdt_balance)
+
+    filtered_tokens = [t for t in top_tokens if t[1].get("score", 0) > 0.01]
+    if not filtered_tokens:
+        logger.info(
+            "[dev] ❕ Всі топ токени мають низький score, виконуємо примусову купівлю першого"
+        )
+        filtered_tokens = top_tokens[:1]
+    top_tokens = filtered_tokens
+
     logger.info("[dev] Купівля на залишок: top_tokens = %s", top_tokens)
     tried_tokens = [p for p, _ in top_tokens]
     if not top_tokens:
@@ -862,7 +882,13 @@ async def buy_with_remaining_usdt(
         result = market_buy_symbol_by_amount(symbol, usdt_balance)
 
         if result.get("status") != "success":
-            logger.warning("[dev] ❌ Binance повернув помилку, угода не відбулась: %s", result)
+            reason = result.get("message", "невідома помилка")
+            logger.warning(
+                "[dev] ❗ Купівля не відбулась: qty=%s, min_notional=%s, причина: %s",
+                result.get("qty"),
+                result.get("min_notional"),
+                reason,
+            )
             continue
 
         TRADE_SUMMARY.get('bought').append(f"Залишок → {symbol} на {usdt_balance:.2f}")
@@ -914,6 +940,15 @@ async def main(chat_id: int) -> dict:
 
     gpt_forecast = load_gpt_filters()
     top_tokens = filter_top_tokens(predictions, limit=3, gpt_forecast=gpt_forecast)
+
+    if not top_tokens:
+        logger.warning("[dev] ❗ top_tokens порожній — fallback на найкращу пару")
+        sorted_preds = sorted(
+            predictions.items(),
+            key=lambda x: x[1].get("score", x[1].get("prob_up", 0) * x[1].get("expected_profit", 0)),
+            reverse=True,
+        )
+        top_tokens = sorted_preds[:3]
 
     if "update_binance_cache" in globals():
         try:
