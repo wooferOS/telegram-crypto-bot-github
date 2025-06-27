@@ -843,6 +843,8 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
 
         quantity = amount / price
         step_size = get_lot_step(pair)
+        min_qty = get_min_qty(pair)
+        min_notional = get_min_notional(pair)
         quantity = adjust_qty_to_step(quantity, step_size)
         logger.debug(
             "[dev] 🧪 Перевірка перед create_order: qty=%.8f, step_size=%.8f, price=%.8f",
@@ -850,6 +852,23 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
             step_size,
             price,
         )
+        notional = quantity * price
+        if quantity < min_qty or notional < min_notional:
+            logger.warning(
+                "[dev] ❗ Купівля не відбулась: qty=%.8f, min_qty=%.8f, notional=%.8f, min_notional=%.8f",
+                quantity,
+                min_qty,
+                notional,
+                min_notional,
+            )
+            return {
+                "status": "error",
+                "message": "qty below min_qty",
+                "qty": float(quantity),
+                "min_qty": float(min_qty),
+                "notional": float(notional),
+                "min_notional": float(min_notional),
+            }
         result = client.create_order(
             symbol=pair,
             side=SIDE_BUY,
@@ -885,14 +904,20 @@ def market_buy(symbol: str, usdt_amount: float) -> dict:
         notional = qty_adj * current_price
         if qty_adj < min_qty or notional < min_notional:
             logger.warning(
-                "[dev] ❌ Покупка відхилена: qty=%.8f, min_qty=%.8f, notional=%.8f, min_notional=%.8f — символ %s",
+                "[dev] ❗ Купівля не відбулась: qty=%.8f, min_qty=%.8f, notional=%.8f, min_notional=%.8f",
                 qty_adj,
                 min_qty,
                 notional,
                 min_notional,
-                pair,
             )
-            return {"status": "error", "message": "qty below min_qty"}
+            return {
+                "status": "error",
+                "message": "qty below min_qty",
+                "qty": float(qty_adj),
+                "min_qty": float(min_qty),
+                "notional": float(notional),
+                "min_notional": float(min_notional),
+            }
 
         logger.info(
             "[dev] Кориговано qty для %s: з %s → %s (stepSize: %s)",
