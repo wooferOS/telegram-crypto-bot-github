@@ -783,7 +783,7 @@ async def buy_with_remaining_usdt(
         logger.warning("[dev] ⚠️ Купівля неможлива — баланс USDT = 0")
         return None
 
-    logger.info("[dev] ➕ Купівля: top_tokens=%s, USDT=%.2f", top_tokens, usdt_balance)
+    logger.info(f"[dev] ➕ Купівля: top_tokens={top_tokens}, USDT={usdt_balance:.2f}")
 
     filtered_tokens = [t for t in top_tokens if t[1].get("score", 0) > 0.01]
     if not filtered_tokens:
@@ -1090,6 +1090,10 @@ async def main(chat_id: int) -> dict:
         except Exception as exc:
             logger.warning("[dev] ⚠️ Не вдалося оновити кеш балансу: %s", exc)
     after = get_binance_balances().get("USDT", 0.0)
+    if not TRADE_SUMMARY.get("sold") and not TRADE_SUMMARY.get("bought"):
+        logger.warning(
+            "[dev] ❌ Жодна угода не виконана — слабкий ринок або проблеми з лотами"
+        )
     logger.info("[dev] Баланс USDT після трейду: %.4f", after)
     logger.info("[dev] ✅ Завершення трейд-циклу")
     return {
