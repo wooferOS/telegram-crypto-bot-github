@@ -868,6 +868,14 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
                 notional,
                 min_notional,
             )
+            logger.warning(
+                "[dev] ❌ Купівля не відбулась: qty=%.8f < min_qty=%.8f або notional=%.8f < min_notional=%.8f для %s",
+                quantity,
+                min_qty,
+                notional,
+                min_notional,
+                symbol,
+            )
             return {
                 "status": "error",
                 "message": "qty below min_qty",
