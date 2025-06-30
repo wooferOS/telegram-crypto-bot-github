@@ -703,6 +703,13 @@ async def send_conversion_signals(
             s.get('from_amount'),
             reason="auto_trade_cycle",
         )
+        if result and result.get("status") == "error":
+            logger.warning(
+                "[dev] ⚠️ Конвертація не вдалася для %s: %s",
+                s.get('from_symbol'),
+                result.get("error", "невідома помилка"),
+            )
+            continue
         if result and result.get("status") == "success":
             lines.append(
                 f"✅ Конвертовано {s.get('from_symbol')} → {s.get('to_symbol')}\nFROM: {s.get('from_amount'):.4f}\nTO: ≈{to_amount}\nML={s.get('ml_proba'):.2f}, exp={s.get('expected_profit'):.2f}, RRR={s.get('rrr', 0):.2f}, score={s.get('score', 0):.2f}"
@@ -902,6 +909,14 @@ async def buy_with_remaining_usdt(
             )
             continue
 
+        if result.get("status") == "error":
+            logger.warning(
+                "[dev] ⚠️ Купівля після продажу не вдалася для %s: %s",
+                symbol,
+                result.get("error", "невідома помилка"),
+            )
+            continue
+
         if result.get("status") != "success":
             reason = result.get("message", "невідома помилка")
             logger.warning(
@@ -929,6 +944,12 @@ async def buy_with_remaining_usdt(
             logger.warning(
                 "[dev] ❌ Fallback купівля не вдалася для %s — create_order не виконано",
                 fallback_symbol,
+            )
+        elif result.get("status") == "error":
+            logger.warning(
+                "[dev] ⚠️ Купівля після продажу не вдалася для %s: %s",
+                fallback_symbol,
+                result.get("error", "невідома помилка"),
             )
         elif result.get("status") == "success":
             TRADE_SUMMARY.get('bought').append(
@@ -1033,8 +1054,10 @@ async def main(chat_id: int) -> dict:
             except Exception as exc:
                 logger.warning("[dev] ⚠️ Не вдалося оновити кеш балансу: %s", exc)
         updated_balances = get_binance_balances()
+        usdt_balance = updated_balances.get("USDT", 0.0)
+        logger.info("[dev] 🛒 Купівля після продажу: USDT=%.4f", usdt_balance)
         await buy_with_remaining_usdt(
-            updated_balances.get("USDT", 0.0),
+            usdt_balance,
             top_tokens,
             chat_id=chat_id,
             gpt_forecast=gpt_forecast,
