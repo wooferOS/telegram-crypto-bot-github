@@ -137,15 +137,9 @@ if __name__ == "__main__":
     if not os.path.exists("predictions.json"):
         from daily_analysis import generate_zarobyty_report
         asyncio.run(generate_zarobyty_report())
-    (
-        _,
-        _,
-        _,
-        _,
-        _,
-        gpt_forecast,
-        predictions,
-    ) = generate_conversion_signals(gpt_filters, gpt_forecast)
+    conversion_data = generate_conversion_signals(gpt_filters, gpt_forecast)
+    gpt_forecast = conversion_data[-2]
+    predictions = conversion_data[-1]
 
 
     portfolio = {
