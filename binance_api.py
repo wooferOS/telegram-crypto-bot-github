@@ -884,22 +884,26 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
                 "notional": float(notional),
                 "min_notional": float(min_notional),
             }
-        result = client.create_order(
+        order = client.create_order(
             symbol=pair,
             side=SIDE_BUY,
             type=ORDER_TYPE_MARKET,
             quantity=quantity,
         )
-        if result.get("status") != "FILLED":
-            logger.warning("[dev] ❌ Ордер не виконано повністю: %s", result)
-            return {"status": "error", "message": "Order not filled"}
-        return {"status": "success", "message": "Filled"}
+        if order.get("status") != "FILLED":
+            logger.warning("[dev] ❌ Ордер не виконано повністю: %s", order)
+        return {
+            "status": "success",
+            "symbol": symbol,
+            "qty": float(quantity),
+            "order": order,
+        }
     except BinanceAPIException as e:  # pragma: no cover - network errors
         logger.warning("[dev] Binance buy error for %s: %s", pair, e)
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "symbol": symbol, "qty": float(quantity), "error": str(e)}
     except Exception as exc:
         logger.warning("[dev] Unexpected buy error for %s: %s", pair, exc)
-        return {"status": "error", "message": str(exc)}
+        return {"status": "error", "symbol": symbol, "qty": float(quantity), "error": str(exc)}
 
 def market_buy(symbol: str, usdt_amount: float) -> dict:
     """Ринкова купівля ``symbol`` на вказану суму в USDT."""
