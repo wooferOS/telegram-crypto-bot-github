@@ -821,7 +821,10 @@ async def buy_with_remaining_usdt(
         min_qty = get_min_qty(pair)
         raw_qty = usdt_balance / price
         qty = raw_qty
-        step_tmp = get_lot_step(symbol)
+        # ``get_lot_step`` expects the full Binance symbol like "FETUSDT".
+        # Passing just "FET" would cause ``get_symbol_info`` to return ``None``
+        # which leads to crashes. Use ``pair`` here to avoid that.
+        step_tmp = get_lot_step(pair)
         qty = adjust_qty_to_step(qty, step_tmp)
         logger.info(
             "[dev] 🔢 LOT_SIZE step=%.10f, adjusted_qty=%.10f",
