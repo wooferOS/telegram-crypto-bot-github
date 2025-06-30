@@ -591,6 +591,13 @@ def try_convert(symbol_from: str, symbol_to: str, amount: float, *, reason: str 
         }
         params["signature"] = client._generate_signature(params)
         response = requests.post(url, headers=headers, params=params, timeout=10)
+        if "Signature" in str(response.text):
+            logger.warning(
+                "[dev] ❌ Convert не вдався: %s → %s, причина: invalid_signature",
+                symbol_from,
+                symbol_to,
+            )
+            return {"status": "error", "error": "invalid_signature"}
         data = response.json()
         if "quoteId" not in data:
             raise Exception(data)
