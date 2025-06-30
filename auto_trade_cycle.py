@@ -888,6 +888,10 @@ async def buy_with_remaining_usdt(
         )
         logger.info("[dev] Купівля на залишок: %s — qty=%.6f price=%.6f", symbol, qty, price)
         result = market_buy_symbol_by_amount(symbol, usdt_balance)
+        logger.info(
+            "[dev] 🛒 Результат покупки через market_buy_symbol_by_amount: %s",
+            result,
+        )
         if result is None:
             logger.warning(
                 "[dev] ❌ Fallback купівля не вдалася для %s — create_order не виконано",
@@ -914,6 +918,10 @@ async def buy_with_remaining_usdt(
             fallback_symbol,
         )
         result = market_buy_symbol_by_amount(fallback_symbol, usdt_balance)
+        logger.info(
+            "[dev] 🛒 Результат покупки через market_buy_symbol_by_amount: %s",
+            result,
+        )
         if result is None:
             logger.warning(
                 "[dev] ❌ Fallback купівля не вдалася для %s — create_order не виконано",
