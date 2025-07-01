@@ -1,5 +1,7 @@
 """Entry point for scheduled auto trade cycle with rate limiting."""
 
+from datetime import datetime
+
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -8,7 +10,6 @@ import asyncio
 import json
 import os
 import time
-from datetime import datetime
 
 import logging
 
@@ -108,6 +109,15 @@ def backtest() -> None:
     print(f"Backtest success rate: {successes}/{total} = {rate:.1f}%")
 
 if __name__ == "__main__":
+    def is_market_window_active():
+        """Активні години ринку: 01:00–09:00 UTC (04:00–12:00 за Києвом)"""
+        utc_hour = datetime.utcnow().hour
+        return 1 <= utc_hour < 9
+
+    if not is_market_window_active():
+        logger.info("[dev] 💤 Ринок неактивний — трейд-цикл пропущено")
+        raise SystemExit
+
     refresh_valid_pairs()
     parser = argparse.ArgumentParser()
     parser.add_argument("--backtest", action="store_true", help="run backtest only")
