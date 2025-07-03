@@ -1,7 +1,6 @@
 """Entry point for scheduled auto trade cycle with rate limiting."""
 
 from datetime import datetime
-
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -10,10 +9,13 @@ import asyncio
 import json
 import os
 import time
-
 import logging
 
 from log_setup import setup_logging
+
+setup_logging()
+logger = logging.getLogger(__name__)
+logger.info("🚀 run_auto_trade.py запущено")
 
 from auto_trade_cycle import (
     main,
@@ -37,22 +39,13 @@ from config import (
 )
 from services.telegram_service import send_messages
 
-logger = logging.getLogger(__name__)
-
-# Ensure VALID_PAIRS is up to date before trading begins
 refresh_valid_pairs()
 
-# Minimum allowed interval between automated runs (1 hour)
 MIN_AUTO_TRADE_INTERVAL = 3600
-# Effective interval is the greater of the config value and our minimum
 AUTO_INTERVAL = max(TRADE_LOOP_INTERVAL, MIN_AUTO_TRADE_INTERVAL)
-
-# Timestamp persistence file used to throttle automated runs
 LAST_RUN_FILE = ".last_run.json"
 
-
 def _time_since_last_run() -> float:
-    """Return seconds elapsed since the previous run."""
     if not os.path.exists(LAST_RUN_FILE):
         return AUTO_INTERVAL + 1
     try:
@@ -63,94 +56,33 @@ def _time_since_last_run() -> float:
         return AUTO_INTERVAL + 1
     return time.time() - last
 
-
 def _store_run_time() -> None:
-    """Persist current timestamp to ``LAST_RUN_FILE``."""
     try:
         with open(LAST_RUN_FILE, "w", encoding="utf-8") as f:
             json.dump({"timestamp": time.time()}, f)
     except OSError:
         pass
 
-
-def backtest() -> None:
-    """Simple 24h backtest using recorded trade history."""
-    history = _load_history()
-    if not history:
-        print("No trade history available")
-        return
-    successes = 0
-    total = 0
-    now = time.time()
-    for item in history:
-        ts = item.get("timestamp")
-        if not ts:
-            continue
-        try:
-            trade_time = datetime.fromisoformat(ts).timestamp()
-        except Exception:
-            continue
-        if now - trade_time < 24 * 3600:
-            continue
-        symbol = item.get("symbol")
-        pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
-        price_now = get_symbol_price(pair)
-        if not price_now:
-            continue
-        exp = float(item.get("expected_profit", 0))
-        total += 1
-        if item.get("action") == "buy":
-            if price_now - item.get("price", 0) >= exp:
-                successes += 1
-        else:
-            if item.get("price", 0) - price_now >= exp:
-                successes += 1
-    rate = successes / total * 100 if total else 0.0
-    print(f"Backtest success rate: {successes}/{total} = {rate:.1f}%")
+def is_market_window_active():
+    utc_hour = datetime.utcnow().hour
+    return utc_hour in {2, 3, 13, 14}  # Китай (UTC+8) 10–11, США (UTC-4/5) 09–10
 
 if __name__ == "__main__":
-    def is_market_window_active():
-        """Активні години ринку: 01:00–09:00 UTC (04:00–12:00 за Києвом)"""
-        utc_hour = datetime.utcnow().hour
-        return 1 <= utc_hour < 9
-
     if not is_market_window_active():
         logger.info("[dev] 💤 Ринок неактивний — трейд-цикл пропущено")
         raise SystemExit
 
-    refresh_valid_pairs()
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--backtest", action="store_true", help="run backtest only")
-    args = parser.parse_args()
-
-    setup_logging()
-    logger.info("[dev] ✅ VALID_PAIRS оновлено: %d пар", len(VALID_PAIRS))
-    if not VALID_PAIRS:
-        logger.error(
-            "[dev] ❌ VALID_PAIRS порожній — неможливо отримати дані з Binance"
-        )
-        raise SystemExit(1)
-    logger.info("[dev] 🚀 Автоматичний трейдинг запущено")
-
-    if args.backtest:
-        backtest()
-        raise SystemExit
-
-    # Sell assets with low expected profit before running the main cycle
     gpt_forecast = load_gpt_filters()
     gpt_filters = {
         "do_not_buy": gpt_forecast.get("do_not_buy", []),
         "recommend_buy": gpt_forecast.get("recommend_buy", []),
     }
 
-    # Створити predictions.json, якщо він відсутній
     if not os.path.exists("predictions.json"):
-        from daily_analysis import generate_zarobyty_report
         asyncio.run(generate_zarobyty_report())
     conversion_data = generate_conversion_signals(gpt_filters, gpt_forecast)
     gpt_forecast = conversion_data[-2]
     predictions = conversion_data[-1]
-
 
     portfolio = {
         asset: amt
@@ -160,49 +92,55 @@ if __name__ == "__main__":
     sold_before = sell_unprofitable_assets(portfolio, predictions, gpt_forecast)
 
     elapsed = _time_since_last_run()
-    if elapsed >= AUTO_INTERVAL or sold_before:
+    usdt_balance = get_binance_balances().get("USDT", 0)
+
+    if elapsed >= AUTO_INTERVAL or sold_before or usdt_balance > 1:
         if elapsed < AUTO_INTERVAL and sold_before:
             logger.info("[dev] ⏱️ Запуск поза інтервалом через продаж активів")
+
         MAX_ATTEMPTS = 5
         attempt = 0
         summary = {"sold": [], "bought": []}
-
-        sold: list[str] | None = []
-        bought: list[str] | None = []
+        if sold_before:
+            summary["sold"].extend(sold_before)
 
         while attempt < MAX_ATTEMPTS:
-            summary = asyncio.run(main(int(ADMIN_CHAT_ID)))
-            sold = summary.get("sold")
-            bought = summary.get("bought")
-            logger.info(
-                f"[dev] Спроба {attempt + 1}: продано: {sold}, куплено: {bought}"
-            )
-            if sold or bought:
+            cycle_result = asyncio.run(main(int(ADMIN_CHAT_ID)))
+            summary["sold"].extend(cycle_result.get("sold", []))
+            summary["bought"].extend(cycle_result.get("bought", []))
+            logger.info(f"[dev] Спроба {attempt + 1}: продано: {summary['sold']}, куплено: {summary['bought']}")
+            if summary["sold"] or summary["bought"]:
                 break
             attempt += 1
             logger.info(f"[dev] ⏳ Спроба {attempt}: жодної угоди. Повторюємо...")
 
         _store_run_time()
 
-        if summary.get("sold") or summary.get("bought"):
+        if summary["sold"] or summary["bought"]:
             lines = ["[dev] 🧾 Звіт:"]
-            if summary.get("sold"):
+            if summary["sold"]:
                 lines.append("\n🔁 Продано:")
-                lines.extend(summary.get('sold'))
-            if summary.get("bought"):
+                lines.extend(summary["sold"])
+            if summary["bought"]:
                 lines.append("\n📈 Куплено:")
-                lines.extend(summary.get('bought'))
-            lines.append(f"\n💰 Баланс до: {summary.get('before', 0):.2f} USDT")
-            lines.append(f"💰 Баланс після: {summary.get('after', 0):.2f} USDT")
+                lines.extend(summary["bought"])
+            lines.append(f"\n💰 Баланс до: {cycle_result.get('before', 0):.2f} USDT")
+            lines.append(f"💰 Баланс після: {cycle_result.get('after', 0):.2f} USDT")
             lines.append("\n✅ Завершено успішно.")
             asyncio.run(send_messages(int(CHAT_ID), ["\n".join(lines)]))
         else:
-            logger.warning(
-                "[dev] ❌ Після 5 спроб не вдалося виконати жодної угоди"
-            )
+            logger.warning("[dev] ❌ Після 5 спроб не вдалося виконати жодної угоди")
+            logger.info("[dev] ⚠️ Причина: ймовірно всі токени відфільтровано або заблоковано (min_notional / lot_size / баланс)")
+            lines = [
+                "[dev] ⚠️ Усі 5 спроб завершились без дій.",
+                "Можливі причини:",
+                "- усі токени відфільтровано (score = 0 або low prob_up)",
+                "- недостатній баланс для покупки",
+                "- Binance обмеження (min_notional / lot_size)",
+                "\n🕒 Цикл завершено без угод."
+            ]
+            asyncio.run(send_messages(int(CHAT_ID), ["\n".join(lines)]))
     else:
         minutes = int(elapsed / 60)
-        msg = (
-            f"Автотрейд-цикл не запущено — останній запуск був {minutes} хвилин тому."
-        )
+        msg = f"Автотрейд-цикл не запущено — останній запуск був {minutes} хвилин тому."
         asyncio.run(send_messages(int(CHAT_ID), [msg]))
