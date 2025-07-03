@@ -67,7 +67,46 @@ def is_market_window_active():
     utc_hour = datetime.utcnow().hour
     return utc_hour in {2, 3, 13, 14}  # Китай (UTC+8) 10–11, США (UTC-4/5) 09–10
 
+def backtest() -> None:
+    history = _load_history()
+    if not history:
+        print("No trade history available")
+        return
+    successes = 0
+    total = 0
+    now = time.time()
+    for item in history:
+        ts = item.get("timestamp")
+        if not ts:
+            continue
+        try:
+            trade_time = datetime.fromisoformat(ts).timestamp()
+        except Exception:
+            continue
+        if now - trade_time < 24 * 3600:
+            continue
+        symbol = item.get("symbol")
+        pair = symbol if symbol.endswith("USDT") else f"{symbol}USDT"
+        price_now = get_symbol_price(pair)
+        if not price_now:
+            continue
+        exp = float(item.get("expected_profit", 0))
+        total += 1
+        if item.get("action") == "buy":
+            if price_now - item.get("price", 0) >= exp:
+                successes += 1
+        else:
+            if item.get("price", 0) - price_now >= exp:
+                successes += 1
+    rate = successes / total * 100 if total else 0.0
+    print(f"Backtest success rate: {successes}/{total} = {rate:.1f}%")
+
+
 if __name__ == "__main__":
+    def is_market_window_active():
+        utc_hour = datetime.utcnow().hour
+        return 1 <= utc_hour < 9
+
     if not is_market_window_active():
         logger.info("[dev] 💤 Ринок неактивний — трейд-цикл пропущено")
         raise SystemExit
