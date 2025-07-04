@@ -937,7 +937,7 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
         }
     except BinanceAPIException as e:  # pragma: no cover - network errors
         logger.warning("[dev] Binance buy error for %s: %s", pair, e)
-        return {"status": "error", "symbol": symbol, "qty": float(quantity), "error": str(e)}
+        return {"status": "error", "symbol": symbol, "qty": float(quantity), "error": str(e), "order": None}
     except Exception as exc:
         logger.warning("[dev] Unexpected buy error for %s: %s", pair, exc)
         return {"status": "error", "symbol": symbol, "qty": float(quantity), "error": str(exc)}
