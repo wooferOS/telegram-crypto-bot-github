@@ -63,9 +63,18 @@ def _store_run_time() -> None:
     except OSError:
         pass
 
-def is_market_window_active():
-    utc_hour = datetime.utcnow().hour
-    return utc_hour in {2, 3, 13, 14}  # Китай (UTC+8) 10–11, США (UTC-4/5) 09–10
+def is_market_window_active() -> bool:
+    """Return True during the Chinese or US market windows."""
+    now = datetime.utcnow()
+    minutes = now.hour * 60 + now.minute
+
+    cn_start = 5 * 60 + 1
+    us_start = 16 * 60 + 31
+
+    return (
+        cn_start <= minutes < cn_start + 60
+        or us_start <= minutes < us_start + 60
+    )
 
 def backtest() -> None:
     history = _load_history()
@@ -103,10 +112,6 @@ def backtest() -> None:
 
 
 if __name__ == "__main__":
-    def is_market_window_active():
-        utc_hour = datetime.utcnow().hour
-        return 1 <= utc_hour < 9
-
     if not is_market_window_active():
         logger.info("[dev] 💤 Ринок неактивний — трейд-цикл пропущено")
         raise SystemExit
@@ -131,6 +136,12 @@ if __name__ == "__main__":
     sold_before = sell_unprofitable_assets(portfolio, predictions, gpt_forecast)
 
     elapsed = _time_since_last_run()
+    if elapsed < MIN_AUTO_TRADE_INTERVAL:
+        logger.info(
+            "[dev] ⏳ Пропущено запуск — цикл вже працював менш ніж годину тому."
+        )
+        raise SystemExit
+
     usdt_balance = get_binance_balances().get("USDT", 0)
 
     if elapsed >= AUTO_INTERVAL or sold_before or usdt_balance > 1:
