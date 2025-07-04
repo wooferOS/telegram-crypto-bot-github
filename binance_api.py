@@ -903,7 +903,7 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
                 )
                 break
             except BinanceAPIException as e:
-                if "Insufficient balance" in str(e):
+                if "Insufficient balance" in str(e) or "NOTIONAL" in str(e):
                     quantity *= 0.99
                     quantity = adjust_qty_to_step(quantity, step_size)
                     logger.warning(
