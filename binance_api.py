@@ -848,12 +848,12 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
         pair = f"{base}USDT".upper()
         if pair not in VALID_PAIRS:
             logger.warning("[dev] ⛔ %s не торгується", pair)
-            return {"status": "error", "message": "invalid_symbol"}
+            return {"status": "error", "message": "invalid_symbol", "order": None}
 
         price = get_symbol_price(pair)
         if not price:
             logger.warning("[dev] ⛔ Price unavailable for %s", pair)
-            return {"status": "error", "message": "no_price"}
+            return {"status": "error", "message": "no_price", "order": None}
 
         quantity = amount / price
         step_size = get_lot_step(pair)
@@ -890,6 +890,7 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
                 "min_qty": float(min_qty),
                 "notional": float(notional),
                 "min_notional": float(min_notional),
+                "order": None,
             }
         attempts = 0
         max_attempts = 3
@@ -926,6 +927,7 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
                         "symbol": symbol,
                         "qty": float(quantity),
                         "error": str(e),
+                        "order": None,
                     }
         if order.get("status") != "FILLED":
             logger.warning("[dev] ❌ Ордер не виконано повністю: %s", order)
@@ -940,7 +942,13 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
         return {"status": "error", "symbol": symbol, "qty": float(quantity), "error": str(e), "order": None}
     except Exception as exc:
         logger.warning("[dev] Unexpected buy error for %s: %s", pair, exc)
-        return {"status": "error", "symbol": symbol, "qty": float(quantity), "error": str(exc)}
+        return {
+            "status": "error",
+            "symbol": symbol,
+            "qty": float(quantity),
+            "error": str(exc),
+            "order": None,
+        }
 
 def market_buy(symbol: str, usdt_amount: float) -> dict:
     """Ринкова купівля ``symbol`` на вказану суму в USDT."""
