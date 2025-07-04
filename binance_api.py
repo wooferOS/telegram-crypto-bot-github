@@ -906,8 +906,11 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
                 if "Insufficient balance" in str(e) or "NOTIONAL" in str(e):
                     quantity *= 0.99
                     quantity = adjust_qty_to_step(quantity, step_size)
+                    if quantity <= 0.0:
+                        logger.warning("[dev] ❌ Retry зупинено — quantity стало 0.0")
+                        break
                     logger.warning(
-                        "[dev] \ud83d\udd01 Retry #%d: qty=%.8f \u043f\u0456\u0441\u043b\u044f \u043f\u043e\u043c\u0438\u043b\u043a\u0438: %s",
+                        "[dev] Retry #%d: qty=%.8f після помилки: %s",
                         attempts + 1,
                         quantity,
                         e,
