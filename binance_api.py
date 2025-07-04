@@ -891,12 +891,39 @@ def market_buy_symbol_by_amount(symbol: str, amount: float) -> Dict[str, object]
                 "notional": float(notional),
                 "min_notional": float(min_notional),
             }
-        order = client.create_order(
-            symbol=pair,
-            side=SIDE_BUY,
-            type=ORDER_TYPE_MARKET,
-            quantity=quantity,
-        )
+        attempts = 0
+        max_attempts = 3
+        while attempts < max_attempts:
+            try:
+                order = client.create_order(
+                    symbol=pair,
+                    side=SIDE_BUY,
+                    type=ORDER_TYPE_MARKET,
+                    quantity=quantity,
+                )
+                break
+            except BinanceAPIException as e:
+                if "Insufficient balance" in str(e):
+                    quantity *= 0.99
+                    quantity = adjust_qty_to_step(quantity, step_size)
+                    logger.warning(
+                        "[dev] \ud83d\udd01 Retry #%d: qty=%.8f \u043f\u0456\u0441\u043b\u044f \u043f\u043e\u043c\u0438\u043b\u043a\u0438: %s",
+                        attempts + 1,
+                        quantity,
+                        e,
+                    )
+                    attempts += 1
+                    continue
+                else:
+                    logger.warning(
+                        "[dev] \u274c Binance buy error for %s: %s", pair, e
+                    )
+                    return {
+                        "status": "error",
+                        "symbol": symbol,
+                        "qty": float(quantity),
+                        "error": str(e),
+                    }
         if order.get("status") != "FILLED":
             logger.warning("[dev] ❌ Ордер не виконано повністю: %s", order)
         return {
