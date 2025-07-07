@@ -45,7 +45,10 @@ def get_available_to_tokens(from_token: str) -> List[str]:
     params = _sign({"fromAsset": from_token})
     resp = _session.get(url, params=params, headers=_headers(), timeout=10)
     data = resp.json()
-    return [item["toAsset"] for item in data if "toAsset" in item]
+    # Ensure compatibility with both list and dict responses
+    if isinstance(data, list):
+        data = {"toAssetList": data}
+    return [item.get("toAsset") for item in data.get("toAssetList", [])]
 
 
 def get_quote(from_token: str, to_token: str, amount: float) -> Dict[str, Any]:
