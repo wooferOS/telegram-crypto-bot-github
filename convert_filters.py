@@ -3,6 +3,7 @@ import time
 from typing import Dict, Tuple
 from config_dev3 import MIN_NOTIONAL
 from utils_dev3 import load_json
+import json
 
 HISTORY_FILE = "convert_history.json"
 
@@ -24,3 +25,15 @@ def check_filters(pair_data: dict) -> Tuple[bool, str]:
         return False, "quote_validity"
 
     return True, ""
+
+
+def is_duplicate_conversion(from_token: str, to_token: str) -> bool:
+    try:
+        with open("convert_history.json", "r") as f:
+            history = json.load(f)
+        for entry in history:
+            if entry.get("from") == from_token and entry.get("to") == to_token:
+                return True
+    except Exception:
+        pass
+    return False
