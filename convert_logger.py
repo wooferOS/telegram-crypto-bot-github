@@ -43,3 +43,29 @@ def log_quote(from_token: str, to_token: str, quote_data: dict) -> None:
     logger.info(
         f"[dev3] \U0001F4E5 Quote {from_token} → {to_token}: {json.dumps(quote_data, indent=2)}"
     )
+
+
+import os
+import json
+from datetime import datetime
+
+
+def log_convert_history(entry: dict):
+    """Append a single convert entry to logs/convert_history.json"""
+    os.makedirs("logs", exist_ok=True)
+    path = "logs/convert_history.json"
+
+    if os.path.exists(path):
+        with open(path, "r") as f:
+            try:
+                history = json.load(f)
+            except json.JSONDecodeError:
+                history = []
+    else:
+        history = []
+
+    entry["timestamp"] = datetime.utcnow().isoformat()
+    history.append(entry)
+
+    with open(path, "w") as f:
+        json.dump(history, f, indent=2)
