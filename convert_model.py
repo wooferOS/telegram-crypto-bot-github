@@ -2,6 +2,8 @@ import logging
 import os
 from typing import Any, Tuple
 
+import numpy as np
+
 import joblib
 
 MODEL_PATH = "model_convert.joblib"
@@ -25,8 +27,10 @@ def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, fl
     if not model:
         return 0.0, 0.5, 0.0
     try:
-        ratio = float(quote_data.get("ratio", 0))
-        features = [[ratio, float(quote_data.get("toAmount", 0))]]
+        score = quote_data.get("score", 0.0)
+        ratio = quote_data.get("ratio", 0.0)
+        inverse_ratio = quote_data.get("inverseRatio", 0.0)
+        features = np.array([[score, ratio, inverse_ratio]])
         if hasattr(model, "predict_proba"):
             prob = float(model.predict_proba(features)[0][1])
         else:
