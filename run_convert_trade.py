@@ -1,6 +1,7 @@
 import os
 import glob
 from typing import List
+import subprocess
 
 from convert_api import get_balances, get_available_to_tokens
 from convert_cycle import process_pair
@@ -43,15 +44,13 @@ def main() -> None:
     cleanup()
     logger.info("[dev3] ✅ Цикл завершено")
 
-    import subprocess
-
-    # 🔁 Автоматичне навчання моделі після завершення циклу
+    # 🧠 Автоматичне навчання моделі
     try:
         logger.info("[dev3] 📚 Починаємо автоматичне навчання моделі...")
         subprocess.run(["python3", "train_convert_model.py"], check=True)
         logger.info("[dev3] ✅ Навчання завершено")
     except Exception as e:
-        logger.warning(f"[dev3] ⚠️ Помилка під час навчання: {e}")
+        logger.warning(f"[dev3] ❌ Помилка навчання моделі: {e}")
 
 
 if __name__ == "__main__":
