@@ -1,6 +1,39 @@
+import atexit
+from collections import defaultdict
+from typing import Dict, Iterable, List, Optional
+
 import requests
-from typing import Iterable
 from config_dev3 import TELEGRAM_CHAT_ID, TELEGRAM_TOKEN
+
+
+_current_from_token: Optional[str] = None
+_pending: Dict[str, List[str]] = defaultdict(list)
+
+
+def flush_failures() -> None:
+    """Send aggregated failure message for the current FROM token."""
+    global _current_from_token, _pending
+    if not _current_from_token or not _pending:
+        return
+    if len(_pending) == 1:
+        reason, tokens = next(iter(_pending.items()))
+        tokens_str = ", ".join(tokens)
+        msg = (
+            f"[dev3] ❌ Відхилено {_current_from_token} → [{tokens_str}]\n"
+            f"Причина: {reason}"
+        )
+    else:
+        lines = [f"[dev3] ❌ Відхилено {_current_from_token}"]
+        for reason, tokens in _pending.items():
+            tokens_str = ", ".join(tokens)
+            lines.append(f"- [{tokens_str}] → {reason}")
+        msg = "\n".join(lines)
+    _send(msg)
+    _current_from_token = None
+    _pending = defaultdict(list)
+
+
+atexit.register(flush_failures)
 
 
 def _send(text: str) -> None:
@@ -17,6 +50,8 @@ def _send(text: str) -> None:
 
 
 def notify_success(from_token: str, to_token: str, amount: float, to_amount: float, score: float, expected_profit: float) -> None:
+    if _current_from_token and from_token != _current_from_token:
+        flush_failures()
     msg = (
         f"[dev3] ✅ Convert {from_token} → {to_token}\n"
         f"🔸 Кількість: {amount} {from_token}\n"
@@ -27,8 +62,8 @@ def notify_success(from_token: str, to_token: str, amount: float, to_amount: flo
 
 
 def notify_failure(from_token: str, to_token: str, reason: str) -> None:
-    msg = (
-        f"[dev3] ❌ Відхилено: {from_token} → {to_token}\n"
-        f"Причина: {reason}"
-    )
-    _send(msg)
+    global _current_from_token, _pending
+    if _current_from_token and from_token != _current_from_token:
+        flush_failures()
+    _current_from_token = from_token
+    _pending[reason].append(to_token)
