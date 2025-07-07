@@ -1,5 +1,6 @@
 import logging
 import os
+import json
 
 LOG_FILE = os.path.join("logs", "trade_convert.log")
 ERROR_LOG_FILE = os.path.join("logs", "convert_errors.log")
@@ -35,4 +36,10 @@ def log_trade(data: dict) -> None:
         data.get("accepted"),
         data.get("error"),
         data.get("response"),
+    )
+
+
+def log_quote(from_token: str, to_token: str, quote_data: dict) -> None:
+    logger.info(
+        f"[dev3] \U0001F4E5 Quote {from_token} → {to_token}: {json.dumps(quote_data, indent=2)}"
     )
