@@ -43,6 +43,16 @@ def main() -> None:
     cleanup()
     logger.info("[dev3] ✅ Цикл завершено")
 
+    import subprocess
+
+    # 🔁 Автоматичне навчання моделі після завершення циклу
+    try:
+        logger.info("[dev3] 📚 Починаємо автоматичне навчання моделі...")
+        subprocess.run(["python3", "train_convert_model.py"], check=True)
+        logger.info("[dev3] ✅ Навчання завершено")
+    except Exception as e:
+        logger.warning(f"[dev3] ⚠️ Помилка під час навчання: {e}")
+
 
 if __name__ == "__main__":
     main()

@@ -24,20 +24,23 @@ def main() -> None:
         logger.info("No history found")
         return
     with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-        data = json.load(f)
+        history = json.load(f)
 
     # ✅ Фільтруємо лише записи з явним accepted: true або false
-    data = [item for item in data if item.get("accepted") in [True, False]]
+    history = [item for item in history if item.get("accepted") in [True, False]]
 
-    if not data:
+    # Використовуємо лише останні 500 прикладів
+    history = history[-500:]
+
+    if not history:
         print("❌ Недостатньо даних для навчання: accepted == True/False відсутні.")
         return
 
     X = np.array([
         [item.get("score", 0.0), item.get("ratio", 0.0), item.get("inverseRatio", 0.0)]
-        for item in data
+        for item in history
     ])
-    y = np.array([item["accepted"] for item in data])
+    y = np.array([item["accepted"] for item in history])
 
     print(
         f"✅ Навчання на {len(X)} прикладах ({sum(y)} позитивних, {len(y)-sum(y)} негативних)"
@@ -46,7 +49,7 @@ def main() -> None:
     model = RandomForestRegressor(n_estimators=50)
     model.fit(X, y)
     joblib.dump(model, MODEL_PATH)
-    logger.info("Model trained on %d records", len(data))
+    logger.info("Model trained on %d records", len(history))
 
 
 if __name__ == "__main__":
