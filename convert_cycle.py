@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import List, Dict, Tuple
 
 from convert_api import get_quote, accept_quote
@@ -6,11 +5,9 @@ from convert_logger import (
     logger,
     save_convert_history,
 )
-from convert_model import predict
 from convert_filters import filter_top_tokens
 from convert_notifier import send_telegram
-from quote_counter import get_count, QUOTE_LIMIT, seconds_until_reset
-import time
+from quote_counter import can_request_quote, increment_quote_usage
 
 
 # Allow executing quotes with low score for model training
@@ -26,20 +23,24 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
     all_tokens: Dict[str, Dict] = {}
     skipped_pairs: List[Tuple[str, float, str]] = []  # (token, score, reason)
 
+    max_quotes_per_cycle = 20
+    quotes_used = 0
+
     for to_token in to_tokens:
-        if get_count() >= QUOTE_LIMIT:
-            current = get_count()
+        if quotes_used >= max_quotes_per_cycle:
             logger.warning(
-                "[dev3] 🛑 Досягнуто QUOTE_LIMIT (%s), цикл завершено.",
-                current,
+                "[dev3] ⚠️ Досягнуто ліміту get_quote у цьому циклі (%s)",
+                max_quotes_per_cycle,
             )
-            send_telegram(
-                "[dev3] ❗ Досягнуто ліміту getQuote — цикл завершено."
-            )
-            time.sleep(seconds_until_reset())
+            break
+
+        if not can_request_quote():
+            logger.warning("[dev3] ⛔ Досягнуто добового ліміту get_quote від Binance")
             break
 
         quote = get_quote(from_token, to_token, amount)
+        increment_quote_usage()
+        quotes_used += 1
         if isinstance(quote, dict) and quote.get("code") == 345239:
             logger.warning(
                 "[dev3] 🟥 Ліміт Binance Convert API вичерпано (code=345239). Завершення циклу."
