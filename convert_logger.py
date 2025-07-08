@@ -80,6 +80,11 @@ def log_convert_history(entry: dict):
         json.dump(history, f, indent=2)
 
 
+def save_convert_history(entry: dict) -> None:
+    """Alias for log_convert_history for backward compatibility."""
+    log_convert_history(entry)
+
+
 def log_conversion_result(quote: dict, accepted: bool) -> None:
     """Log conversion result to history."""
     entry = {
