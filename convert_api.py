@@ -2,7 +2,7 @@ import hmac
 import hashlib
 import logging
 import time
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Set, Optional
 
 import requests
 
@@ -13,6 +13,8 @@ BASE_URL = "https://api.binance.com"
 
 _session = requests.Session()
 logger = logging.getLogger(__name__)
+
+_supported_pairs_cache: Optional[Set[str]] = None
 
 
 def _sign(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -63,3 +65,35 @@ def accept_quote(quote_id: str) -> Dict[str, Any]:
     params = _sign({"quoteId": quote_id})
     resp = _session.post(url, params=params, headers=_headers(), timeout=10)
     return resp.json()
+
+
+def get_all_supported_convert_pairs() -> Set[str]:
+    """Return set of all supported convert pairs."""
+    global _supported_pairs_cache
+    if _supported_pairs_cache is None:
+        url = f"{BASE_URL}/sapi/v1/convert/exchangeInfo"
+        params = _sign({})
+        try:
+            resp = _session.get(url, params=params, headers=_headers(), timeout=10)
+            data = resp.json()
+        except Exception as exc:  # pragma: no cover - diagnostics only
+            logger.warning("Failed to fetch convert pairs: %s", exc)
+            data = {}
+
+        pairs: Set[str] = set()
+        if isinstance(data, dict):
+            for item in data.get("fromAssetList", []):
+                from_asset = item.get("fromAsset")
+                for to in item.get("toAssetList", []):
+                    to_asset = to.get("toAsset")
+                    if from_asset and to_asset:
+                        pairs.add(f"{from_asset}{to_asset}")
+        _supported_pairs_cache = pairs
+    return _supported_pairs_cache
+
+
+def is_valid_convert_pair(from_token: str, to_token: str) -> bool:
+    """Check if pair exists on Binance Convert."""
+    valid_pairs = get_all_supported_convert_pairs()
+    symbol = f"{from_token}{to_token}"
+    return symbol in valid_pairs
