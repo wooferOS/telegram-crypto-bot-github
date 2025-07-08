@@ -6,6 +6,11 @@ from convert_api import get_balances, get_available_to_tokens
 from convert_cycle import process_pair
 from convert_logger import logger
 from config_dev3 import CONVERT_SCORE_THRESHOLD
+from quote_counter import can_request_quote
+
+if not can_request_quote():
+    print("⛔ Ліміт запитів до Convert API досягнуто. Пропускаємо цикл.")
+    exit(0)
 
 CACHE_FILES = [
     "signals.txt",
