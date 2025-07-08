@@ -1,4 +1,18 @@
-def process_pair(from_token, available_to_tokens, model, score_threshold):
+def process_pair(from_token: str, available_to_tokens, amount: float, score_threshold: float):
+    """Process available pairs for a single ``from_token``.
+
+    Parameters
+    ----------
+    from_token: str
+        Asset to convert from.
+    available_to_tokens: Iterable[str]
+        Tokens which are available to convert ``from_token`` to.
+    amount: float
+        Amount of ``from_token`` to use when requesting quotes.
+    score_threshold: float
+        Minimal score required for a quote to be executed.
+    """
+
     from convert_api import get_quote, accept_quote
     from convert_logger import logger, summary_logger
     from convert_model import predict
@@ -8,7 +22,7 @@ def process_pair(from_token, available_to_tokens, model, score_threshold):
     all_quotes = []
 
     for to_token in available_to_tokens:
-        quote = get_quote(from_token, to_token)
+        quote = get_quote(from_token, to_token, amount)
         if not quote:
             continue
 

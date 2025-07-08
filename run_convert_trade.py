@@ -31,9 +31,9 @@ def cleanup() -> None:
 def main() -> None:
     logger.info("[dev3] 🔄 Запуск convert трейдингу")
     balances = get_balances()
-    for token in balances.keys():
+    for token, amount in balances.items():
         tos = get_available_to_tokens(token)
-        process_pair(token, tos, None, CONVERT_SCORE_THRESHOLD)
+        process_pair(token, tos, amount, CONVERT_SCORE_THRESHOLD)
     cleanup()
     logger.info("[dev3] ✅ Цикл завершено")
 
