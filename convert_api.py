@@ -8,7 +8,7 @@ import requests
 
 from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
 from utils_dev3 import get_current_timestamp
-from quote_counter import increment
+from quote_counter import increment_quote_usage
 
 BASE_URL = "https://api.binance.com"
 
@@ -55,7 +55,7 @@ def get_available_to_tokens(from_token: str) -> List[str]:
 
 
 def get_quote(from_token: str, to_token: str, amount: float) -> Dict[str, Any]:
-    increment()
+    increment_quote_usage()
     url = f"{BASE_URL}/sapi/v1/convert/getQuote"
     params = _sign({"fromAsset": from_token, "toAsset": to_token, "fromAmount": amount})
     resp = _session.post(url, params=params, headers=_headers(), timeout=10)
