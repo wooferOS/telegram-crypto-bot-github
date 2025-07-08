@@ -28,10 +28,10 @@ def process_pair(from_token: str, available_to_tokens, amount: float, score_thre
 
         ratio = float(quote["ratio"])
         _, _, score = predict(from_token, to_token, quote)
-        all_quotes.append({"to_token": to_token, "ratio": ratio, "score": score})
+        all_quotes.append({"to_token": to_token, "ratio": ratio, "score": score, "quote": quote})
 
         if score >= score_threshold:
-            best_quotes.append({"to_token": to_token, "score": score})
+            best_quotes.append({"to_token": to_token, "score": score, "quote": quote})
 
     if not best_quotes:
         logger.warning("[dev3] ⚠️ Fallback: жодна пара не пройшла фільтр. Обираємо top 2 за ratio.")
@@ -41,8 +41,12 @@ def process_pair(from_token: str, available_to_tokens, amount: float, score_thre
     success_count = 0
     for item in best_quotes:
         to_token = item["to_token"]
+        quote = item.get("quote")
         logger.info(f"[dev3] ✅ Конверсія {from_token} → {to_token} (score={item['score']:.4f})")
-        accept_quote(from_token, to_token)
+        if quote and "quoteId" in quote:
+            accept_quote(quote["quoteId"])
+        else:
+            logger.warning("[dev3] ❌ Неможливо прийняти quote — відсутній quoteId або quote = None")
         success_count += 1
 
     skipped_count = len(available_to_tokens) - success_count
