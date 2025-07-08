@@ -33,9 +33,16 @@ def main() -> None:
     # Використовуємо лише останні 500 прикладів
     dataset = dataset[-500:]
 
-    if not dataset:
+    has_true = any(x.get("accepted") is True for x in dataset)
+    has_false = any(x.get("accepted") is False for x in dataset)
+
+    if not has_true and not has_false:
         print("❌ Недостатньо даних для навчання: accepted == True/False відсутні.")
         return
+
+    print(
+        f"🔁 Навчання: accepted=True: {sum(1 for x in dataset if x.get('accepted') is True)}, accepted=False: {sum(1 for x in dataset if x.get('accepted') is False)}"
+    )
 
     X_train = np.array([
         [item.get("score", 0.0), item.get("ratio", 0.0), item.get("inverseRatio", 0.0)]
