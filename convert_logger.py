@@ -78,3 +78,18 @@ def log_convert_history(entry: dict):
 
     with open(path, "w") as f:
         json.dump(history, f, indent=2)
+
+
+def log_conversion_result(quote: dict, accepted: bool) -> None:
+    """Log conversion result to history."""
+    entry = {
+        "quoteId": quote.get("quoteId"),
+        "from": quote.get("fromAsset"),
+        "to": quote.get("toAsset"),
+        "ratio": quote.get("ratio"),
+        "inverseRatio": quote.get("inverseRatio"),
+        "score": quote.get("score"),
+        "expected_profit": quote.get("expected_profit"),
+        "accepted": accepted,
+    }
+    log_convert_history(entry)
