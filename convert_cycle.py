@@ -26,7 +26,10 @@ def process_pair(from_token: str, available_to_tokens, amount: float, score_thre
         if not quote:
             continue
 
-        ratio = float(quote["ratio"])
+        ratio = float(quote.get("ratio", 0))
+        if ratio == 0:
+            logger.warning("[dev3] ❌ Не вдалося отримати ratio для %s → %s", from_token, to_token)
+            return
         _, _, score = predict(from_token, to_token, quote)
         all_quotes.append({"to_token": to_token, "ratio": ratio, "score": score, "quote": quote})
 
