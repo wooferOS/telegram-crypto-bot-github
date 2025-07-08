@@ -25,6 +25,20 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
     for to_token in to_tokens:
         quote = get_quote(from_token, to_token, amount)
         quotes_map[to_token] = quote
+        # Save all quotes for training, even if not accepted later
+        if quote and "ratio" in quote:
+            record = {
+                "from_token": from_token,
+                "to_token": to_token,
+                "score": float(quote.get("score", 0)),
+                "expected_profit": float(quote.get("expected_profit", 0)),
+                "prob_up": float(quote.get("prob_up", 0)),
+                "ratio": float(quote.get("ratio")),
+                "from_amount": float(quote.get("fromAmount", 0)),
+                "to_amount": float(quote.get("toAmount", 0)),
+                "accepted": False,
+            }
+            save_convert_history(record)
         if not quote or "ratio" not in quote:
             reason = "ratio_unavailable"
             logger.warning(
