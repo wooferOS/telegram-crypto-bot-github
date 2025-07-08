@@ -1,12 +1,11 @@
 def process_pair(from_token, available_to_tokens, model, score_threshold):
     from convert_api import get_quote, accept_quote
-    from convert_logger import logger
-    from convert_notifier import log_conversion_response
-    from convert_model import predict_score
+    from convert_logger import logger, summary_logger
+    from convert_model import predict
 
     logger.info(f"[dev3] 🔍 Аналіз для {from_token} → {len(available_to_tokens)} токенів")
-    successful = []
-    fallback_candidates = []
+    best_quotes = []
+    all_quotes = []
 
     for to_token in available_to_tokens:
         quote = get_quote(from_token, to_token)
@@ -14,26 +13,23 @@ def process_pair(from_token, available_to_tokens, model, score_threshold):
             continue
 
         ratio = float(quote["ratio"])
-        inverse_ratio = float(quote["inverseRatio"])
-        features = [[ratio, inverse_ratio, 1.0]]  # dummy feature to match training
-        score = predict_score(model, features)
+        _, _, score = predict(from_token, to_token, quote)
+        all_quotes.append({"to_token": to_token, "ratio": ratio, "score": score})
 
         if score >= score_threshold:
-            logger.info(f"[dev3] ✅ Конверсія {from_token} → {to_token} (score={score:.4f})")
-            response = accept_quote(from_token, to_token)
-            log_conversion_response(response)
-            successful.append((to_token, score))
-        else:
-            logger.info(
-                f"[dev3] ❌ Відмова: {from_token} → {to_token} — score {score:.4f} < threshold {score_threshold}"
-            )
-            fallback_candidates.append((to_token, score))
+            best_quotes.append({"to_token": to_token, "score": score})
 
-    # Якщо нічого не пройшло — fallback: топ-3 з найвищим score
-    if not successful and fallback_candidates:
-        fallback_candidates.sort(key=lambda x: x[1], reverse=True)
-        top_fallbacks = fallback_candidates[:3]
-        for to_token, score in top_fallbacks:
-            logger.warning(f"[dev3] ⚠️ Fallback-конверсія {from_token} → {to_token} (score={score:.4f})")
-            response = accept_quote(from_token, to_token)
-            log_conversion_response(response)
+    if not best_quotes:
+        logger.warning("[dev3] ⚠️ Fallback: жодна пара не пройшла фільтр. Обираємо top 2 за ratio.")
+        quotes_sorted_by_ratio = sorted(all_quotes, key=lambda x: x["ratio"], reverse=True)
+        best_quotes = quotes_sorted_by_ratio[:2]  # навіть якщо score == 0
+
+    success_count = 0
+    for item in best_quotes:
+        to_token = item["to_token"]
+        logger.info(f"[dev3] ✅ Конверсія {from_token} → {to_token} (score={item['score']:.4f})")
+        accept_quote(from_token, to_token)
+        success_count += 1
+
+    skipped_count = len(available_to_tokens) - success_count
+    summary_logger.info(f"Завершено цикл. Успішних: {success_count}, Пропущено: {skipped_count}")
