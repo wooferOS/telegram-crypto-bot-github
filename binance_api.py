@@ -4,6 +4,10 @@ from convert_logger import logger
 BASE_URL = "https://api.binance.com"
 
 _VALID_SYMBOLS: set[str] | None = None
+try:
+    from config_dev3 import VALID_PAIRS
+except Exception:  # pragma: no cover - optional config
+    VALID_PAIRS: set[str] | None = None
 
 
 def get_valid_symbols() -> set[str]:
@@ -27,31 +31,32 @@ def get_valid_symbols() -> set[str]:
 
 def get_historical_prices(symbol: str, interval: str = "5m", limit: int = 100):
     symbol = symbol.upper()
-    if not symbol.endswith("USDT"):
-        test_symbol = symbol + "USDT"
-    else:
-        test_symbol = symbol
 
-    if test_symbol not in get_valid_symbols():
-        logger.warning(f"[dev3] ❌ Symbol {test_symbol} не знайдено на Binance")
+    if not symbol.endswith("USDT"):
+        logger.warning(f"[dev3] ❌ Symbol {symbol} не є парою з USDT")
+        return []
+
+    valid_pairs = VALID_PAIRS or get_valid_symbols()
+    if symbol not in valid_pairs:
+        logger.warning(f"[dev3] ❌ Symbol {symbol} не знайдено на Binance")
         return []
 
     url = f"{BASE_URL}/api/v3/klines"
-    params = {"symbol": test_symbol, "interval": interval, "limit": limit}
+    params = {"symbol": symbol, "interval": interval, "limit": limit}
     try:
         response = requests.get(url, params=params, timeout=10)
         data = response.json()
 
         if isinstance(data, dict) and data.get("code") == -1121:
             logger.warning(
-                f"[dev3] ❌ get_historical_prices failed for {test_symbol}: {data.get('msg')}"
+                f"[dev3] ❌ get_historical_prices failed for {symbol}: {data.get('msg')}"
             )
             return []
 
         if not isinstance(data, list) or not all(
             isinstance(item, list) and len(item) >= 6 for item in data
         ):
-            raise ValueError(f"Invalid response from Binance for {test_symbol}: {data}")
+            raise ValueError(f"Invalid response from Binance for {symbol}: {data}")
 
         candles = []
         for item in data:
@@ -67,7 +72,7 @@ def get_historical_prices(symbol: str, interval: str = "5m", limit: int = 100):
             )
         return candles
     except Exception as exc:  # pragma: no cover - diagnostics only
-        logger.warning(f"[dev3] ❌ get_historical_prices failed for {test_symbol}: {exc}")
+        logger.warning(f"[dev3] ❌ get_historical_prices failed for {symbol}: {exc}")
         return []
 
 
