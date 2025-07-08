@@ -46,6 +46,23 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
     filtered_pairs = filter_top_tokens(all_tokens, score_threshold, top_n=2, fallback_n=1)
     top_results = [(t, data["score"], data["quote"]) for t, data in filtered_pairs]
 
+    # Build opportunities list for post-processing
+    convert_opportunities = [
+        {"from": from_token, "to": t, "score": sc, "quote": q}
+        for t, sc, q in top_results
+    ]
+
+    # 🧹 Remove duplicate 'from' tokens keeping highest score
+    unique_ops = {}
+    for op in convert_opportunities:
+        key = op["from"]
+        if key not in unique_ops or op["score"] > unique_ops[key]["score"]:
+            unique_ops[key] = op
+
+    convert_opportunities = list(unique_ops.values())
+
+    top_results = [(op["to"], op["score"], op["quote"]) for op in convert_opportunities]
+
     # Log selection results
     if top_results:
         logger.info("[dev3] ✅ Обрано токени для купівлі: %s", [t for t, _, _ in top_results])
