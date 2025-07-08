@@ -43,7 +43,8 @@ def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, fl
         from asian_range import is_breakout
         from binance_api import get_last_prices
 
-        symbol = f"{from_token}{to_token}"
+        # Use only the USDT pair for historical analysis
+        symbol = f"{to_token}USDT"
         prices = get_last_prices(symbol)
         if prices:
             rsi = get_rsi(prices)
