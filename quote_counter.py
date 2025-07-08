@@ -48,6 +48,11 @@ def increment() -> int:
     return data["count"]
 
 
+def increment_quote_usage() -> int:
+    """Increment counter alias for clarity."""
+    return increment()
+
+
 def seconds_until_reset() -> float:
     now = datetime.now(timezone.utc)
     tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
