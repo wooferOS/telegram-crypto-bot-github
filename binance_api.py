@@ -79,3 +79,24 @@ def get_historical_prices(symbol: str, interval: str = "5m", limit: int = 100):
 def get_last_prices(symbol: str, limit: int = 100):
     candles = get_historical_prices(symbol, limit=limit)
     return [c["close"] for c in candles]
+
+
+def check_symbol_exists(from_token: str, to_token: str) -> bool:
+    """Return True if ``to_token`` has a USDT pair on Binance."""
+    symbol = f"{to_token}USDT".upper()
+    valid_pairs = VALID_PAIRS or get_valid_symbols()
+    return symbol in valid_pairs
+
+
+def get_ratio(from_token: str, to_token: str, amount: float = 1.0) -> float:
+    """Return conversion ratio using Binance Convert API."""
+    try:
+        from convert_api import get_quote
+
+        data = get_quote(from_token, to_token, amount)
+        return float(data.get("ratio", 0))
+    except Exception as exc:  # pragma: no cover - diagnostics only
+        logger.warning(
+            f"[dev3] ❌ get_ratio failed for {from_token} → {to_token}: {exc}"
+        )
+        return 0.0
