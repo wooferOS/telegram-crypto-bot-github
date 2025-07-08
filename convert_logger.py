@@ -6,24 +6,33 @@ LOG_FILE = os.path.join("logs", "trade_convert.log")
 ERROR_LOG_FILE = os.path.join("logs", "convert_errors.log")
 BALANCE_LOG_FILE = os.path.join("logs", "balance_guard.log")
 
+
 os.makedirs("logs", exist_ok=True)
+formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
 
 logger = logging.getLogger("convert")
 logger.setLevel(logging.INFO)
 
 if not any(isinstance(h, logging.FileHandler) and h.baseFilename.endswith("trade_convert.log") for h in logger.handlers):
     fh = logging.FileHandler(LOG_FILE, encoding="utf-8")
-    fh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    fh.setFormatter(formatter)
     logger.addHandler(fh)
 
 if not any(isinstance(h, logging.FileHandler) and h.baseFilename.endswith("convert_errors.log") for h in logger.handlers):
     eh = logging.FileHandler(ERROR_LOG_FILE, encoding="utf-8")
-    eh.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    eh.setFormatter(formatter)
     eh.setLevel(logging.WARNING)
     logger.addHandler(eh)
 
 if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
     logger.addHandler(logging.StreamHandler())
+
+# Summary logger for overall cycle results
+summary_logger = logging.getLogger("summary")
+summary_handler = logging.FileHandler("logs/convert_summary.log")
+summary_handler.setFormatter(formatter)
+summary_logger.addHandler(summary_handler)
+summary_logger.setLevel(logging.INFO)
 
 
 def log_trade(data: dict) -> None:

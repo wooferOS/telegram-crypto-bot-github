@@ -1,15 +1,12 @@
 import os
 import glob
-from typing import List
 import subprocess
 
 from convert_api import get_balances, get_available_to_tokens
 from convert_cycle import process_pair
 from convert_logger import logger
-from utils_dev3 import load_json, save_json
 from config_dev3 import CONVERT_SCORE_THRESHOLD
 
-HISTORY_FILE = "convert_history.json"
 CACHE_FILES = [
     "signals.txt",
     "last_message.txt",
@@ -34,23 +31,16 @@ def cleanup() -> None:
 def main() -> None:
     logger.info("[dev3] 🔄 Запуск convert трейдингу")
     balances = get_balances()
-    history: List[dict] = load_json(HISTORY_FILE) or []
-    for token, amount in balances.items():
+    for token in balances.keys():
         tos = get_available_to_tokens(token)
-        for to_asset in tos:
-            result = process_pair(token, to_asset, amount)
-            history.append(result)
-    save_json(HISTORY_FILE, history)
+        process_pair(token, tos, None, CONVERT_SCORE_THRESHOLD)
     cleanup()
     logger.info("[dev3] ✅ Цикл завершено")
 
     # 🧠 Автоматичне навчання моделі
-    try:
-        logger.info("[dev3] 📚 Починаємо автоматичне навчання моделі...")
-        subprocess.run(["python3", "train_convert_model.py"], check=True)
-        logger.info("[dev3] ✅ Навчання завершено")
-    except Exception as e:
-        logger.warning(f"[dev3] ❌ Помилка навчання моделі: {e}")
+    logger.info("[dev3] 📚 Починаємо автоматичне навчання моделі...")
+    subprocess.run(["python3", "train_convert_model.py"], check=True)
+    logger.info("[dev3] ✅ Навчання завершено")
 
 
 if __name__ == "__main__":
