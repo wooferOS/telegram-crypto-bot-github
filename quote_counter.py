@@ -53,6 +53,11 @@ def increment_quote_usage() -> int:
     return increment()
 
 
+def can_request_quote() -> bool:
+    """Return True if current quote count is below the limit."""
+    return get_count() < QUOTE_LIMIT
+
+
 def seconds_until_reset() -> float:
     now = datetime.now(timezone.utc)
     tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
