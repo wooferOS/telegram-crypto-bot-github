@@ -46,8 +46,22 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
     selected_tokens = {t for t, _, _ in top_results}
 
     for to_token, score, quote in top_results:
-        response = accept_quote(quote["quoteId"])
-        accepted = True
+        accept_result = None
+        try:
+            accept_result = accept_quote(quote["quoteId"])
+            if accept_result:
+                logger.info(f"[dev3] ✅ accept_quote успішний: {quote['quoteId']}")
+            else:
+                logger.warning(
+                    f"[dev3] ❌ Помилка під час accept_quote: {quote['quoteId']} — {accept_result}"
+                )
+        except Exception as error:  # pragma: no cover - network/IO
+            logger.warning(
+                f"[dev3] ❌ Помилка під час accept_quote: {quote['quoteId']} — {error}"
+            )
+            accept_result = None
+
+        accepted = bool(accept_result)
 
         logger.info(
             f"[dev3] {'✅' if accepted else '❌'} Конверсія {from_token} → {to_token} (score={score:.4f})"
@@ -62,8 +76,14 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             "ratio": quote.get("ratio"),
             "from_amount": quote.get("fromAmount"),
             "to_amount": quote.get("toAmount"),
-            "accepted": accepted,
         }
+
+        # Save accepted status only after real accept_quote call
+        if accepted:
+            record["accepted"] = True
+        else:
+            record["accepted"] = False
+
         save_convert_history(record)
 
     # Log rejected pairs
