@@ -32,8 +32,13 @@ def main() -> None:
     logger.info("[dev3] 🔄 Запуск convert трейдингу")
     balances = get_balances()
     for token, amount in balances.items():
+        logger.info(f"[dev3] 🔄 Старт трейд-циклу для {token}")
         tos = get_available_to_tokens(token)
-        process_pair(token, tos, amount, CONVERT_SCORE_THRESHOLD)
+        success = process_pair(token, tos, amount, CONVERT_SCORE_THRESHOLD)
+        if not success:
+            logger.warning(
+                f"[dev3] ⚠️ Fallback: жодна пара не пройшла фільтри. Обираємо top 2 за ratio."
+            )
     cleanup()
     logger.info("[dev3] ✅ Цикл завершено")
 

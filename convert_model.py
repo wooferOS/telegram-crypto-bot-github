@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any, Tuple
+from typing import Any, Tuple, List, Dict
 
 import numpy as np
 
@@ -9,6 +9,11 @@ import joblib
 MODEL_PATH = "model_convert.joblib"
 logger = logging.getLogger(__name__)
 _model = None
+
+
+def prepare_dataset(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Filter raw history into a dataset used for training."""
+    return [x for x in history if x.get("score", 0) > 0 and x.get("expected_profit", 0) > 0]
 
 
 def _load_model():

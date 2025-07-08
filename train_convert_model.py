@@ -7,7 +7,7 @@ import numpy as np
 from sklearn.ensemble import RandomForestRegressor
 
 from convert_logger import logger
-from convert_model import MODEL_PATH
+from convert_model import MODEL_PATH, prepare_dataset
 
 HISTORY_FILE = os.path.join("logs", "convert_history.json")
 LOG_FILE = os.path.join("logs", "model_training.log")
@@ -28,19 +28,20 @@ def main() -> None:
 
     # ✅ Фільтруємо лише записи з явним accepted: true або false
     history = [item for item in history if item.get("accepted") in [True, False]]
+    dataset = prepare_dataset(history)
 
     # Використовуємо лише останні 500 прикладів
-    history = history[-500:]
+    dataset = dataset[-500:]
 
-    if not history:
+    if not dataset:
         print("❌ Недостатньо даних для навчання: accepted == True/False відсутні.")
         return
 
     X_train = np.array([
         [item.get("score", 0.0), item.get("ratio", 0.0), item.get("inverseRatio", 0.0)]
-        for item in history
+        for item in dataset
     ])
-    y = np.array([item["accepted"] for item in history])
+    y = np.array([item["accepted"] for item in dataset])
 
     print(
         f"✅ Навчання на {len(X_train)} прикладах ({sum(y)} позитивних, {len(y)-sum(y)} негативних)"
