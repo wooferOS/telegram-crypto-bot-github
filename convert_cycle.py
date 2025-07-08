@@ -9,25 +9,38 @@ from convert_logger import (
 from convert_model import predict
 
 
+# Allow executing quotes with low score for model training
+allow_learning_quotes = True
+
+
 def process_pair(from_token: str, to_tokens: List[str], amount: float, score_threshold: float):
     logger.info(f"[dev3] 🔍 Аналіз для {from_token} → {len(to_tokens)} токенів")
     top_results: List[Tuple[str, float, Dict]] = []
     quotes_map: Dict[str, Dict] = {}
     scores: Dict[str, float] = {}
+    skipped_pairs: List[Tuple[str, float, str]] = []  # (token, score, reason)
 
     for to_token in to_tokens:
         quote = get_quote(from_token, to_token, amount)
         quotes_map[to_token] = quote
         if not quote or "ratio" not in quote:
+            reason = "ratio_unavailable"
             logger.warning(
                 f"[dev3] ❌ Не вдалося отримати ratio для {from_token} → {to_token}"
             )
+            skipped_pairs.append((to_token, 0.0, reason))
             continue
 
         score = float(quote.get("score", 0))
         scores[to_token] = score
         if score >= score_threshold:
             top_results.append((to_token, score, quote))
+        else:
+            reason = f"low_score {score:.4f}"
+            logger.info(
+                f"[dev3] ⏭️ Пропуск {from_token} → {to_token}: {reason}"
+            )
+            skipped_pairs.append((to_token, score, reason))
 
     if not top_results:
         logger.warning(
@@ -44,6 +57,15 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
         ]
 
     selected_tokens = {t for t, _, _ in top_results}
+
+    # Optionally process one low-score pair for training purposes
+    training_candidate = None
+    if allow_learning_quotes:
+        for token, sc, _reason in skipped_pairs:
+            quote = quotes_map.get(token)
+            if quote and "quoteId" in quote:
+                training_candidate = (token, sc, quote)
+                break
 
     for to_token, score, quote in top_results:
         accept_result = None
@@ -83,6 +105,47 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             record["accepted"] = True
         else:
             record["accepted"] = False
+
+        save_convert_history(record)
+
+    # Execute one additional low-score pair for training
+    if training_candidate:
+        to_token, score, quote = training_candidate
+        selected_tokens.add(to_token)
+        accept_result = None
+        try:
+            accept_result = accept_quote(quote["quoteId"])
+            if accept_result:
+                logger.info(
+                    f"[dev3] 📊 Навчальна угода успішна: {quote['quoteId']}"
+                )
+            else:
+                logger.warning(
+                    f"[dev3] 📊 Навчальна угода помилка: {quote['quoteId']} — {accept_result}"
+                )
+        except Exception as error:  # pragma: no cover - network/IO
+            logger.warning(
+                f"[dev3] 📊 Навчальна угода помилка: {quote['quoteId']} — {error}"
+            )
+            accept_result = None
+
+        accepted = bool(accept_result)
+        logger.info(
+            f"[dev3] {'✅' if accepted else '❌'} 📊 Навчальна угода {from_token} → {to_token} (score={score:.4f})"
+        )
+
+        record = {
+            "from_token": from_token,
+            "to_token": to_token,
+            "score": score,
+            "expected_profit": float(quote.get("expected_profit", 0)),
+            "prob_up": float(quote.get("prob_up", 0)),
+            "ratio": quote.get("ratio"),
+            "from_amount": quote.get("fromAmount"),
+            "to_amount": quote.get("toAmount"),
+            "training": True,
+            "accepted": accepted,
+        }
 
         save_convert_history(record)
 
