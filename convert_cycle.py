@@ -8,13 +8,18 @@ from convert_logger import (
 )
 from convert_model import predict
 from convert_filters import filter_top_tokens
+from convert_notifier import send_telegram
 
 
 # Allow executing quotes with low score for model training
 allow_learning_quotes = True
 
+QUOTE_REQUEST_LIMIT = 500  # безпечний денний ліміт для getQuote
+quote_request_count = 0
+
 
 def process_pair(from_token: str, to_tokens: List[str], amount: float, score_threshold: float):
+    global quote_request_count
     logger.info(f"[dev3] 🔍 Аналіз для {from_token} → {len(to_tokens)} токенів")
     top_results: List[Tuple[str, float, Dict]] = []
     quotes_map: Dict[str, Dict] = {}
@@ -23,7 +28,24 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
     skipped_pairs: List[Tuple[str, float, str]] = []  # (token, score, reason)
 
     for to_token in to_tokens:
+        if quote_request_count >= QUOTE_REQUEST_LIMIT:
+            logger.warning(
+                "[dev3] 🛑 Досягнуто QUOTE_REQUEST_LIMIT (%s), цикл завершено.",
+                quote_request_count,
+            )
+            break
+
         quote = get_quote(from_token, to_token, amount)
+        if isinstance(quote, dict) and quote.get("code") == 345239:
+            logger.warning(
+                "[dev3] 🟥 Ліміт Binance Convert API вичерпано (code=345239). Завершення циклу."
+            )
+            send_telegram(
+                "[dev3] ❗ Досягнуто ліміту Binance Convert API — цикл завершено."
+            )
+            break
+
+        quote_request_count += 1
         quotes_map[to_token] = quote
         # Save all quotes for training, even if not accepted later
         if quote and "ratio" in quote:

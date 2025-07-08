@@ -49,6 +49,11 @@ def _send(text: str) -> None:
         pass
 
 
+def send_telegram(text: str) -> None:
+    """Simple helper to send raw Telegram messages."""
+    _send(text)
+
+
 def notify_success(from_token: str, to_token: str, amount: float, to_amount: float, score: float, expected_profit: float) -> None:
     if _current_from_token and from_token != _current_from_token:
         flush_failures()
