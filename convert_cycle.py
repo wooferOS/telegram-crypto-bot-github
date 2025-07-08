@@ -1,76 +1,39 @@
-from typing import Dict, Any
+def process_pair(from_token, available_to_tokens, model, score_threshold):
+    from convert_api import get_quote, accept_quote
+    from convert_logger import logger
+    from convert_notifier import log_conversion_response
+    from convert_model import predict_score
 
-from convert_api import get_quote, accept_quote
-from convert_model import predict
-from convert_filters import check_filters, is_duplicate_conversion
-from convert_logger import log_trade, log_quote, logger
-from convert_logger import log_convert_history
-import json
-from convert_notifier import notify_success, notify_failure
-from config_dev3 import CONVERT_SCORE_THRESHOLD
+    logger.info(f"[dev3] 🔍 Аналіз для {from_token} → {len(available_to_tokens)} токенів")
+    successful = []
+    fallback_candidates = []
 
+    for to_token in available_to_tokens:
+        quote = get_quote(from_token, to_token)
+        if not quote:
+            continue
 
-def process_pair(from_token: str, to_token: str, amount: float) -> Dict[str, Any]:
-    quote = get_quote(from_token, to_token, amount)
-    log_quote(from_token, to_token, quote)
-    expected_profit, prob_up, score = predict(from_token, to_token, quote)
-    accepted = score >= CONVERT_SCORE_THRESHOLD
-    log_convert_history({
-        "from_token": from_token,
-        "to_token": to_token,
-        "score": score,
-        "expected_profit": expected_profit,
-        "prob_up": prob_up,
-        "ratio": quote.get("ratio"),
-        "from_amount": quote.get("fromAmount"),
-        "to_amount": quote.get("toAmount"),
-        "accepted": accepted,
-    })
-    data = {
-        "from": from_token,
-        "to": to_token,
-        "amount": amount,
-        "quote": quote,
-        "quote_id": quote.get("quoteId"),
-        "ratio": float(quote.get("ratio", 0)),
-        "toAmount": float(quote.get("toAmount", 0)),
-        "expected_profit": expected_profit,
-        "prob_up": prob_up,
-        "score": score,
-    }
-    if score < CONVERT_SCORE_THRESHOLD:
-        logger.info(
-            f"[dev3] \u274C Відмова: {from_token} → {to_token} — score {score:.4f} < threshold {CONVERT_SCORE_THRESHOLD}"
-        )
-        data["accepted"] = False
-        data["error"] = "score"
-        log_trade(data)
-        return data
+        ratio = float(quote["ratio"])
+        inverse_ratio = float(quote["inverseRatio"])
+        features = [[ratio, inverse_ratio, 1.0]]  # dummy feature to match training
+        score = predict_score(model, features)
 
-    if is_duplicate_conversion(from_token, to_token):
-        logger.info(
-            f"[dev3] \u274C Відмова: {from_token} → {to_token} — вже було конвертовано"
-        )
-        data["accepted"] = False
-        data["error"] = "duplicate"
-        log_trade(data)
-        return data
+        if score >= score_threshold:
+            logger.info(f"[dev3] ✅ Конверсія {from_token} → {to_token} (score={score:.4f})")
+            response = accept_quote(from_token, to_token)
+            log_conversion_response(response)
+            successful.append((to_token, score))
+        else:
+            logger.info(
+                f"[dev3] ❌ Відмова: {from_token} → {to_token} — score {score:.4f} < threshold {score_threshold}"
+            )
+            fallback_candidates.append((to_token, score))
 
-    ok, reason = check_filters(data)
-    if not ok:
-        notify_failure(from_token, to_token, reason)
-        data["accepted"] = False
-        data["error"] = reason
-        log_trade(data)
-        return data
-
-    resp = accept_quote(data["quote_id"])
-    data["response"] = resp
-    success = resp.get("status") == "success"
-    data["accepted"] = success
-    if success:
-        notify_success(from_token, to_token, amount, data["toAmount"], score, expected_profit)
-    else:
-        notify_failure(from_token, to_token, "api_error")
-    log_trade(data)
-    return data
+    # Якщо нічого не пройшло — fallback: топ-3 з найвищим score
+    if not successful and fallback_candidates:
+        fallback_candidates.sort(key=lambda x: x[1], reverse=True)
+        top_fallbacks = fallback_candidates[:3]
+        for to_token, score in top_fallbacks:
+            logger.warning(f"[dev3] ⚠️ Fallback-конверсія {from_token} → {to_token} (score={score:.4f})")
+            response = accept_quote(from_token, to_token)
+            log_conversion_response(response)
