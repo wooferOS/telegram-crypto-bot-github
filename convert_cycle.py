@@ -7,6 +7,7 @@ from convert_logger import (
     save_convert_history,
 )
 from convert_model import predict
+from convert_filters import filter_top_tokens
 
 
 # Allow executing quotes with low score for model training
@@ -18,6 +19,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
     top_results: List[Tuple[str, float, Dict]] = []
     quotes_map: Dict[str, Dict] = {}
     scores: Dict[str, float] = {}
+    all_tokens: Dict[str, Dict] = {}
     skipped_pairs: List[Tuple[str, float, str]] = []  # (token, score, reason)
 
     for to_token in to_tokens:
@@ -33,28 +35,25 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
 
         score = float(quote.get("score", 0))
         scores[to_token] = score
-        if score >= score_threshold:
-            top_results.append((to_token, score, quote))
-        else:
+        all_tokens[to_token] = {"score": score, "quote": quote}
+        if score < score_threshold:
             reason = f"low_score {score:.4f}"
             logger.info(
                 f"[dev3] ⏭️ Пропуск {from_token} → {to_token}: {reason}"
             )
             skipped_pairs.append((to_token, score, reason))
 
-    if not top_results:
+    filtered_pairs = filter_top_tokens(all_tokens, score_threshold, top_n=2, fallback_n=1)
+    top_results = [(t, data["score"], data["quote"]) for t, data in filtered_pairs]
+
+    # Log selection results
+    if top_results:
+        logger.info("[dev3] ✅ Обрано токени для купівлі: %s", [t for t, _, _ in top_results])
+    else:
         logger.warning(
-            "[dev3] ⚠️ Fallback: жодна пара не пройшла фільтр. Обираємо top 2 за ratio."
+            "[dev3] ❌ Не знайдено жодного токена для купівлі навіть для навчальної угоди."
         )
-        fallback_quotes = []
-        for to_token in to_tokens:
-            quote = quotes_map.get(to_token)
-            if quote and "ratio" in quote:
-                fallback_quotes.append((to_token, float(quote["ratio"]), quote))
-        fallback_quotes.sort(key=lambda x: x[1], reverse=True)
-        top_results = [
-            (x[0], scores.get(x[0], 0.0), x[2]) for x in fallback_quotes[:2]
-        ]
+        return
 
     selected_tokens = {t for t, _, _ in top_results}
 
