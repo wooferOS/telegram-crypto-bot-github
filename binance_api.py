@@ -100,3 +100,18 @@ def get_ratio(from_token: str, to_token: str, amount: float = 1.0) -> float:
             f"[dev3] ❌ get_ratio failed for {from_token} → {to_token}: {exc}"
         )
         return 0.0
+
+
+def get_binance_balances() -> dict:
+    """Повертає баланс по всіх доступних токенах."""
+    from binance.client import Client
+    from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
+
+    client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+    account_info = client.get_account()
+    balances = {}
+    for asset in account_info["balances"]:
+        free = float(asset["free"])
+        if free > 0:
+            balances[asset["asset"]] = free
+    return balances
