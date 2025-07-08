@@ -29,6 +29,7 @@ def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, fl
     try:
         score = quote_data.get("score", 0.0)
         ratio = quote_data.get("ratio", 0.0)
+        ratio = float(ratio)
         inverse_ratio = quote_data.get("inverseRatio", 0.0)
         features = np.array([[score, ratio, inverse_ratio]])
         if hasattr(model, "predict_proba"):
