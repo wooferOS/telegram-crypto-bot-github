@@ -36,20 +36,22 @@ def main() -> None:
         print("❌ Недостатньо даних для навчання: accepted == True/False відсутні.")
         return
 
-    X = np.array([
+    X_train = np.array([
         [item.get("score", 0.0), item.get("ratio", 0.0), item.get("inverseRatio", 0.0)]
         for item in history
     ])
     y = np.array([item["accepted"] for item in history])
 
     print(
-        f"✅ Навчання на {len(X)} прикладах ({sum(y)} позитивних, {len(y)-sum(y)} негативних)"
+        f"✅ Навчання на {len(X_train)} прикладах ({sum(y)} позитивних, {len(y)-sum(y)} негативних)"
     )
 
     model = RandomForestRegressor(n_estimators=50)
-    model.fit(X, y)
+    model.fit(X_train, y)
     joblib.dump(model, MODEL_PATH)
     logger.info("Model trained on %d records", len(history))
+    logger.info(f"[dev3] ℹ️ Feature importance: {model.feature_importances_}")
+    logger.info(f"[dev3] Модель навчена на {len(X_train)} прикладах")
 
 
 if __name__ == "__main__":
