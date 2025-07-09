@@ -103,20 +103,27 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
 
     top_results = [(op["to"], op["score"], op["quote"]) for op in convert_opportunities]
 
+    training_candidate = None
+
     # Log selection results
     if top_results:
         logger.info("[dev3] ✅ Обрано токени для купівлі: %s", [t for t, _, _ in top_results])
     else:
-        logger.warning(
-            "[dev3] ❌ Не знайдено жодного токена для купівлі навіть для навчальної угоди."
-        )
-        return
+        logger.warning("[dev3] ⚠️ Жоден токен не пройшов фільтри — виконуємо навчальну угоду.")
+        # Спроба виконати навчальну угоду навіть з низьким score
+        for token, score, _ in skipped_pairs:
+            quote = quotes_map.get(token)
+            if quote and "quoteId" in quote:
+                training_candidate = (token, score, quote)
+                break
+        if not training_candidate:
+            logger.warning("[dev3] ❌ Немає доступної пари навіть для навчальної угоди.")
+            return
 
     selected_tokens = {t for t, _, _ in top_results}
 
     # Optionally process one low-score pair for training purposes
-    training_candidate = None
-    if allow_learning_quotes:
+    if allow_learning_quotes and not training_candidate:
         for token, sc, _reason in skipped_pairs:
             quote = quotes_map.get(token)
             if quote and "quoteId" in quote:
