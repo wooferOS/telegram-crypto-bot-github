@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+from datetime import datetime
 
 LOG_FILE = os.path.join("logs", "trade_convert.log")
 ERROR_LOG_FILE = os.path.join("logs", "convert_errors.log")
@@ -37,7 +38,7 @@ summary_logger.setLevel(logging.INFO)
 
 def log_trade(data: dict) -> None:
     logger.info(
-        "quote_id=%s from=%s to=%s ratio=%s accepted=%s error=%s response=%s",
+        "[dev3] quote_id=%s from=%s to=%s ratio=%s accepted=%s error=%s response=%s",
         data.get("quote_id"),
         data.get("from"),
         data.get("to"),
@@ -53,10 +54,6 @@ def log_quote(from_token: str, to_token: str, quote_data: dict) -> None:
         f"[dev3] \U0001F4E5 Quote {from_token} → {to_token}: {json.dumps(quote_data, indent=2)}"
     )
 
-
-import os
-import json
-from datetime import datetime
 
 
 def log_convert_history(entry: dict):

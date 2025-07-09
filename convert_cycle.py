@@ -7,7 +7,7 @@ from convert_logger import (
 )
 from convert_filters import filter_top_tokens
 from convert_notifier import send_telegram
-from quote_counter import can_request_quote, increment_quote_usage
+from quote_counter import can_request_quote
 
 
 # Allow executing quotes with low score for model training
@@ -15,7 +15,7 @@ allow_learning_quotes = True
 
 
 
-def process_pair(from_token: str, to_tokens: List[str], amount: float, score_threshold: float):
+def process_pair(from_token: str, to_tokens: List[str], amount: float, score_threshold: float) -> bool:
     logger.info(f"[dev3] 🔍 Аналіз для {from_token} → {len(to_tokens)} токенів")
     top_results: List[Tuple[str, float, Dict]] = []
     quotes_map: Dict[str, Dict] = {}
@@ -39,7 +39,6 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             break
 
         quote = get_quote(from_token, to_token, amount)
-        increment_quote_usage()
         quotes_used += 1
         if isinstance(quote, dict) and quote.get("code") == 345239:
             logger.warning(
@@ -118,7 +117,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 break
         if not training_candidate:
             logger.warning("[dev3] ❌ Немає доступної пари навіть для навчальної угоди.")
-            return
+            return False
 
     selected_tokens = {t for t, _, _ in top_results}
 
@@ -129,6 +128,8 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             if quote and "quoteId" in quote:
                 training_candidate = (token, sc, quote)
                 break
+
+    any_accepted = False
 
     for to_token, score, quote in top_results:
         accept_result = None
@@ -170,6 +171,8 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             record["accepted"] = False
 
         save_convert_history(record)
+        if accepted:
+            any_accepted = True
 
     # Execute one additional low-score pair for training
     if training_candidate:
@@ -211,6 +214,8 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
         }
 
         save_convert_history(record)
+        if accepted:
+            any_accepted = True
 
     # Log rejected pairs
     for to_token in to_tokens:
@@ -232,3 +237,4 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
         save_convert_history(record)
 
     logger.info("[dev3] ✅ Цикл завершено")
+    return any_accepted

@@ -1,7 +1,6 @@
 import hmac
 import hashlib
 import logging
-import time
 from typing import Dict, List, Any, Set, Optional
 
 import requests

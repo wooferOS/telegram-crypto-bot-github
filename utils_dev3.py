@@ -1,7 +1,7 @@
 import json
 import os
 import time
-from decimal import Decimal, ROUND_DOWN
+from decimal import Decimal
 
 
 def normalize_symbol(symbol: str) -> str:

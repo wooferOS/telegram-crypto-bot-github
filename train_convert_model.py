@@ -36,7 +36,7 @@ def main() -> None:
             logger.warning("[dev3] ❌ Неможливо зчитати predictions.json — файл пошкоджений.")
             return
     if not os.path.exists(HISTORY_FILE):
-        logger.info("No history found")
+        logger.info("[dev3] ❌ convert_history.json відсутній")
         return
     with open(HISTORY_FILE, "r", encoding="utf-8") as f:
         history = json.load(f)
@@ -72,7 +72,7 @@ def main() -> None:
     model = RandomForestRegressor(n_estimators=50)
     model.fit(X_train, y)
     joblib.dump(model, MODEL_PATH)
-    logger.info("Model trained on %d records", len(history))
+    logger.info(f"[dev3] Model trained on {len(history)} records")
     logger.info(f"[dev3] ℹ️ Feature importance: {model.feature_importances_}")
     logger.info(f"[dev3] Модель навчена на {len(X_train)} прикладах")
 
