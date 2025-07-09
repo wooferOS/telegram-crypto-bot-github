@@ -20,6 +20,21 @@ logger.addHandler(file_handler)
 
 
 def main() -> None:
+    PREDICTIONS_FILE = os.path.join("logs", "predictions.json")
+
+    if not os.path.exists(PREDICTIONS_FILE):
+        logger.warning("[dev3] ❌ Відсутній файл predictions.json — навчання пропущено.")
+        return
+
+    with open(PREDICTIONS_FILE, "r", encoding="utf-8") as f:
+        try:
+            predictions_data = json.load(f)
+            if not predictions_data:
+                logger.warning("[dev3] ⚠️ Порожній файл predictions.json — навчання пропущено.")
+                return
+        except json.JSONDecodeError:
+            logger.warning("[dev3] ❌ Неможливо зчитати predictions.json — файл пошкоджений.")
+            return
     if not os.path.exists(HISTORY_FILE):
         logger.info("No history found")
         return
@@ -37,11 +52,11 @@ def main() -> None:
     has_false = any(x.get("accepted") is False for x in dataset)
 
     if not has_true and not has_false:
-        print("❌ Недостатньо даних для навчання: accepted == True/False відсутні.")
+        logger.warning("[dev3] ❌ Недостатньо даних для навчання: accepted == True/False відсутні.")
         return
 
-    print(
-        f"🔁 Навчання: accepted=True: {sum(1 for x in dataset if x.get('accepted') is True)}, accepted=False: {sum(1 for x in dataset if x.get('accepted') is False)}"
+    logger.info(
+        f"[dev3] 🔁 accepted=True: {sum(1 for x in dataset if x.get('accepted') is True)}, accepted=False: {sum(1 for x in dataset if x.get('accepted') is False)}"
     )
 
     X_train = np.array([
@@ -50,8 +65,8 @@ def main() -> None:
     ])
     y = np.array([item["accepted"] for item in dataset])
 
-    print(
-        f"✅ Навчання на {len(X_train)} прикладах ({sum(y)} позитивних, {len(y)-sum(y)} негативних)"
+    logger.info(
+        f"[dev3] ✅ Навчання на {len(X_train)} прикладах ({sum(y)} позитивних, {len(y)-sum(y)} негативних)"
     )
 
     model = RandomForestRegressor(n_estimators=50)
