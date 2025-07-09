@@ -1,6 +1,5 @@
 import json
 import os
-import logging
 
 from convert_api import get_balances
 from convert_logger import logger
@@ -30,7 +29,7 @@ def check_balance() -> None:
     diff = total - prev_total
     if prev_total and diff < -prev_total * THRESHOLD:
         notify_failure("BALANCE", "USDT", "зменшення балансу >25%")
-    logger.info("Balance total=%s diff=%s", total, diff)
+    logger.info("[dev3] Balance total=%s diff=%s", total, diff)
     save_snapshot({"total": total})
 
 

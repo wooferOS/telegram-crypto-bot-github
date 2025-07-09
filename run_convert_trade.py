@@ -9,13 +9,12 @@ from config_dev3 import CONVERT_SCORE_THRESHOLD
 from quote_counter import can_request_quote
 
 if not can_request_quote():
-    print("⛔ Ліміт запитів до Convert API досягнуто. Пропускаємо цикл.")
+    logger.warning("[dev3] ⛔ Ліміт запитів до Convert API досягнуто. Пропускаємо цикл.")
     exit(0)
 
 CACHE_FILES = [
     "signals.txt",
     "last_message.txt",
-    os.path.join("logs", "predictions.json"),
 ]
 
 
@@ -34,6 +33,7 @@ def cleanup() -> None:
 
 
 def main() -> None:
+    cleanup()
     logger.info("[dev3] 🔄 Запуск convert трейдингу")
     balances = get_balances()
     for token, amount in balances.items():
@@ -42,7 +42,7 @@ def main() -> None:
         success = process_pair(token, tos, amount, CONVERT_SCORE_THRESHOLD)
         if not success:
             logger.warning(
-                f"[dev3] ⚠️ Fallback: жодна пара не пройшла фільтри. Обираємо top 2 за ratio."
+                "[dev3] ⚠️ Fallback: жодна пара не пройшла фільтри. Обираємо top 2 за ratio."
             )
     cleanup()
     logger.info("[dev3] ✅ Цикл завершено")
@@ -51,6 +51,13 @@ def main() -> None:
     logger.info("[dev3] 📚 Починаємо автоматичне навчання моделі...")
     subprocess.run(["python3", "train_convert_model.py"], check=True)
     logger.info("[dev3] ✅ Навчання завершено")
+
+    predictions_path = os.path.join("logs", "predictions.json")
+    if os.path.exists(predictions_path):
+        try:
+            os.remove(predictions_path)
+        except OSError:
+            pass
 
 
 if __name__ == "__main__":
