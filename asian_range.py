@@ -1,4 +1,3 @@
-from datetime import datetime
 from binance_api import get_historical_prices
 
 

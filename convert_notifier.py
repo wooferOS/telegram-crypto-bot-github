@@ -1,6 +1,6 @@
 import atexit
 from collections import defaultdict
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, List, Optional
 
 import requests
 from config_dev3 import TELEGRAM_CHAT_ID, TELEGRAM_TOKEN

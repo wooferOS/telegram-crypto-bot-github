@@ -30,7 +30,7 @@ def _load_model():
 def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, float, float]:
     model = _load_model()
     if not model:
-        return 0.0, 0.5, 0.0
+        return 0.0, 0.0, 0.0
     try:
         score = quote_data.get("score", 0.0)
         ratio = quote_data.get("ratio", 0.0)
@@ -44,26 +44,7 @@ def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, fl
         expected_profit = ratio * prob
         score = expected_profit * prob
 
-        from indicators import get_rsi, get_macd
-        from asian_range import is_breakout
-        from binance_api import get_last_prices
-
-        # Use only the USDT pair for historical analysis
-        symbol = f"{to_token}USDT"
-        prices = get_last_prices(symbol)
-        if prices:
-            rsi = get_rsi(prices)
-            macd, signal = get_macd(prices)
-            breakout = is_breakout(symbol, prices[-1])
-
-            if breakout:
-                score *= 1.2
-            if macd > signal and rsi < 40:
-                score *= 1.1
-            elif macd < signal and rsi > 60:
-                score *= 0.9
-
         return expected_profit, prob, score
     except Exception as exc:  # pragma: no cover - diagnostics only
-        logger.exception("prediction failed: %s", exc)
-        return 0.0, 0.5, 0.0
+        logger.exception("[dev3] prediction failed: %s", exc)
+        return 0.0, 0.0, 0.0
