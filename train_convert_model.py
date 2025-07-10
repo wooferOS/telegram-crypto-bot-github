@@ -4,6 +4,7 @@ import os
 
 import joblib
 import numpy as np
+import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 
 from convert_logger import logger
@@ -34,16 +35,23 @@ def main() -> None:
     # Використовуємо лише останні 500 прикладів
     dataset = dataset[-500:]
 
-    has_true = any(x.get("accepted") is True for x in dataset)
-    has_false = any(x.get("accepted") is False for x in dataset)
+    df = pd.DataFrame(dataset)
 
-    if not has_true and not has_false:
-        logger.warning("[dev3] ❌ Недостатньо даних для навчання: accepted == True/False відсутні.")
-        return
+    accepted = df[df["accepted"] == True]
+    rejected = df[df["accepted"] == False]
 
-    logger.info(
-        f"[dev3] 🔁 accepted=True: {sum(1 for x in dataset if x.get('accepted') is True)}, accepted=False: {sum(1 for x in dataset if x.get('accepted') is False)}"
-    )
+    if len(accepted) == 0 or len(rejected) == 0:
+        logger.warning(
+            "❌ Замало прикладів для навчання: accepted = %s, rejected = %s",
+            len(accepted),
+            len(rejected),
+        )
+    else:
+        logger.info(
+            "✅ Початок навчання: accepted = %s, rejected = %s",
+            len(accepted),
+            len(rejected),
+        )
 
     X_train = np.array([
         [item.get("score", 0.0), item.get("ratio", 0.0), item.get("inverseRatio", 0.0)]
