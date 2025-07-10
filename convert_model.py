@@ -45,11 +45,11 @@ def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, fl
         return 0.0, 0.0, 0.0
 
     try:
-        inp_score = float(quote_data.get("score", 0.0))
         ratio = float(quote_data.get("ratio", 0.0))
         inverse_ratio = float(quote_data.get("inverseRatio", 0.0))
 
-        features = np.array([[inp_score, ratio, inverse_ratio]], dtype=float)
+        # Build feature vector only from ratio and inverseRatio
+        features = np.array([[ratio, inverse_ratio]], dtype=float)
         norm = np.linalg.norm(features, axis=1, keepdims=True)
         norm[norm == 0] = 1.0
         features = features / norm
@@ -59,8 +59,8 @@ def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, fl
         else:
             prob_up = float(model.predict(features)[0])
 
-        expected_profit = float(inp_score)
-        score_val = float(inp_score)
+        expected_profit = 0.25
+        score_val = expected_profit * prob_up
 
         logger.debug(
             "[dev3] predict result: expected_profit=%.6f prob_up=%.6f score=%.6f",
