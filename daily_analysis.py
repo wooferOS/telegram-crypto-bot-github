@@ -1,69 +1,83 @@
+import asyncio
 import os
-from typing import List, Dict
+from typing import Dict, List
 
 from convert_api import get_balances, get_available_to_tokens, get_quote
-from convert_model import predict
 from convert_logger import logger
+from convert_model import predict
 from utils_dev3 import save_json
 
 
-def main() -> None:
-    balances = get_balances()
+async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]:
+    """Fetch quotes for all available to_tokens for given from_token."""
     predictions: List[Dict[str, float]] = []
+    try:
+        to_tokens = await asyncio.to_thread(get_available_to_tokens, from_token)
+    except Exception as exc:  # pragma: no cover - network/IO
+        logger.warning(f"[dev3] ❌ get_available_to_tokens помилка для {from_token}: {exc}")
+        return predictions
 
-    for from_token, amount in balances.items():
-        to_tokens = get_available_to_tokens(from_token)
-        for to_token in to_tokens:
-            try:
-                quote = get_quote(from_token, to_token, amount)
-            except Exception as exc:  # pragma: no cover - network/IO
-                logger.warning(
-                    f"[dev3] ❌ get_quote помилка для {from_token} → {to_token}: {exc}"
-                )
-                continue
-
-            if not isinstance(quote, dict) or "ratio" not in quote:
-                continue
-
-            ratio = float(quote.get("ratio", 0))
-            inverse_ratio = float(quote.get("inverseRatio", 0))
-
-            expected_profit, prob_up, score = predict(
-                from_token, to_token, {"ratio": ratio, "inverseRatio": inverse_ratio}
+    for to_token in to_tokens:
+        try:
+            quote = await asyncio.to_thread(get_quote, from_token, to_token, amount)
+        except Exception as exc:  # pragma: no cover - network/IO
+            logger.warning(
+                f"[dev3] ❌ get_quote помилка для {from_token} → {to_token}: {exc}"
             )
+            continue
 
-            predictions.append(
-                {
-                    "from_token": from_token,
-                    "to_token": to_token,
-                    "ratio": ratio,
-                    "score": score,
-                    "expected_profit": expected_profit,
-                    "prob_up": prob_up,
-                }
-            )
+        if not isinstance(quote, dict) or "ratio" not in quote:
+            continue
+
+        ratio = float(quote.get("ratio", 0))
+        inverse_ratio = float(quote.get("inverseRatio", 0))
+
+        expected_profit, prob_up, score = await asyncio.to_thread(
+            predict,
+            from_token,
+            to_token,
+            {"ratio": ratio, "inverseRatio": inverse_ratio},
+        )
+
+        predictions.append(
+            {
+                "from_token": from_token,
+                "to_token": to_token,
+                "ratio": ratio,
+                "inverseRatio": inverse_ratio,
+                "expected_profit": expected_profit,
+                "prob_up": prob_up,
+                "score": score,
+            }
+        )
+
+    return predictions
+
+
+async def gather_predictions() -> List[Dict[str, float]]:
+    balances = await asyncio.to_thread(get_balances)
+    tasks = [fetch_quotes(token, amount) for token, amount in balances.items()]
+    results = await asyncio.gather(*tasks)
+    predictions: List[Dict[str, float]] = []
+    for items in results:
+        predictions.extend(items)
+    return predictions
+
+
+async def main() -> None:
+    predictions = await gather_predictions()
 
     os.makedirs("logs", exist_ok=True)
-    save_json(os.path.join("logs", "predictions.json"), predictions)
+    await asyncio.to_thread(save_json, os.path.join("logs", "predictions.json"), predictions)
 
-    # Select top 5 tokens by score
     sorted_tokens = sorted(predictions, key=lambda x: x["score"], reverse=True)
-    top_tokens = [
-        {
-            "from_token": item["from_token"],
-            "to_token": item["to_token"],
-            "score": item["score"],
-            "expected_profit": item["expected_profit"],
-            "prob_up": item["prob_up"],
-        }
-        for item in sorted_tokens[:5]
-    ]
+    top_tokens = sorted_tokens[:5]
+    await asyncio.to_thread(save_json, "top_tokens.json", top_tokens)
 
-    save_json("top_tokens.json", top_tokens)
     logger.info(
         f"[dev3] ✅ Аналіз завершено. Створено top_tokens.json з {len(top_tokens)} записами."
     )
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
