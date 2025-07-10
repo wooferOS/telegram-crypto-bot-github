@@ -37,6 +37,9 @@ def main() -> None:
 
     df = pd.DataFrame(dataset)
 
+    print("[DEBUG] df.columns:", df.columns.tolist())
+    print("[DEBUG] df head:\n", df.head())
+
     accepted = df[df["accepted"] == True]
     rejected = df[df["accepted"] == False]
 
