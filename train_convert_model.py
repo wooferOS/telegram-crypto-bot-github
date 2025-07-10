@@ -20,21 +20,7 @@ logger.addHandler(file_handler)
 
 
 def main() -> None:
-    PREDICTIONS_FILE = os.path.join("logs", "predictions.json")
-
-    if not os.path.exists(PREDICTIONS_FILE):
-        logger.warning("[dev3] ❌ Відсутній файл predictions.json — навчання пропущено.")
-        return
-
-    with open(PREDICTIONS_FILE, "r", encoding="utf-8") as f:
-        try:
-            predictions_data = json.load(f)
-            if not predictions_data:
-                logger.warning("[dev3] ⚠️ Порожній файл predictions.json — навчання пропущено.")
-                return
-        except json.JSONDecodeError:
-            logger.warning("[dev3] ❌ Неможливо зчитати predictions.json — файл пошкоджений.")
-            return
+    logger.info("[dev3] ▶️ Старт навчання моделі convert_model на основі convert_history.json")
     if not os.path.exists(HISTORY_FILE):
         logger.info("[dev3] ❌ convert_history.json відсутній")
         return
