@@ -33,7 +33,6 @@ def main():
         log("❌ Колонка 'accepted' відсутня у convert_history.json. Навчання неможливе.")
         return
 
-    df["accepted"] = df["accepted"].astype(bool)
     accepted = df[df["accepted"]]
     rejected = df[~df["accepted"]]
 
