@@ -32,8 +32,7 @@ async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]
         ratio = float(quote.get("ratio", 0))
         inverse_ratio = float(quote.get("inverseRatio", 0))
 
-        expected_profit, prob_up, score = await asyncio.to_thread(
-            predict,
+        expected_profit, prob_up, score = predict(
             from_token,
             to_token,
             {"ratio": ratio, "inverseRatio": inverse_ratio},
