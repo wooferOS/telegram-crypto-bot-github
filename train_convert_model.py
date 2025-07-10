@@ -25,6 +25,17 @@ log = logger.info
 
 def main():
     df = pd.read_json("convert_history.json", orient="records")
+    print("[DEBUG] df shape:", df.shape)
+    print("[DEBUG] df columns:", df.columns.tolist())
+    print("[DEBUG] accepted column unique values:", df["accepted"].unique())
+    print("[DEBUG] accepted value_counts:\n", df["accepted"].value_counts())
+
+    accepted = df[df["accepted"] == True]
+    rejected = df[df["accepted"] == False]
+
+    print("[DEBUG] accepted sample:\n", accepted.head())
+    print("[DEBUG] rejected sample:\n", rejected.head())
+
     df["accepted"] = df["accepted"].astype(bool)
     log(f"[DEBUG] Колонки: {df.columns.tolist()}")
     log(f"[DEBUG] Перші рядки:\n{df.head()}")
