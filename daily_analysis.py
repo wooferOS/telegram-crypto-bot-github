@@ -9,56 +9,59 @@ from utils_dev3 import save_json
 
 
 async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]:
-    """Fetch quotes for all available to_tokens for a given from_token and run prediction."""
+    """Fetch quotes for all available to_tokens for given from_token."""
     predictions: List[Dict[str, float]] = []
     try:
         to_tokens = await asyncio.to_thread(get_available_to_tokens, from_token)
+        logger.info(f"[dev3] 📥 Доступні to_tokens для {from_token}: {to_tokens}")
     except Exception as exc:
-        logger.warning(f"[dev3] ❌ get_available_to_tokens помилка для {from_token}: {exc}")
+        logger.warning(
+            f"[dev3] ❌ get_available_to_tokens помилка для {from_token}: {exc}"
+        )
         return predictions
-
-    if not to_tokens:
-        logger.warning(f"[dev3] ⚠️ Немає доступних to_token для {from_token}")
-    else:
-        logger.info(f"[dev3] 🔄 {from_token}: знайдено {len(to_tokens)} TO токенів")
 
     for to_token in to_tokens:
         try:
             quote = await asyncio.to_thread(get_quote, from_token, to_token, amount)
+            logger.info(
+                f"[dev3] 🔄 Quote для {from_token} → {to_token}: {quote}"
+            )
         except Exception as exc:
-            logger.warning(f"[dev3] ❌ get_quote помилка для {from_token} → {to_token}: {exc}")
+            logger.warning(
+                f"[dev3] ❌ get_quote помилка для {from_token} → {to_token}: {exc}"
+            )
             continue
 
-        logger.info(f"[dev3] 🔍 Quote {from_token} → {to_token}: {quote}")
-
-        if not isinstance(quote, dict) or "ratio" not in quote:
+        if not quote or "ratio" not in quote or "inverseRatio" not in quote:
+            logger.warning(
+                f"[dev3] ⛔️ Неповний quote для {from_token} → {to_token}: {quote}"
+            )
             continue
 
         ratio = float(quote["ratio"])
-        inverse_ratio = 1 / ratio if ratio != 0 else 0.0
+        inverse_ratio = float(quote["inverseRatio"])
+        expected_profit, prob_up, score = predict(
+            from_token,
+            to_token,
+            {"ratio": ratio, "inverseRatio": inverse_ratio},
+        )
 
-        try:
-            logger.info(f"[dev3] 🤖 predict() викликається для {from_token} → {to_token} з даними: {quote}")
-            expected_profit, prob_up, score = predict(
-                from_token,
-                to_token,
-                {"ratio": ratio, "inverseRatio": inverse_ratio},
-            )
-        except Exception as exc:
-            logger.warning(f"[dev3] ❌ Помилка в predict() для {from_token} → {to_token}: {exc}")
-            continue
+        logger.info(
+            f"[dev3] ✅ Прогноз: {from_token} → {to_token} | profit={expected_profit}, prob_up={prob_up}, score={score}"
+        )
 
-        predictions.append({
-            "from_token": from_token,
-            "to_token": to_token,
-            "ratio": ratio,
-            "inverseRatio": inverse_ratio,
-            "expected_profit": expected_profit,
-            "prob_up": prob_up,
-            "score": score,
-        })
+        predictions.append(
+            {
+                "from_token": from_token,
+                "to_token": to_token,
+                "ratio": ratio,
+                "inverseRatio": inverse_ratio,
+                "expected_profit": expected_profit,
+                "prob_up": prob_up,
+                "score": score,
+            }
+        )
 
-    logger.info(f"[dev3] ✅ Прогнозів для {from_token}: {len(predictions)}")
     return predictions
 
 
