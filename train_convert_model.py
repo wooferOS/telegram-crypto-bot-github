@@ -25,6 +25,7 @@ log = logger.info
 
 def main():
     df = pd.read_json("convert_history.json", orient="records")
+    df["accepted"] = df["accepted"].astype(bool)
     log(f"[DEBUG] Колонки: {df.columns.tolist()}")
     log(f"[DEBUG] Перші рядки:\n{df.head()}")
 
