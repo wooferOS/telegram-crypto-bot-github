@@ -55,7 +55,13 @@ async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]
 
 
 async def gather_predictions() -> List[Dict[str, float]]:
-    balances = await asyncio.to_thread(get_balances)
+    """Collect predictions for all tokens from account balances."""
+    try:
+        balances = await asyncio.to_thread(get_balances)
+    except Exception as exc:  # pragma: no cover - network/IO
+        logger.warning(f"[dev3] ❌ get_balances помилка: {exc}")
+        return []
+
     tasks = [fetch_quotes(token, amount) for token, amount in balances.items()]
     results = await asyncio.gather(*tasks)
     predictions: List[Dict[str, float]] = []
