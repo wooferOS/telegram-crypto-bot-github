@@ -16,9 +16,12 @@ def prepare_dataset(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [x for x in history if x.get("score", 0) > 0 and x.get("expected_profit", 0) > 0]
 
 
-def _load_model():
+def _load_model() -> Any:
+    """Load model from disk or return cached instance."""
     global _model
-    if _model is None and os.path.exists(MODEL_PATH):
+    if _model is None:
+        if not os.path.exists(MODEL_PATH):
+            raise FileNotFoundError(MODEL_PATH)
         try:
             _model = joblib.load(MODEL_PATH)
         except Exception as exc:  # pragma: no cover - diagnostics only
@@ -28,23 +31,44 @@ def _load_model():
 
 
 def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, float, float]:
-    model = _load_model()
-    if not model:
-        return 0.0, 0.0, 0.0
+    """Return (expected_profit, probability_up, score) using trained model."""
+    logger.debug(
+        "[dev3] predict input from=%s to=%s data=%s", from_token, to_token, quote_data
+    )
     try:
-        score = quote_data.get("score", 0.0)
-        ratio = quote_data.get("ratio", 0.0)
-        ratio = float(ratio)
-        inverse_ratio = quote_data.get("inverseRatio", 0.0)
-        features = np.array([[score, ratio, inverse_ratio]])
-        if hasattr(model, "predict_proba"):
-            prob = float(model.predict_proba(features)[0][1])
-        else:
-            prob = float(model.predict(features)[0])
-        expected_profit = ratio * prob
-        score = expected_profit * prob
+        model = _load_model()
+    except FileNotFoundError:
+        logger.debug("[dev3] model file not found")
+        return 0.0, 0.0, 0.0
 
-        return expected_profit, prob, score
+    if model is None:
+        return 0.0, 0.0, 0.0
+
+    try:
+        inp_score = float(quote_data.get("score", 0.0))
+        ratio = float(quote_data.get("ratio", 0.0))
+        inverse_ratio = float(quote_data.get("inverseRatio", 0.0))
+
+        features = np.array([[inp_score, ratio, inverse_ratio]], dtype=float)
+        norm = np.linalg.norm(features, axis=1, keepdims=True)
+        norm[norm == 0] = 1.0
+        features = features / norm
+
+        if hasattr(model, "predict_proba"):
+            prob_up = float(model.predict_proba(features)[0][1])
+        else:
+            prob_up = float(model.predict(features)[0])
+
+        expected_profit = float(inp_score)
+        score_val = float(inp_score)
+
+        logger.debug(
+            "[dev3] predict result: expected_profit=%.6f prob_up=%.6f score=%.6f",
+            expected_profit,
+            prob_up,
+            score_val,
+        )
+        return expected_profit, prob_up, score_val
     except Exception as exc:  # pragma: no cover - diagnostics only
         logger.exception("[dev3] prediction failed: %s", exc)
         return 0.0, 0.0, 0.0
