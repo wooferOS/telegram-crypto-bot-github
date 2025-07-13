@@ -30,6 +30,22 @@ def cleanup() -> None:
             os.remove(temp)
         except OSError:
             pass
+    if os.path.exists("top_tokens.json"):
+        try:
+            os.remove("top_tokens.json")
+        except OSError:
+            pass
+    for qfile in glob.glob(os.path.join("logs", "quote_*.json")):
+        try:
+            os.remove(qfile)
+        except OSError:
+            pass
+    for log_path in glob.glob(os.path.join("logs", "*.log")):
+        try:
+            if os.path.getsize(log_path) > 5 * 1024 * 1024:
+                os.remove(log_path)
+        except OSError:
+            pass
 
 
 def main() -> None:
