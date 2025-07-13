@@ -53,19 +53,34 @@ def get_available_to_tokens(from_token: str) -> List[str]:
     return [item.get("toAsset") for item in data.get("toAssetList", [])]
 
 
-def get_quote(from_token: str, to_token: str, amount: float) -> Dict[str, Any]:
+def get_quote(from_token: str, to_token: str, amount: float) -> Optional[Dict[str, Any]]:
+    """Return quote data or None if invalid."""
     increment_quote_usage()
     url = f"{BASE_URL}/sapi/v1/convert/getQuote"
     params = _sign({"fromAsset": from_token, "toAsset": to_token, "fromAmount": amount})
-    resp = _session.post(url, params=params, headers=_headers(), timeout=10)
-    return resp.json()
+    try:
+        resp = _session.post(url, params=params, headers=_headers(), timeout=10)
+        data = resp.json()
+    except Exception as exc:  # pragma: no cover - network
+        logger.warning("[dev3] get_quote error %s → %s: %s", from_token, to_token, exc)
+        return None
+
+    if not isinstance(data, dict) or "ratio" not in data:
+        logger.warning("[dev3] invalid quote for %s → %s: %s", from_token, to_token, data)
+        return None
+    return data
 
 
-def accept_quote(quote_id: str) -> Dict[str, Any]:
+def accept_quote(quote_id: str) -> Optional[Dict[str, Any]]:
+    """Accept quote and return response or None on error."""
     url = f"{BASE_URL}/sapi/v1/convert/acceptQuote"
     params = _sign({"quoteId": quote_id})
-    resp = _session.post(url, params=params, headers=_headers(), timeout=10)
-    return resp.json()
+    try:
+        resp = _session.post(url, params=params, headers=_headers(), timeout=10)
+        return resp.json()
+    except Exception as exc:  # pragma: no cover - network
+        logger.warning("[dev3] accept_quote error %s: %s", quote_id, exc)
+        return None
 
 
 def get_all_supported_convert_pairs() -> Set[str]:

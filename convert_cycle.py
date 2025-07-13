@@ -1,226 +1,121 @@
-from typing import List, Dict, Tuple
+from __future__ import annotations
 
-from convert_api import get_quote, accept_quote
+import json
+import os
+from typing import List, Dict, Any
+
+from convert_api import get_quote, accept_quote, get_balances
+from convert_filters import passes_filters
 from convert_logger import (
     logger,
     save_convert_history,
+    log_prediction,
+    log_quote_skipped,
+    log_conversion_success,
+    log_conversion_error,
+    log_skipped_quotes,
 )
-from convert_filters import filter_top_tokens
-from convert_notifier import send_telegram
-from quote_counter import can_request_quote, should_throttle, reset_cycle
+from quote_counter import should_throttle, reset_cycle
+from convert_model import _hash_token
+
+MAX_QUOTES_PER_CYCLE = 20
+TOP_N_PAIRS = 5
 
 
-# Allow executing quotes with low score for model training
-allow_learning_quotes = True
+def _load_top_pairs() -> List[Dict[str, Any]]:
+    path = "top_tokens.json"
+    if not os.path.exists(path):
+        logger.warning("[dev3] top_tokens.json not found")
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as exc:  # pragma: no cover - file issues
+        logger.warning("[dev3] failed to read top_tokens.json: %s", exc)
+        return []
 
 
-
-def process_pair(from_token: str, to_tokens: List[str], amount: float, score_threshold: float) -> bool:
-    logger.info(f"[dev3] 🔍 Аналіз для {from_token} → {len(to_tokens)} токенів")
-    top_results: List[Tuple[str, float, Dict]] = []
-    quotes_map: Dict[str, Dict] = {}
-    scores: Dict[str, float] = {}
-    all_tokens: Dict[str, Dict] = {}
-    skipped_pairs: List[Tuple[str, float, str]] = []  # (token, score, reason)
-
+def process_top_pairs() -> None:
+    """Process top pairs from daily analysis."""
     reset_cycle()
+    pairs = _load_top_pairs()
+    if not pairs:
+        logger.warning("[dev3] No pairs to process")
+        return
 
-    for to_token in to_tokens:
-        if should_throttle(from_token, to_token):
-            skipped_pairs.append((to_token, 0.0, "throttled"))
+    balances = get_balances()
+    pairs.sort(key=lambda x: x.get("score", 0), reverse=True)
+    quote_count = 0
+
+    for item in pairs[:TOP_N_PAIRS]:
+        if quote_count >= MAX_QUOTES_PER_CYCLE:
+            log_skipped_quotes()
             break
+
+        from_token = item.get("from_token")
+        to_token = item.get("to_token")
+        score = float(item.get("score", 0))
+        amount = balances.get(from_token, 0)
+
+        log_prediction(from_token, to_token, score)
+
+        if amount <= 0:
+            log_quote_skipped(from_token, to_token, "no_balance")
+            continue
+
+        if should_throttle(from_token, to_token):
+            log_quote_skipped(from_token, to_token, "throttled")
+            continue
 
         quote = get_quote(from_token, to_token, amount)
+        quote_count += 1
 
-        if should_throttle(from_token, to_token, quote):
-            break
-
-        quotes_map[to_token] = quote
-        # Save all quotes for training, even if not accepted later
-        if quote and "ratio" in quote:
-            record = {
-                "from_token": from_token,
-                "to_token": to_token,
-                "score": float(quote.get("score", 0)),
-                "expected_profit": float(quote.get("expected_profit", 0)),
-                "prob_up": float(quote.get("prob_up", 0)),
-                "ratio": float(quote.get("ratio")),
-                "from_amount": float(quote.get("fromAmount", 0)),
-                "to_amount": float(quote.get("toAmount", 0)),
-                "accepted": False,
-            }
-            save_convert_history(record)
-        if not quote or "ratio" not in quote:
-            reason = "ratio_unavailable"
-            logger.warning(
-                f"[dev3] ❌ Не вдалося отримати ratio для {from_token} → {to_token}"
-            )
-            skipped_pairs.append((to_token, 0.0, reason))
+        if not quote:
+            log_quote_skipped(from_token, to_token, "invalid_quote")
             continue
 
-        score = float(quote.get("score", 0))
-        scores[to_token] = score
-        all_tokens[to_token] = {"score": score, "quote": quote}
-        if score < score_threshold:
-            reason = f"low_score {score:.4f}"
-            logger.info(
-                f"[dev3] ⏭️ Пропуск {from_token} → {to_token}: {reason}"
-            )
-            skipped_pairs.append((to_token, score, reason))
-
-    filtered_pairs = filter_top_tokens(all_tokens, score_threshold, top_n=2, fallback_n=1)
-    top_results = [(t, data["score"], data["quote"]) for t, data in filtered_pairs]
-
-    # Build opportunities list for post-processing
-    convert_opportunities = [
-        {"from": from_token, "to": t, "score": sc, "quote": q}
-        for t, sc, q in top_results
-    ]
-
-    # 🧹 Remove duplicate 'from' tokens keeping highest score
-    unique_ops = {}
-    for op in convert_opportunities:
-        key = op["from"]
-        if key not in unique_ops or op["score"] > unique_ops[key]["score"]:
-            unique_ops[key] = op
-
-    convert_opportunities = list(unique_ops.values())
-
-    top_results = [(op["to"], op["score"], op["quote"]) for op in convert_opportunities]
-
-    training_candidate = None
-
-    # Log selection results
-    if top_results:
-        logger.info("[dev3] ✅ Обрано токени для купівлі: %s", [t for t, _, _ in top_results])
-    else:
-        logger.warning("[dev3] ⚠️ Жоден токен не пройшов фільтри — виконуємо навчальну угоду.")
-        # Спроба виконати навчальну угоду навіть з низьким score
-        for token, score, _ in skipped_pairs:
-            quote = quotes_map.get(token)
-            if quote and "quoteId" in quote:
-                training_candidate = (token, score, quote)
-                break
-        if not training_candidate:
-            logger.warning("[dev3] ❌ Немає доступної пари навіть для навчальної угоди.")
-            return False
-
-    selected_tokens = {t for t, _, _ in top_results}
-
-    # Optionally process one low-score pair for training purposes
-    if allow_learning_quotes and not training_candidate:
-        for token, sc, _reason in skipped_pairs:
-            quote = quotes_map.get(token)
-            if quote and "quoteId" in quote:
-                training_candidate = (token, sc, quote)
-                break
-
-    any_accepted = False
-
-    for to_token, score, quote in top_results:
-        accept_result = None
-        try:
-            accept_result = accept_quote(quote["quoteId"])
-            if accept_result:
-                logger.info(f"[dev3] ✅ accept_quote успішний: {quote['quoteId']}")
-            else:
-                logger.warning(
-                    f"[dev3] ❌ Помилка під час accept_quote: {quote['quoteId']} — {accept_result}"
-                )
-        except Exception as error:  # pragma: no cover - network/IO
-            logger.warning(
-                f"[dev3] ❌ Помилка під час accept_quote: {quote['quoteId']} — {error}"
-            )
-            accept_result = None
-
-        accepted = bool(accept_result)
-
-        logger.info(
-            f"[dev3] {'✅' if accepted else '❌'} Конверсія {from_token} → {to_token} (score={score:.4f})"
-        )
-
-        record = {
-            "from_token": from_token,
-            "to_token": to_token,
-            "score": score,
-            "expected_profit": float(quote.get("expected_profit", 0)),
-            "prob_up": float(quote.get("prob_up", 0)),
-            "ratio": quote.get("ratio"),
-            "from_amount": quote.get("fromAmount"),
-            "to_amount": quote.get("toAmount"),
-        }
-
-        # Save accepted status only after real accept_quote call
-        if accepted:
-            record["accepted"] = True
-        else:
-            record["accepted"] = False
-
-        save_convert_history(record)
-        if accepted:
-            any_accepted = True
-
-    # Execute one additional low-score pair for training
-    if training_candidate:
-        to_token, score, quote = training_candidate
-        selected_tokens.add(to_token)
-        accept_result = None
-        try:
-            accept_result = accept_quote(quote["quoteId"])
-            if accept_result:
-                logger.info(
-                    f"[dev3] 📊 Навчальна угода успішна: {quote['quoteId']}"
-                )
-            else:
-                logger.warning(
-                    f"[dev3] 📊 Навчальна угода помилка: {quote['quoteId']} — {accept_result}"
-                )
-        except Exception as error:  # pragma: no cover - network/IO
-            logger.warning(
-                f"[dev3] 📊 Навчальна угода помилка: {quote['quoteId']} — {error}"
-            )
-            accept_result = None
-
-        accepted = bool(accept_result)
-        logger.info(
-            f"[dev3] {'✅' if accepted else '❌'} 📊 Навчальна угода {from_token} → {to_token} (score={score:.4f})"
-        )
-
-        record = {
-            "from_token": from_token,
-            "to_token": to_token,
-            "score": score,
-            "expected_profit": float(quote.get("expected_profit", 0)),
-            "prob_up": float(quote.get("prob_up", 0)),
-            "ratio": quote.get("ratio"),
-            "from_amount": quote.get("fromAmount"),
-            "to_amount": quote.get("toAmount"),
-            "training": True,
-            "accepted": accepted,
-        }
-
-        save_convert_history(record)
-        if accepted:
-            any_accepted = True
-
-    # Log rejected pairs
-    for to_token in to_tokens:
-        if to_token in selected_tokens:
+        valid, reason = passes_filters(score, quote, amount)
+        if not valid:
+            log_quote_skipped(from_token, to_token, reason)
             continue
-        quote = quotes_map.get(to_token)
-        record = {"from_token": from_token, "to_token": to_token, "accepted": False}
-        if quote and "ratio" in quote:
-            record.update(
+
+        resp = accept_quote(quote.get("quoteId"))
+        if resp and isinstance(resp, dict) and "code" not in resp:
+            profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
+            log_conversion_success(from_token, to_token, profit)
+            features = [
+                float(quote.get("ratio", 0)),
+                float(quote.get("inverseRatio", 0)),
+                float(amount),
+                _hash_token(from_token),
+                _hash_token(to_token),
+            ]
+            save_convert_history(
                 {
-                    "score": scores.get(to_token, 0.0),
-                    "expected_profit": float(quote.get("expected_profit", 0)),
-                    "prob_up": float(quote.get("prob_up", 0)),
-                    "ratio": quote.get("ratio"),
-                    "from_amount": quote.get("fromAmount"),
-                    "to_amount": quote.get("toAmount"),
+                    "from": from_token,
+                    "to": to_token,
+                    "features": features,
+                    "profit": profit,
+                    "accepted": True,
                 }
             )
-        save_convert_history(record)
+        else:
+            log_conversion_error(from_token, to_token, str(resp))
+            save_convert_history(
+                {
+                    "from": from_token,
+                    "to": to_token,
+                    "features": [
+                        float(quote.get("ratio", 0)),
+                        float(quote.get("inverseRatio", 0)),
+                        float(amount),
+                        _hash_token(from_token),
+                        _hash_token(to_token),
+                    ],
+                    "profit": 0.0,
+                    "accepted": False,
+                }
+            )
 
     logger.info("[dev3] ✅ Цикл завершено")
-    return any_accepted
+
