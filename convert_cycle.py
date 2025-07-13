@@ -7,7 +7,7 @@ from convert_logger import (
 )
 from convert_filters import filter_top_tokens
 from convert_notifier import send_telegram
-from quote_counter import can_request_quote
+from quote_counter import can_request_quote, should_throttle, reset_cycle
 
 
 # Allow executing quotes with low score for model training
@@ -23,30 +23,16 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
     all_tokens: Dict[str, Dict] = {}
     skipped_pairs: List[Tuple[str, float, str]] = []  # (token, score, reason)
 
-    max_quotes_per_cycle = 20
-    quotes_used = 0
+    reset_cycle()
 
     for to_token in to_tokens:
-        if quotes_used >= max_quotes_per_cycle:
-            logger.warning(
-                "[dev3] ⚠️ Досягнуто ліміту get_quote у цьому циклі (%s)",
-                max_quotes_per_cycle,
-            )
-            break
-
-        if not can_request_quote():
-            logger.warning("[dev3] ⛔ Досягнуто добового ліміту get_quote від Binance")
+        if should_throttle(from_token, to_token):
+            skipped_pairs.append((to_token, 0.0, "throttled"))
             break
 
         quote = get_quote(from_token, to_token, amount)
-        quotes_used += 1
-        if isinstance(quote, dict) and quote.get("code") == 345239:
-            logger.warning(
-                "[dev3] 🟥 Ліміт Binance Convert API вичерпано (code=345239). Завершення циклу."
-            )
-            send_telegram(
-                "[dev3] ❗ Досягнуто ліміту Binance Convert API — цикл завершено."
-            )
+
+        if should_throttle(from_token, to_token, quote):
             break
 
         quotes_map[to_token] = quote

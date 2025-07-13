@@ -40,10 +40,22 @@ async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]
 
         ratio = float(quote["ratio"])
         inverse_ratio = float(quote["inverseRatio"])
+
+        base_expected_profit = ratio - 1.0
+        base_prob_up = 0.5
+        base_score = base_expected_profit * base_prob_up
+
         expected_profit, prob_up, score = predict(
             from_token,
             to_token,
-            {"ratio": ratio, "inverseRatio": inverse_ratio, "amount": amount},
+            {
+                "expected_profit": base_expected_profit,
+                "prob_up": base_prob_up,
+                "score": base_score,
+                "ratio": ratio,
+                "inverseRatio": inverse_ratio,
+                "amount": amount,
+            },
         )
 
         logger.info(

@@ -3,7 +3,8 @@ import os
 import json
 from datetime import datetime
 
-LOG_FILE = os.path.join("logs", "trade_convert.log")
+LOG_FILE = os.path.join("logs", "convert_trade.log")
+DEBUG_LOG_FILE = os.path.join("logs", "convert_debug.log")
 ERROR_LOG_FILE = os.path.join("logs", "convert_errors.log")
 BALANCE_LOG_FILE = os.path.join("logs", "balance_guard.log")
 
@@ -14,10 +15,22 @@ formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("convert")
 logger.setLevel(logging.INFO)
 
-if not any(isinstance(h, logging.FileHandler) and h.baseFilename.endswith("trade_convert.log") for h in logger.handlers):
+if not any(
+    isinstance(h, logging.FileHandler) and h.baseFilename.endswith("convert_trade.log")
+    for h in logger.handlers
+):
     fh = logging.FileHandler(LOG_FILE, encoding="utf-8")
     fh.setFormatter(formatter)
     logger.addHandler(fh)
+
+if not any(
+    isinstance(h, logging.FileHandler) and h.baseFilename.endswith("convert_debug.log")
+    for h in logger.handlers
+):
+    dh = logging.FileHandler(DEBUG_LOG_FILE, encoding="utf-8")
+    dh.setFormatter(formatter)
+    dh.setLevel(logging.DEBUG)
+    logger.addHandler(dh)
 
 if not any(isinstance(h, logging.FileHandler) and h.baseFilename.endswith("convert_errors.log") for h in logger.handlers):
     eh = logging.FileHandler(ERROR_LOG_FILE, encoding="utf-8")
@@ -27,6 +40,16 @@ if not any(isinstance(h, logging.FileHandler) and h.baseFilename.endswith("conve
 
 if not any(isinstance(h, logging.StreamHandler) for h in logger.handlers):
     logger.addHandler(logging.StreamHandler())
+
+balance_logger = logging.getLogger("balance_guard")
+balance_logger.setLevel(logging.INFO)
+if not any(
+    isinstance(h, logging.FileHandler) and h.baseFilename.endswith("balance_guard.log")
+    for h in balance_logger.handlers
+):
+    bh = logging.FileHandler(BALANCE_LOG_FILE, encoding="utf-8")
+    bh.setFormatter(formatter)
+    balance_logger.addHandler(bh)
 
 # Summary logger for overall cycle results
 summary_logger = logging.getLogger("summary")
@@ -86,8 +109,8 @@ def log_conversion_result(quote: dict, accepted: bool) -> None:
     """Log conversion result to history."""
     entry = {
         "quoteId": quote.get("quoteId"),
-        "from": quote.get("fromAsset"),
-        "to": quote.get("toAsset"),
+        "from_token": quote.get("fromAsset"),
+        "to_token": quote.get("toAsset"),
         "ratio": quote.get("ratio"),
         "inverseRatio": quote.get("inverseRatio"),
         "score": quote.get("score"),
