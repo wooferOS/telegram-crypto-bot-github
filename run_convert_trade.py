@@ -2,10 +2,8 @@ import os
 import glob
 import subprocess
 
-from convert_api import get_balances, get_available_to_tokens
-from convert_cycle import process_pair
+from convert_cycle import process_top_pairs
 from convert_logger import logger
-from config_dev3 import CONVERT_SCORE_THRESHOLD
 from quote_counter import can_request_quote
 
 if not can_request_quote():
@@ -51,15 +49,7 @@ def cleanup() -> None:
 def main() -> None:
     cleanup()
     logger.info("[dev3] 🔄 Запуск convert трейдингу")
-    balances = get_balances()
-    for token, amount in balances.items():
-        logger.info(f"[dev3] 🔄 Старт трейд-циклу для {token}")
-        tos = get_available_to_tokens(token)
-        success = process_pair(token, tos, amount, CONVERT_SCORE_THRESHOLD)
-        if not success:
-            logger.warning(
-                "[dev3] ⚠️ Fallback: жодна пара не пройшла фільтри. Обираємо top 2 за ratio."
-            )
+    process_top_pairs()
     cleanup()
     logger.info("[dev3] ✅ Цикл завершено")
 

@@ -52,13 +52,19 @@ def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, fl
     try:
         ratio = float(quote_data.get("ratio", 0.0))
         inverse_ratio = float(quote_data.get("inverseRatio", 0.0))
-
-        expected_profit = float(quote_data.get("expected_profit", ratio - 1.0))
-        prob_up = float(quote_data.get("prob_up", 0.5))
-        score = float(quote_data.get("score", expected_profit * prob_up))
+        amount = float(quote_data.get("amount", 0.0))
 
         features = np.array(
-            [[expected_profit, prob_up, score, ratio, inverse_ratio]], dtype=float
+            [
+                [
+                    ratio,
+                    inverse_ratio,
+                    amount,
+                    _hash_token(from_token),
+                    _hash_token(to_token),
+                ]
+            ],
+            dtype=float,
         )
         norm = np.linalg.norm(features, axis=1, keepdims=True)
         norm[norm == 0] = 1.0
@@ -69,7 +75,7 @@ def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, fl
         else:
             prob_up = float(model.predict(features)[0])
 
-        expected_profit = float(expected_profit)
+        expected_profit = ratio - 1.0
         score_val = expected_profit * prob_up
 
         logger.debug(

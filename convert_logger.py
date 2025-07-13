@@ -118,3 +118,48 @@ def log_conversion_result(quote: dict, accepted: bool) -> None:
         "accepted": accepted,
     }
     log_convert_history(entry)
+
+
+def log_prediction(from_token: str, to_token: str, score: float) -> None:
+    """Log prediction score for a token pair."""
+    logger.info(
+        "[dev3] \u2728 Прогноз %s → %s | score=%.6f",
+        from_token,
+        to_token,
+        score,
+    )
+
+
+def log_quote_skipped(from_token: str, to_token: str, reason: str) -> None:
+    """Log reason for skipping quote execution."""
+    logger.info(
+        "[dev3] \u23ed\ufe0f Пропуск %s → %s: %s",
+        from_token,
+        to_token,
+        reason,
+    )
+
+
+def log_conversion_success(from_token: str, to_token: str, profit: float) -> None:
+    """Log successful conversion with profit."""
+    logger.info(
+        "[dev3] \u2705 Конверсія %s → %s успiшна | profit=%.8f",
+        from_token,
+        to_token,
+        profit,
+    )
+
+
+def log_conversion_error(from_token: str, to_token: str, error: str) -> None:
+    """Log conversion error."""
+    logger.warning(
+        "[dev3] \u274c Помилка конверсії %s → %s: %s",
+        from_token,
+        to_token,
+        error,
+    )
+
+
+def log_skipped_quotes() -> None:
+    """Log that quote requests were skipped due to limit."""
+    logger.warning("[dev3] \u23F8\ufe0f Достигнуто лiмiт запитiв get_quote за цикл")
