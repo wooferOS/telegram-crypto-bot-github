@@ -48,8 +48,12 @@ def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, fl
         ratio = float(quote_data.get("ratio", 0.0))
         inverse_ratio = float(quote_data.get("inverseRatio", 0.0))
 
-        # Build feature vector only from ratio and inverseRatio
-        features = np.array([[ratio, inverse_ratio]], dtype=float)
+        amount = float(quote_data.get("amount", 0.0))
+        from_token_hash = (hash(from_token) % 1000) / 1000
+        to_token_hash = (hash(to_token) % 1000) / 1000
+
+        # Build feature vector from ratio, inverseRatio, amount and token hashes
+        features = np.array([[ratio, inverse_ratio, amount, from_token_hash, to_token_hash]], dtype=float)
         norm = np.linalg.norm(features, axis=1, keepdims=True)
         norm[norm == 0] = 1.0
         features = features / norm
