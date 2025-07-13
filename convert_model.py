@@ -1,6 +1,7 @@
 import logging
 import os
 from typing import Any, Tuple, List, Dict
+import hashlib
 
 import numpy as np
 
@@ -30,6 +31,10 @@ def _load_model() -> Any:
     return _model
 
 
+def _hash_token(token: str) -> float:
+    return float(int(hashlib.sha256(token.encode()).hexdigest(), 16) % 10**8)
+
+
 def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, float, float]:
     """Return (expected_profit, probability_up, score) using trained model."""
     logger.debug(
@@ -49,10 +54,10 @@ def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, fl
         inverse_ratio = float(quote_data.get("inverseRatio", 0.0))
 
         amount = float(quote_data.get("amount", 0.0))
-        from_token_hash = (hash(from_token) % 1000) / 1000
-        to_token_hash = (hash(to_token) % 1000) / 1000
 
-        # Build feature vector from ratio, inverseRatio, amount and token hashes
+        from_token_hash = _hash_token(from_token)
+        to_token_hash = _hash_token(to_token)
+
         features = np.array([[ratio, inverse_ratio, amount, from_token_hash, to_token_hash]], dtype=float)
         norm = np.linalg.norm(features, axis=1, keepdims=True)
         norm[norm == 0] = 1.0
