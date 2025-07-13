@@ -2,8 +2,9 @@ import json
 import os
 
 from convert_api import get_balances
-from convert_logger import logger
+from convert_logger import balance_logger
 from convert_notifier import notify_failure
+from utils_dev3 import load_json
 
 SNAPSHOT_FILE = "balance_snapshot.json"
 THRESHOLD = 0.25
@@ -27,9 +28,20 @@ def check_balance() -> None:
     snapshot = load_snapshot()
     prev_total = snapshot.get("total", total)
     diff = total - prev_total
+
+    history = load_json(os.path.join("logs", "convert_history.json"))
+    last_trade = history[-1]["timestamp"] if history else "N/A"
+
     if prev_total and diff < -prev_total * THRESHOLD:
         notify_failure("BALANCE", "USDT", "зменшення балансу >25%")
-    logger.info("[dev3] Balance total=%s diff=%s", total, diff)
+
+    balance_logger.info(
+        "[dev3] Баланс перед=%.4f після=%.4f активи=%d остання_угода=%s",
+        prev_total,
+        total,
+        len(current),
+        last_trade,
+    )
     save_snapshot({"total": total})
 
 
