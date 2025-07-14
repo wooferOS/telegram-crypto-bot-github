@@ -9,11 +9,22 @@ MODEL_PATH = "model_convert.joblib"
 HISTORY_PATH = "logs/convert_history.json"
 
 def extract_features(data):
-    feature_keys = ["expected_profit", "prob_up", "score", "volatility"]
-    df = pd.DataFrame([
-        {k: float(trade.get(k, 0)) for k in feature_keys}
-        for trade in data
-    ])
+    """Convert raw history records into a DataFrame of features."""
+
+    # `predict()` from :mod:`convert_model` expects five input features in the
+    # following order.  To ensure the model is trained on data with the same
+    # structure we include all of them here as well.
+    feature_keys = [
+        "expected_profit",
+        "prob_up",
+        "score",
+        "volatility",
+        "amount",
+    ]
+
+    df = pd.DataFrame(
+        [{k: float(trade.get(k, 0)) for k in feature_keys} for trade in data]
+    )
     return df
 
 def extract_labels(data):
