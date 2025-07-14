@@ -5,6 +5,7 @@ import os
 from typing import List, Dict, Any
 
 from convert_api import get_quote, accept_quote, get_balances
+from convert_notifier import notify_success, notify_failure
 from convert_filters import passes_filters
 from convert_logger import (
     logger,
@@ -80,9 +81,18 @@ def process_top_pairs() -> None:
             continue
 
         resp = accept_quote(quote.get("quoteId"))
-        if resp and isinstance(resp, dict) and "code" not in resp:
+        if resp and resp.get("success") is True:
+            logger.info("[dev3] ✅ Трейд успішно прийнято Binance")
             profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
             log_conversion_success(from_token, to_token, profit)
+            notify_success(
+                from_token,
+                to_token,
+                float(resp.get("fromAmount", 0)),
+                float(resp.get("toAmount", 0)),
+                score,
+                float(quote.get("ratio", 0)) - 1,
+            )
             features = [
                 float(quote.get("ratio", 0)),
                 float(quote.get("inverseRatio", 0)),
@@ -100,7 +110,15 @@ def process_top_pairs() -> None:
                 }
             )
         else:
-            log_conversion_error(from_token, to_token, str(resp))
+            reason = resp.get("msg") if isinstance(resp, dict) else "Unknown error"
+            logger.warning(
+                "[dev3] ❌ Трейд НЕ відбувся: %s → %s. Причина: %s",
+                from_token,
+                to_token,
+                reason,
+            )
+            log_conversion_error(from_token, to_token, reason)
+            notify_failure(from_token, to_token, reason=reason)
             save_convert_history(
                 {
                     "from": from_token,
