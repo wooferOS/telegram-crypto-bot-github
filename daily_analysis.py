@@ -108,7 +108,8 @@ async def main() -> None:
     top_tokens = sorted_tokens[:5]
     if not top_tokens:
         logger.warning("[dev3] ❌ top_tokens.json порожній — відсутні релевантні прогнози")
-    await asyncio.to_thread(save_json, "top_tokens.json", top_tokens)
+    top_tokens_path = os.path.join(os.path.dirname(__file__), "top_tokens.json")
+    await asyncio.to_thread(save_json, top_tokens_path, top_tokens)
 
     logger.info(f"[dev3] ✅ Аналіз завершено. Створено top_tokens.json з {len(top_tokens)} записами.")
 

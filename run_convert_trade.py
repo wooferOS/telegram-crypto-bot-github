@@ -28,9 +28,10 @@ def cleanup() -> None:
             os.remove(temp)
         except OSError:
             pass
-    if os.path.exists("top_tokens.json"):
+    top_tokens_path = os.path.join(os.path.dirname(__file__), "top_tokens.json")
+    if os.path.exists(top_tokens_path):
         try:
-            os.remove("top_tokens.json")
+            os.remove(top_tokens_path)
         except OSError:
             pass
     for qfile in glob.glob(os.path.join("logs", "quote_*.json")):
