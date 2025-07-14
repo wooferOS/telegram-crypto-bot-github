@@ -72,14 +72,15 @@ def get_quote(from_token: str, to_token: str, amount: float) -> Optional[Dict[st
 
 
 def accept_quote(quote_id: str) -> Optional[Dict[str, Any]]:
-    """Accept quote and return response or None on error."""
     url = f"{BASE_URL}/sapi/v1/convert/acceptQuote"
     params = _sign({"quoteId": quote_id})
     try:
         resp = _session.post(url, params=params, headers=_headers(), timeout=10)
-        return resp.json()
-    except Exception as exc:  # pragma: no cover - network
-        logger.warning("[dev3] accept_quote error %s: %s", quote_id, exc)
+        data = resp.json()
+        logger.info("[dev3] Binance response (accept_quote): %s", data)
+        return data
+    except Exception as exc:
+        logger.warning("[dev3] ❌ accept_quote exception %s: %s", quote_id, exc)
         return None
 
 
