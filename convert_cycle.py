@@ -23,7 +23,7 @@ TOP_N_PAIRS = 5
 
 
 def _load_top_pairs() -> List[Dict[str, Any]]:
-    path = "top_tokens.json"
+    path = os.path.join(os.path.dirname(__file__), "top_tokens.json")
     if not os.path.exists(path):
         logger.warning("[dev3] top_tokens.json not found")
         return []
