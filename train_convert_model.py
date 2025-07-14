@@ -18,6 +18,15 @@ file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message
 logger.addHandler(file_handler)
 
 
+def extract_features(record):
+    return [
+        record.get("expected_profit", 0),
+        record.get("prob_up", 0),
+        record.get("score", 0),
+        record.get("volatility", 0),
+    ]
+
+
 def main() -> None:
     if not os.path.exists(HISTORY_FILE):
         logger.warning("[dev3] convert_history.json not found")
@@ -30,26 +39,24 @@ def main() -> None:
         logger.warning("[dev3] failed to read history: %s", exc)
         return
 
-    records = [rec for rec in history if rec.get("accepted")]
-    if not records:
-        logger.warning("[dev3] No executed conversions for training")
-        return
+    records = [rec for rec in history if rec.get("expected_profit") is not None]
 
-    features = [rec.get("features", []) for rec in records]
-    targets = [1 if rec.get("profit", 0) > 0 else 0 for rec in records]
-
-    if len(records) < 2:
+    if not records or len(records) < 2:
         logger.warning("[dev3] Not enough data for training")
         return
 
-    X = np.array(features, dtype=float)
-    y = np.array(targets, dtype=int)
+    X = np.array([extract_features(rec) for rec in records], dtype=float)
+    y = np.array([1 if rec.get("profit", 0) > 0 else 0 for rec in records], dtype=int)
+
+    if X.shape[1] == 0:
+        logger.error("[dev3] ❌ Порожній масив ознак для навчання")
+        return
 
     model = RandomForestClassifier(n_estimators=50, random_state=42)
     model.fit(X, y)
     dump(model, MODEL_PATH)
 
-    logger.info("[dev3] \u2705 Модель навчено на %s записах", len(records))
+    logger.info("[dev3] ✅ Модель навчено на %s записах", len(records))
 
 
 if __name__ == "__main__":
