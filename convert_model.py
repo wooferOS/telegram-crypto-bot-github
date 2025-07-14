@@ -12,6 +12,19 @@ logger = logging.getLogger(__name__)
 _model = None
 
 
+def train_model(X, y):
+    from sklearn.ensemble import RandomForestClassifier
+    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model.fit(X, y)
+    logger.info("[dev3] \U0001F3AF Навчання завершено: %d записів", len(y))
+    return model
+
+
+def save_model(model, path=MODEL_PATH):
+    joblib.dump(model, path)
+    logger.info("[dev3] \U0001F4BE Модель збережено у %s", path)
+
+
 def prepare_dataset(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Filter raw history into a dataset used for training."""
     return [x for x in history if x.get("score", 0) > 0 and x.get("expected_profit", 0) > 0]
