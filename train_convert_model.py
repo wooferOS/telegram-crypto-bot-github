@@ -1,63 +1,53 @@
 import json
-import logging
 import os
-
-from joblib import dump
-import numpy as np
+import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-
+import joblib
 from convert_logger import logger
-from convert_model import MODEL_PATH
 
-HISTORY_FILE = os.path.join("logs", "convert_history.json")
-LOG_FILE = os.path.join("logs", "model_training.log")
+MODEL_PATH = "model_convert.joblib"
+HISTORY_PATH = "logs/convert_history.json"
 
-logger.setLevel(logging.INFO)
-file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
-file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
-logger.addHandler(file_handler)
+def extract_features(data):
+    feature_keys = ["expected_profit", "prob_up", "score", "volatility"]
+    df = pd.DataFrame([
+        {k: float(trade.get(k, 0)) for k in feature_keys}
+        for trade in data
+    ])
+    return df
 
+def extract_labels(data):
+    return [1 if trade.get("accepted") else 0 for trade in data]
 
-def extract_features(record):
-    return [
-        record.get("expected_profit", 0),
-        record.get("prob_up", 0),
-        record.get("score", 0),
-        record.get("volatility", 0),
-    ]
+def load_history(path):
+    if not os.path.exists(path):
+        logger.warning(f"❌ Файл історії не знайдено: {path}")
+        return []
+    with open(path, "r") as f:
+        try:
+            return json.load(f)
+        except json.JSONDecodeError:
+            logger.warning(f"⚠️ Неможливо прочитати JSON: {path}")
+            return []
 
-
-def main() -> None:
-    if not os.path.exists(HISTORY_FILE):
-        logger.warning("[dev3] convert_history.json not found")
+def main():
+    history = load_history(HISTORY_PATH)
+    if not history:
+        logger.warning("⛔️ Історія порожня або недоступна.")
         return
 
-    try:
-        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-            history = json.load(f)
-    except Exception as exc:
-        logger.warning("[dev3] failed to read history: %s", exc)
+    X = extract_features(history)
+    y = extract_labels(history)
+
+    if X.shape[1] == 0 or len(y) == 0:
+        logger.warning("⚠️ Немає ознак або міток для навчання.")
         return
 
-    records = [rec for rec in history if rec.get("expected_profit") is not None]
-
-    if not records or len(records) < 2:
-        logger.warning("[dev3] Not enough data for training")
-        return
-
-    X = np.array([extract_features(rec) for rec in records], dtype=float)
-    y = np.array([1 if rec.get("profit", 0) > 0 else 0 for rec in records], dtype=int)
-
-    if X.shape[1] == 0:
-        logger.error("[dev3] ❌ Порожній масив ознак для навчання")
-        return
-
-    model = RandomForestClassifier(n_estimators=50, random_state=42)
+    model = RandomForestClassifier(n_estimators=100, random_state=42)
     model.fit(X, y)
-    dump(model, MODEL_PATH)
 
-    logger.info("[dev3] ✅ Модель навчено на %s записах", len(records))
-
+    joblib.dump(model, MODEL_PATH)
+    logger.info(f"✅ Модель збережено в {MODEL_PATH}")
 
 if __name__ == "__main__":
     main()
