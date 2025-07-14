@@ -28,12 +28,8 @@ def cleanup() -> None:
             os.remove(temp)
         except OSError:
             pass
-    top_tokens_path = os.path.join(os.path.dirname(__file__), "top_tokens.json")
-    if os.path.exists(top_tokens_path):
-        try:
-            os.remove(top_tokens_path)
-        except OSError:
-            pass
+    # [dev3] Не видаляємо top_tokens.json на початку трейд-циклу, бо файл
+    # створюється в GPT-етапі за годину до трейду
     for qfile in glob.glob(os.path.join("logs", "quote_*.json")):
         try:
             os.remove(qfile)
