@@ -20,7 +20,7 @@ from quote_counter import should_throttle, reset_cycle
 from convert_model import _hash_token
 
 MAX_QUOTES_PER_CYCLE = 20
-TOP_N_PAIRS = 5
+TOP_N_PAIRS = 10
 
 
 def _load_top_pairs() -> List[Dict[str, Any]]:
@@ -47,6 +47,8 @@ def process_top_pairs() -> None:
     balances = get_balances()
     pairs.sort(key=lambda x: x.get("score", 0), reverse=True)
     quote_count = 0
+    any_successful_conversion = False
+    fallback_conversion_done = False
 
     for item in pairs[:TOP_N_PAIRS]:
         if quote_count >= MAX_QUOTES_PER_CYCLE:
@@ -83,6 +85,7 @@ def process_top_pairs() -> None:
         quote_id = quote.get("quoteId")
         resp = accept_quote(quote_id) if quote_id else None
         if resp and resp.get("success") is True:
+            any_successful_conversion = True
             logger.info("[dev3] ✅ Трейд успішно прийнято Binance")
             profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
             log_conversion_success(from_token, to_token, profit)
@@ -135,6 +138,21 @@ def process_top_pairs() -> None:
                     "accepted": False,
                 }
             )
+
+    if not any_successful_conversion:
+        sorted_tokens = sorted(pairs, key=lambda x: x["score"], reverse=True)
+        for token in sorted_tokens:
+            if token.get("score", 0) < 0:
+                from_token = token.get("from_token")
+                to_token = token.get("to_token")
+                if from_token in balances:
+                    quote = get_quote(from_token, to_token, balances[from_token])
+                    if quote and accept_quote(quote.get("quoteId")):
+                        fallback_conversion_done = True
+                        logger.info(
+                            f"[dev3] 🧪 Навчальна угода: {from_token} → {to_token} (score={token['score']})"
+                        )
+                        break
 
     logger.info("[dev3] ✅ Цикл завершено")
 

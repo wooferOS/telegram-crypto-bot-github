@@ -105,7 +105,7 @@ async def main() -> None:
     await asyncio.to_thread(save_json, os.path.join("logs", "predictions.json"), predictions)
 
     sorted_tokens = sorted(predictions, key=lambda x: x["score"], reverse=True)
-    top_tokens = sorted_tokens[:5]
+    top_tokens = sorted_tokens[:10]
     if not top_tokens:
         logger.warning("[dev3] ❌ top_tokens.json порожній — відсутні релевантні прогнози")
     top_tokens_path = os.path.join(os.path.dirname(__file__), "top_tokens.json")
