@@ -3,7 +3,11 @@ import os
 from typing import Dict, Tuple, List, Any
 
 from convert_logger import logger
-from config_dev3 import CONVERT_SCORE_THRESHOLD, MIN_NOTIONAL
+from config_dev3 import MIN_NOTIONAL
+
+# Allow slight negative scores and smaller toAmount for training trades
+MIN_SCORE = -0.0005
+MIN_TO_AMOUNT = 5
 
 HISTORY_FILE = os.path.join("logs", "convert_history.json")
 
@@ -39,12 +43,15 @@ def filter_top_tokens(
 
 def passes_filters(score: float, quote: Dict[str, Any], balance: float) -> Tuple[bool, str]:
     """Validate quote against multiple convert filters."""
-    if score <= CONVERT_SCORE_THRESHOLD:
+    if score < MIN_SCORE:
         return False, "low_score"
+
     from_amount = float(quote.get("fromAmount", 0))
     to_amount = float(quote.get("toAmount", 0))
     if to_amount <= from_amount:
         return False, "no_profit"
+    if to_amount < MIN_TO_AMOUNT:
+        return False, "to_amount_too_low"
     if from_amount < MIN_NOTIONAL:
         return False, "min_notional"
     if balance < from_amount:
