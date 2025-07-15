@@ -59,7 +59,7 @@ def get_quote(from_token: str, to_token: str, amount: float) -> Optional[Dict[st
     url = f"{BASE_URL}/sapi/v1/convert/getQuote"
     params = _sign({"fromAsset": from_token, "toAsset": to_token, "fromAmount": amount})
     try:
-        resp = _session.post(url, params=params, headers=_headers(), timeout=10)
+        resp = _session.post(url, data=params, headers=_headers(), timeout=10)
         data = resp.json()
     except Exception as exc:  # pragma: no cover - network
         logger.warning("[dev3] get_quote error %s → %s: %s", from_token, to_token, exc)
@@ -75,7 +75,7 @@ def accept_quote(quote_id: str) -> Optional[Dict[str, Any]]:
     url = f"{BASE_URL}/sapi/v1/convert/acceptQuote"
     params = _sign({"quoteId": quote_id})
     try:
-        resp = _session.post(url, params=params, headers=_headers(), timeout=10)
+        resp = _session.post(url, data=params, headers=_headers(), timeout=10)
         data = resp.json()
         logger.info("[dev3] Binance response (accept_quote): %s", data)
         return data
