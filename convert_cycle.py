@@ -80,7 +80,8 @@ def process_top_pairs() -> None:
             log_quote_skipped(from_token, to_token, reason)
             continue
 
-        resp = accept_quote(quote.get("quoteId"))
+        quote_id = quote.get("quoteId")
+        resp = accept_quote(quote_id) if quote_id else None
         if resp and resp.get("success") is True:
             logger.info("[dev3] ✅ Трейд успішно прийнято Binance")
             profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
