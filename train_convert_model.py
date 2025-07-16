@@ -49,13 +49,9 @@ def main():
         return
 
     X = extract_features(history)
-    if X.size == 0 or X.shape[1] == 0:
+    if X.shape[1] == 0 or X.size == 0:
         logger.error(
-            "[dev3] ❌ Порожній масив X — extract_features() не сформувала ознаки."
-        )
-        logger.error(
-            "[dev3] Історія має %d записів, але ймовірно всі вони фільтруються або мають нульові значення",
-            len(history),
+            "[dev3] ❌ Навчання зупинено: неможливо згенерувати ознаки — масив features порожній."
         )
         sys.exit(1)
 

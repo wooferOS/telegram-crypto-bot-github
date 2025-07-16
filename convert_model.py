@@ -49,18 +49,24 @@ def _hash_token(token: str) -> float:
     return float(int(hashlib.sha256(token.encode()).hexdigest(), 16) % 10**8) / 1e8
 
 
-def extract_features(data: List[Dict[str, Any]]) -> np.ndarray:
+def extract_features(history: List[Dict[str, Any]]) -> np.ndarray:
     """Build feature matrix from dataset for training."""
-    rows = []
-    for row in data:
+    features_list = []
+    for row in history:
         ratio = float(row.get("ratio", 0.0))
         inverse_ratio = float(row.get("inverseRatio", 0.0))
         amount = float(row.get("amount", 0.0))
         from_hash = _hash_token(row.get("from_token", ""))
         to_hash = _hash_token(row.get("to_token", ""))
-        rows.append([ratio, inverse_ratio, amount, from_hash, to_hash])
+        features_list.append([ratio, inverse_ratio, amount, from_hash, to_hash])
 
-    features = np.array(rows, dtype=float)
+    if not features_list:
+        logging.warning(
+            f"[dev3] ❗ features_list порожній — історія конверсій: {len(history)} записів"
+        )
+        return np.zeros((0, 5))
+
+    features = np.array(features_list, dtype=float)
     norm = np.linalg.norm(features, axis=1, keepdims=True)
     norm[norm == 0] = 1.0
     return features / norm
