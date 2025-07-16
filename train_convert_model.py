@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 import joblib
@@ -48,10 +49,20 @@ def main():
         return
 
     X = extract_features(history)
+    if X.size == 0 or X.shape[1] == 0:
+        logger.error(
+            "[dev3] ❌ Порожній масив X — extract_features() не сформувала ознаки."
+        )
+        logger.error(
+            "[dev3] Історія має %d записів, але ймовірно всі вони фільтруються або мають нульові значення",
+            len(history),
+        )
+        sys.exit(1)
+
     y = extract_labels(history)
 
-    if X.shape[1] == 0 or len(y) == 0:
-        logger.warning("⚠️ Немає ознак або міток для навчання.")
+    if len(y) == 0:
+        logger.warning("⚠️ Немає міток для навчання.")
         return
 
     model = RandomForestClassifier(n_estimators=100, random_state=42)
