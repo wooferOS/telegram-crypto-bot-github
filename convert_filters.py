@@ -3,7 +3,6 @@ import os
 from typing import Dict, Tuple, List, Any
 
 from convert_logger import logger
-from config_dev3 import MIN_NOTIONAL
 
 # Allow slight negative scores and smaller toAmount for training trades
 MIN_SCORE = -0.0005
@@ -52,8 +51,6 @@ def passes_filters(score: float, quote: Dict[str, Any], balance: float) -> Tuple
         return False, "no_profit"
     if to_amount < MIN_TO_AMOUNT:
         return False, "to_amount_too_low"
-    if from_amount < MIN_NOTIONAL:
-        return False, "min_notional"
     if balance < from_amount:
         return False, "insufficient_balance"
     return True, ""
