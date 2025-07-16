@@ -53,9 +53,29 @@ def extract_features(history: List[Dict[str, Any]]) -> np.ndarray:
     """Build feature matrix from dataset for training."""
     features_list = []
     for row in history:
-        ratio = float(row.get("ratio", 0.0))
-        inverse_ratio = float(row.get("inverseRatio", 0.0))
-        amount = float(row.get("amount", 0.0))
+        ratio_value = row.get("ratio")
+        if ratio_value is None:
+            logger.warning("[dev3] ratio is None in history row: %s", row)
+        ratio = float(ratio_value or 0.0)
+
+        inverse_ratio_value = row.get("inverseRatio")
+        if inverse_ratio_value is None:
+            logger.warning("[dev3] inverseRatio is None in history row: %s", row)
+        inverse_ratio = float(inverse_ratio_value or 0.0)
+
+        expected_profit_val = row.get("expected_profit")
+        if expected_profit_val is None:
+            logger.warning("[dev3] expected_profit is None in history row: %s", row)
+
+        prob_up_val = row.get("prob_up")
+        if prob_up_val is None:
+            logger.warning("[dev3] prob_up is None in history row: %s", row)
+
+        score_val = row.get("score")
+        if score_val is None:
+            logger.warning("[dev3] score is None in history row: %s", row)
+
+        amount = float(row.get("amount") or 0.0)
         from_hash = _hash_token(row.get("from_token", ""))
         to_hash = _hash_token(row.get("to_token", ""))
         features_list.append([ratio, inverse_ratio, amount, from_hash, to_hash])
