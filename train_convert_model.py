@@ -1,49 +1,28 @@
 import json
 import os
 import sys
+from typing import Any, Dict, List
+
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
-import joblib
 from convert_logger import logger
+from convert_model import extract_features, train_model, save_model
 
 MODEL_PATH = "model_convert.joblib"
 HISTORY_PATH = "logs/convert_history.json"
 
-def extract_features(data):
-    """Convert raw history records into a DataFrame of features."""
-
-    # `predict()` from :mod:`convert_model` expects five input features in the
-    # following order.  To ensure the model is trained on data with the same
-    # structure we include all of them here as well.
-    feature_keys = [
-        "expected_profit",
-        "prob_up",
-        "score",
-        "volatility",
-        "amount",
-    ]
-
-    df = pd.DataFrame(
-        [{k: float(trade.get(k, 0)) for k in feature_keys} for trade in data]
-    )
-    return df
-
 def extract_labels(data):
     return [1 if trade.get("accepted") else 0 for trade in data]
 
-def load_history(path):
-    if not os.path.exists(path):
-        logger.warning(f"❌ Файл історії не знайдено: {path}")
-        return []
-    with open(path, "r") as f:
-        try:
+def load_convert_history(path: str = "convert_history.json") -> List[Dict[str, Any]]:
+    try:
+        with open(path, "r") as f:
             return json.load(f)
-        except json.JSONDecodeError:
-            logger.warning(f"⚠️ Неможливо прочитати JSON: {path}")
-            return []
+    except Exception as e:
+        logger.error(f"❌ Помилка при завантаженні історії: {e}")
+        return []
 
 def main():
-    history = load_history(HISTORY_PATH)
+    history = load_convert_history(HISTORY_PATH)
     if not history:
         logger.warning("⛔️ Історія порожня або недоступна.")
         return
@@ -61,11 +40,8 @@ def main():
         logger.warning("⚠️ Немає міток для навчання.")
         return
 
-    model = RandomForestClassifier(n_estimators=100, random_state=42)
-    model.fit(X, y)
-
-    joblib.dump(model, MODEL_PATH)
-    logger.info(f"✅ Модель збережено в {MODEL_PATH}")
+    model = train_model(X, y)
+    save_model(model, MODEL_PATH)
 
 if __name__ == "__main__":
     main()
