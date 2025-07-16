@@ -30,6 +30,11 @@ def prepare_dataset(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [x for x in history if x.get("score", 0) > 0 and x.get("expected_profit", 0) > 0]
 
 
+def extract_labels(data: List[Dict[str, Any]]) -> List[int]:
+    """Extract labels for model training."""
+    return [1 if trade.get("accepted") else 0 for trade in data]
+
+
 def _load_model() -> Any:
     """Load model from disk or return cached instance."""
     global _model
