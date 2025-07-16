@@ -5,13 +5,17 @@ from typing import Any, Dict, List
 
 import pandas as pd
 from convert_logger import logger
-from convert_model import extract_features, train_model, save_model
+from convert_model import (
+    prepare_dataset,
+    extract_features,
+    extract_labels,
+    train_model,
+    save_model,
+)
 
 MODEL_PATH = "model_convert.joblib"
 HISTORY_PATH = "logs/convert_history.json"
 
-def extract_labels(data):
-    return [1 if trade.get("accepted") else 0 for trade in data]
 
 def load_convert_history(path: str = "convert_history.json") -> List[Dict[str, Any]]:
     try:
@@ -27,14 +31,19 @@ def main():
         logger.warning("⛔️ Історія порожня або недоступна.")
         return
 
-    X = extract_features(history)
+    prepared = prepare_dataset(history)
+    if not prepared:
+        logger.error("❌ Немає даних після фільтрації prepare_dataset.")
+        return
+
+    X = extract_features(prepared)
     if X.shape[1] == 0 or X.size == 0:
         logger.error(
             "[dev3] ❌ Навчання зупинено: неможливо згенерувати ознаки — масив features порожній."
         )
         sys.exit(1)
 
-    y = extract_labels(history)
+    y = extract_labels(prepared)
 
     if len(y) == 0:
         logger.warning("⚠️ Немає міток для навчання.")
