@@ -45,7 +45,25 @@ def _load_model() -> Any:
 
 
 def _hash_token(token: str) -> float:
-    return float(int(hashlib.sha256(token.encode()).hexdigest(), 16) % 10**8)
+    """Convert token symbol to a normalized numeric hash."""
+    return float(int(hashlib.sha256(token.encode()).hexdigest(), 16) % 10**8) / 1e8
+
+
+def extract_features(data: List[Dict[str, Any]]) -> np.ndarray:
+    """Build feature matrix from dataset for training."""
+    rows = []
+    for row in data:
+        ratio = float(row.get("ratio", 0.0))
+        inverse_ratio = float(row.get("inverseRatio", 0.0))
+        amount = float(row.get("amount", 0.0))
+        from_hash = _hash_token(row.get("from_token", ""))
+        to_hash = _hash_token(row.get("to_token", ""))
+        rows.append([ratio, inverse_ratio, amount, from_hash, to_hash])
+
+    features = np.array(rows, dtype=float)
+    norm = np.linalg.norm(features, axis=1, keepdims=True)
+    norm[norm == 0] = 1.0
+    return features / norm
 
 
 def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, float, float]:
