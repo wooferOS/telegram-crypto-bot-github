@@ -111,6 +111,9 @@ async def main() -> None:
     top_tokens_path = os.path.join(os.path.dirname(__file__), "top_tokens.json")
     await asyncio.to_thread(save_json, top_tokens_path, top_tokens)
 
+    gpt_forecast_path = os.path.join(os.path.dirname(__file__), "gpt_forecast.json")
+    await asyncio.to_thread(save_json, gpt_forecast_path, predictions)
+
     logger.info(f"[dev3] ✅ Аналіз завершено. Створено top_tokens.json з {len(top_tokens)} записами.")
 
 
