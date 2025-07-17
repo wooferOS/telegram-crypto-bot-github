@@ -36,10 +36,11 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
         return []
 
 
-def process_top_pairs() -> None:
+def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     """Process top pairs from daily analysis."""
     reset_cycle()
-    pairs = _load_top_pairs()
+    if pairs is None:
+        pairs = _load_top_pairs()
     if not pairs:
         logger.warning("[dev3] No pairs to process")
         return
