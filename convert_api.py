@@ -42,6 +42,18 @@ def get_balances() -> Dict[str, float]:
     return balances
 
 
+def get_symbol_price(symbol: str) -> Optional[float]:
+    """Get current market price of a symbol like DENTUSDT."""
+    url = f"{BASE_URL}/api/v3/ticker/price"
+    try:
+        resp = _session.get(url, params={"symbol": symbol}, timeout=10)
+        data = resp.json()
+        return float(data["price"])
+    except Exception as exc:
+        logger.warning("[dev3] ⚠️ get_symbol_price error for %s: %s", symbol, exc)
+        return None
+
+
 def get_available_to_tokens(from_token: str) -> List[str]:
     url = f"{BASE_URL}/sapi/v1/convert/exchangeInfo"
     params = _sign({"fromAsset": from_token})
