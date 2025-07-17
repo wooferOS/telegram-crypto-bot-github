@@ -5,6 +5,7 @@ import os
 from typing import List, Dict, Any
 
 from convert_api import get_quote, accept_quote, get_balances
+from binance_api import get_binance_balances
 from convert_notifier import notify_success, notify_failure
 from convert_filters import passes_filters
 from convert_logger import (
@@ -21,6 +22,81 @@ from convert_model import _hash_token
 
 MAX_QUOTES_PER_CYCLE = 20
 TOP_N_PAIRS = 10
+
+
+def try_convert(from_token: str, to_token: str, amount: float, score: float) -> bool:
+    """Attempt a single conversion and log the result."""
+    log_prediction(from_token, to_token, score)
+    if amount <= 0:
+        log_quote_skipped(from_token, to_token, "no_balance")
+        return False
+
+    if should_throttle(from_token, to_token):
+        log_quote_skipped(from_token, to_token, "throttled")
+        return False
+
+    quote = get_quote(from_token, to_token, amount)
+    if not quote:
+        log_quote_skipped(from_token, to_token, "invalid_quote")
+        return False
+
+    valid, reason = passes_filters(score, quote, amount)
+    if not valid:
+        logger.info(
+            f"[dev3] \u26d4\ufe0f Пропуск {from_token} → {to_token}: score={score:.4f}, причина={reason}, quote={quote}"
+        )
+        return False
+
+    quote_id = quote.get("quoteId")
+    resp = accept_quote(quote_id) if quote_id else None
+    if resp and resp.get("success") is True:
+        profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
+        log_conversion_success(from_token, to_token, profit)
+        notify_success(
+            from_token,
+            to_token,
+            float(resp.get("fromAmount", 0)),
+            float(resp.get("toAmount", 0)),
+            score,
+            float(quote.get("ratio", 0)) - 1,
+        )
+        features = [
+            float(quote.get("ratio", 0)),
+            float(quote.get("inverseRatio", 0)),
+            float(amount),
+            _hash_token(from_token),
+            _hash_token(to_token),
+        ]
+        save_convert_history(
+            {
+                "from": from_token,
+                "to": to_token,
+                "features": features,
+                "profit": profit,
+                "accepted": True,
+            }
+        )
+        return True
+
+    reason = resp.get("msg") if isinstance(resp, dict) else "Unknown error"
+    log_conversion_error(from_token, to_token, reason)
+    notify_failure(from_token, to_token, reason=reason)
+    save_convert_history(
+        {
+            "from": from_token,
+            "to": to_token,
+            "features": [
+                float(quote.get("ratio", 0)),
+                float(quote.get("inverseRatio", 0)),
+                float(amount),
+                _hash_token(from_token),
+                _hash_token(to_token),
+            ],
+            "profit": 0.0,
+            "accepted": False,
+        }
+    )
+    return False
 
 
 def _load_top_pairs() -> List[Dict[str, Any]]:
@@ -45,7 +121,41 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         logger.warning("[dev3] No pairs to process")
         return
 
+    top_token_pairs_raw = list(pairs)
+    binance_balances = get_binance_balances()
+    available_from_tokens = [
+        token
+        for token, amt in binance_balances.items()
+        if amt > 0 and token not in ("USDT", "AMB", "DELISTED")
+    ]
+    pairs = [p for p in pairs if p.get("from_token") in available_from_tokens]
+
     balances = get_balances()
+
+    if not pairs:
+        if binance_balances:
+            from_token, _ = max(binance_balances.items(), key=lambda x: x[1])
+            fallback_candidates = [
+                p for p in top_token_pairs_raw if p.get("from_token") == from_token
+            ]
+            if fallback_candidates:
+                best_pair = max(fallback_candidates, key=lambda x: x.get("score", 0))
+                amount = balances.get(from_token, 0)
+                try_convert(
+                    from_token,
+                    best_pair.get("to_token"),
+                    amount,
+                    float(best_pair.get("score", 0)),
+                )
+                logger.info("[dev3] ✅ Цикл завершено")
+            else:
+                logger.warning(
+                    "[dev3] No pairs for token %s in top_tokens.json", from_token
+                )
+        else:
+            logger.warning("[dev3] No available tokens for fallback")
+        return
+
     pairs.sort(key=lambda x: x.get("score", 0), reverse=True)
     quote_count = 0
     any_successful_conversion = False
