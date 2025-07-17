@@ -3,10 +3,10 @@ import os
 from typing import Dict, Tuple, List, Any
 
 from convert_logger import logger
+from convert_api import get_symbol_price
 
 # Allow slight negative scores and smaller toAmount for training trades
 MIN_SCORE = -0.0005
-MIN_TO_AMOUNT = 5
 
 HISTORY_FILE = os.path.join("logs", "convert_history.json")
 
@@ -49,8 +49,16 @@ def passes_filters(score: float, quote: Dict[str, Any], balance: float) -> Tuple
     to_amount = float(quote.get("toAmount", 0))
     if to_amount <= from_amount:
         return False, "no_profit"
-    if to_amount < MIN_TO_AMOUNT:
-        return False, "to_amount_too_low"
+
+    to_token = quote.get("toAsset")
+    try:
+        to_price = get_symbol_price(to_token)
+        to_usdt_value = to_amount * to_price
+    except Exception as e:
+        return False, f"price_lookup_failed: {e}"
+
+    if to_usdt_value < 0.5:
+        return False, f"to_amount_too_low_usdt (≈{to_usdt_value:.4f})"
     if balance < from_amount:
         return False, "insufficient_balance"
     return True, ""

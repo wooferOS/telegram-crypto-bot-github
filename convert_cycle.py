@@ -79,7 +79,9 @@ def process_top_pairs() -> None:
 
         valid, reason = passes_filters(score, quote, amount)
         if not valid:
-            log_quote_skipped(from_token, to_token, reason)
+            logger.info(
+                f"[dev3] \u26d4\ufe0f Пропуск {from_token} → {to_token}: score={score:.4f}, причина={reason}, quote={quote}"
+            )
             continue
 
         quote_id = quote.get("quoteId")
