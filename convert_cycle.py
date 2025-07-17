@@ -48,7 +48,7 @@ def process_top_pairs() -> None:
     pairs.sort(key=lambda x: x.get("score", 0), reverse=True)
     quote_count = 0
     any_successful_conversion = False
-    fallback_conversion_done = False
+    scored_quotes: List[Dict[str, Any]] = []
 
     for item in pairs[:TOP_N_PAIRS]:
         if quote_count >= MAX_QUOTES_PER_CYCLE:
@@ -81,6 +81,15 @@ def process_top_pairs() -> None:
         if not valid:
             logger.info(
                 f"[dev3] \u26d4\ufe0f Пропуск {from_token} → {to_token}: score={score:.4f}, причина={reason}, quote={quote}"
+            )
+            scored_quotes.append(
+                {
+                    "from_token": from_token,
+                    "to_token": to_token,
+                    "score": score,
+                    "quote": quote.get("quoteId"),
+                    "skip_reason": reason,
+                }
             )
             continue
 
@@ -141,20 +150,17 @@ def process_top_pairs() -> None:
                 }
             )
 
-    if not any_successful_conversion:
-        sorted_tokens = sorted(pairs, key=lambda x: x["score"], reverse=True)
-        for token in sorted_tokens:
-            if token.get("score", 0) < 0:
-                from_token = token.get("from_token")
-                to_token = token.get("to_token")
-                if from_token in balances:
-                    quote = get_quote(from_token, to_token, balances[from_token])
-                    if quote and accept_quote(quote.get("quoteId")):
-                        fallback_conversion_done = True
-                        logger.info(
-                            f"[dev3] 🧪 Навчальна угода: {from_token} → {to_token} (score={token['score']})"
-                        )
-                        break
+    if not any_successful_conversion and scored_quotes:
+        fallback = max(scored_quotes, key=lambda x: x["score"])
+        log_reason = fallback.get("skip_reason", "no reason")
+        logger.info(
+            f"[dev3] ⚠️ Жодна пара не пройшла фільтри. Виконуємо fallback-конверсію: {fallback['from_token']} → {fallback['to_token']} (score={fallback['score']:.2f}, причина skip: {log_reason})"
+        )
+
+        try:
+            accept_quote(fallback["quote"])
+        except Exception as e:
+            logger.error(f"[dev3] ❌ Помилка під час fallback-конверсії: {e}")
 
     logger.info("[dev3] ✅ Цикл завершено")
 
