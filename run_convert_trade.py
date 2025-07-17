@@ -1,6 +1,7 @@
 import os
 import glob
 import subprocess
+import json
 
 from convert_cycle import process_top_pairs
 from convert_logger import logger
@@ -46,7 +47,16 @@ def cleanup() -> None:
 def main() -> None:
     cleanup()
     logger.info("[dev3] 🔄 Запуск convert трейдингу")
-    process_top_pairs()
+    try:
+        with open("top_tokens.json") as f:
+            top_tokens = json.load(f)
+        if top_tokens:
+            process_top_pairs(top_tokens)
+        else:
+            logger.warning("[dev3] ⛔️ Файл top_tokens.json порожній. Пропускаємо трейд.")
+    except Exception as e:
+        logger.error(f"[dev3] ❌ Помилка при завантаженні top_tokens.json: {e}")
+        return
     cleanup()
     logger.info("[dev3] ✅ Цикл завершено")
 
