@@ -99,6 +99,41 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
     return False
 
 
+def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) -> None:
+    """Attempt fallback conversion using the token with the highest balance."""
+
+    # Choose token with the largest balance excluding stablecoins and delisted tokens
+    candidates = [
+        (token, amt)
+        for token, amt in balances.items()
+        if amt > 0 and token not in ("USDT", "AMB", "DELISTED")
+    ]
+    fallback_token = max(candidates, key=lambda x: x[1], default=(None, 0.0))[0]
+
+    if not fallback_token:
+        logger.warning("🔹 [FALLBACK] Не знайдено жодного токена з балансом для fallback")
+        return
+
+    valid_to_tokens = [p for p in pairs if p.get("from_token") == fallback_token]
+
+    if not valid_to_tokens:
+        logger.warning(f"🔹 [FALLBACK] Актив '{fallback_token}' з найбільшим балансом не сконвертовано")
+        logger.warning("🔸 Причина: не знайдено жодного валідного `to_token` для fallback (score недостатній або немає прогнозу)")
+        return
+
+    best_pair = max(valid_to_tokens, key=lambda x: x.get("score", 0))
+    selected_to_token = best_pair.get("to_token")
+    amount = balances.get(fallback_token, 0.0)
+    logger.info(f"🔄 [FALLBACK] Спроба конвертації {fallback_token} → {selected_to_token}")
+
+    try_convert(
+        fallback_token,
+        selected_to_token,
+        amount,
+        float(best_pair.get("score", 0)),
+    )
+
+
 def _load_top_pairs() -> List[Dict[str, Any]]:
     path = os.path.join(os.path.dirname(__file__), "top_tokens.json")
     if not os.path.exists(path):
@@ -134,24 +169,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
     if not pairs:
         if binance_balances:
-            from_token, _ = max(binance_balances.items(), key=lambda x: x[1])
-            fallback_candidates = [
-                p for p in top_token_pairs_raw if p.get("from_token") == from_token
-            ]
-            if fallback_candidates:
-                best_pair = max(fallback_candidates, key=lambda x: x.get("score", 0))
-                amount = balances.get(from_token, 0)
-                try_convert(
-                    from_token,
-                    best_pair.get("to_token"),
-                    amount,
-                    float(best_pair.get("score", 0)),
-                )
-                logger.info("[dev3] ✅ Цикл завершено")
-            else:
-                logger.warning(
-                    "[dev3] No pairs for token %s in top_tokens.json", from_token
-                )
+            fallback_convert(top_token_pairs_raw, binance_balances)
         else:
             logger.warning("[dev3] No available tokens for fallback")
         return
@@ -268,6 +286,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             f"[dev3] ⚠️ Жодна пара не пройшла фільтри. Виконуємо fallback-конверсію: {fallback['from_token']} → {fallback['to_token']} (score={fallback['score']:.2f}, причина skip: {log_reason})"
         )
 
+        logger.info(f"🔄 [FALLBACK] Спроба конвертації {fallback['from_token']} → {fallback['to_token']}")
         try:
             accept_quote(fallback["quote"])
         except Exception as e:
