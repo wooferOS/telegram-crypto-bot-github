@@ -3,6 +3,12 @@ import os
 import json
 from datetime import datetime
 
+
+def ensure_dir_exists(path: str) -> None:
+    """Create directory if it doesn't exist."""
+    if not os.path.isdir(path):
+        os.makedirs(path, exist_ok=True)
+
 LOG_FILE = os.path.join("logs", "convert_trade.log")
 DEBUG_LOG_FILE = os.path.join("logs", "convert_debug.log")
 ERROR_LOG_FILE = os.path.join("logs", "convert_errors.log")
@@ -82,8 +88,9 @@ def log_quote(from_token: str, to_token: str, quote_data: dict) -> None:
 
 def log_convert_history(entry: dict):
     """Append a single convert entry to HISTORY_FILE"""
-    os.makedirs("logs", exist_ok=True)
-    path = HISTORY_FILE
+    ensure_dir_exists("logs")
+    FILE_PATH = os.path.join("logs", "convert_history.json")
+    path = FILE_PATH
 
     if os.path.exists(path):
         with open(path, "r") as f:
@@ -122,6 +129,8 @@ def log_conversion_result(quote: dict, accepted: bool) -> None:
     with open("logs/convert_debug.log", "a") as f:
         status = "ACCEPTED" if accepted else "REJECTED"
         f.write(f"[dev3] ✅ {status} {entry}\n")
+    if accepted:
+        logger.info("✅ ACCEPTED")
 
 
 def log_prediction(from_token: str, to_token: str, score: float) -> None:
