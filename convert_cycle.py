@@ -201,6 +201,8 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     quote_count = 0
     any_successful_conversion = False
     scored_quotes: List[Dict[str, Any]] = []
+    filtered_quotes: List[Dict[str, Any]] = []
+    accepted_count = 0
 
     for item in pairs[:TOP_N_PAIRS]:
         if quote_count >= MAX_QUOTES_PER_CYCLE:
@@ -234,6 +236,14 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             logger.info(
                 f"[dev3] \u26d4\ufe0f Пропуск {from_token} → {to_token}: score={score:.4f}, причина={reason}, quote={quote}"
             )
+            filtered_quotes.append(
+                {
+                    "from_token": from_token,
+                    "to_token": to_token,
+                    "quote_data": quote,
+                    "score": score,
+                }
+            )
             scored_quotes.append(
                 {
                     "from_token": from_token,
@@ -252,6 +262,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         )
         if resp and resp.get("success") is True:
             any_successful_conversion = True
+            accepted_count += 1
             logger.info("[dev3] ✅ Трейд успішно прийнято Binance")
             profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
             log_conversion_success(from_token, to_token, profit)
@@ -289,6 +300,22 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             )
             log_conversion_error(from_token, to_token, reason)
             notify_failure(from_token, to_token, reason=reason)
+
+    if accepted_count == 0 and filtered_quotes:
+        filtered_quotes.sort(key=lambda x: x["score"], reverse=True)
+        for entry in filtered_quotes[:2]:
+            f_token = entry["from_token"]
+            t_token = entry["to_token"]
+            sc = entry["score"]
+            q_data = entry["quote_data"]
+            logger.info(
+                f"[dev3] 🧪 Навчальна спроба: {f_token} → {t_token}, score={sc:.4f}, пробуємо accept_quote для збору даних"
+            )
+            try:
+                resp = accept_quote(q_data.get("quoteId"))
+                log_conversion_result(q_data, accepted=False)
+            except Exception as exc:
+                logger.error(f"[dev3] ❌ Помилка навчальної спроби: {exc}")
 
     if not any_successful_conversion and scored_quotes:
         fallback = max(scored_quotes, key=lambda x: x["score"])
