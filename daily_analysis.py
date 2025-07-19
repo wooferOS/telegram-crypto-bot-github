@@ -99,6 +99,32 @@ async def gather_predictions(get_balances_func: Callable[[], Dict[str, float]]) 
     return predictions
 
 
+async def filter_valid_quotes(pairs: List[Dict[str, float]]) -> List[Dict[str, float]]:
+    """Return only pairs that have a valid quote via Convert API."""
+    valid: List[Dict[str, float]] = []
+    for item in pairs:
+        from_token = item.get("from_token")
+        to_token = item.get("to_token")
+        if not from_token or not to_token:
+            continue
+        try:
+            quote = await asyncio.to_thread(get_quote, from_token, to_token, 1)
+        except Exception as exc:  # pragma: no cover - network
+            logger.warning(
+                f"[dev3] ❌ filter_valid_quotes помилка для {from_token} → {to_token}: {exc}"
+            )
+            continue
+
+        if quote and "ratio" in quote:
+            valid.append(item)
+        else:
+            logger.warning(
+                f"[dev3] ⏭️ Пара {from_token} → {to_token} пропущена через відсутній quote: {quote}"
+            )
+
+    return valid
+
+
 async def convert_mode() -> None:
     from binance_api import get_binance_balances
 
@@ -116,7 +142,9 @@ async def convert_mode() -> None:
         items.sort(key=lambda x: x["score"], reverse=True)
         top_tokens.extend(items[:10])
 
-    if not top_tokens:
+    if top_tokens:
+        top_tokens = await filter_valid_quotes(top_tokens)
+    else:
         logger.warning("[dev3] ❌ top_tokens.json порожній — відсутні релевантні прогнози")
 
     top_tokens_path = os.path.join(os.path.dirname(__file__), "top_tokens.json")
