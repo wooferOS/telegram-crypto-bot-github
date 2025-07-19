@@ -107,18 +107,21 @@ def save_convert_history(entry: dict) -> None:
 
 
 def log_conversion_result(quote: dict, accepted: bool) -> None:
-    """Log conversion result to history."""
+    """Log conversion result to history and debug log."""
     entry = {
-        "quoteId": quote.get("quoteId"),
-        "from_token": quote.get("fromAsset"),
-        "to_token": quote.get("toAsset"),
-        "ratio": quote.get("ratio"),
-        "inverseRatio": quote.get("inverseRatio"),
-        "score": quote.get("score"),
-        "expected_profit": quote.get("expected_profit"),
+        "timestamp": datetime.utcnow().isoformat(),
+        "from": quote.get("fromAsset"),
+        "to": quote.get("toAsset"),
+        "fromAmount": quote.get("fromAmount"),
+        "toAmount": quote.get("toAmount"),
         "accepted": accepted,
+        "price": quote.get("price"),
+        "ratio": quote.get("ratio"),
     }
     log_convert_history(entry)
+    with open("logs/convert_debug.log", "a") as f:
+        status = "ACCEPTED" if accepted else "REJECTED"
+        f.write(f"[dev3] ✅ {status} {entry}\n")
 
 
 def log_prediction(from_token: str, to_token: str, score: float) -> None:
