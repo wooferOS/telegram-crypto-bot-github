@@ -14,20 +14,23 @@ _model = None
 
 def train_model(X, y):
     from sklearn.ensemble import RandomForestClassifier
+
     model = RandomForestClassifier(n_estimators=100, random_state=42)
     model.fit(X, y)
-    logger.info("[dev3] \U0001F3AF Навчання завершено: %d записів", len(y))
+    logger.info("[dev3] \U0001f3af Навчання завершено: %d записів", len(y))
     return model
 
 
 def save_model(model, path=MODEL_PATH):
     joblib.dump(model, path)
-    logger.info("[dev3] \U0001F4BE Модель збережено у %s", path)
+    logger.info("[dev3] \U0001f4be Модель збережено у %s", path)
 
 
 def prepare_dataset(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Filter raw history into a dataset used for training."""
-    return [x for x in history if x.get("score", 0) > 0 and x.get("expected_profit", 0) > 0]
+    return [
+        x for x in history if x.get("score", 0) > 0 and x.get("expected_profit", 0) > 0
+    ]
 
 
 def extract_labels(data: List[Dict[str, Any]]) -> List[int]:
@@ -97,7 +100,9 @@ def extract_features(history: List[Dict[str, Any]]) -> np.ndarray:
     return features / norm
 
 
-def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, float, float]:
+def predict(
+    from_token: str, to_token: str, quote_data: dict
+) -> Tuple[float, float, float]:
     """Return (expected_profit, probability_up, score) using trained model."""
     logger.debug(
         "[dev3] predict input from=%s to=%s data=%s", from_token, to_token, quote_data
@@ -150,3 +155,27 @@ def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, fl
     except Exception as exc:  # pragma: no cover - diagnostics only
         logger.exception("[dev3] prediction failed: %s", exc)
         return 0.0, 0.0, 0.0
+
+
+def get_top_token_pairs(n: int = 5) -> List[Tuple[str, str]]:
+    """Return top token pairs from top_tokens.json."""
+    path = os.path.join(os.path.dirname(__file__), "top_tokens.json")
+    if not os.path.exists(path):
+        logger.warning("[dev3] top_tokens.json not found")
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as exc:  # pragma: no cover - file issues
+        logger.warning("[dev3] failed to read top_tokens.json: %s", exc)
+        return []
+
+    pairs: List[Tuple[str, str]] = []
+    for item in data:
+        from_token = item.get("from_token")
+        to_token = item.get("to_token")
+        if from_token and to_token:
+            pairs.append((from_token, to_token))
+        if len(pairs) >= n:
+            break
+    return pairs
