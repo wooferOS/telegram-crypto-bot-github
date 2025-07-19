@@ -16,6 +16,7 @@ from convert_logger import (
     log_conversion_success,
     log_conversion_error,
     log_skipped_quotes,
+    log_conversion_result,
 )
 from quote_counter import should_throttle, reset_cycle
 from convert_model import _hash_token
@@ -49,6 +50,7 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
 
     quote_id = quote.get("quoteId")
     resp = accept_quote(quote_id) if quote_id else None
+    log_conversion_result(quote, accepted=bool(resp and resp.get("success") is True))
     if resp and resp.get("success") is True:
         profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
         log_conversion_success(from_token, to_token, profit)
@@ -201,7 +203,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                     "from_token": from_token,
                     "to_token": to_token,
                     "score": score,
-                    "quote": quote.get("quoteId"),
+                    "quote": quote,
                     "skip_reason": reason,
                 }
             )
@@ -209,6 +211,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
         quote_id = quote.get("quoteId")
         resp = accept_quote(quote_id) if quote_id else None
+        log_conversion_result(quote, accepted=bool(resp and resp.get("success") is True))
         if resp and resp.get("success") is True:
             any_successful_conversion = True
             logger.info("[dev3] ✅ Трейд успішно прийнято Binance")
@@ -258,7 +261,11 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
         logger.info(f"🔄 [FALLBACK] Спроба конвертації {fallback['from_token']} → {fallback['to_token']}")
         try:
-            accept_quote(fallback["quote"])
+            resp = accept_quote(fallback["quote"].get("quoteId"))
+            log_conversion_result(
+                fallback["quote"],
+                accepted=bool(resp and resp.get("success") is True),
+            )
         except Exception as e:
             logger.error(f"[dev3] ❌ Помилка під час fallback-конверсії: {e}")
 
