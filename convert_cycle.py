@@ -19,7 +19,7 @@ from convert_logger import (
     log_conversion_result,
 )
 from quote_counter import should_throttle, reset_cycle
-from convert_model import _hash_token
+from convert_model import _hash_token, get_top_token_pairs
 
 MAX_QUOTES_PER_CYCLE = 20
 TOP_N_PAIRS = 10
@@ -98,20 +98,28 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
     fallback_token = max(candidates, key=lambda x: x[1], default=(None, 0.0))[0]
 
     if not fallback_token:
-        logger.warning("🔹 [FALLBACK] Не знайдено жодного токена з балансом для fallback")
+        logger.warning(
+            "🔹 [FALLBACK] Не знайдено жодного токена з балансом для fallback"
+        )
         return
 
     valid_to_tokens = [p for p in pairs if p.get("from_token") == fallback_token]
 
     if not valid_to_tokens:
-        logger.warning(f"🔹 [FALLBACK] Актив '{fallback_token}' з найбільшим балансом не сконвертовано")
-        logger.warning("🔸 Причина: не знайдено жодного валідного `to_token` для fallback (score недостатній або немає прогнозу)")
+        logger.warning(
+            f"🔹 [FALLBACK] Актив '{fallback_token}' з найбільшим балансом не сконвертовано"
+        )
+        logger.warning(
+            "🔸 Причина: не знайдено жодного валідного `to_token` для fallback (score недостатній або немає прогнозу)"
+        )
         return
 
     best_pair = max(valid_to_tokens, key=lambda x: x.get("score", 0))
     selected_to_token = best_pair.get("to_token")
     amount = balances.get(fallback_token, 0.0)
-    logger.info(f"🔄 [FALLBACK] Спроба конвертації {fallback_token} → {selected_to_token}")
+    logger.info(
+        f"🔄 [FALLBACK] Спроба конвертації {fallback_token} → {selected_to_token}"
+    )
 
     try_convert(
         fallback_token,
@@ -153,6 +161,15 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     pairs = [p for p in pairs if p.get("from_token") in available_from_tokens]
 
     balances = get_balances()
+
+    top_pairs = get_top_token_pairs()
+    for from_token, to_token in top_pairs:
+        try_convert(
+            from_token,
+            to_token,
+            balances.get(from_token, 0.0),
+            0.0,
+        )
 
     if not pairs:
         if binance_balances:
@@ -211,7 +228,9 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
         quote_id = quote.get("quoteId")
         resp = accept_quote(quote_id) if quote_id else None
-        log_conversion_result(quote, accepted=bool(resp and resp.get("success") is True))
+        log_conversion_result(
+            quote, accepted=bool(resp and resp.get("success") is True)
+        )
         if resp and resp.get("success") is True:
             any_successful_conversion = True
             logger.info("[dev3] ✅ Трейд успішно прийнято Binance")
@@ -259,7 +278,9 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             f"[dev3] ⚠️ Жодна пара не пройшла фільтри. Виконуємо fallback-конверсію: {fallback['from_token']} → {fallback['to_token']} (score={fallback['score']:.2f}, причина skip: {log_reason})"
         )
 
-        logger.info(f"🔄 [FALLBACK] Спроба конвертації {fallback['from_token']} → {fallback['to_token']}")
+        logger.info(
+            f"🔄 [FALLBACK] Спроба конвертації {fallback['from_token']} → {fallback['to_token']}"
+        )
         try:
             resp = accept_quote(fallback["quote"].get("quoteId"))
             log_conversion_result(
@@ -270,4 +291,3 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             logger.error(f"[dev3] ❌ Помилка під час fallback-конверсії: {e}")
 
     logger.info("[dev3] ✅ Цикл завершено")
-
