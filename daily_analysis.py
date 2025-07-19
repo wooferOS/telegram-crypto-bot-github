@@ -3,10 +3,24 @@ import asyncio
 import os
 from typing import Callable, Dict, List
 
-from convert_api import get_available_to_tokens, get_quote
+from convert_api import get_available_to_tokens, get_quote, get_balances
 from convert_logger import logger
 from convert_model import predict
 from utils_dev3 import save_json
+
+_balance_cache: Dict[str, float] | None = None
+
+
+def get_token_balance(token: str) -> float:
+    """Return balance for a token using cached balances."""
+    global _balance_cache
+    if _balance_cache is None:
+        try:
+            _balance_cache = get_balances()
+        except Exception as exc:  # pragma: no cover - network
+            logger.warning(f"[dev3] ❌ get_token_balance помилка: {exc}")
+            _balance_cache = {}
+    return float(_balance_cache.get(token, 0))
 
 
 async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]:
@@ -100,29 +114,37 @@ async def gather_predictions(get_balances_func: Callable[[], Dict[str, float]]) 
 
 
 async def filter_valid_quotes(pairs: List[Dict[str, float]]) -> List[Dict[str, float]]:
-    """Return only pairs that have a valid quote via Convert API."""
-    valid: List[Dict[str, float]] = []
-    for item in pairs:
-        from_token = item.get("from_token")
-        to_token = item.get("to_token")
+    """Return only pairs that have a valid quote via Convert API with fallback."""
+    valid_pairs: List[Dict[str, float]] = []
+    for pair in pairs:
+        from_token = pair.get("from_token")
+        to_token = pair.get("to_token")
         if not from_token or not to_token:
             continue
-        try:
-            quote = await asyncio.to_thread(get_quote, from_token, to_token, 1)
-        except Exception as exc:  # pragma: no cover - network
-            logger.warning(
-                f"[dev3] ❌ filter_valid_quotes помилка для {from_token} → {to_token}: {exc}"
-            )
+
+        balance = get_token_balance(from_token)
+        if balance == 0:
             continue
 
-        if quote and "ratio" in quote:
-            valid.append(item)
-        else:
-            logger.warning(
-                f"[dev3] ⏭️ Пара {from_token} → {to_token} пропущена через відсутній quote: {quote}"
-            )
+        for factor in [1.0, 0.5, 0.25, 0.1]:
+            test_amount = balance * factor
+            try:
+                quote = await asyncio.to_thread(get_quote, from_token, to_token, test_amount)
+                if quote and "quoteId" in quote:
+                    pair["amount"] = test_amount
+                    valid_pairs.append(pair)
+                    logger.debug(f"[dev3] ✅ valid quote {from_token} → {to_token} @ {test_amount}")
+                    break
+                else:
+                    logger.debug(
+                        f"[dev3] ❌ invalid quote for {from_token} → {to_token} @ {test_amount}: {quote}"
+                    )
+            except Exception as e:
+                logger.debug(
+                    f"[dev3] ❌ error for quote {from_token} → {to_token} @ {test_amount}: {str(e)}"
+                )
 
-    return valid
+    return valid_pairs
 
 
 async def convert_mode() -> None:
