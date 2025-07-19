@@ -81,21 +81,6 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
     reason = resp.get("msg") if isinstance(resp, dict) else "Unknown error"
     log_conversion_error(from_token, to_token, reason)
     notify_failure(from_token, to_token, reason=reason)
-    save_convert_history(
-        {
-            "from": from_token,
-            "to": to_token,
-            "features": [
-                float(quote.get("ratio", 0)),
-                float(quote.get("inverseRatio", 0)),
-                float(amount),
-                _hash_token(from_token),
-                _hash_token(to_token),
-            ],
-            "profit": 0.0,
-            "accepted": False,
-        }
-    )
     return False
 
 
@@ -263,21 +248,6 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             )
             log_conversion_error(from_token, to_token, reason)
             notify_failure(from_token, to_token, reason=reason)
-            save_convert_history(
-                {
-                    "from": from_token,
-                    "to": to_token,
-                    "features": [
-                        float(quote.get("ratio", 0)),
-                        float(quote.get("inverseRatio", 0)),
-                        float(amount),
-                        _hash_token(from_token),
-                        _hash_token(to_token),
-                    ],
-                    "profit": 0.0,
-                    "accepted": False,
-                }
-            )
 
     if not any_successful_conversion and scored_quotes:
         fallback = max(scored_quotes, key=lambda x: x["score"])

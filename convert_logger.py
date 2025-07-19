@@ -7,6 +7,7 @@ LOG_FILE = os.path.join("logs", "convert_trade.log")
 DEBUG_LOG_FILE = os.path.join("logs", "convert_debug.log")
 ERROR_LOG_FILE = os.path.join("logs", "convert_errors.log")
 BALANCE_LOG_FILE = os.path.join("logs", "balance_guard.log")
+HISTORY_FILE = os.path.join("logs", "convert_history.json")
 
 
 os.makedirs("logs", exist_ok=True)
@@ -80,9 +81,9 @@ def log_quote(from_token: str, to_token: str, quote_data: dict) -> None:
 
 
 def log_convert_history(entry: dict):
-    """Append a single convert entry to logs/convert_history.json"""
+    """Append a single convert entry to HISTORY_FILE"""
     os.makedirs("logs", exist_ok=True)
-    path = "logs/convert_history.json"
+    path = HISTORY_FILE
 
     if os.path.exists(path):
         with open(path, "r") as f:
