@@ -121,12 +121,16 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         f"🔄 [FALLBACK] Спроба конвертації {fallback_token} → {selected_to_token}"
     )
 
-    try_convert(
+    success = try_convert(
         fallback_token,
         selected_to_token,
         amount,
         float(best_pair.get("score", 0)),
     )
+    if not success:
+        logger.info(
+            f"🔹 [FALLBACK] Конверсія {fallback_token} → {selected_to_token} не виконана"
+        )
 
 
 def _load_top_pairs() -> List[Dict[str, Any]]:
@@ -136,7 +140,17 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
         return []
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        if data:
+            pairs_str = ", ".join(
+                f"{p.get('from_token')} → {p.get('to_token')}" for p in data
+            )
+            logger.info(
+                f"[dev3] 🧠 Загружено top_tokens для аналізу: {pairs_str}"
+            )
+        else:
+            logger.info("[dev3] 🧠 Загружено top_tokens для аналізу: <empty>")
+        return data
     except Exception as exc:  # pragma: no cover - file issues
         logger.warning("[dev3] failed to read top_tokens.json: %s", exc)
         return []
@@ -159,6 +173,11 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         if amt > 0 and token not in ("USDT", "AMB", "DELISTED")
     ]
     pairs = [p for p in pairs if p.get("from_token") in available_from_tokens]
+
+    if not pairs:
+        logger.info(
+            "[dev3] ❌ Жодна з пар top_tokens не пройшла: немає балансу для FROM"
+        )
 
     balances = get_balances()
 
