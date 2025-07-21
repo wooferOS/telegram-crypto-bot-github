@@ -318,22 +318,28 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 logger.error(f"[dev3] ❌ Помилка навчальної спроби: {exc}")
 
     if not any_successful_conversion and scored_quotes:
-        fallback = max(scored_quotes, key=lambda x: x["score"])
-        log_reason = fallback.get("skip_reason", "no reason")
-        logger.info(
-            f"[dev3] ⚠️ Жодна пара не пройшла фільтри. Виконуємо fallback-конверсію: {fallback['from_token']} → {fallback['to_token']} (score={fallback['score']:.2f}, причина skip: {log_reason})"
+        fallback = next(
+            (x for x in scored_quotes if x["score"] > 0),
+            None
         )
 
-        logger.info(
-            f"🔄 [FALLBACK] Спроба конвертації {fallback['from_token']} → {fallback['to_token']}"
-        )
-        try:
-            resp = accept_quote(fallback["quote"].get("quoteId"))
-            log_conversion_result(
-                fallback["quote"],
-                accepted=bool(resp and resp.get("success") is True),
+        if fallback:
+            log_reason = fallback.get("skip_reason", "no reason")
+            logger.info(
+                f"[dev3] ⚠️ Жодна пара не пройшла фільтри. Виконуємо fallback-конверсію: {fallback['from_token']} → {fallback['to_token']} (score={fallback['score']:.2f}, причина skip: {log_reason})"
             )
-        except Exception as e:
-            logger.error(f"[dev3] ❌ Помилка під час fallback-конверсії: {e}")
+            logger.info(
+                f"🔄 [FALLBACK] Спроба конвертації {fallback['from_token']} → {fallback['to_token']}"
+            )
+            try:
+                resp = accept_quote(fallback["quote"].get("quoteId"))
+                log_conversion_result(
+                    fallback["quote"],
+                    accepted=bool(resp and resp.get("success") is True),
+                )
+            except Exception as e:
+                logger.error(f"[dev3] ❌ Помилка під час fallback-конверсії: {e}")
+        else:
+            logger.info("[dev3] ❌ Немає пари з позитивним score для fallback")
 
     logger.info("[dev3] ✅ Цикл завершено")
