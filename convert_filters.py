@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import json
 from typing import Dict, Tuple, List, Any
 
 from convert_logger import logger
@@ -37,6 +38,13 @@ def filter_top_tokens(
         )
         return sorted_tokens[:fallback_n]
 
+    # Виключаємо токени, нещодавно куплені
+    filtered = [
+        (token, data)
+        for token, data in filtered
+        if not was_token_recently_bought(token)
+    ]
+
     return filtered[:top_n]
 
 
@@ -62,3 +70,35 @@ def passes_filters(score: float, quote: Dict[str, Any], balance: float) -> Tuple
     if balance < from_amount:
         return False, "insufficient_balance"
     return True, ""
+
+
+from datetime import datetime, timedelta
+
+
+def was_token_recently_bought(to_token: str, hours: int = 72) -> bool:
+    """Check if the token was bought in the last `hours` hours."""
+    if not os.path.exists(HISTORY_FILE):
+        return False
+
+    try:
+        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+            history = json.load(f)
+    except Exception:
+        return False
+
+    threshold_time = datetime.utcnow() - timedelta(hours=hours)
+
+    for entry in reversed(history):  # Start from most recent
+        if not entry.get("accepted"):
+            continue
+        if entry.get("to") == to_token:
+            timestamp_str = entry.get("timestamp")
+            if not timestamp_str:
+                continue
+            try:
+                trade_time = datetime.fromisoformat(timestamp_str)
+                if trade_time > threshold_time:
+                    return True
+            except Exception:
+                continue
+    return False
