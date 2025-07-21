@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timedelta
 from typing import List, Dict, Any
 
 from convert_api import get_quote, accept_quote, get_balances
@@ -20,6 +21,28 @@ from convert_logger import (
 )
 from quote_counter import should_throttle, reset_cycle
 from convert_model import _hash_token, get_top_token_pairs
+
+HISTORY_PATH = os.path.join(os.path.dirname(__file__), "fallback_history.json")
+
+
+def _load_fallback_history() -> Dict[str, Any]:
+    if not os.path.exists(HISTORY_PATH):
+        return {}
+    try:
+        with open(HISTORY_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as exc:  # pragma: no cover - file issues
+        logger.warning(f"[dev3] failed to read fallback history: {exc}")
+        return {}
+
+
+def _save_fallback_history(token: str) -> None:
+    data = {"last_converted": token, "timestamp": datetime.now().isoformat()}
+    try:
+        with open(HISTORY_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    except Exception as exc:  # pragma: no cover - file issues
+        logger.warning(f"[dev3] failed to write fallback history: {exc}")
 
 MAX_QUOTES_PER_CYCLE = 20
 TOP_N_PAIRS = 10
@@ -103,7 +126,11 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         )
         return
 
-    valid_to_tokens = [p for p in pairs if p.get("from_token") == fallback_token]
+    valid_to_tokens = [
+        p
+        for p in pairs
+        if p.get("from_token") == fallback_token and float(p.get("score", 0)) > 0
+    ]
 
     if not valid_to_tokens:
         logger.warning(
@@ -114,8 +141,37 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         )
         return
 
-    best_pair = max(valid_to_tokens, key=lambda x: x.get("score", 0))
-    selected_to_token = best_pair.get("to_token")
+    history = _load_fallback_history()
+    last_token = history.get("last_converted")
+    last_ts = history.get("timestamp")
+    last_dt = None
+    if last_token and last_ts:
+        try:
+            last_dt = datetime.fromisoformat(last_ts)
+        except ValueError:
+            last_dt = None
+
+    valid_to_tokens.sort(key=lambda x: x.get("score", 0), reverse=True)
+
+    selected_pair = None
+    for pair in valid_to_tokens:
+        candidate = pair.get("to_token")
+        if (
+            last_dt
+            and candidate == last_token
+            and datetime.now() - last_dt < timedelta(hours=24)
+        ):
+            continue
+        selected_pair = pair
+        break
+
+    if not selected_pair:
+        logger.warning(
+            "⚠️ [FALLBACK] Усі токени вже були використані для fallback за останні 24 години. Пропуск."
+        )
+        return
+
+    selected_to_token = selected_pair.get("to_token")
     amount = balances.get(fallback_token, 0.0)
     logger.info(
         f"🔄 [FALLBACK] Спроба конвертації {fallback_token} → {selected_to_token}"
@@ -125,12 +181,14 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         fallback_token,
         selected_to_token,
         amount,
-        float(best_pair.get("score", 0)),
+        float(selected_pair.get("score", 0)),
     )
     if not success:
         logger.info(
             f"🔹 [FALLBACK] Конверсія {fallback_token} → {selected_to_token} не виконана"
         )
+    else:
+        _save_fallback_history(selected_to_token)
 
 
 def _load_top_pairs() -> List[Dict[str, Any]]:
