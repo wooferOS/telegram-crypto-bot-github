@@ -42,8 +42,9 @@ def get_balances() -> Dict[str, float]:
     return balances
 
 
-def get_symbol_price(symbol: str) -> Optional[float]:
-    """Get current market price of a symbol like DENTUSDT."""
+def get_symbol_price(token: str) -> Optional[float]:
+    """Get current market price of a token (e.g., PEPE → PEPEUSDT)."""
+    symbol = f"{token.upper()}USDT"
     url = f"{BASE_URL}/api/v3/ticker/price"
     try:
         resp = _session.get(url, params={"symbol": symbol}, timeout=10)
