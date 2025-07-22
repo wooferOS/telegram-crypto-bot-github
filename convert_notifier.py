@@ -72,3 +72,11 @@ def notify_failure(from_token: str, to_token: str, reason: str) -> None:
         flush_failures()
     _current_from_token = from_token
     _pending[reason].append(to_token)
+
+
+def notify_all_skipped(avg: float) -> None:
+    msg = (
+        "[dev3] ❌ Жодна пара не пройшла фільтри.\n"
+        f"Середній score: {avg}, причина: всі < threshold або price_lookup_failed"
+    )
+    _send(msg)

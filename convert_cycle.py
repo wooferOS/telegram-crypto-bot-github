@@ -7,7 +7,7 @@ from typing import List, Dict, Any
 
 from convert_api import get_quote, accept_quote, get_balances
 from binance_api import get_binance_balances
-from convert_notifier import notify_success, notify_failure
+from convert_notifier import notify_success, notify_failure, notify_all_skipped
 from convert_filters import passes_filters
 from convert_logger import (
     logger,
@@ -378,6 +378,17 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             log_conversion_error(from_token, to_token, reason)
             notify_failure(from_token, to_token, reason=reason)
 
+    avg = 0.0
+    if scored_quotes:
+        scores = [float(x.get("score", 0)) for x in scored_quotes]
+        avg = sum(scores) / len(scores)
+        mn = min(scores)
+        mx = max(scores)
+        with open("logs/convert_debug.log", "a", encoding="utf-8") as f:
+            f.write(
+                f"[dev3] \u2705 \u0421\u0435\u0440\u0435\u0434\u043d\u0456\u0439 score={avg:.4f}, \u043c\u0456\u043d\u0456\u043c\u0430\u043b\u044c\u043d\u0438\u0439={mn:.4f}, \u043c\u0430\u043a\u0441\u0438\u043c\u0430\u043b\u044c\u043d\u0438\u0439={mx:.4f}\n"
+            )
+
     if accepted_count == 0 and filtered_quotes:
         filtered_quotes.sort(key=lambda x: x["score"], reverse=True)
         for entry in filtered_quotes[:2]:
@@ -388,6 +399,10 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             logger.info(
                 f"[dev3] 🧪 Навчальна спроба: {f_token} → {t_token}, score={sc:.4f}, пробуємо accept_quote для збору даних"
             )
+            with open("logs/convert_train_data.log", "a", encoding="utf-8") as f:
+                f.write(
+                    f"[dev3] 🧪 Навчальна угода: {f_token} → {t_token}, score={sc:.4f}, quoteId={q_data.get('quoteId')}\n"
+                )
             try:
                 resp = accept_quote(q_data.get("quoteId"))
                 log_conversion_result(q_data, accepted=False)
@@ -415,5 +430,8 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 logger.error(f"[dev3] ❌ Помилка під час fallback-конверсії: {e}")
         else:
             logger.info("[dev3] ❌ Немає пари з позитивним score для fallback")
+
+    if accepted_count == 0:
+        notify_all_skipped(avg)
 
     logger.info("[dev3] ✅ Цикл завершено")
