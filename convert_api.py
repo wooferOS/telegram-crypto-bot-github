@@ -87,6 +87,22 @@ def get_quote(from_token: str, to_token: str, amount: float) -> Optional[Dict[st
     return data
 
 
+def get_quote_with_retry(from_token: str, to_token: str, base_amount: float) -> Optional[Dict[str, Any]]:
+    """Retry get_quote with increasing amounts until price is available."""
+    for multiplier in [1, 2, 5, 10]:
+        amount = base_amount * multiplier
+        logger.info(
+            f"[dev3] 🔁 Retrying quote {from_token} → {to_token} з amount={amount}"
+        )
+        quote = get_quote(from_token, to_token, amount)
+        if quote and quote.get("price"):
+            return quote
+    logger.info(
+        f"[dev3] ⛔️ Всі спроби get_quote завершились без price для {from_token} → {to_token}"
+    )
+    return None
+
+
 def accept_quote(quote_id: str) -> Optional[Dict[str, Any]]:
     url = f"{BASE_URL}/sapi/v1/convert/acceptQuote"
     params = _sign({"quoteId": quote_id})
