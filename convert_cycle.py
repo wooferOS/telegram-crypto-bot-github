@@ -5,7 +5,12 @@ import os
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
 
-from convert_api import get_quote, accept_quote, get_balances
+from convert_api import (
+    get_quote,
+    accept_quote,
+    get_balances,
+    is_convertible_pair,
+)
 from binance_api import get_binance_balances
 from convert_notifier import notify_success, notify_failure, notify_all_skipped
 from convert_filters import passes_filters
@@ -62,6 +67,12 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
 
     if should_throttle(from_token, to_token):
         log_quote_skipped(from_token, to_token, "throttled")
+        return False
+
+    if not is_convertible_pair(from_token, to_token):
+        logger.info(
+            f"[dev3] ❌ Пара {from_token} → {to_token} недоступна для конвертації — пропущено"
+        )
         return False
 
     quote = get_quote(from_token, to_token, amount)

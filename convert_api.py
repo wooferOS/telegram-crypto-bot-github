@@ -130,3 +130,22 @@ def is_valid_convert_pair(from_token: str, to_token: str) -> bool:
     valid_pairs = get_all_supported_convert_pairs()
     symbol = f"{from_token}{to_token}"
     return symbol in valid_pairs
+
+
+def is_convertible_pair(from_token: str, to_token: str) -> bool:
+    """Check via Binance Convert API if a pair can be converted."""
+    url = f"{BASE_URL}/sapi/v1/convert/exchangeInfo"
+    params = {"fromAsset": from_token, "toAsset": to_token}
+    try:
+        response = _session.get(url, headers=_headers(), params=params, timeout=5)
+        data = response.json()
+        return (
+            isinstance(data, dict)
+            and data.get("fromAsset") == from_token
+            and data.get("toAsset") == to_token
+        )
+    except Exception as e:  # pragma: no cover - network
+        logger.warning(
+            f"[dev3] ❗️ Помилка при перевірці пари {from_token} → {to_token}: {e}"
+        )
+        return False
