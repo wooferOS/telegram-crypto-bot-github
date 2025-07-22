@@ -12,7 +12,7 @@ from convert_api import (
     is_convertible_pair,
 )
 from binance_api import get_binance_balances
-from convert_notifier import notify_success, notify_failure, notify_all_skipped
+from convert_notifier import notify_success, notify_failure
 from convert_filters import passes_filters
 from convert_logger import (
     logger,
@@ -285,12 +285,8 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             logger.warning("[dev3] No available tokens for fallback")
         return
 
-    pairs.sort(key=lambda x: x.get("score", 0), reverse=True)
     quote_count = 0
-    any_successful_conversion = False
-    scored_quotes: List[Dict[str, Any]] = []
-    filtered_quotes: List[Dict[str, Any]] = []
-    accepted_count = 0
+    top_quotes: List[Dict[str, Any]] = []
 
     for item in pairs[:TOP_N_PAIRS]:
         if quote_count >= MAX_QUOTES_PER_CYCLE:
@@ -319,39 +315,38 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             log_quote_skipped(from_token, to_token, "invalid_quote")
             continue
 
-        valid, reason = passes_filters(score, quote, amount)
-        if not valid:
-            logger.info(
-                f"[dev3] \u26d4\ufe0f Пропуск {from_token} → {to_token}: score={score:.4f}, причина={reason}, quote={quote}"
-            )
-            filtered_quotes.append(
-                {
-                    "from_token": from_token,
-                    "to_token": to_token,
-                    "quote_data": quote,
-                    "score": score,
-                }
-            )
-            scored_quotes.append(
-                {
-                    "from_token": from_token,
-                    "to_token": to_token,
-                    "score": score,
-                    "quote": quote,
-                    "skip_reason": reason,
-                }
-            )
+        top_quotes.append(
+            {
+                "from_token": from_token,
+                "to_token": to_token,
+                "score": score,
+                "quote": quote,
+                "amount": amount,
+            }
+        )
+
+    if not top_quotes:
+        logger.info("[dev3] ❌ Всі accept_quote були відхилені або quote недоступний.")
+        return
+
+    top_quotes.sort(key=lambda x: x["score"], reverse=True)
+
+    for entry in top_quotes:
+        quote = entry["quote"]
+        from_token = entry["from_token"]
+        to_token = entry["to_token"]
+        score = entry["score"]
+        amount = entry["amount"]
+
+        if quote.get("price") is None:
+            logger.info(f"⛔️ Пропуск {from_token} → {to_token}: quote.price is None")
             continue
 
-        quote_id = quote.get("quoteId")
-        resp = accept_quote(quote_id) if quote_id else None
-        log_conversion_result(
-            quote, accepted=bool(resp and resp.get("success") is True)
-        )
+        resp = accept_quote(quote.get("quoteId"))
+        log_conversion_result(quote, accepted=bool(resp and resp.get("success") is True))
+
         if resp and resp.get("success") is True:
-            any_successful_conversion = True
-            accepted_count += 1
-            logger.info("[dev3] ✅ Трейд успішно прийнято Binance")
+            logger.info(f"✅ Виконано {from_token} → {to_token}, score={score}")
             profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
             log_conversion_success(from_token, to_token, profit)
             notify_success(
@@ -378,71 +373,13 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                     "accepted": True,
                 }
             )
+            break
         else:
+            logger.info(f"❌ Відхилено {from_token} → {to_token}, причина: {resp}")
             reason = resp.get("msg") if isinstance(resp, dict) else "Unknown error"
-            logger.warning(
-                "[dev3] ❌ Трейд НЕ відбувся: %s → %s. Причина: %s",
-                from_token,
-                to_token,
-                reason,
-            )
             log_conversion_error(from_token, to_token, reason)
             notify_failure(from_token, to_token, reason=reason)
-
-    avg = 0.0
-    if scored_quotes:
-        scores = [float(x.get("score", 0)) for x in scored_quotes]
-        avg = sum(scores) / len(scores)
-        mn = min(scores)
-        mx = max(scores)
-        with open("logs/convert_debug.log", "a", encoding="utf-8") as f:
-            f.write(
-                f"[dev3] \u2705 \u0421\u0435\u0440\u0435\u0434\u043d\u0456\u0439 score={avg:.4f}, \u043c\u0456\u043d\u0456\u043c\u0430\u043b\u044c\u043d\u0438\u0439={mn:.4f}, \u043c\u0430\u043a\u0441\u0438\u043c\u0430\u043b\u044c\u043d\u0438\u0439={mx:.4f}\n"
-            )
-
-    if accepted_count == 0 and filtered_quotes:
-        filtered_quotes.sort(key=lambda x: x["score"], reverse=True)
-        for entry in filtered_quotes[:2]:
-            f_token = entry["from_token"]
-            t_token = entry["to_token"]
-            sc = entry["score"]
-            q_data = entry["quote_data"]
-            logger.info(
-                f"[dev3] 🧪 Навчальна спроба: {f_token} → {t_token}, score={sc:.4f}, пробуємо accept_quote для збору даних"
-            )
-            with open("logs/convert_train_data.log", "a", encoding="utf-8") as f:
-                f.write(
-                    f"[dev3] 🧪 Навчальна угода: {f_token} → {t_token}, score={sc:.4f}, quoteId={q_data.get('quoteId')}\n"
-                )
-            try:
-                resp = accept_quote(q_data.get("quoteId"))
-                log_conversion_result(q_data, accepted=False)
-            except Exception as exc:
-                logger.error(f"[dev3] ❌ Помилка навчальної спроби: {exc}")
-
-    if not any_successful_conversion and scored_quotes:
-        fallback = next((x for x in scored_quotes if x["score"] > 0), None)
-
-        if fallback:
-            log_reason = fallback.get("skip_reason", "no reason")
-            logger.info(
-                f"[dev3] ⚠️ Жодна пара не пройшла фільтри. Виконуємо fallback-конверсію: {fallback['from_token']} → {fallback['to_token']} (score={fallback['score']:.2f}, причина skip: {log_reason})"
-            )
-            logger.info(
-                f"🔄 [FALLBACK] Спроба конвертації {fallback['from_token']} → {fallback['to_token']}"
-            )
-            try:
-                resp = accept_quote(fallback["quote"].get("quoteId"))
-                log_conversion_result(
-                    fallback["quote"],
-                    accepted=bool(resp and resp.get("success") is True),
-                )
-            except Exception as e:
-                logger.error(f"[dev3] ❌ Помилка під час fallback-конверсії: {e}")
-        else:
-            logger.info("[dev3] ❌ Немає пари з позитивним score для fallback")
-
-    if accepted_count == 0:
-        notify_all_skipped(avg)
+    else:
+        logger.info("[dev3] ❌ Всі accept_quote були відхилені або quote недоступний.")
 
     logger.info("[dev3] ✅ Цикл завершено")
