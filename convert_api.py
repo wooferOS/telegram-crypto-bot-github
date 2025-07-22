@@ -1,6 +1,7 @@
 import hmac
 import hashlib
 import logging
+import time
 from typing import Dict, List, Any, Set, Optional
 
 import requests
@@ -69,22 +70,41 @@ def get_available_to_tokens(from_token: str) -> List[str]:
     return [item.get("toAsset") for item in data.get("toAssetList", [])]
 
 
-def get_quote(from_token: str, to_token: str, amount: float) -> Optional[Dict[str, Any]]:
-    """Return quote data or None if invalid."""
+def get_quote(
+    from_token: str, to_token: str, amount: float, max_retries: int = 3
+) -> Optional[Dict[str, Any]]:
+    """Return quote data or None if invalid. Retries on missing price."""
     increment_quote_usage()
     url = f"{BASE_URL}/sapi/v1/convert/getQuote"
     params = _sign({"fromAsset": from_token, "toAsset": to_token, "fromAmount": amount})
-    try:
-        resp = _session.post(url, data=params, headers=_headers(), timeout=10)
-        data = resp.json()
-    except Exception as exc:  # pragma: no cover - network
-        logger.warning("[dev3] get_quote error %s → %s: %s", from_token, to_token, exc)
-        return None
 
-    if not isinstance(data, dict) or "ratio" not in data:
-        logger.warning("[dev3] invalid quote for %s → %s: %s", from_token, to_token, data)
-        return None
-    return data
+    quote: Optional[Dict[str, Any]] = None
+    for i in range(max_retries):
+        logger.info(
+            f"🔁 Спроба {i+1}/{max_retries} отримати quote {from_token} → {to_token} з amount={amount:.10f}"
+        )
+        try:
+            resp = _session.post(url, data=params, headers=_headers(), timeout=10)
+            data = resp.json()
+        except Exception as exc:  # pragma: no cover - network
+            logger.warning("[dev3] get_quote error %s → %s: %s", from_token, to_token, exc)
+            data = None
+
+        if isinstance(data, dict) and "ratio" in data:
+            quote = data
+            if quote.get("price") is not None:
+                break
+        else:
+            logger.warning("[dev3] invalid quote for %s → %s: %s", from_token, to_token, data)
+            quote = None
+
+        time.sleep(0.2)
+
+    if not quote or quote.get("price") is None:
+        logger.warning(
+            f"❌ Усі спроби отримати quote для {from_token} → {to_token} не дали результату (price=None)"
+        )
+    return quote
 
 
 def get_quote_with_retry(from_token: str, to_token: str, base_amount: float) -> Optional[Dict[str, Any]]:
