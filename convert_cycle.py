@@ -22,24 +22,30 @@ from convert_logger import (
 from quote_counter import should_throttle, reset_cycle
 from convert_model import _hash_token, get_top_token_pairs
 
-HISTORY_PATH = os.path.join(os.path.dirname(__file__), "fallback_history.json")
+FALLBACK_HISTORY_PATH = os.path.join(
+    os.path.dirname(__file__), "fallback_history.json"
+)
 
 
 def _load_fallback_history() -> Dict[str, Any]:
-    if not os.path.exists(HISTORY_PATH):
+    if not os.path.exists(FALLBACK_HISTORY_PATH):
         return {}
     try:
-        with open(HISTORY_PATH, "r", encoding="utf-8") as f:
+        with open(FALLBACK_HISTORY_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as exc:  # pragma: no cover - file issues
         logger.warning(f"[dev3] failed to read fallback history: {exc}")
         return {}
 
 
-def _save_fallback_history(token: str) -> None:
-    data = {"last_converted": token, "timestamp": datetime.now().isoformat()}
+def _save_fallback_history(from_token: str, to_token: str) -> None:
+    data = {
+        "last_from": from_token,
+        "last_to": to_token,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
     try:
-        with open(HISTORY_PATH, "w", encoding="utf-8") as f:
+        with open(FALLBACK_HISTORY_PATH, "w", encoding="utf-8") as f:
             json.dump(data, f)
     except Exception as exc:  # pragma: no cover - file issues
         logger.warning(f"[dev3] failed to write fallback history: {exc}")
@@ -142,10 +148,11 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         return
 
     history = _load_fallback_history()
-    last_token = history.get("last_converted")
+    last_from = history.get("last_from")
+    last_to = history.get("last_to")
     last_ts = history.get("timestamp")
     last_dt = None
-    if last_token and last_ts:
+    if last_from and last_to and last_ts:
         try:
             last_dt = datetime.fromisoformat(last_ts)
         except ValueError:
@@ -156,18 +163,32 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
     selected_pair = None
     for pair in valid_to_tokens:
         candidate = pair.get("to_token")
-        if (
-            last_dt
-            and candidate == last_token
-            and datetime.now() - last_dt < timedelta(hours=24)
-        ):
+        skip = False
+        if last_dt:
+            if (
+                candidate == last_to
+                and fallback_token == last_from
+                and datetime.utcnow() - last_dt < timedelta(hours=24)
+            ):
+                # same pair recently used
+                skip = True
+            elif (
+                candidate == last_from
+                and fallback_token == last_to
+                and datetime.utcnow() - last_dt < timedelta(hours=24)
+            ):
+                logger.warning(
+                    f"⛔ [FALLBACK] Пропущено циклічну конверсію: {fallback_token} → {candidate} (зворотня {candidate} → {fallback_token} менше 24 год тому)"
+                )
+                skip = True
+        if skip:
             continue
         selected_pair = pair
         break
 
     if not selected_pair:
         logger.warning(
-            "⚠️ [FALLBACK] Усі токени вже були використані для fallback за останні 24 години. Пропуск."
+            "⚠️ [FALLBACK] Всі токени відкинуто через недавню циклічну активність"
         )
         return
 
@@ -188,7 +209,7 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
             f"🔹 [FALLBACK] Конверсія {fallback_token} → {selected_to_token} не виконана"
         )
     else:
-        _save_fallback_history(selected_to_token)
+        _save_fallback_history(fallback_token, selected_to_token)
 
 
 def _load_top_pairs() -> List[Dict[str, Any]]:
