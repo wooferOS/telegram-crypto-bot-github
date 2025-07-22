@@ -22,9 +22,7 @@ from convert_logger import (
 from quote_counter import should_throttle, reset_cycle
 from convert_model import _hash_token, get_top_token_pairs
 
-FALLBACK_HISTORY_PATH = os.path.join(
-    os.path.dirname(__file__), "fallback_history.json"
-)
+FALLBACK_HISTORY_PATH = os.path.join(os.path.dirname(__file__), "fallback_history.json")
 
 
 def _load_fallback_history() -> Dict[str, Any]:
@@ -49,6 +47,7 @@ def _save_fallback_history(from_token: str, to_token: str) -> None:
             json.dump(data, f)
     except Exception as exc:  # pragma: no cover - file issues
         logger.warning(f"[dev3] failed to write fallback history: {exc}")
+
 
 MAX_QUOTES_PER_CYCLE = 20
 TOP_N_PAIRS = 10
@@ -147,6 +146,7 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         )
         return
 
+    # Load last successful fallback conversion in order to detect cyclic calls
     history = _load_fallback_history()
     last_from = history.get("last_from")
     last_to = history.get("last_to")
@@ -178,7 +178,7 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
                 and datetime.utcnow() - last_dt < timedelta(hours=24)
             ):
                 logger.warning(
-                    f"⛔ [FALLBACK] Пропущено циклічну конверсію: {fallback_token} → {candidate} (зворотня {candidate} → {fallback_token} менше 24 год тому)"
+                    f"🔁 [FALLBACK] Виявлено циклічну конверсію: {fallback_token} → {candidate}. Пропускаємо."
                 )
                 skip = True
         if skip:
@@ -224,9 +224,7 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
             pairs_str = ", ".join(
                 f"{p.get('from_token')} → {p.get('to_token')}" for p in data
             )
-            logger.info(
-                f"[dev3] 🧠 Загружено top_tokens для аналізу: {pairs_str}"
-            )
+            logger.info(f"[dev3] 🧠 Загружено top_tokens для аналізу: {pairs_str}")
         else:
             logger.info("[dev3] 🧠 Загружено top_tokens для аналізу: <empty>")
         return data
@@ -397,10 +395,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 logger.error(f"[dev3] ❌ Помилка навчальної спроби: {exc}")
 
     if not any_successful_conversion and scored_quotes:
-        fallback = next(
-            (x for x in scored_quotes if x["score"] > 0),
-            None
-        )
+        fallback = next((x for x in scored_quotes if x["score"] > 0), None)
 
         if fallback:
             log_reason = fallback.get("skip_reason", "no reason")
