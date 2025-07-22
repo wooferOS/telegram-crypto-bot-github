@@ -10,6 +10,8 @@ from convert_api import (
     accept_quote,
     get_balances,
     is_convertible_pair,
+    get_symbol_price,
+    get_quote_with_retry,
 )
 from binance_api import get_binance_balances
 from convert_notifier import notify_success, notify_failure
@@ -28,6 +30,16 @@ from quote_counter import should_throttle, reset_cycle
 from convert_model import _hash_token, get_top_token_pairs
 
 FALLBACK_HISTORY_PATH = os.path.join(os.path.dirname(__file__), "fallback_history.json")
+
+MIN_NOTIONAL_USDT = 0.5
+
+
+def min_notional(token: str) -> float:
+    """Return minimal tradable amount for a token based on USDT value."""
+    price = get_symbol_price(token)
+    if price:
+        return MIN_NOTIONAL_USDT / price
+    return 0.0
 
 
 def _load_fallback_history() -> Dict[str, Any]:
@@ -65,6 +77,12 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         log_quote_skipped(from_token, to_token, "no_balance")
         return False
 
+    if amount < min_notional(from_token):
+        logger.info(
+            f"⛔️ Недостатньо {from_token}: {amount} < {min_notional(from_token)}"
+        )
+        return False
+
     if should_throttle(from_token, to_token):
         log_quote_skipped(from_token, to_token, "throttled")
         return False
@@ -76,8 +94,17 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         return False
 
     quote = get_quote(from_token, to_token, amount)
+    if quote and quote.get("price") is None:
+        quote = get_quote_with_retry(from_token, to_token, amount)
+
     if not quote:
         log_quote_skipped(from_token, to_token, "invalid_quote")
+        return False
+
+    if float(quote.get("toAmount", 0)) < min_notional(to_token):
+        logger.info(
+            f"❌ Недостатній обсяг TO: {quote.get('toAmount')} < {min_notional(to_token)}"
+        )
         return False
 
     valid, reason = passes_filters(score, quote, amount)
@@ -245,7 +272,7 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
 
 
 def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
-    """Process top pairs from daily analysis."""
+    """Process token pairs and attempt conversions."""
     reset_cycle()
     if pairs is None:
         pairs = _load_top_pairs()
@@ -253,133 +280,99 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         logger.warning("[dev3] No pairs to process")
         return
 
-    top_token_pairs_raw = list(pairs)
-    binance_balances = get_binance_balances()
-    available_from_tokens = [
-        token
-        for token, amt in binance_balances.items()
-        if amt > 0 and token not in ("USDT", "AMB", "DELISTED")
-    ]
-    pairs = [p for p in pairs if p.get("from_token") in available_from_tokens]
-
-    if not pairs:
-        logger.info(
-            "[dev3] ❌ Жодна з пар top_tokens не пройшла: немає балансу для FROM"
-        )
-
     balances = get_balances()
 
-    top_pairs = get_top_token_pairs()
-    for from_token, to_token in top_pairs:
-        try_convert(
-            from_token,
-            to_token,
-            balances.get(from_token, 0.0),
-            0.0,
-        )
+    pairs_by_from: Dict[str, List[Dict[str, Any]]] = {}
+    for p in pairs:
+        f = p.get("from_token")
+        t = p.get("to_token")
+        if not f or not t:
+            continue
+        score = float(p.get("score", 0))
+        pairs_by_from.setdefault(f, []).append({"to_token": t, "score": score})
 
-    if not pairs:
-        if binance_balances:
-            fallback_convert(top_token_pairs_raw, binance_balances)
-        else:
-            logger.warning("[dev3] No available tokens for fallback")
-        return
+    for lst in pairs_by_from.values():
+        lst.sort(key=lambda x: x["score"], reverse=True)
 
-    quote_count = 0
-    top_quotes: List[Dict[str, Any]] = []
-
-    for item in pairs[:TOP_N_PAIRS]:
-        if quote_count >= MAX_QUOTES_PER_CYCLE:
-            log_skipped_quotes()
-            break
-
-        from_token = item.get("from_token")
-        to_token = item.get("to_token")
-        score = float(item.get("score", 0))
-        amount = balances.get(from_token, 0)
-
-        log_prediction(from_token, to_token, score)
-
+    for from_token, amount in balances.items():
         if amount <= 0:
-            log_quote_skipped(from_token, to_token, "no_balance")
             continue
-
-        if should_throttle(from_token, to_token):
-            log_quote_skipped(from_token, to_token, "throttled")
-            continue
-
-        quote = get_quote(from_token, to_token, amount)
-        quote_count += 1
-
-        if not quote:
-            log_quote_skipped(from_token, to_token, "invalid_quote")
-            continue
-
-        top_quotes.append(
-            {
-                "from_token": from_token,
-                "to_token": to_token,
-                "score": score,
-                "quote": quote,
-                "amount": amount,
-            }
-        )
-
-    if not top_quotes:
-        logger.info("[dev3] ❌ Всі accept_quote були відхилені або quote недоступний.")
-        return
-
-    top_quotes.sort(key=lambda x: x["score"], reverse=True)
-
-    for entry in top_quotes:
-        quote = entry["quote"]
-        from_token = entry["from_token"]
-        to_token = entry["to_token"]
-        score = entry["score"]
-        amount = entry["amount"]
-
-        if quote.get("price") is None:
-            logger.info(f"⛔️ Пропуск {from_token} → {to_token}: quote.price is None")
-            continue
-
-        resp = accept_quote(quote.get("quoteId"))
-        log_conversion_result(quote, accepted=bool(resp and resp.get("success") is True))
-
-        if resp and resp.get("success") is True:
-            logger.info(f"✅ Виконано {from_token} → {to_token}, score={score}")
-            profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
-            log_conversion_success(from_token, to_token, profit)
-            notify_success(
-                from_token,
-                to_token,
-                float(resp.get("fromAmount", 0)),
-                float(resp.get("toAmount", 0)),
-                score,
-                float(quote.get("ratio", 0)) - 1,
+        if amount < min_notional(from_token):
+            logger.info(
+                f"⛔️ Недостатньо {from_token}: {amount} < {min_notional(from_token)}"
             )
-            features = [
-                float(quote.get("ratio", 0)),
-                float(quote.get("inverseRatio", 0)),
-                float(amount),
-                _hash_token(from_token),
-                _hash_token(to_token),
-            ]
-            save_convert_history(
-                {
-                    "from": from_token,
-                    "to": to_token,
-                    "features": features,
-                    "profit": profit,
-                    "accepted": True,
-                }
-            )
-            break
-        else:
-            logger.info(f"❌ Відхилено {from_token} → {to_token}, причина: {resp}")
-            reason = resp.get("msg") if isinstance(resp, dict) else "Unknown error"
-            log_conversion_error(from_token, to_token, reason)
-            notify_failure(from_token, to_token, reason=reason)
-    else:
-        logger.info("[dev3] ❌ Всі accept_quote були відхилені або quote недоступний.")
+            continue
 
-    logger.info("[dev3] ✅ Цикл завершено")
+        to_candidates = pairs_by_from.get(from_token, [])
+        if not to_candidates:
+            continue
+
+        for entry in to_candidates:
+            to_token = entry["to_token"]
+            score = entry["score"]
+
+            log_prediction(from_token, to_token, score)
+
+            if should_throttle(from_token, to_token):
+                log_quote_skipped(from_token, to_token, "throttled")
+                continue
+
+            quote = get_quote(from_token, to_token, amount)
+            if quote and quote.get("price") is None:
+                quote = get_quote_with_retry(from_token, to_token, amount)
+
+            if not quote:
+                log_quote_skipped(from_token, to_token, "invalid_quote")
+                continue
+
+            if float(quote.get("toAmount", 0)) < min_notional(to_token):
+                logger.info(
+                    f"❌ Недостатній обсяг TO: {quote.get('toAmount')} < {min_notional(to_token)}"
+                )
+                continue
+
+            resp = accept_quote(quote.get("quoteId"))
+            log_conversion_result(
+                quote, accepted=bool(resp and resp.get("success") is True)
+            )
+
+            if resp and resp.get("success") is True:
+                logger.info(
+                    f"✅ Успішна конверсія: {from_token} → {to_token}, сума: {amount}, score: {score}"
+                )
+                profit = float(resp.get("toAmount", 0)) - float(
+                    resp.get("fromAmount", 0)
+                )
+                log_conversion_success(from_token, to_token, profit)
+                notify_success(
+                    from_token,
+                    to_token,
+                    float(resp.get("fromAmount", 0)),
+                    float(resp.get("toAmount", 0)),
+                    score,
+                    float(quote.get("ratio", 0)) - 1,
+                )
+                features = [
+                    float(quote.get("ratio", 0)),
+                    float(quote.get("inverseRatio", 0)),
+                    float(amount),
+                    _hash_token(from_token),
+                    _hash_token(to_token),
+                ]
+                save_convert_history(
+                    {
+                        "from": from_token,
+                        "to": to_token,
+                        "features": features,
+                        "profit": profit,
+                        "accepted": True,
+                    }
+                )
+                return
+            else:
+                err = resp.get("msg") if isinstance(resp, dict) else "Unknown error"
+                logger.info(f"❌ Помилка accept_quote: {err}")
+                log_conversion_error(from_token, to_token, err)
+                notify_failure(from_token, to_token, reason=err)
+
+    logger.info("[dev3] ❌ Жодна пара не була конвертована")
