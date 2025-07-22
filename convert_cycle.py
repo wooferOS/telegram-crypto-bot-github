@@ -11,7 +11,6 @@ from convert_api import (
     get_balances,
     is_convertible_pair,
     get_symbol_price,
-    get_quote_with_retry,
 )
 from binance_api import get_binance_balances
 from convert_notifier import notify_success, notify_failure
@@ -32,6 +31,7 @@ from convert_model import _hash_token, get_top_token_pairs
 FALLBACK_HISTORY_PATH = os.path.join(os.path.dirname(__file__), "fallback_history.json")
 
 MIN_NOTIONAL_USDT = 0.5
+MIN_NOTIONAL = MIN_NOTIONAL_USDT
 
 
 def min_notional(token: str) -> float:
@@ -83,6 +83,15 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         )
         return False
 
+    from_token_price = get_symbol_price(from_token)
+    if from_token_price:
+        usd_value = amount * from_token_price
+        if usd_value < MIN_NOTIONAL:
+            logger.info(
+                f"⛔️ Пропуск {from_token} — баланс занизький (≈{usd_value:.4f} USDT), minNotional={MIN_NOTIONAL}"
+            )
+            return False
+
     if should_throttle(from_token, to_token):
         log_quote_skipped(from_token, to_token, "throttled")
         return False
@@ -94,10 +103,10 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         return False
 
     quote = get_quote(from_token, to_token, amount)
-    if quote and quote.get("price") is None:
-        quote = get_quote_with_retry(from_token, to_token, amount)
-
-    if not quote:
+    if not quote or quote.get("price") is None:
+        logger.warning(
+            f"⛔️ Пропуск {from_token} → {to_token}: quote.price is None після всіх спроб"
+        )
         log_quote_skipped(from_token, to_token, "invalid_quote")
         return False
 
@@ -317,11 +326,20 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 log_quote_skipped(from_token, to_token, "throttled")
                 continue
 
-            quote = get_quote(from_token, to_token, amount)
-            if quote and quote.get("price") is None:
-                quote = get_quote_with_retry(from_token, to_token, amount)
+            from_token_price = get_symbol_price(from_token)
+            if from_token_price:
+                usd_value = amount * from_token_price
+                if usd_value < MIN_NOTIONAL:
+                    logger.info(
+                        f"⛔️ Пропуск {from_token} — баланс занизький (≈{usd_value:.4f} USDT), minNotional={MIN_NOTIONAL}"
+                    )
+                    continue
 
-            if not quote:
+            quote = get_quote(from_token, to_token, amount)
+            if not quote or quote.get("price") is None:
+                logger.warning(
+                    f"⛔️ Пропуск {from_token} → {to_token}: quote.price is None після всіх спроб"
+                )
                 log_quote_skipped(from_token, to_token, "invalid_quote")
                 continue
 
