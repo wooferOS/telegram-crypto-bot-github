@@ -44,6 +44,9 @@ def get_balances() -> Dict[str, float]:
 
 def get_symbol_price(token: str) -> Optional[float]:
     """Get current market price of a token (e.g., PEPE → PEPEUSDT)."""
+    if token is None:
+        logger.warning("symbol is None for quote: %s", token)
+        return None
     symbol = f"{token.upper()}USDT"
     url = f"{BASE_URL}/api/v3/ticker/price"
     try:
