@@ -2,6 +2,7 @@ import json
 import os
 import sys
 from typing import Any, Dict, List
+from datetime import datetime, timezone
 
 import pandas as pd
 from convert_logger import logger
@@ -51,6 +52,16 @@ def main():
 
     model = train_model(X, y)
     save_model(model, MODEL_PATH)
+
+    os.makedirs("logs", exist_ok=True)
+    with open(os.path.join("logs", "train_model.log"), "a", encoding="utf-8") as f:
+        f.write(
+            "[dev3] \u2705 \u041c\u043e\u0434\u0435\u043b\u044c \u043d\u0430\u0432\u0447\u0435\u043d\u0430\n"
+        )
+        f.write(f"\u041f\u0440\u0438\u043a\u043b\u0430\u0434\u0456\u0432: {len(y)}\n")
+        f.write(f"\u0424\u0430\u0439\u043b: {MODEL_PATH}\n")
+        f.write(f"\u0427\u0430\u0441: {datetime.now(timezone.utc).isoformat()}\n")
+
 
 if __name__ == "__main__":
     main()

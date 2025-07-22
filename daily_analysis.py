@@ -173,7 +173,20 @@ async def convert_mode() -> None:
     await asyncio.to_thread(save_json, top_tokens_path, top_tokens)
 
     gpt_forecast_path = os.path.join(os.path.dirname(__file__), "gpt_forecast.json")
-    await asyncio.to_thread(save_json, gpt_forecast_path, predictions)
+    gpt_data = {"top": top_tokens, "raw": predictions}
+    await asyncio.to_thread(save_json, gpt_forecast_path, gpt_data)
+
+    if top_tokens:
+        first = top_tokens[0]
+        example = f"{first.get('from_token')} → {first.get('to_token')} (score={first.get('score', 0):.4f})"
+    else:
+        example = "<empty>"
+    with open("logs/gpt_convert.log", "a", encoding="utf-8") as f:
+        f.write(
+            f"[dev3] GPT-аналітика завершена\n"
+        )
+        f.write(f"Рекомендації: {len(top_tokens)}\n")
+        f.write(f"Приклад: {example}\n")
 
     logger.info(f"[dev3] ✅ Аналіз завершено. Створено top_tokens.json з {len(top_tokens)} записами.")
 
