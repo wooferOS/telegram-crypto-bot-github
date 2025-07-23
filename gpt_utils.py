@@ -1,6 +1,7 @@
 import logging
-import os
 from typing import Optional
+
+from config_dev3 import OPENAI_API_KEY
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +17,7 @@ async def ask_gpt(prompt: str, model: str = "gpt-4o") -> Optional[str]:
         logger.warning("[dev3] ❌ openai import error: %s", exc)
         return None
 
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = OPENAI_API_KEY
     if not api_key:
         logger.warning("[dev3] ❌ OPENAI_API_KEY not set")
         return None
