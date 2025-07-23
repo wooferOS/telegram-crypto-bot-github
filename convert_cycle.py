@@ -283,6 +283,8 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
 def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     """Process token pairs and attempt conversions."""
     reset_cycle()
+    quote_counter = 0
+    MAX_QUOTES_PER_CYCLE = 20
     if pairs is None:
         pairs = _load_top_pairs()
     if not pairs:
@@ -303,7 +305,8 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     for lst in pairs_by_from.values():
         lst.sort(key=lambda x: x["score"], reverse=True)
 
-    for from_token, amount in balances.items():
+    for from_token in pairs_by_from:
+        amount = balances.get(from_token, 0.0)
         if amount <= 0:
             continue
         if amount < min_notional(from_token):
@@ -314,6 +317,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
         to_candidates = pairs_by_from.get(from_token, [])
         if not to_candidates:
+            logger.info(f"[dev3] ⛔️ {from_token} пропущено — не входить до GPT-прогнозу")
             continue
 
         for entry in to_candidates:
@@ -335,6 +339,10 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                     )
                     continue
 
+            if quote_counter >= MAX_QUOTES_PER_CYCLE:
+                logger.warning(f"[dev3] 🚫 Досягнуто ліміту {MAX_QUOTES_PER_CYCLE} quote-запитів у цьому циклі")
+                return
+            quote_counter += 1
             quote = get_quote(from_token, to_token, amount)
             if not quote or quote.get("price") is None:
                 logger.warning(
