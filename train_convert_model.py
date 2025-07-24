@@ -64,6 +64,13 @@ def main():
             logger.warning("⚠️ Немає міток для навчання.")
             return
 
+        if pd.Series(y).nunique() < 2:
+            logger.error(
+                "[dev3] \u274c Cannot train model \u2014 only one class (%s) in label column",
+                pd.Series(y).unique(),
+            )
+            sys.exit(1)
+
         model = train_model(X, y)
         save_model(model, MODEL_PATH)
 

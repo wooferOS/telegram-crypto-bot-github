@@ -146,7 +146,21 @@ def predict(
         features = features / norm
 
         if hasattr(model, "predict_proba"):
-            prob_up = float(model.predict_proba(features)[0][1])
+            probas = model.predict_proba(features)[0]
+            if len(probas) == 2:
+                prob_up = float(probas[1])
+            elif model.classes_[0] == 1:
+                prob_up = float(probas[0])
+            else:
+                prob_up = 0.0
+                logger.warning(
+                    "[dev3] \u26A0\uFE0F Model has only one class: %s — prediction may be biased",
+                    model.classes_,
+                )
+                logger.warning(
+                    "[dev3] \U0001f916 Model prediction fallback: prob_up=%.3f",
+                    prob_up,
+                )
         else:
             prob_up = float(model.predict(features)[0])
 
