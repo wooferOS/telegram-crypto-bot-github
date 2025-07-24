@@ -140,16 +140,31 @@ def check_symbol_exists(from_token: str, to_token: str) -> bool:
     return symbol in valid_pairs
 
 
-def get_ratio(from_token: str, to_token: str, amount: float = 1.0) -> float:
-    """Return price ratio using spot prices."""
-    from_price = get_symbol_price(from_token)
-    to_price = get_symbol_price(to_token)
-    if not from_price or not to_price:
+def get_ratio(base: str, quote: str) -> float:
+    """Return ``quote/base`` price ratio using spot prices."""
+
+    base = base.upper()
+    quote = quote.upper()
+
+    if base == quote:
+        return 1.0
+
+    if base == "USDT":
+        price = get_spot_price(quote)
+        return price or 0.0
+
+    if quote == "USDT":
+        price = get_spot_price(base)
+        return (1.0 / price) if price else 0.0
+
+    base_price = get_spot_price(base)
+    quote_price = get_spot_price(quote)
+    if not base_price or not quote_price:
         logger.warning(
-            "[dev3] ❌ get_ratio failed: price lookup for %s or %s", from_token, to_token
+            "[dev3] ❌ get_ratio failed: price lookup for %s or %s", base, quote
         )
         return 0.0
-    return from_price / to_price
+    return quote_price / base_price
 
 
 def get_binance_balances() -> dict:

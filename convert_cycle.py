@@ -10,9 +10,15 @@ from convert_api import (
     accept_quote,
     get_balances,
     is_convertible_pair,
+    get_available_to_tokens,
 )
-from binance_api import get_binance_balances, get_spot_price
-from convert_notifier import notify_success, notify_failure
+from binance_api import get_binance_balances, get_spot_price, get_ratio
+from convert_notifier import (
+    notify_success,
+    notify_failure,
+    notify_no_trade,
+    notify_fallback_trade,
+)
 import convert_notifier
 from convert_filters import passes_filters
 from convert_logger import (
@@ -287,11 +293,65 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     MAX_QUOTES_PER_CYCLE = 20
     if pairs is None:
         pairs = _load_top_pairs()
+    balances = get_balances()
+
     if not pairs:
         logger.warning("[dev3] No pairs to process")
-        return
+        non_zero = {t: a for t, a in balances.items() if a > 0 and t != "USDT"}
+        if len(non_zero) == 1:
+            from_token = max(non_zero, key=non_zero.get)
+            amount = non_zero[from_token]
+            to_tokens = get_available_to_tokens(from_token)
+            best_to = None
+            best_profit = float("-inf")
+            for tgt in to_tokens:
+                ratio = get_ratio(from_token, tgt)
+                profit = ratio - 1.0
+                if profit > best_profit:
+                    best_profit = profit
+                    best_to = tgt
 
-    balances = get_balances()
+            if best_to:
+                quote = get_quote_with_retry(from_token, best_to, amount)
+                if quote:
+                    resp = accept_quote(quote)
+                    log_conversion_result(
+                        quote, accepted=bool(resp and resp.get("success") is True)
+                    )
+                    if resp and resp.get("success") is True:
+                        convert_notifier.fallback_triggered = (from_token, best_to)
+                        profit = float(resp.get("toAmount", 0)) - float(
+                            resp.get("fromAmount", 0)
+                        )
+                        log_conversion_success(from_token, best_to, profit)
+                        notify_success(
+                            from_token,
+                            best_to,
+                            float(resp.get("fromAmount", 0)),
+                            float(resp.get("toAmount", 0)),
+                            best_profit,
+                            float(quote.get("ratio", 0)) - 1,
+                        )
+                        notify_fallback_trade(from_token, best_to, best_profit, amount)
+                        features = [
+                            float(quote.get("ratio", 0)),
+                            float(quote.get("inverseRatio", 0)),
+                            float(amount),
+                            _hash_token(from_token),
+                            _hash_token(best_to),
+                        ]
+                        save_convert_history(
+                            {
+                                "from": from_token,
+                                "to": best_to,
+                                "features": features,
+                                "profit": profit,
+                                "accepted": True,
+                            }
+                        )
+                        return
+        notify_no_trade(max(balances, key=balances.get), len(pairs), 0.0)
+        return
 
     pairs_by_from: Dict[str, List[Dict[str, Any]]] = {}
     for p in pairs:
@@ -421,9 +481,9 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             candidates = [
                 p
                 for p in pairs
-                if p.get("from_token") == fallback_token and float(p.get("score", 0)) > 0
+                if p.get("from_token") == fallback_token
             ]
-            candidates.sort(key=lambda x: x.get("score", 0), reverse=True)
+            candidates.sort(key=lambda x: float(x.get("expected_profit", 0)), reverse=True)
             if candidates:
                 best = candidates[0]
                 to_token = best.get("to_token")
@@ -431,7 +491,9 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 quote = get_quote_with_retry(fallback_token, to_token, amount)
                 if quote:
                     resp = accept_quote(quote)
-                    log_conversion_result(quote, accepted=bool(resp and resp.get("success") is True))
+                    log_conversion_result(
+                        quote, accepted=bool(resp and resp.get("success") is True)
+                    )
                     if resp and resp.get("success") is True:
                         convert_notifier.fallback_triggered = (fallback_token, to_token)
                         profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
@@ -443,6 +505,12 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                             float(resp.get("toAmount", 0)),
                             float(best.get("score", 0)),
                             float(quote.get("ratio", 0)) - 1,
+                        )
+                        notify_fallback_trade(
+                            fallback_token,
+                            to_token,
+                            float(best.get("score", 0)),
+                            amount,
                         )
                         features = [
                             float(quote.get("ratio", 0)),
@@ -460,7 +528,15 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                                 "accepted": True,
                             }
                         )
-                    else:
-                        err = resp.get("msg") if isinstance(resp, dict) else "Unknown error"
-                        log_conversion_error(fallback_token, to_token, err)
-                        notify_failure(fallback_token, to_token, reason=err)
+                        return
+        pred_path = os.path.join("logs", "predictions.json")
+        try:
+            with open(pred_path, "r", encoding="utf-8") as f:
+                preds = json.load(f)
+        except Exception:
+            preds = []
+        best_score = 0.0
+        if preds:
+            best_score = max(float(p.get("score", 0)) for p in preds)
+        from_token = max(balances, key=balances.get) if balances else "?"
+        notify_no_trade(from_token, len(preds), best_score)

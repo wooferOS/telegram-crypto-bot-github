@@ -15,12 +15,7 @@ def flush_failures() -> None:
     """Send aggregated failure message for the current FROM token."""
     global _current_from_token, _pending, fallback_triggered
     if not _current_from_token or not _pending:
-        if fallback_triggered:
-            ft_from, ft_to = fallback_triggered
-            _send(
-                f"⚠️ Виконано fallback trade для {ft_from} → {ft_to}, оскільки всі інші трейди були відхилені"
-            )
-            fallback_triggered = None
+        fallback_triggered = None
         return
     if len(_pending) == 1:
         reason, tokens = next(iter(_pending.items()))
@@ -34,11 +29,6 @@ def flush_failures() -> None:
         for reason, tokens in _pending.items():
             tokens_str = ", ".join(tokens)
             lines.append(f"- [{tokens_str}] → {reason}")
-        if fallback_triggered:
-            ft_from, ft_to = fallback_triggered
-            lines.append(
-                f"⚠️ Виконано fallback trade для {ft_from} → {ft_to}, оскільки всі інші трейди були відхилені"
-            )
         msg = "\n".join(lines)
     _send(msg)
     _current_from_token = None
@@ -85,6 +75,24 @@ def notify_failure(from_token: str, to_token: str, reason: str) -> None:
         flush_failures()
     _current_from_token = from_token
     _pending[reason].append(to_token)
+
+
+def notify_no_trade(from_token: str, predictions: int, best_score: float) -> None:
+    msg = (
+        f"[dev3] ❌ Немає трейду\n"
+        f"FROM: {from_token}\n"
+        f"Прогнозів: {predictions}\n"
+        f"Кращий score: {best_score:+.2f}"
+    )
+    _send(msg)
+
+
+def notify_fallback_trade(from_token: str, to_token: str, score: float, balance: float) -> None:
+    msg = (
+        f"[dev3] ⚠️ Fallback-трейд виконано\n"
+        f"{from_token} → {to_token} | score={score:+.3f} | баланс={balance} {from_token}"
+    )
+    _send(msg)
 
 
 def notify_all_skipped(avg: float) -> None:
