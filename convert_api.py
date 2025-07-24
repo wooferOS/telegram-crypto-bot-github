@@ -22,6 +22,9 @@ logged_quote_errors: Set[tuple[str, str]] = set()
 
 _supported_pairs_cache: Optional[Set[str]] = None
 
+# Cache of discovered minimal amounts per pair
+_min_amount_cache: Dict[tuple[str, str], float] = {}
+
 
 def _sign(params: Dict[str, Any]) -> Dict[str, Any]:
     params["timestamp"] = get_current_timestamp()
@@ -46,6 +49,50 @@ def get_balances() -> Dict[str, float]:
         if total > 0:
             balances[bal["asset"]] = total
     return balances
+
+
+def _parse_min_amount(msg: str) -> Optional[float]:
+    """Extract minimal amount value from Binance error message."""
+    numbers = re.findall(r"[0-9]*\.?[0-9]+", msg)
+    if numbers:
+        try:
+            return float(numbers[0])
+        except ValueError:
+            return None
+    return None
+
+
+def _validate_min_amount(from_token: str, to_token: str, amount: float) -> Optional[float]:
+    """Call Binance Convert getQuote with validateOnly to detect minimal amount."""
+    url = f"{BASE_URL}/sapi/v1/convert/getQuote"
+    params = _sign(
+        {
+            "fromAsset": from_token,
+            "toAsset": to_token,
+            "fromAmount": amount,
+            "validateOnly": True,
+        }
+    )
+    try:
+        resp = _session.post(url, data=params, headers=_headers(), timeout=10)
+        data = resp.json()
+    except Exception as exc:  # pragma: no cover - network
+        logger.warning(
+            "[dev3] validateOnly error %s → %s: %s", from_token, to_token, exc
+        )
+        return None
+
+    if isinstance(data, dict):
+        if data.get("code") == 345233:
+            msg = data.get("msg", "")
+            min_val = _parse_min_amount(msg)
+            if min_val is not None:
+                _min_amount_cache[(from_token, to_token)] = min_val
+                return min_val
+        if data.get("price") is not None:
+            _min_amount_cache[(from_token, to_token)] = amount
+            return amount
+    return None
 
 
 
@@ -85,6 +132,11 @@ def get_quote(
 
     params = _sign({"fromAsset": from_token, "toAsset": to_token, "fromAmount": amount})
 
+    # Validate amount before requesting actual quote
+    min_val = _validate_min_amount(from_token, to_token, amount)
+    if min_val is not None and amount < min_val:
+        return {"msg": "amount too low", "min_amount": min_val}
+
     quote: Optional[Dict[str, Any]] = None
     for i in range(max_retries):
         logger.info(
@@ -114,6 +166,10 @@ def get_quote(
         time.sleep(0.2)
 
     if not quote or quote.get("price") is None:
+        if min_val is not None and amount >= min_val:
+            logger.warning(
+                "[dev3] ⚠️ getQuote returned price=None despite passing min_amount check"
+            )
         if (from_token, to_token) not in logged_quote_errors:
             logger.warning(
                 f"❌ Усі спроби отримати quote для {from_token} → {to_token} не дали результату (price=None)"
@@ -198,34 +254,13 @@ def accept_quote(quote: Dict[str, Any]) -> Optional[Dict[str, Any]]:
 
 def get_min_convert_amount(from_token: str, to_token: str) -> float:
     """Return minimal allowed amount for conversion via Binance Convert API."""
-    url = f"{BASE_URL}/sapi/v1/convert/getQuote"
-    params = _sign(
-        {"fromAsset": from_token, "toAsset": to_token, "fromAmount": 0.00000001}
-    )
-    try:
-        resp = _session.post(url, data=params, headers=_headers(), timeout=10)
-        data = resp.json()
-    except Exception as exc:  # pragma: no cover - network
-        logger.warning(
-            f"[dev3] get_min_convert_amount error {from_token} → {to_token}: {exc}"
-        )
-        return 0.0
+    key = (from_token, to_token)
+    cached = _min_amount_cache.get(key)
+    if cached is not None:
+        return cached
 
-    if isinstance(data, dict):
-        if "minLimit" in data:
-            try:
-                return float(data["minLimit"])
-            except Exception:
-                pass
-        msg = data.get("msg", "")
-        if "supported amount range" in msg:
-            match = re.search(r"range ([\d\.]+)", msg)
-            if match:
-                try:
-                    return float(match.group(1))
-                except ValueError:
-                    pass
-    return 0.0
+    min_val = _validate_min_amount(from_token, to_token, 0.00000001)
+    return float(min_val) if min_val is not None else 0.0
 
 
 def get_all_supported_convert_pairs() -> Set[str]:
