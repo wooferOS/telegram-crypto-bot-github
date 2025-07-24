@@ -4,6 +4,7 @@ import logging
 import time
 from decimal import Decimal, ROUND_DOWN
 from typing import Dict, List, Any, Set, Optional
+import re
 
 import requests
 
@@ -193,6 +194,38 @@ def accept_quote(quote: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             quote.get("fromAsset"), quote.get("toAsset"), error_msg
         )
         return None
+
+
+def get_min_convert_amount(from_token: str, to_token: str) -> float:
+    """Return minimal allowed amount for conversion via Binance Convert API."""
+    url = f"{BASE_URL}/sapi/v1/convert/getQuote"
+    params = _sign(
+        {"fromAsset": from_token, "toAsset": to_token, "fromAmount": 0.00000001}
+    )
+    try:
+        resp = _session.post(url, data=params, headers=_headers(), timeout=10)
+        data = resp.json()
+    except Exception as exc:  # pragma: no cover - network
+        logger.warning(
+            f"[dev3] get_min_convert_amount error {from_token} → {to_token}: {exc}"
+        )
+        return 0.0
+
+    if isinstance(data, dict):
+        if "minLimit" in data:
+            try:
+                return float(data["minLimit"])
+            except Exception:
+                pass
+        msg = data.get("msg", "")
+        if "supported amount range" in msg:
+            match = re.search(r"range ([\d\.]+)", msg)
+            if match:
+                try:
+                    return float(match.group(1))
+                except ValueError:
+                    pass
+    return 0.0
 
 
 def get_all_supported_convert_pairs() -> Set[str]:

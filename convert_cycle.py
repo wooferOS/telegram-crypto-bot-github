@@ -5,12 +5,15 @@ import os
 from datetime import datetime, timedelta
 from typing import List, Dict, Any
 
+from convert_logger import logger
+
 from convert_api import (
     get_quote_with_retry,
     accept_quote,
     get_balances,
     is_convertible_pair,
     get_available_to_tokens,
+    get_min_convert_amount,
 )
 from binance_api import get_binance_balances, get_spot_price, get_ratio
 from convert_notifier import (
@@ -22,7 +25,6 @@ from convert_notifier import (
 import convert_notifier
 from convert_filters import passes_filters
 from convert_logger import (
-    logger,
     save_convert_history,
     log_prediction,
     log_quote_skipped,
@@ -79,6 +81,9 @@ TOP_N_PAIRS = 10
 
 def try_convert(from_token: str, to_token: str, amount: float, score: float) -> bool:
     """Attempt a single conversion and log the result."""
+    logger.info(
+        f"🔁 Починаємо конверсію: {from_token} → {to_token} з amount={amount}"
+    )
     log_prediction(from_token, to_token, score)
     if amount <= 0:
         log_quote_skipped(from_token, to_token, "no_balance")
@@ -109,10 +114,20 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         )
         return False
 
+    min_amount = get_min_convert_amount(from_token, to_token)
+    if amount < min_amount:
+        logger.warning(
+            f"⚠️ Пропуск {from_token} → {to_token}: amount={amount} < min={min_amount}"
+        )
+        return False
+
     quote = get_quote_with_retry(from_token, to_token, amount)
     if not quote or quote.get("price") is None:
         logger.warning(
             f"⛔️ Пропуск {from_token} → {to_token}: quote.price is None після всіх спроб"
+        )
+        logger.error(
+            f"[FATAL] Не вдалося отримати жоден quote для {from_token} → {to_token}"
         )
         log_quote_skipped(from_token, to_token, "invalid_quote")
         return False
@@ -162,6 +177,7 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         return True
 
     reason = resp.get("msg") if isinstance(resp, dict) else "Unknown error"
+    logger.warning(f"❌ Binance відхилив quote: {resp}")
     log_conversion_error(from_token, to_token, reason)
     notify_failure(from_token, to_token, reason=reason)
     return False
@@ -393,6 +409,9 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             score = entry["score"]
 
             log_prediction(from_token, to_token, score)
+            logger.info(
+                f"🔁 Починаємо конверсію: {from_token} → {to_token} з amount={amount}"
+            )
 
             if should_throttle(from_token, to_token):
                 log_quote_skipped(from_token, to_token, "throttled")
@@ -412,6 +431,12 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 return
             quote_counter += 1
             quotes_used += 1
+            min_amount = get_min_convert_amount(from_token, to_token)
+            if amount < min_amount:
+                logger.warning(
+                    f"⚠️ Пропуск {from_token} → {to_token}: amount={amount} < min={min_amount}"
+                )
+                continue
             quote = get_quote_with_retry(from_token, to_token, amount)
             if not quote or quote.get("price") is None:
                 logger.warning(
