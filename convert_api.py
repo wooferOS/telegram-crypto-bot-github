@@ -105,8 +105,10 @@ def get_quote(
                 logger.warning("[dev3] 🟥 Binance limit reached 345239 for %s → %s", from_token, to_token)
                 quote = {"code": 345239}
                 break
-            logger.warning("[dev3] invalid quote for %s → %s: %s", from_token, to_token, data)
-            quote = None
+            logger.warning(
+                "[dev3] invalid quote for %s → %s: %s", from_token, to_token, data
+            )
+            quote = data if isinstance(data, dict) else None
 
         time.sleep(0.2)
 
@@ -123,13 +125,17 @@ def get_quote(
 
 def get_quote_with_retry(from_token: str, to_token: str, base_amount: float) -> Optional[Dict[str, Any]]:
     """Retry get_quote with increasing amounts until price is available."""
-    for multiplier in [1, 2, 5, 10]:
+    for multiplier in [1, 2, 5, 10, 20, 50, 100, 200]:
         amount = base_amount * multiplier
         logger.info(
-            f"[dev3] 🔁 Retrying quote {from_token} → {to_token} з amount={amount}"
+            f"[dev3] Retrying quote {from_token} → {to_token} з amount={amount}"
         )
         quote = get_quote(from_token, to_token, amount)
         if quote:
+            if quote.get("msg") == "amount too low":
+                logger.warning(
+                    f"[dev3] ❌ Binance Convert API: amount too low for {from_token} → {to_token}"
+                )
             if quote.get("code") == 345239:
                 return None
             created_at = quote.get("created_at")
@@ -140,6 +146,8 @@ def get_quote_with_retry(from_token: str, to_token: str, base_amount: float) -> 
     logger.info(
         f"[dev3] ⛔️ Всі спроби get_quote завершились без price для {from_token} → {to_token}"
     )
+    if quote and quote.get("price") is None:
+        convert_logger.log_quote_skipped(from_token, to_token, reason="amount_too_low")
     return None
 
 
