@@ -9,7 +9,7 @@ from binance_api import get_spot_price, get_ratio
 from convert_logger import logger
 from convert_notifier import send_telegram
 from gpt_utils import ask_gpt
-from convert_model import predict
+from convert_model import predict, _load_model
 from utils_dev3 import save_json
 
 _balance_cache: Dict[str, float] | None = None
@@ -149,6 +149,13 @@ async def filter_valid_quotes(pairs: List[Dict[str, float]]) -> List[Dict[str, f
 
 async def convert_mode() -> None:
     from binance_api import get_binance_balances
+
+    try:
+        model = _load_model()
+        if hasattr(model, "classes_") and len(model.classes_) == 1:
+            send_telegram("[dev3] 🤖 Using fallback model trained on one class")
+    except Exception:
+        pass
 
     predictions = await gather_predictions(get_binance_balances)
 

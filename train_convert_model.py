@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 from datetime import datetime, timezone
 import logging
 from collections import Counter
+import argparse
 
 import joblib
 
@@ -38,6 +39,11 @@ def load_convert_history(path: str = "convert_history.json") -> List[Dict[str, A
         return []
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--force-train", action="store_true", help="Allow training even with one class"
+    )
+    args = parser.parse_args()
     try:
         history = load_convert_history(HISTORY_PATH)
         if not history:
@@ -54,13 +60,20 @@ def main():
             )
             return
 
-        labels = [d["executed"] for d in prepared if "executed" in d]
-        label_counts = Counter(labels)
-        if len(label_counts) < 2:
-            print(f"[FATAL] ❌ Training aborted: only one class present — {label_counts}")
-            sys.exit(1)
+        df = pd.DataFrame(prepared)
+        class_counts = Counter(df["executed"])
+        if len(class_counts) < 2:
+            if not args.force_train:
+                print(
+                    f"[FATAL] ❌ Training aborted: only one class present — {class_counts}"
+                )
+                sys.exit(1)
+            else:
+                print(
+                    f"[WARNING] ⚠️ Training on one class only — {class_counts} (forced)"
+                )
         else:
-            print(f"[OK] ✅ Training dataset class distribution: {label_counts}")
+            print(f"[OK] ✅ Training dataset class distribution: {class_counts}")
 
         X = extract_features(prepared)
         if X.shape[1] == 0 or X.size == 0:
@@ -75,16 +88,14 @@ def main():
             logger.warning("⚠️ Немає міток для навчання.")
             return
 
-        if pd.Series(y).nunique() < 2:
-            logger.error(
-                "[dev3] \u274c Cannot train model \u2014 only one class (%s) in label column",
-                pd.Series(y).unique(),
-            )
-            sys.exit(1)
 
         model = train_model(X, y)
         save_model(model, MODEL_PATH)
-        print("[dev3] 🤖 Model saved successfully.")
+        print(
+            "[dev3] ✅ Model trained (forced mode)"
+            if args.force_train
+            else "[dev3] ✅ Model trained successfully"
+        )
         try:
             joblib.load(MODEL_PATH)
         except Exception as exc:
