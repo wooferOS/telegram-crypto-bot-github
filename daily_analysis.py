@@ -5,7 +5,7 @@ import os
 from typing import Callable, Dict, List, Optional
 
 from convert_api import get_available_to_tokens, get_balances
-from binance_api import get_spot_price
+from binance_api import get_spot_price, get_ratio
 from convert_logger import logger
 from convert_notifier import send_telegram
 from gpt_utils import ask_gpt
