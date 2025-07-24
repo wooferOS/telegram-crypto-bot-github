@@ -7,9 +7,9 @@ from typing import Callable, Dict, List, Optional
 from convert_api import get_available_to_tokens, get_balances
 from binance_api import get_spot_price, get_ratio
 from convert_logger import logger
-from convert_notifier import send_telegram
+from convert_notifier import send_telegram, notify_fallback_model_warning
 from gpt_utils import ask_gpt
-from convert_model import predict, _load_model
+from convert_model import predict, _load_model, is_fallback_model
 from utils_dev3 import save_json
 
 _balance_cache: Dict[str, float] | None = None
@@ -74,6 +74,9 @@ async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]
                     "amount": amount,
                 },
             )
+
+            if is_fallback_model():
+                score = 0.0
 
             logger.info(
                 f"[dev3] ✅ Прогноз: {from_token} → {to_token} | profit={expected_profit}, prob_up={prob_up}, score={score}"
@@ -152,8 +155,8 @@ async def convert_mode() -> None:
 
     try:
         model = _load_model()
-        if hasattr(model, "classes_") and len(model.classes_) == 1:
-            send_telegram("[dev3] 🤖 Using fallback model trained on one class")
+        if is_fallback_model():
+            notify_fallback_model_warning()
     except Exception:
         pass
 

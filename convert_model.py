@@ -12,6 +12,7 @@ import pandas as pd
 MODEL_PATH = "model_convert.joblib"
 logger = logging.getLogger(__name__)
 _model = None
+_is_fallback = False
 
 
 def train_model(X, y):
@@ -48,18 +49,33 @@ def extract_labels(data: List[Dict[str, Any]]) -> List[int]:
 
 def _load_model() -> Any:
     """Load model from disk or return cached instance."""
-    global _model
+    global _model, _is_fallback
     if _model is None:
         if not os.path.exists(MODEL_PATH):
             raise FileNotFoundError(MODEL_PATH)
         try:
             _model = joblib.load(MODEL_PATH)
             if hasattr(_model, "classes_") and len(_model.classes_) == 1:
+                _is_fallback = True
                 print("[dev3] ⚠️ Model has one class — limited accuracy")
+            else:
+                _is_fallback = False
         except Exception as exc:  # pragma: no cover - diagnostics only
             logger.warning("Failed to load model: %s", exc)
             _model = None
+            _is_fallback = False
     return _model
+
+
+def is_fallback_model() -> bool:
+    """Return True if the currently loaded model is fallback."""
+    global _model, _is_fallback
+    if _model is None:
+        try:
+            _load_model()
+        except FileNotFoundError:
+            return False
+    return _is_fallback
 
 
 def _hash_token(token: str) -> float:
