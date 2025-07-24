@@ -39,55 +39,60 @@ async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]
         )
         return predictions
 
-    for to_token in to_tokens:
-        from_price = await asyncio.to_thread(get_spot_price, from_token)
-        to_price = await asyncio.to_thread(get_spot_price, to_token)
-        if from_price is None or to_price is None:
-            logger.warning(
-                f"[dev3] ⚠️ Немає ціни для {from_token} або {to_token}"
+    try:
+        for to_token in to_tokens:
+            from_price = await asyncio.to_thread(get_spot_price, from_token)
+            to_price = await asyncio.to_thread(get_spot_price, to_token)
+            if from_price is None or to_price is None:
+                logger.warning(
+                    f"[dev3] ⚠️ Немає ціни для {from_token} або {to_token}"
+                )
+                continue
+
+            if from_price == 0 or to_price == 0:
+                logger.warning(
+                    f"[dev3] ⛔️ Пропущено: ціна == 0 для {from_token} → {to_token}"
+                )
+                continue
+
+            ratio = from_price / to_price
+            inverse_ratio = to_price / from_price
+
+            base_expected_profit = ratio - 1.0
+            base_prob_up = 0.5
+            base_score = base_expected_profit * base_prob_up
+
+            expected_profit, prob_up, score = predict(
+                from_token,
+                to_token,
+                {
+                    "expected_profit": base_expected_profit,
+                    "prob_up": base_prob_up,
+                    "score": base_score,
+                    "ratio": ratio,
+                    "inverseRatio": inverse_ratio,
+                    "amount": amount,
+                },
             )
-            continue
 
-        if from_price == 0 or to_price == 0:
-            logger.warning(
-                f"[dev3] ❌ Нульова ціна для {from_token} → {to_token}. Пропускаємо."
+            logger.info(
+                f"[dev3] ✅ Прогноз: {from_token} → {to_token} | profit={expected_profit}, prob_up={prob_up}, score={score}"
             )
-            return None
-        ratio = from_price / to_price
-        inverse_ratio = to_price / from_price
 
-        base_expected_profit = ratio - 1.0
-        base_prob_up = 0.5
-        base_score = base_expected_profit * base_prob_up
-
-        expected_profit, prob_up, score = predict(
-            from_token,
-            to_token,
-            {
-                "expected_profit": base_expected_profit,
-                "prob_up": base_prob_up,
-                "score": base_score,
-                "ratio": ratio,
-                "inverseRatio": inverse_ratio,
-                "amount": amount,
-            },
-        )
-
-        logger.info(
-            f"[dev3] ✅ Прогноз: {from_token} → {to_token} | profit={expected_profit}, prob_up={prob_up}, score={score}"
-        )
-
-        predictions.append(
-            {
-                "from_token": from_token,
-                "to_token": to_token,
-                "ratio": ratio,
-                "inverseRatio": inverse_ratio,
-                "expected_profit": expected_profit,
-                "prob_up": prob_up,
-                "score": score,
-            }
-        )
+            predictions.append(
+                {
+                    "from_token": from_token,
+                    "to_token": to_token,
+                    "ratio": ratio,
+                    "inverseRatio": inverse_ratio,
+                    "expected_profit": expected_profit,
+                    "prob_up": prob_up,
+                    "score": score,
+                }
+            )
+    except Exception as exc:  # pragma: no cover - network
+        logger.error(f"[dev3] ❌ fetch_quotes() помилка для {from_token}: {exc}")
+        return []
 
     return predictions
 
@@ -109,7 +114,10 @@ async def gather_predictions(
 
     predictions: List[Dict[str, float]] = []
     for items in results:
-        predictions.extend(items)
+        if isinstance(items, list):
+            predictions.extend(items)
+        elif items:
+            logger.warning(f"[dev3] ⚠️ fetch_quotes повернув не список: {items}")
 
     logger.info(f"[dev3] ✅ Загалом отримано {len(predictions)} прогнозів")
     return predictions
