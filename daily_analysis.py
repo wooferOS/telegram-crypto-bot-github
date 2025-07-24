@@ -48,6 +48,11 @@ async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]
             )
             continue
 
+        if from_price == 0 or to_price == 0:
+            logger.warning(
+                f"[dev3] ❌ Нульова ціна для {from_token} → {to_token}. Пропускаємо."
+            )
+            return None
         ratio = from_price / to_price
         inverse_ratio = to_price / from_price
 
