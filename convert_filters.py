@@ -4,7 +4,7 @@ import json
 from typing import Dict, Tuple, List, Any
 
 from convert_logger import logger
-from convert_api import get_symbol_price
+from binance_api import get_symbol_price
 
 # Allow slight negative scores and smaller toAmount for training trades
 MIN_SCORE = -0.0005

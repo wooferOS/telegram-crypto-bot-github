@@ -4,7 +4,8 @@ import json
 import os
 from typing import Callable, Dict, List, Optional
 
-from convert_api import get_available_to_tokens, get_quote, get_balances
+from convert_api import get_available_to_tokens, get_balances
+from binance_api import get_symbol_price
 from convert_logger import logger
 from convert_notifier import send_telegram
 from gpt_utils import ask_gpt
@@ -39,23 +40,16 @@ async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]
         return predictions
 
     for to_token in to_tokens:
-        try:
-            quote = await asyncio.to_thread(get_quote, from_token, to_token, amount)
-            logger.info(f"[dev3] 🔄 Quote для {from_token} → {to_token}: {quote}")
-        except Exception as exc:
+        from_price = await asyncio.to_thread(get_symbol_price, from_token)
+        to_price = await asyncio.to_thread(get_symbol_price, to_token)
+        if from_price is None or to_price is None:
             logger.warning(
-                f"[dev3] ❌ get_quote помилка для {from_token} → {to_token}: {exc}"
+                f"[dev3] ⚠️ Немає ціни для {from_token} або {to_token}"
             )
             continue
 
-        if not quote or "ratio" not in quote or "inverseRatio" not in quote:
-            logger.warning(
-                f"[dev3] ⛔️ Неповний quote для {from_token} → {to_token}: {quote}"
-            )
-            continue
-
-        ratio = float(quote["ratio"])
-        inverse_ratio = float(quote["inverseRatio"])
+        ratio = from_price / to_price
+        inverse_ratio = to_price / from_price
 
         base_expected_profit = ratio - 1.0
         base_prob_up = 0.5
@@ -117,7 +111,7 @@ async def gather_predictions(
 
 
 async def filter_valid_quotes(pairs: List[Dict[str, float]]) -> List[Dict[str, float]]:
-    """Return only pairs that have a valid quote via Convert API with fallback."""
+    """Return pairs that have sufficient balance and available prices."""
     valid_pairs: List[Dict[str, float]] = []
     for pair in pairs:
         from_token = pair.get("from_token")
@@ -129,27 +123,13 @@ async def filter_valid_quotes(pairs: List[Dict[str, float]]) -> List[Dict[str, f
         if balance == 0:
             continue
 
-        for factor in [1.0, 0.5, 0.25, 0.1]:
-            test_amount = balance * factor
-            try:
-                quote = await asyncio.to_thread(
-                    get_quote, from_token, to_token, test_amount
-                )
-                if quote and "quoteId" in quote:
-                    pair["amount"] = test_amount
-                    valid_pairs.append(pair)
-                    logger.debug(
-                        f"[dev3] ✅ valid quote {from_token} → {to_token} @ {test_amount}"
-                    )
-                    break
-                else:
-                    logger.debug(
-                        f"[dev3] ❌ invalid quote for {from_token} → {to_token} @ {test_amount}: {quote}"
-                    )
-            except Exception as e:
-                logger.debug(
-                    f"[dev3] ❌ error for quote {from_token} → {to_token} @ {test_amount}: {str(e)}"
-                )
+        from_price = await asyncio.to_thread(get_symbol_price, from_token)
+        to_price = await asyncio.to_thread(get_symbol_price, to_token)
+        if from_price is None or to_price is None:
+            continue
+
+        pair["amount"] = balance
+        valid_pairs.append(pair)
 
     return valid_pairs
 
