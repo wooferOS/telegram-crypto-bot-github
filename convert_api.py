@@ -16,6 +16,7 @@ BASE_URL = "https://api.binance.com"
 
 _session = requests.Session()
 logger = logging.getLogger(__name__)
+logged_quote_errors: Set[tuple[str, str]] = set()
 
 _supported_pairs_cache: Optional[Set[str]] = None
 
@@ -93,9 +94,11 @@ def get_quote(
         time.sleep(0.2)
 
     if not quote or quote.get("price") is None:
-        logger.warning(
-            f"❌ Усі спроби отримати quote для {from_token} → {to_token} не дали результату (price=None)"
-        )
+        if (from_token, to_token) not in logged_quote_errors:
+            logger.warning(
+                f"❌ Усі спроби отримати quote для {from_token} → {to_token} не дали результату (price=None)"
+            )
+            logged_quote_errors.add((from_token, to_token))
     if quote is not None:
         quote["created_at"] = time.time()  # зберігаємо час створення котирування
     return quote
