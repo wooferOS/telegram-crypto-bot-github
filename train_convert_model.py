@@ -4,6 +4,9 @@ import sys
 from typing import Any, Dict, List
 from datetime import datetime, timezone
 import logging
+from collections import Counter
+
+import joblib
 
 logging.basicConfig(
     filename="logs/train_model.log",
@@ -51,6 +54,14 @@ def main():
             )
             return
 
+        labels = [d["executed"] for d in prepared if "executed" in d]
+        label_counts = Counter(labels)
+        if len(label_counts) < 2:
+            print(f"[FATAL] ❌ Training aborted: only one class present — {label_counts}")
+            sys.exit(1)
+        else:
+            print(f"[OK] ✅ Training dataset class distribution: {label_counts}")
+
         X = extract_features(prepared)
         if X.shape[1] == 0 or X.size == 0:
             logger.error(
@@ -73,6 +84,13 @@ def main():
 
         model = train_model(X, y)
         save_model(model, MODEL_PATH)
+        print("[dev3] 🤖 Model saved successfully.")
+        try:
+            joblib.load(MODEL_PATH)
+        except Exception as exc:
+            logger.error(f"❌ Failed to load saved model: {exc}")
+            sys.exit(1)
+
 
         logging.info(
             f"\u2705 \u041d\u0430\u0432\u0447\u0430\u043d\u043d\u044f \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u043e. \u0420\u044f\u0434\u043a\u0456\u0432 \u0443 \u0434\u0430\u0442\u0430\u0441\u0435\u0442\u0456: {len(X)}"
