@@ -54,6 +54,8 @@ def _load_model() -> Any:
             raise FileNotFoundError(MODEL_PATH)
         try:
             _model = joblib.load(MODEL_PATH)
+            if hasattr(_model, "classes_") and len(_model.classes_) == 1:
+                print("[dev3] ⚠️ Model has one class — limited accuracy")
         except Exception as exc:  # pragma: no cover - diagnostics only
             logger.warning("Failed to load model: %s", exc)
             _model = None
