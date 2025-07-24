@@ -1,6 +1,6 @@
 import atexit
 from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import requests
 from config_dev3 import TELEGRAM_CHAT_ID, TELEGRAM_TOKEN
@@ -8,7 +8,7 @@ from config_dev3 import TELEGRAM_CHAT_ID, TELEGRAM_TOKEN
 
 _current_from_token: Optional[str] = None
 _pending: Dict[str, List[str]] = defaultdict(list)
-fallback_triggered: bool = False
+fallback_triggered: Optional[Tuple[str, str]] = None
 
 
 def flush_failures() -> None:
@@ -16,10 +16,11 @@ def flush_failures() -> None:
     global _current_from_token, _pending, fallback_triggered
     if not _current_from_token or not _pending:
         if fallback_triggered:
+            ft_from, ft_to = fallback_triggered
             _send(
-                "⚠️ [dev3] Звичайні пари не дали результату — виконано fallback трейд."
+                f"⚠️ Виконано fallback trade для {ft_from} → {ft_to}, оскільки всі інші трейди були відхилені"
             )
-            fallback_triggered = False
+            fallback_triggered = None
         return
     if len(_pending) == 1:
         reason, tokens = next(iter(_pending.items()))
@@ -34,14 +35,15 @@ def flush_failures() -> None:
             tokens_str = ", ".join(tokens)
             lines.append(f"- [{tokens_str}] → {reason}")
         if fallback_triggered:
+            ft_from, ft_to = fallback_triggered
             lines.append(
-                "⚠️ [dev3] Звичайні пари не дали результату — виконано fallback трейд."
+                f"⚠️ Виконано fallback trade для {ft_from} → {ft_to}, оскільки всі інші трейди були відхилені"
             )
         msg = "\n".join(lines)
     _send(msg)
     _current_from_token = None
     _pending = defaultdict(list)
-    fallback_triggered = False
+    fallback_triggered = None
 
 
 atexit.register(flush_failures)

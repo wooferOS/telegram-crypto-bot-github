@@ -29,9 +29,16 @@ def save_model(model, path=MODEL_PATH):
 
 def prepare_dataset(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Filter raw history into a dataset used for training."""
-    return [
-        x for x in history if x.get("score", 0) > 0 and x.get("expected_profit", 0) > 0
-    ]
+    prepared: List[Dict[str, Any]] = []
+    for row in history:
+        if row.get("price") is None:
+            continue
+        if float(row.get("score", 0)) <= 0:
+            continue
+        item = dict(row)
+        item["executed"] = bool(row.get("accepted"))
+        prepared.append(item)
+    return prepared
 
 
 def extract_labels(data: List[Dict[str, Any]]) -> List[int]:

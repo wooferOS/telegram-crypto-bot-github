@@ -67,6 +67,7 @@ def _save_fallback_history(from_token: str, to_token: str) -> None:
 
 
 MAX_QUOTES_PER_CYCLE = 20
+MAX_QUOTES_PER_TOKEN = 5
 TOP_N_PAIRS = 10
 
 
@@ -307,6 +308,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     successful_conversions = False
 
     for from_token in pairs_by_from:
+        quotes_used = 0
         amount = balances.get(from_token, 0.0)
         if amount <= 0:
             continue
@@ -322,6 +324,11 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             continue
 
         for entry in to_candidates:
+            if quotes_used >= MAX_QUOTES_PER_TOKEN:
+                logger.info(
+                    f"[dev3] ⏩ Досягнуто ліміту {MAX_QUOTES_PER_TOKEN} quote для {from_token}"
+                )
+                break
             to_token = entry["to_token"]
             score = entry["score"]
 
@@ -344,6 +351,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 logger.warning(f"[dev3] 🚫 Досягнуто ліміту {MAX_QUOTES_PER_CYCLE} quote-запитів у цьому циклі")
                 return
             quote_counter += 1
+            quotes_used += 1
             quote = get_quote_with_retry(from_token, to_token, amount)
             if not quote or quote.get("price") is None:
                 logger.warning(
@@ -407,17 +415,52 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     if not successful_conversions:
         logger.info("[dev3] ❌ Жодна пара не була конвертована")
         balances = get_binance_balances()
-        fallback_token = next(
-            (t for t, amt in balances.items() if t != "USDT" and amt > 5),
-            None,
-        )
-        if fallback_token:
-            to_token = "LRC"
-            amount = balances[fallback_token] * 0.95
-            quote = get_quote_with_retry(fallback_token, to_token, amount)
-            if quote:
-                accept_quote(quote)
-                logger.warning(
-                    f"[dev3] 🧪 Навчальна угода (fallback): {fallback_token} → {to_token} на {amount:.4f}"
-                )
-                convert_notifier.fallback_triggered = True
+        non_zero = [t for t, a in balances.items() if a > 0 and t != "USDT"]
+        if len(non_zero) == 1:
+            fallback_token = non_zero[0]
+            candidates = [
+                p
+                for p in pairs
+                if p.get("from_token") == fallback_token and float(p.get("score", 0)) > 0
+            ]
+            candidates.sort(key=lambda x: x.get("score", 0), reverse=True)
+            if candidates:
+                best = candidates[0]
+                to_token = best.get("to_token")
+                amount = balances[fallback_token]
+                quote = get_quote_with_retry(fallback_token, to_token, amount)
+                if quote:
+                    resp = accept_quote(quote)
+                    log_conversion_result(quote, accepted=bool(resp and resp.get("success") is True))
+                    if resp and resp.get("success") is True:
+                        convert_notifier.fallback_triggered = (fallback_token, to_token)
+                        profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
+                        log_conversion_success(fallback_token, to_token, profit)
+                        notify_success(
+                            fallback_token,
+                            to_token,
+                            float(resp.get("fromAmount", 0)),
+                            float(resp.get("toAmount", 0)),
+                            float(best.get("score", 0)),
+                            float(quote.get("ratio", 0)) - 1,
+                        )
+                        features = [
+                            float(quote.get("ratio", 0)),
+                            float(quote.get("inverseRatio", 0)),
+                            float(amount),
+                            _hash_token(fallback_token),
+                            _hash_token(to_token),
+                        ]
+                        save_convert_history(
+                            {
+                                "from": fallback_token,
+                                "to": to_token,
+                                "features": features,
+                                "profit": profit,
+                                "accepted": True,
+                            }
+                        )
+                    else:
+                        err = resp.get("msg") if isinstance(resp, dict) else "Unknown error"
+                        log_conversion_error(fallback_token, to_token, err)
+                        notify_failure(fallback_token, to_token, reason=err)
