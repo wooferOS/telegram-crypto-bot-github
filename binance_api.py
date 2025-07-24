@@ -90,8 +90,8 @@ def get_last_prices(symbol: str, limit: int = 100):
     return [c["close"] for c in candles]
 
 
-def get_symbol_price(token: str) -> Optional[float]:
-    """Return current price of a token in USDT with 60s cache."""
+def get_spot_price(token: str) -> Optional[float]:
+    """Return current spot price of ``token`` in USDT with 60s cache."""
     token = token.upper()
     now = time.time()
     cached = _price_cache.get(token)
@@ -107,8 +107,13 @@ def get_symbol_price(token: str) -> Optional[float]:
         _price_cache[token] = (price, now)
         return price
     except Exception as exc:  # pragma: no cover - diagnostics only
-        logger.warning("[dev3] ⚠️ get_symbol_price error for %s: %s", symbol, exc)
+        logger.warning("[dev3] ⚠️ get_spot_price error for %s: %s", symbol, exc)
         return None
+
+
+# Backward compatibility
+def get_symbol_price(token: str) -> Optional[float]:  # pragma: no cover - alias
+    return get_spot_price(token)
 
 
 def get_klines(symbol: str, interval: str = "5m", limit: int = 100) -> List[Dict[str, float]]:
