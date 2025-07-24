@@ -1,4 +1,6 @@
 import requests
+from typing import Optional, List, Dict, Any
+
 from convert_logger import logger
 
 BASE_URL = "https://api.binance.com"
@@ -81,6 +83,35 @@ def get_last_prices(symbol: str, limit: int = 100):
     return [c["close"] for c in candles]
 
 
+def get_symbol_price(token: str) -> Optional[float]:
+    """Return current price of a token in USDT."""
+    symbol = f"{token.upper()}USDT"
+    url = f"{BASE_URL}/api/v3/ticker/price"
+    try:
+        resp = requests.get(url, params={"symbol": symbol}, timeout=10)
+        data = resp.json()
+        return float(data["price"])
+    except Exception as exc:  # pragma: no cover - diagnostics only
+        logger.warning("[dev3] ⚠️ get_symbol_price error for %s: %s", symbol, exc)
+        return None
+
+
+def get_klines(symbol: str, interval: str = "5m", limit: int = 100) -> List[Dict[str, float]]:
+    """Return historical klines data."""
+    return get_historical_prices(symbol, interval=interval, limit=limit)
+
+
+def get_24h_ticker_data(symbol: str) -> Dict[str, Any]:
+    """Return 24h ticker data for the symbol."""
+    url = f"{BASE_URL}/api/v3/ticker/24hr"
+    try:
+        resp = requests.get(url, params={"symbol": symbol.upper()}, timeout=10)
+        return resp.json()
+    except Exception as exc:  # pragma: no cover - diagnostics only
+        logger.warning("[dev3] ⚠️ get_24h_ticker_data error for %s: %s", symbol, exc)
+        return {}
+
+
 def check_symbol_exists(from_token: str, to_token: str) -> bool:
     """Return True if ``to_token`` has a USDT pair on Binance."""
     symbol = f"{to_token}USDT".upper()
@@ -89,17 +120,15 @@ def check_symbol_exists(from_token: str, to_token: str) -> bool:
 
 
 def get_ratio(from_token: str, to_token: str, amount: float = 1.0) -> float:
-    """Return conversion ratio using Binance Convert API."""
-    try:
-        from convert_api import get_quote
-
-        data = get_quote(from_token, to_token, amount)
-        return float(data.get("ratio", 0))
-    except Exception as exc:  # pragma: no cover - diagnostics only
+    """Return price ratio using spot prices."""
+    from_price = get_symbol_price(from_token)
+    to_price = get_symbol_price(to_token)
+    if not from_price or not to_price:
         logger.warning(
-            f"[dev3] ❌ get_ratio failed for {from_token} → {to_token}: {exc}"
+            "[dev3] ❌ get_ratio failed: price lookup for %s or %s", from_token, to_token
         )
         return 0.0
+    return from_price / to_price
 
 
 def get_binance_balances() -> dict:
