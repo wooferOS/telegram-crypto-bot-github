@@ -123,8 +123,7 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         )
         return False
 
-    quote_id = quote.get("quoteId")
-    resp = accept_quote(quote_id) if quote_id else None
+    resp = accept_quote(quote) if quote else None
     log_conversion_result(quote, accepted=bool(resp and resp.get("success") is True))
     if resp and resp.get("success") is True:
         profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
@@ -357,7 +356,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 )
                 continue
 
-            resp = accept_quote(quote.get("quoteId"))
+            resp = accept_quote(quote)
             log_conversion_result(
                 quote, accepted=bool(resp and resp.get("success") is True)
             )

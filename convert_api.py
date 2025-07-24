@@ -9,6 +9,7 @@ import requests
 from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
 from utils_dev3 import get_current_timestamp
 from quote_counter import increment_quote_usage
+import convert_logger
 
 BASE_URL = "https://api.binance.com"
 
@@ -104,6 +105,8 @@ def get_quote(
         logger.warning(
             f"❌ Усі спроби отримати quote для {from_token} → {to_token} не дали результату (price=None)"
         )
+    if quote is not None:
+        quote["created_at"] = time.time()  # зберігаємо час створення котирування
     return quote
 
 
@@ -123,7 +126,21 @@ def get_quote_with_retry(from_token: str, to_token: str, base_amount: float) -> 
     return None
 
 
-def accept_quote(quote_id: str) -> Optional[Dict[str, Any]]:
+def accept_quote(quote: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Accept a quote if it is still valid."""
+    created_at = quote.get("created_at")
+    if created_at and (time.time() - created_at > 9.5):  # TTL Binance ~10s
+        convert_logger.log_quote_skipped(
+            quote["fromAsset"],
+            quote["toAsset"],
+            reason="⛔️ Пропущено: quoteId протерміновано",
+        )
+        return None
+
+    quote_id = quote.get("quoteId")
+    if not quote_id:
+        return None
+
     url = f"{BASE_URL}/sapi/v1/convert/acceptQuote"
     params = _sign({"quoteId": quote_id})
     try:
@@ -131,8 +148,26 @@ def accept_quote(quote_id: str) -> Optional[Dict[str, Any]]:
         data = resp.json()
         logger.info("[dev3] Binance response (accept_quote): %s", data)
         return data
-    except Exception as exc:
-        logger.warning("[dev3] ❌ accept_quote exception %s: %s", quote_id, exc)
+    except Exception as e:
+        error_msg = str(e)
+        if "code': -23000" in error_msg:
+            convert_logger.log_quote_skipped(
+                quote["fromAsset"],
+                quote["toAsset"],
+                reason="⛔️ Binance -23000: quoteId недійсний",
+            )
+        elif "code': 345103" in error_msg:
+            convert_logger.log_quote_skipped(
+                quote["fromAsset"],
+                quote["toAsset"],
+                reason="⛔️ Binance 345103: quoteId не існує або вже використано",
+            )
+        else:
+            convert_logger.log_conversion_error(
+                quote["fromAsset"],
+                quote["toAsset"],
+                error_msg,
+            )
         return None
 
 
