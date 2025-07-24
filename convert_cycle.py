@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any
 
 from convert_api import (
-    get_quote,
+    get_quote_with_retry,
     accept_quote,
     get_balances,
     is_convertible_pair,
@@ -102,7 +102,7 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         )
         return False
 
-    quote = get_quote(from_token, to_token, amount)
+    quote = get_quote_with_retry(from_token, to_token, amount)
     if not quote or quote.get("price") is None:
         logger.warning(
             f"⛔️ Пропуск {from_token} → {to_token}: quote.price is None після всіх спроб"
@@ -342,7 +342,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 logger.warning(f"[dev3] 🚫 Досягнуто ліміту {MAX_QUOTES_PER_CYCLE} quote-запитів у цьому циклі")
                 return
             quote_counter += 1
-            quote = get_quote(from_token, to_token, amount)
+            quote = get_quote_with_retry(from_token, to_token, amount)
             if not quote or quote.get("price") is None:
                 logger.warning(
                     f"⛔️ Пропуск {from_token} → {to_token}: quote.price is None після всіх спроб"
