@@ -45,6 +45,11 @@ def main():
         if not prepared:
             logger.error("❌ Немає даних після фільтрації prepare_dataset.")
             return
+        if len(prepared) < 20:
+            logger.warning(
+                f"[dev3] 🚫 Недостатньо даних для навчання: {len(prepared)}"
+            )
+            return
 
         X = extract_features(prepared)
         if X.shape[1] == 0 or X.size == 0:

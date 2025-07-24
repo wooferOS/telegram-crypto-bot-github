@@ -7,6 +7,7 @@ import json
 import numpy as np
 
 import joblib
+import pandas as pd
 
 MODEL_PATH = "model_convert.joblib"
 logger = logging.getLogger(__name__)
@@ -28,17 +29,16 @@ def save_model(model, path=MODEL_PATH):
 
 
 def prepare_dataset(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Filter raw history into a dataset used for training."""
-    prepared: List[Dict[str, Any]] = []
-    for row in history:
-        if row.get("price") is None:
-            continue
-        if float(row.get("score", 0)) <= 0:
-            continue
-        item = dict(row)
-        item["executed"] = bool(row.get("accepted"))
-        prepared.append(item)
-    return prepared
+    """Return dataset for training including executed flag."""
+    if not history:
+        return []
+
+    df = pd.DataFrame(history)
+    if "expected_profit" in df.columns:
+        df = df[df["expected_profit"].notnull()]
+
+    df["executed"] = df.get("accepted", False).astype(bool)
+    return df.to_dict("records")
 
 
 def extract_labels(data: List[Dict[str, Any]]) -> List[int]:
