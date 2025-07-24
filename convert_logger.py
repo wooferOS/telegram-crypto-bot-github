@@ -14,13 +14,29 @@ DEBUG_LOG_FILE = os.path.join("logs", "convert_debug.log")
 ERROR_LOG_FILE = os.path.join("logs", "convert_errors.log")
 BALANCE_LOG_FILE = os.path.join("logs", "balance_guard.log")
 HISTORY_FILE = os.path.join("logs", "convert_history.json")
+CONVERT_LOG_FILE = os.path.join("logs", "convert.log")
 
 
 os.makedirs("logs", exist_ok=True)
 formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
 
-logger = logging.getLogger("convert")
-logger.setLevel(logging.INFO)
+
+def init_logger() -> logging.Logger:
+    """Initialize and return the main convert logger."""
+    os.makedirs("logs", exist_ok=True)
+    log = logging.getLogger("convert")
+    log.setLevel(logging.INFO)
+    if not any(
+        isinstance(h, logging.FileHandler)
+        and h.baseFilename.endswith("convert.log")
+        for h in log.handlers
+    ):
+        fh_main = logging.FileHandler(CONVERT_LOG_FILE, encoding="utf-8")
+        fh_main.setFormatter(formatter)
+        log.addHandler(fh_main)
+    return log
+
+logger = init_logger()
 
 if not any(
     isinstance(h, logging.FileHandler) and h.baseFilename.endswith("convert_trade.log")
