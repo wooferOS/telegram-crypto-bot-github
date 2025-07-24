@@ -43,6 +43,11 @@ def main():
     parser.add_argument(
         "--force-train", action="store_true", help="Allow training even with one class"
     )
+    parser.add_argument(
+        "--debug-data",
+        action="store_true",
+        help="Save prepared dataset to logs/debug_train.csv",
+    )
     args = parser.parse_args()
     try:
         history = load_convert_history(HISTORY_PATH)
@@ -61,7 +66,15 @@ def main():
             return
 
         df = pd.DataFrame(prepared)
+        if args.debug_data:
+            os.makedirs("logs", exist_ok=True)
+            df.to_csv("logs/debug_train.csv", index=False)
+
         class_counts = Counter(df["executed"])
+        if len(class_counts) == 1 and False in class_counts:
+            logger.warning(
+                "[dev3] ⚠️ Model trained on one class only — ефективність буде обмеженою"
+            )
         if len(class_counts) < 2:
             if not args.force_train:
                 print(
@@ -91,6 +104,11 @@ def main():
 
         model = train_model(X, y)
         save_model(model, MODEL_PATH)
+        logger.info(
+            "[dev3] executed=True=%d executed=False=%d",
+            class_counts.get(True, 0),
+            class_counts.get(False, 0),
+        )
         print(
             "[dev3] ✅ Model trained (forced mode)"
             if args.force_train

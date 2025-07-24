@@ -101,3 +101,11 @@ def notify_all_skipped(avg: float) -> None:
         f"Середній score: {avg}, причина: всі < threshold або price_lookup_failed"
     )
     _send(msg)
+
+
+def notify_fallback_model_warning() -> None:
+    """Inform admin that model is trained on failed conversions only."""
+    _send(
+        "[dev3] ⚠️ Модель навчена лише на неуспішних угодах. "
+        "Для кращої якості — потрібно щонайменше 1 успішна конверсія."
+    )
