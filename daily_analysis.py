@@ -170,6 +170,11 @@ async def convert_mode() -> None:
     top_tokens: List[Dict[str, float]] = top_tokens_by_score
     if top_tokens:
         top_tokens = await filter_valid_quotes(top_tokens)
+        filtered: List[Dict[str, float]] = []
+        for pair in top_tokens:
+            if get_ratio("USDT", pair.get("to_token")) > 0:
+                filtered.append(pair)
+        top_tokens = filtered
     else:
         logger.warning(
             "[dev3] ❌ top_tokens.json порожній — відсутні релевантні прогнози"

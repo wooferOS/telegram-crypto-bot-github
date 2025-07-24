@@ -8,12 +8,18 @@ from config_dev3 import TELEGRAM_CHAT_ID, TELEGRAM_TOKEN
 
 _current_from_token: Optional[str] = None
 _pending: Dict[str, List[str]] = defaultdict(list)
+fallback_triggered: bool = False
 
 
 def flush_failures() -> None:
     """Send aggregated failure message for the current FROM token."""
-    global _current_from_token, _pending
+    global _current_from_token, _pending, fallback_triggered
     if not _current_from_token or not _pending:
+        if fallback_triggered:
+            _send(
+                "⚠️ [dev3] Звичайні пари не дали результату — виконано fallback трейд."
+            )
+            fallback_triggered = False
         return
     if len(_pending) == 1:
         reason, tokens = next(iter(_pending.items()))
@@ -27,10 +33,15 @@ def flush_failures() -> None:
         for reason, tokens in _pending.items():
             tokens_str = ", ".join(tokens)
             lines.append(f"- [{tokens_str}] → {reason}")
+        if fallback_triggered:
+            lines.append(
+                "⚠️ [dev3] Звичайні пари не дали результату — виконано fallback трейд."
+            )
         msg = "\n".join(lines)
     _send(msg)
     _current_from_token = None
     _pending = defaultdict(list)
+    fallback_triggered = False
 
 
 atexit.register(flush_failures)

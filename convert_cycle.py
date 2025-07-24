@@ -13,6 +13,7 @@ from convert_api import (
 )
 from binance_api import get_binance_balances, get_spot_price
 from convert_notifier import notify_success, notify_failure
+import convert_notifier
 from convert_filters import passes_filters
 from convert_logger import (
     logger,
@@ -303,6 +304,8 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     for lst in pairs_by_from.values():
         lst.sort(key=lambda x: x["score"], reverse=True)
 
+    successful_conversions = False
+
     for from_token in pairs_by_from:
         amount = balances.get(from_token, 0.0)
         if amount <= 0:
@@ -392,11 +395,29 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                         "accepted": True,
                     }
                 )
-                return
+                successful_conversions = True
+                break
             else:
                 err = resp.get("msg") if isinstance(resp, dict) else "Unknown error"
                 logger.info(f"❌ Помилка accept_quote: {err}")
                 log_conversion_error(from_token, to_token, err)
                 notify_failure(from_token, to_token, reason=err)
-
-    logger.info("[dev3] ❌ Жодна пара не була конвертована")
+        if successful_conversions:
+            break
+    if not successful_conversions:
+        logger.info("[dev3] ❌ Жодна пара не була конвертована")
+        balances = get_binance_balances()
+        fallback_token = next(
+            (t for t, amt in balances.items() if t != "USDT" and amt > 5),
+            None,
+        )
+        if fallback_token:
+            to_token = "LRC"
+            amount = balances[fallback_token] * 0.95
+            quote = get_quote_with_retry(fallback_token, to_token, amount)
+            if quote:
+                accept_quote(quote)
+                logger.warning(
+                    f"[dev3] 🧪 Навчальна угода (fallback): {fallback_token} → {to_token} на {amount:.4f}"
+                )
+                convert_notifier.fallback_triggered = True
