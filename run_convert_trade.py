@@ -62,7 +62,11 @@ def main() -> None:
 
     # 🧠 Автоматичне навчання моделі
     logger.info("[dev3] 📚 Починаємо автоматичне навчання моделі...")
-    subprocess.run(["python3", "train_convert_model.py"], check=True)
+    try:
+        subprocess.run(["python3", "train_convert_model.py", "--force-train"], check=True)
+    except Exception as exc:
+        logger.error(f"[dev3] ❌ Навчання моделі завершилось з помилкою: {exc}")
+        return
     logger.info("[dev3] ✅ Навчання завершено")
 
     predictions_path = os.path.join("logs", "predictions.json")
