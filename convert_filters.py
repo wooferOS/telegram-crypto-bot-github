@@ -4,7 +4,12 @@ import json
 from typing import Dict, Tuple, List, Any
 
 from convert_logger import logger
-from binance_api import get_symbol_price
+from binance_api import get_spot_price, get_ratio
+
+
+def get_ratio_from_spot(from_token: str, to_token: str) -> float:
+    """Helper alias for spot price ratio."""
+    return get_ratio(from_token, to_token)
 
 # Allow slight negative scores and smaller toAmount for training trades
 MIN_SCORE = -0.0005
@@ -60,10 +65,16 @@ def passes_filters(score: float, quote: Dict[str, Any], balance: float) -> Tuple
 
     to_token = quote.get("toAsset")
     try:
-        to_price = get_symbol_price(to_token)
+        to_price = get_spot_price(to_token)
         to_usdt_value = to_amount * to_price
     except Exception as e:
         return False, f"price_lookup_failed: {e}"
+
+    spot_ratio = get_ratio(quote.get("fromAsset"), to_token)
+    if spot_ratio <= 0:
+        return False, "spot_ratio_failed"
+    if spot_ratio <= 1.0:
+        return False, "spot_no_profit"
 
     if to_usdt_value < 0.5:
         return False, f"to_amount_too_low_usdt (≈{to_usdt_value:.4f})"

@@ -10,6 +10,7 @@ from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
 from utils_dev3 import get_current_timestamp
 from quote_counter import increment_quote_usage
 import convert_logger
+from binance_api import get_spot_price
 
 BASE_URL = "https://api.binance.com"
 
@@ -44,20 +45,6 @@ def get_balances() -> Dict[str, float]:
     return balances
 
 
-def get_symbol_price(token: str) -> Optional[float]:
-    """Get current market price of a token (e.g., PEPE → PEPEUSDT)."""
-    if token is None:
-        logger.warning("symbol is None for quote: %s", token)
-        return None
-    symbol = f"{token.upper()}USDT"
-    url = f"{BASE_URL}/api/v3/ticker/price"
-    try:
-        resp = _session.get(url, params={"symbol": symbol}, timeout=10)
-        data = resp.json()
-        return float(data["price"])
-    except Exception as exc:
-        logger.warning("[dev3] ⚠️ get_symbol_price error for %s: %s", symbol, exc)
-        return None
 
 
 def get_available_to_tokens(from_token: str) -> List[str]:
@@ -96,6 +83,10 @@ def get_quote(
             if quote.get("price") is not None:
                 break
         else:
+            if isinstance(data, dict) and data.get("code") == 345239:
+                logger.warning("[dev3] 🟥 Binance limit reached 345239 for %s → %s", from_token, to_token)
+                quote = {"code": 345239}
+                break
             logger.warning("[dev3] invalid quote for %s → %s: %s", from_token, to_token, data)
             quote = None
 
@@ -118,8 +109,14 @@ def get_quote_with_retry(from_token: str, to_token: str, base_amount: float) -> 
             f"[dev3] 🔁 Retrying quote {from_token} → {to_token} з amount={amount}"
         )
         quote = get_quote(from_token, to_token, amount)
-        if quote and quote.get("price"):
-            return quote
+        if quote:
+            if quote.get("code") == 345239:
+                return None
+            created_at = quote.get("created_at")
+            if created_at and time.time() - created_at > 9.5:
+                continue
+            if quote.get("price"):
+                return quote
     logger.info(
         f"[dev3] ⛔️ Всі спроби get_quote завершились без price для {from_token} → {to_token}"
     )
@@ -147,27 +144,26 @@ def accept_quote(quote: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         resp = _session.post(url, data=params, headers=_headers(), timeout=10)
         data = resp.json()
         logger.info("[dev3] Binance response (accept_quote): %s", data)
+        if isinstance(data, dict) and not data.get("success", True):
+            msg = data.get("msg", "")
+            code = data.get("code")
+            if code in (-23000, 345103) or "quoteId expired" in msg:
+                convert_logger.log_quote_skipped(
+                    quote["fromAsset"],
+                    quote["toAsset"],
+                    reason=msg or str(code),
+                )
+            else:
+                convert_logger.log_conversion_error(
+                    quote["fromAsset"], quote["toAsset"], msg or str(code)
+                )
+            return None
         return data
     except Exception as e:
         error_msg = str(e)
-        if "code': -23000" in error_msg:
-            convert_logger.log_quote_skipped(
-                quote["fromAsset"],
-                quote["toAsset"],
-                reason="⛔️ Binance -23000: quoteId недійсний",
-            )
-        elif "code': 345103" in error_msg:
-            convert_logger.log_quote_skipped(
-                quote["fromAsset"],
-                quote["toAsset"],
-                reason="⛔️ Binance 345103: quoteId не існує або вже використано",
-            )
-        else:
-            convert_logger.log_conversion_error(
-                quote["fromAsset"],
-                quote["toAsset"],
-                error_msg,
-            )
+        convert_logger.log_conversion_error(
+            quote.get("fromAsset"), quote.get("toAsset"), error_msg
+        )
         return None
 
 

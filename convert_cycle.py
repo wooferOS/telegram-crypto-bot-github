@@ -10,9 +10,8 @@ from convert_api import (
     accept_quote,
     get_balances,
     is_convertible_pair,
-    get_symbol_price,
 )
-from binance_api import get_binance_balances
+from binance_api import get_binance_balances, get_spot_price
 from convert_notifier import notify_success, notify_failure
 from convert_filters import passes_filters
 from convert_logger import (
@@ -36,7 +35,7 @@ MIN_NOTIONAL = MIN_NOTIONAL_USDT
 
 def min_notional(token: str) -> float:
     """Return minimal tradable amount for a token based on USDT value."""
-    price = get_symbol_price(token)
+    price = get_spot_price(token)
     if price:
         return MIN_NOTIONAL_USDT / price
     return 0.0
@@ -83,7 +82,7 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         )
         return False
 
-    from_token_price = get_symbol_price(from_token)
+    from_token_price = get_spot_price(from_token)
     if from_token_price:
         usd_value = amount * from_token_price
         if usd_value < MIN_NOTIONAL:
@@ -329,7 +328,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 log_quote_skipped(from_token, to_token, "throttled")
                 continue
 
-            from_token_price = get_symbol_price(from_token)
+            from_token_price = get_spot_price(from_token)
             if from_token_price:
                 usd_value = amount * from_token_price
                 if usd_value < MIN_NOTIONAL:

@@ -5,7 +5,7 @@ import os
 from typing import Callable, Dict, List, Optional
 
 from convert_api import get_available_to_tokens, get_balances
-from binance_api import get_symbol_price
+from binance_api import get_spot_price
 from convert_logger import logger
 from convert_notifier import send_telegram
 from gpt_utils import ask_gpt
@@ -40,8 +40,8 @@ async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]
         return predictions
 
     for to_token in to_tokens:
-        from_price = await asyncio.to_thread(get_symbol_price, from_token)
-        to_price = await asyncio.to_thread(get_symbol_price, to_token)
+        from_price = await asyncio.to_thread(get_spot_price, from_token)
+        to_price = await asyncio.to_thread(get_spot_price, to_token)
         if from_price is None or to_price is None:
             logger.warning(
                 f"[dev3] ⚠️ Немає ціни для {from_token} або {to_token}"
@@ -123,8 +123,8 @@ async def filter_valid_quotes(pairs: List[Dict[str, float]]) -> List[Dict[str, f
         if balance == 0:
             continue
 
-        from_price = await asyncio.to_thread(get_symbol_price, from_token)
-        to_price = await asyncio.to_thread(get_symbol_price, to_token)
+        from_price = await asyncio.to_thread(get_spot_price, from_token)
+        to_price = await asyncio.to_thread(get_spot_price, to_token)
         if from_price is None or to_price is None:
             continue
 
