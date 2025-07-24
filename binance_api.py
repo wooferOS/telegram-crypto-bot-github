@@ -1,9 +1,16 @@
-import requests
+import time
 from typing import Optional, List, Dict, Any
+
+import requests
 
 from convert_logger import logger
 
 BASE_URL = "https://api.binance.com"
+
+_session = requests.Session()
+
+# Cache for spot prices: {token: (price, timestamp)}
+_price_cache: Dict[str, tuple[float, float]] = {}
 
 _VALID_SYMBOLS: set[str] | None = None
 try:
@@ -84,13 +91,21 @@ def get_last_prices(symbol: str, limit: int = 100):
 
 
 def get_symbol_price(token: str) -> Optional[float]:
-    """Return current price of a token in USDT."""
-    symbol = f"{token.upper()}USDT"
+    """Return current price of a token in USDT with 60s cache."""
+    token = token.upper()
+    now = time.time()
+    cached = _price_cache.get(token)
+    if cached and now - cached[1] < 60:
+        return cached[0]
+
+    symbol = f"{token}USDT"
     url = f"{BASE_URL}/api/v3/ticker/price"
     try:
-        resp = requests.get(url, params={"symbol": symbol}, timeout=10)
+        resp = _session.get(url, params={"symbol": symbol}, timeout=10)
         data = resp.json()
-        return float(data["price"])
+        price = float(data["price"])
+        _price_cache[token] = (price, now)
+        return price
     except Exception as exc:  # pragma: no cover - diagnostics only
         logger.warning("[dev3] ⚠️ get_symbol_price error for %s: %s", symbol, exc)
         return None
