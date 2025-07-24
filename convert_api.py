@@ -2,6 +2,7 @@ import hmac
 import hashlib
 import logging
 import time
+from decimal import Decimal, ROUND_DOWN
 from typing import Dict, List, Any, Set, Optional
 
 import requests
@@ -10,7 +11,7 @@ from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
 from utils_dev3 import get_current_timestamp
 from quote_counter import increment_quote_usage
 import convert_logger
-from binance_api import get_spot_price
+from binance_api import get_spot_price, get_precision, get_lot_step
 
 BASE_URL = "https://api.binance.com"
 
@@ -65,6 +66,22 @@ def get_quote(
     """Return quote data or None if invalid. Retries on missing price."""
     increment_quote_usage()
     url = f"{BASE_URL}/sapi/v1/convert/getQuote"
+
+    try:
+        precision = get_precision(from_token)
+    except Exception:
+        precision = 0
+    if precision <= 0:
+        step = get_lot_step(from_token).get("stepSize", "1")
+        try:
+            precision = max(-Decimal(step).as_tuple().exponent, 0)
+        except Exception:
+            precision = 0
+
+    quant = Decimal("1") / (Decimal(10) ** precision)
+    rounded_amount = float(Decimal(str(amount)).quantize(quant, rounding=ROUND_DOWN))
+    amount = rounded_amount
+
     params = _sign({"fromAsset": from_token, "toAsset": to_token, "fromAmount": amount})
 
     quote: Optional[Dict[str, Any]] = None

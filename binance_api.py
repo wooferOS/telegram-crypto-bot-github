@@ -1,4 +1,5 @@
 import time
+from decimal import Decimal
 from typing import Optional, List, Dict, Any
 
 import requests
@@ -164,3 +165,37 @@ def get_binance_balances() -> dict:
         if free > 0:
             balances[asset["asset"]] = free
     return balances
+
+
+_lot_step_cache: dict[str, dict] = {}
+
+
+def get_lot_step(asset: str) -> dict:
+    """Return LOT_SIZE filter for ``asset`` pair with USDT."""
+    asset = asset.upper()
+    if asset in _lot_step_cache:
+        return _lot_step_cache[asset]
+    url = f"{BASE_URL}/api/v3/exchangeInfo"
+    try:
+        resp = requests.get(url, params={"symbol": f"{asset}USDT"}, timeout=10)
+        data = resp.json()
+        for item in data.get("symbols", []):
+            if item.get("symbol") == f"{asset}USDT":
+                for f in item.get("filters", []):
+                    if f.get("filterType") == "LOT_SIZE":
+                        _lot_step_cache[asset] = f
+                        return f
+    except Exception as exc:  # pragma: no cover - network
+        logger.warning("[dev3] get_lot_step error for %s: %s", asset, exc)
+    _lot_step_cache[asset] = {"stepSize": "1"}
+    return _lot_step_cache[asset]
+
+
+def get_precision(asset: str) -> int:
+    """Return precision for an asset based on LOT_SIZE step."""
+    step = get_lot_step(asset).get("stepSize", "1")
+    try:
+        precision = max(-Decimal(step).as_tuple().exponent, 0)
+    except Exception:
+        precision = 0
+    return precision
