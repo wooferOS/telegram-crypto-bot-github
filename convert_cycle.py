@@ -23,7 +23,7 @@ from convert_notifier import (
     notify_fallback_trade,
 )
 import convert_notifier
-from convert_filters import passes_filters
+from convert_filters import passes_filters, MIN_SCORE
 from convert_logger import (
     save_convert_history,
     log_prediction,
@@ -37,6 +37,7 @@ from quote_counter import should_throttle, reset_cycle
 from convert_model import _hash_token, get_top_token_pairs
 
 FALLBACK_HISTORY_PATH = os.path.join(os.path.dirname(__file__), "fallback_history.json")
+HISTORY_PATH = os.path.join("logs", "convert_history.json")
 
 MIN_NOTIONAL_USDT = 0.5
 MIN_NOTIONAL = MIN_NOTIONAL_USDT
@@ -72,6 +73,25 @@ def _save_fallback_history(from_token: str, to_token: str) -> None:
             json.dump(data, f)
     except Exception as exc:  # pragma: no cover - file issues
         logger.warning(f"[dev3] failed to write fallback history: {exc}")
+
+
+def has_successful_trade(from_token: str) -> bool:
+    """Return True if there is a successful executed trade for from_token."""
+    if not os.path.exists(HISTORY_PATH):
+        return False
+    try:
+        with open(HISTORY_PATH, "r", encoding="utf-8") as f:
+            history = json.load(f)
+    except Exception:
+        return False
+    for r in history:
+        value = r.get("value", r)
+        if (
+            value.get("from_token") == from_token
+            and value.get("executed")
+        ):
+            return True
+    return False
 
 
 MAX_QUOTES_PER_CYCLE = 20
@@ -376,7 +396,14 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         if not f or not t:
             continue
         score = float(p.get("score", 0))
-        pairs_by_from.setdefault(f, []).append({"to_token": t, "score": score})
+        prob_up = float(p.get("prob_up", 0))
+        forecast_count = int(p.get("forecast_count", 0))
+        pairs_by_from.setdefault(f, []).append({
+            "to_token": t,
+            "score": score,
+            "prob_up": prob_up,
+            "forecast_count": forecast_count,
+        })
 
     for lst in pairs_by_from.values():
         lst.sort(key=lambda x: x["score"], reverse=True)
@@ -407,6 +434,27 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 break
             to_token = entry["to_token"]
             score = entry["score"]
+            prob_up = float(entry.get("prob_up", 0))
+            forecast_count = int(entry.get("forecast_count", 0))
+
+            allow_learning_trade = False
+            if (
+                score == 0.0
+                and prob_up == 0.0
+                and forecast_count > 50
+                and not has_successful_trade(from_token)
+            ):
+                allow_learning_trade = True
+
+            if score < MIN_SCORE and not allow_learning_trade:
+                continue
+
+            if allow_learning_trade:
+                msg = (
+                    f"[dev3] 🤖 Навчальний трейд для {from_token} → {to_token} (score = {score:.2f})"
+                )
+                logger.info(msg)
+                convert_notifier.send_telegram(msg)
 
             log_prediction(from_token, to_token, score)
             logger.info(
