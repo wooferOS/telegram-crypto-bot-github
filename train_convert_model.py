@@ -18,6 +18,11 @@ logging.basicConfig(
 
 import pandas as pd
 from convert_logger import logger
+
+# Ensure the latest convert_model is loaded
+import importlib
+import convert_model as _convert_model
+importlib.reload(_convert_model)
 from convert_model import (
     prepare_dataset,
     extract_features,
