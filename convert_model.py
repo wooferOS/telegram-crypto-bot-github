@@ -113,11 +113,13 @@ def is_fallback_model() -> bool:
 def _hash_token(token) -> float:
     """Convert token symbol to a normalized numeric hash.
 
-    Any unexpected value (e.g. ``None`` or ``NaN``) results in ``0.0`` so that
+    Any unexpected value (e.g. None or NaN) results in 0.0 so that
     calling code never fails.
     """
-    token_str = str(token)
     try:
+        if token is None or (isinstance(token, float) and np.isnan(token)):
+            raise ValueError("Invalid token (None or NaN)")
+        token_str = str(token)
         return float(
             int(hashlib.sha256(token_str.encode()).hexdigest(), 16) % 10**8
         ) / 1e8
