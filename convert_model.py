@@ -35,10 +35,17 @@ def prepare_dataset(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return []
 
     df = pd.DataFrame(history)
+
+    # Фільтруємо записи без expected_profit
     if "expected_profit" in df.columns:
         df = df[df["expected_profit"].notnull()]
 
-    df["executed"] = df.get("accepted", False).astype(bool)
+    # Визначаємо колонку executed
+    if "accepted" in df.columns:
+        df["executed"] = df["accepted"].fillna(False).astype(bool)
+    else:
+        df["executed"] = False
+
     return df.to_dict("records")
 
 
