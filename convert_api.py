@@ -182,8 +182,16 @@ def get_quote(
 
 def get_quote_with_retry(from_token: str, to_token: str, base_amount: float) -> Optional[Dict[str, Any]]:
     """Retry get_quote with increasing amounts until price is available."""
+    min_required = get_min_convert_amount(from_token, to_token)
+    amount_from = base_amount
+    if amount_from < min_required:
+        logger.warning(
+            f"[dev3] ⚠️ {from_token} → {to_token} має надто малу кількість ({amount_from:.2f} < {min_required:.2f}) — підставляємо мінімальну для спроби quote"
+        )
+        amount_from = min_required
+
     for multiplier in [1, 2, 5, 10, 20, 50, 100, 200]:
-        amount = base_amount * multiplier
+        amount = amount_from * multiplier
         logger.info(
             f"[dev3] Retrying quote {from_token} → {to_token} з amount={amount}"
         )
