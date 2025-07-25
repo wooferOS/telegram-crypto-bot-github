@@ -40,7 +40,6 @@ def prepare_dataset(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if "expected_profit" in df.columns:
         df = df[df["expected_profit"].notnull()]
 
-    # Визначаємо колонку executed
     if "accepted" in df.columns:
         df["executed"] = df["accepted"].fillna(False).astype(bool)
     else:
