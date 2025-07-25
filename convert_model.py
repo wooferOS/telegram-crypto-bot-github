@@ -40,13 +40,13 @@ def prepare_dataset(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if "expected_profit" in df.columns:
         df = df[df["expected_profit"].notnull()]
 
+    # Визначаємо колонку executed
     if "accepted" in df.columns:
         df["executed"] = df["accepted"].fillna(False).astype(bool)
     else:
-        df["executed"] = False
+        df["executed"] = False  # Це створює колонку з одиним значенням (False), розшириться автоматично
 
     return df.to_dict("records")
-
 
 def extract_labels(data: List[Dict[str, Any]]) -> List[int]:
     """Extract labels for model training."""
