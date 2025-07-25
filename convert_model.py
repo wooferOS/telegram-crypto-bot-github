@@ -116,19 +116,17 @@ def _hash_token(token) -> float:
     Any unexpected value (e.g. ``None`` or ``NaN``) results in ``0.0`` so that
     calling code never fails.
     """
-    if not isinstance(token, str):
-        return 0.0
     try:
+        if not isinstance(token, str):
+            token = str(token)
         token_bytes = token.encode()
-    except Exception:
-        logger.warning(f"[dev3] \u26a0\ufe0f Failed to encode token: {token}")
-        return 0.0
-    try:
         return float(
             int(hashlib.sha256(token_bytes).hexdigest(), 16) % 10**8
         ) / 1e8
-    except Exception:
-        logger.warning(f"[dev3] \u26a0\ufe0f Failed to hash token: {token}")
+    except Exception as exc:
+        logger.warning(
+            "[dev3] \u26a0\ufe0f Failed to hash token %r: %s", token, exc
+        )
         return 0.0
 
 
