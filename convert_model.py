@@ -35,7 +35,9 @@ def prepare_dataset(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if not history:
         return []
 
-    df = pd.DataFrame(history)
+    df = pd.DataFrame(
+        [item.get("value", {}) for item in history if isinstance(item, dict) and "value" in item]
+    )
 
     # Фільтруємо записи без expected_profit
     if "expected_profit" in df.columns:
