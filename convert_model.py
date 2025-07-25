@@ -117,15 +117,12 @@ def _hash_token(token) -> float:
     calling code never fails.
     """
     try:
-        if not isinstance(token, str):
-            token = str(token)
-        token_bytes = token.encode()
         return float(
-            int(hashlib.sha256(token_bytes).hexdigest(), 16) % 10**8
+            int(hashlib.sha256(str(token).encode()).hexdigest(), 16) % 10**8
         ) / 1e8
-    except Exception as exc:
+    except Exception as e:
         logger.warning(
-            "[dev3] \u26a0\ufe0f Failed to hash token %r: %s", token, exc
+            f"[dev3] \u26a0\ufe0f Failed to hash token: {token} \u2014 {e}"
         )
         return 0.0
 
