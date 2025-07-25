@@ -49,20 +49,30 @@ def prepare_dataset(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     else:
         df["executed"] = False  # Це створює колонку з одиним значенням (False), розшириться автоматично
 
-    dataset = df.to_dict("records")
+    start_len = len(df)
 
-    filtered = []
-    for row in dataset:
-        # Пропускати рядки з невалідними токенами та NaN
-        if pd.isna(row.get("from_token")) or pd.isna(row.get("to_token")):
-            continue
-        if not isinstance(row.get("from_token"), str) or not isinstance(row.get("to_token"), str):
-            continue
-        if row.get("from_token") in ("", "nan") or row.get("to_token") in ("", "nan"):
-            continue
-        filtered.append(row)
+    df = df[
+        df["from_token"].apply(lambda x: isinstance(x, str))
+        & df["to_token"].apply(lambda x: isinstance(x, str))
+        & ~df["from_token"].isna()
+        & ~df["to_token"].isna()
+    ]
 
-    return filtered
+    filtered_count = start_len - len(df)
+    if filtered_count:
+        logger.warning(
+            "[dev3] \u26a0\ufe0f %d rows filtered due to NaN or invalid token type",
+            filtered_count,
+        )
+
+    df = df[
+        (df["from_token"] != "")
+        & (df["to_token"] != "")
+        & (df["from_token"].str.lower() != "nan")
+        & (df["to_token"].str.lower() != "nan")
+    ]
+
+    return df.to_dict("records")
 
 def extract_labels(data: List[Dict[str, Any]]) -> List[int]:
     """Extract labels for model training."""
@@ -106,11 +116,19 @@ def _hash_token(token) -> float:
     Any unexpected value (e.g. ``None`` or ``NaN``) results in ``0.0`` so that
     calling code never fails.
     """
+    if not isinstance(token, str):
+        return 0.0
+    try:
+        token_bytes = token.encode()
+    except Exception:
+        logger.warning(f"[dev3] \u26a0\ufe0f Failed to encode token: {token}")
+        return 0.0
     try:
         return float(
-            int(hashlib.sha256(str(token).encode()).hexdigest(), 16) % 10**8
+            int(hashlib.sha256(token_bytes).hexdigest(), 16) % 10**8
         ) / 1e8
     except Exception:
+        logger.warning(f"[dev3] \u26a0\ufe0f Failed to hash token: {token}")
         return 0.0
 
 
