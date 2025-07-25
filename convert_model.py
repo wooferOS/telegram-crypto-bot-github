@@ -10,6 +10,7 @@ import joblib
 import pandas as pd
 
 MODEL_PATH = "model_convert.joblib"
+HISTORY_PATH = "logs/convert_history.json"
 logger = logging.getLogger(__name__)
 _model = None
 _is_fallback = False
@@ -225,3 +226,11 @@ def get_top_token_pairs(n: int = 5) -> List[Tuple[str, str]]:
         if len(pairs) >= n:
             break
     return pairs
+
+
+def load_history(path: str = HISTORY_PATH) -> List[Dict[str, Any]]:
+    """Load conversion history from JSON file."""
+    if not os.path.exists(path):
+        return []
+    with open(path, "r") as f:
+        return json.load(f)
