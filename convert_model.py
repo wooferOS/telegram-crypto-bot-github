@@ -49,7 +49,18 @@ def prepare_dataset(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     else:
         df["executed"] = False  # Це створює колонку з одиним значенням (False), розшириться автоматично
 
-    return df.to_dict("records")
+    dataset = df.to_dict("records")
+
+    # Remove rows with missing or invalid token names
+    dataset = [
+        row for row in dataset
+        if isinstance(row.get("from_token"), str)
+        and isinstance(row.get("to_token"), str)
+        and row.get("from_token") not in ("", "nan")
+        and row.get("to_token") not in ("", "nan")
+    ]
+
+    return dataset
 
 def extract_labels(data: List[Dict[str, Any]]) -> List[int]:
     """Extract labels for model training."""
@@ -87,9 +98,10 @@ def is_fallback_model() -> bool:
     return _is_fallback
 
 
-def _hash_token(token: str) -> float:
+def _hash_token(token) -> float:
     """Convert token symbol to a normalized numeric hash."""
-    return float(int(hashlib.sha256(token.encode()).hexdigest(), 16) % 10**8) / 1e8
+    token_str = str(token) if not isinstance(token, str) else token
+    return float(int(hashlib.sha256(token_str.encode()).hexdigest(), 16) % 10**8) / 1e8
 
 
 def extract_features(history: List[Dict[str, Any]]) -> np.ndarray:
