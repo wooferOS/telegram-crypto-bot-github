@@ -116,8 +116,8 @@ def _hash_token(token) -> float:
     Any unexpected value (e.g. ``None`` or ``NaN``) results in ``0.0`` so that
     calling code never fails.
     """
+    token_str = str(token)
     try:
-        token_str = str(token)
         return float(
             int(hashlib.sha256(token_str.encode()).hexdigest(), 16) % 10**8
         ) / 1e8
