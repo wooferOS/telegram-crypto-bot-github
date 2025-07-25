@@ -53,7 +53,9 @@ def prepare_dataset(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
     filtered = []
     for row in dataset:
-        # Пропускати рядки з невалідними токенами
+        # Пропускати рядки з невалідними токенами та NaN
+        if pd.isna(row.get("from_token")) or pd.isna(row.get("to_token")):
+            continue
         if not isinstance(row.get("from_token"), str) or not isinstance(row.get("to_token"), str):
             continue
         if row.get("from_token") in ("", "nan") or row.get("to_token") in ("", "nan"):
@@ -99,10 +101,17 @@ def is_fallback_model() -> bool:
 
 
 def _hash_token(token) -> float:
-    """Convert token symbol to a normalized numeric hash."""
-    return float(
-        int(hashlib.sha256(str(token).encode()).hexdigest(), 16) % 10**8
-    ) / 1e8
+    """Convert token symbol to a normalized numeric hash.
+
+    Any unexpected value (e.g. ``None`` or ``NaN``) results in ``0.0`` so that
+    calling code never fails.
+    """
+    try:
+        return float(
+            int(hashlib.sha256(str(token).encode()).hexdigest(), 16) % 10**8
+        ) / 1e8
+    except Exception:
+        return 0.0
 
 
 def extract_features(history: List[Dict[str, Any]]) -> np.ndarray:
