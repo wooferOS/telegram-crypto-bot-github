@@ -117,12 +117,13 @@ def _hash_token(token) -> float:
     calling code never fails.
     """
     try:
+        token_str = str(token)
         return float(
-            int(hashlib.sha256(str(token).encode()).hexdigest(), 16) % 10**8
+            int(hashlib.sha256(token_str.encode()).hexdigest(), 16) % 10**8
         ) / 1e8
     except Exception as e:
         logger.warning(
-            f"[dev3] \u26a0\ufe0f Failed to hash token: {token} \u2014 {e}"
+            f"[dev3] \u26a0\ufe0f _hash_token error: {token} ({type(token)}): {e}"
         )
         return 0.0
 
