@@ -9,7 +9,7 @@ import re
 import requests
 
 from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
-from utils_dev3 import get_current_timestamp
+from utils_dev3 import get_current_timestamp, round_step_size
 from quote_counter import increment_quote_usage
 import convert_logger
 from binance_api import get_spot_price, get_precision, get_lot_step
@@ -115,6 +115,8 @@ def get_quote(
     increment_quote_usage()
     url = f"{BASE_URL}/sapi/v1/convert/getQuote"
 
+    logger.debug(f"[dev3] 🔍 Вхідний from_amount для quote: {amount}")
+
     try:
         precision = get_precision(from_token)
     except Exception:
@@ -125,6 +127,16 @@ def get_quote(
             precision = max(-Decimal(step).as_tuple().exponent, 0)
         except Exception:
             precision = 0
+
+    step_info = get_lot_step(from_token)
+    try:
+        step_size = float(step_info.get("stepSize", "1"))
+    except Exception:
+        step_size = 1.0
+    amount = round_step_size(amount, step_size)
+    logger.debug(
+        f"[dev3] 🧮 step_size={step_size} після округлення amount={amount}"
+    )
 
     quant = Decimal("1") / (Decimal(10) ** precision)
     rounded_amount = float(Decimal(str(amount)).quantize(quant, rounding=ROUND_DOWN))
