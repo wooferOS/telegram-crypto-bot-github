@@ -6,7 +6,7 @@ import requests
 from binance.client import Client
 from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
 
-from convert_logger import logger
+from convert_logger import logger, log
 
 BASE_URL = "https://api.binance.com"
 
