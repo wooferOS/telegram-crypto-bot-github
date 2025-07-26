@@ -8,10 +8,10 @@ from typing import List, Dict, Any
 from convert_logger import logger
 
 # Load local quote limits if available
-if os.path.exists("quote_limits.json"):
+try:
     with open("quote_limits.json", "r", encoding="utf-8") as f:
         quote_limits = json.load(f)
-else:
+except FileNotFoundError:
     quote_limits = {}
 
 from convert_api import (
@@ -23,7 +23,7 @@ from convert_api import (
     get_min_convert_amount,
     load_quote_limits,
     save_quote_limits,
-    sanitize_token_pair,
+    is_within_quote_limits,
 )
 from binance_api import get_binance_balances, get_spot_price, get_ratio
 from convert_notifier import (
@@ -144,17 +144,12 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         )
         return False
 
-    pair_key = sanitize_token_pair(from_token, to_token)
-    limits = load_quote_limits().get(pair_key)
-    if limits:
-        min_l = limits.get("min", 0)
-        max_l = limits.get("max", float("inf"))
-        if amount < min_l or amount > max_l:
-            msg = f"[dev3] ⚠️ skipped pair {from_token} → {to_token} due to cached limit violation"
-            with open("logs/convert_debug.log", "a") as f:
-                f.write(msg + "\n")
-            logger.info(msg)
-            return False
+    if not is_within_quote_limits(from_token, to_token, amount, quote_limits):
+        msg = f"⛔ Пропускаємо {from_token} → {to_token}: {amount} поза межами ліміту"
+        with open("logs/convert_debug.log", "a") as f:
+            f.write(msg + "\n")
+        logger.info(msg)
+        return False
 
     min_amount = get_min_convert_amount(from_token, to_token)
     if amount < min_amount:
@@ -163,7 +158,7 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         )
         return False
 
-    quote = get_quote_with_retry(from_token, to_token, amount)
+    quote = get_quote_with_retry(from_token, to_token, amount, quote_limits)
     if not quote or quote.get("price") is None:
         logger.warning(
             f"⛔️ Пропуск {from_token} → {to_token}: quote.price is None після всіх спроб"
@@ -378,7 +373,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                     best_to = tgt
 
             if best_to:
-                quote = get_quote_with_retry(from_token, best_to, amount)
+                quote = get_quote_with_retry(from_token, best_to, amount, quote_limits)
                 if quote:
                     resp = accept_quote(quote)
                     log_conversion_result(
@@ -416,9 +411,13 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                             }
                         )
                         save_quote_limits()
+                        with open("quote_limits.json", "w", encoding="utf-8") as f:
+                            json.dump(quote_limits, f, indent=2)
                         return
         notify_no_trade(max(balances, key=balances.get), len(pairs), 0.0)
         save_quote_limits()
+        with open("quote_limits.json", "w", encoding="utf-8") as f:
+            json.dump(quote_limits, f, indent=2)
         return
 
     pairs_by_from: Dict[str, List[Dict[str, Any]]] = {}
@@ -509,6 +508,8 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             if quote_counter >= MAX_QUOTES_PER_CYCLE:
                 logger.warning(f"[dev3] 🚫 Досягнуто ліміту {MAX_QUOTES_PER_CYCLE} quote-запитів у цьому циклі")
                 save_quote_limits()
+                with open("quote_limits.json", "w", encoding="utf-8") as f:
+                    json.dump(quote_limits, f, indent=2)
                 return
             quote_counter += 1
             quotes_used += 1
@@ -518,7 +519,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                     f"⚠️ Пропуск {from_token} → {to_token}: amount={amount} < min={min_amount}"
                 )
                 continue
-            quote = get_quote_with_retry(from_token, to_token, amount)
+            quote = get_quote_with_retry(from_token, to_token, amount, quote_limits)
             if not quote or quote.get("price") is None:
                 logger.warning(
                     f"⛔️ Пропуск {from_token} → {to_token}: quote.price is None після всіх спроб"
@@ -594,7 +595,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 best = candidates[0]
                 to_token = best.get("to_token")
                 amount = balances[fallback_token]
-                quote = get_quote_with_retry(fallback_token, to_token, amount)
+                quote = get_quote_with_retry(fallback_token, to_token, amount, quote_limits)
                 if quote:
                     resp = accept_quote(quote)
                     log_conversion_result(
@@ -635,6 +636,8 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                             }
                         )
                         save_quote_limits()
+                        with open("quote_limits.json", "w", encoding="utf-8") as f:
+                            json.dump(quote_limits, f, indent=2)
                         return
         pred_path = os.path.join("logs", "predictions.json")
         try:
@@ -648,5 +651,9 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         from_token = max(balances, key=balances.get) if balances else "?"
         notify_no_trade(from_token, len(preds), best_score)
         save_quote_limits()
+        with open("quote_limits.json", "w", encoding="utf-8") as f:
+            json.dump(quote_limits, f, indent=2)
     else:
         save_quote_limits()
+        with open("quote_limits.json", "w", encoding="utf-8") as f:
+            json.dump(quote_limits, f, indent=2)
