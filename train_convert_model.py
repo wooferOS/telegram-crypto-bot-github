@@ -61,6 +61,12 @@ def main():
             return
 
         prepared = prepare_dataset(history)
+        for row in prepared:
+            amount_data = row.get("amount", 0.0)
+            if isinstance(amount_data, dict):
+                row["amount"] = float(amount_data.get("from", 0.0))
+            else:
+                row["amount"] = float(amount_data)
         if not prepared:
             logger.error("❌ Немає даних після фільтрації prepare_dataset.")
             return
