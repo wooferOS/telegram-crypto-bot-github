@@ -152,6 +152,9 @@ def get_quote(
     quote: Optional[Dict[str, Any]] = None
     for i in range(max_retries):
         logger.info(
+            f"[dev3] 🟡 Attempt {i + 1}: getQuote({from_token} → {to_token}, amount={amount})"
+        )
+        logger.info(
             f"🔁 Спроба {i+1}/{max_retries} отримати quote {from_token} → {to_token} з amount={amount:.10f}"
         )
         try:
