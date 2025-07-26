@@ -62,6 +62,16 @@ def save_quote_limits() -> None:
         _quote_limits_updated = False
 
 
+def is_within_quote_limits(symbol_from: str, symbol_to: str, amount_from: float, quote_limits: Dict[str, Dict[str, float]]) -> bool:
+    key = f"{symbol_from}_{symbol_to}"
+    limits = quote_limits.get(key)
+    if not limits:
+        return True  # Якщо немає кешу — пробуємо
+    min_amount = float(limits.get("min_amount", 0))
+    max_amount = float(limits.get("max_amount", float('inf')))
+    return min_amount <= amount_from <= max_amount
+
+
 def _sign(params: Dict[str, Any]) -> Dict[str, Any]:
     params["timestamp"] = get_current_timestamp()
     query = "&".join(f"{k}={v}" for k, v in params.items())
@@ -145,7 +155,11 @@ def get_available_to_tokens(from_token: str) -> List[str]:
 
 
 def get_quote(
-    from_token: str, to_token: str, amount: float, max_retries: int = 3
+    from_token: str,
+    to_token: str,
+    amount: float,
+    max_retries: int = 3,
+    quote_limits: Dict[str, Dict[str, float]] | None = None,
 ) -> Optional[Dict[str, Any]]:
     """Return quote data or None if invalid. Retries on missing price."""
     global _quote_limits_updated
@@ -153,17 +167,6 @@ def get_quote(
     url = f"{BASE_URL}/sapi/v1/convert/getQuote"
 
     pair_key = sanitize_token_pair(from_token, to_token)
-    limits = load_quote_limits().get(pair_key)
-    if limits:
-        min_amount = limits.get("min", 0)
-        max_amount = limits.get("max", float("inf"))
-        if amount < min_amount or amount > max_amount:
-            logger.info(
-                f"[dev3] ⛔ skipped {from_token} → {to_token}: amount {amount} < min={min_amount} or > max={max_amount}"
-            )
-            return {
-                "msg": f"amount outside allowed range: {amount} (min={min_amount}, max={max_amount})"
-            }
 
     logger.debug(f"[dev3] 🔍 Вхідний from_amount для quote: {amount}")
 
@@ -217,6 +220,19 @@ def get_quote(
         if isinstance(data, dict) and "ratio" in data:
             quote = data
             if quote.get("price") is not None:
+                try:
+                    limits = load_quote_limits()
+                    key = f"{from_token}_{to_token}"
+                    value = {
+                        "min_amount": float(data.get("minLimit", 0)),
+                        "max_amount": float(data.get("maxLimit", 0)),
+                    }
+                    limits[key] = value
+                    if quote_limits is not None:
+                        quote_limits[key] = value
+                    _quote_limits_updated = True
+                except Exception:
+                    pass
                 break
         else:
             if isinstance(data, dict) and data.get("code") == 345239:
@@ -264,7 +280,12 @@ def get_quote(
     return quote
 
 
-def get_quote_with_retry(from_token: str, to_token: str, base_amount: float) -> Optional[Dict[str, Any]]:
+def get_quote_with_retry(
+    from_token: str,
+    to_token: str,
+    base_amount: float,
+    quote_limits: Dict[str, Dict[str, float]] | None = None,
+) -> Optional[Dict[str, Any]]:
     """Retry get_quote with increasing amounts until price is available."""
     min_required = get_min_convert_amount(from_token, to_token)
     amount_from = base_amount
@@ -282,7 +303,7 @@ def get_quote_with_retry(from_token: str, to_token: str, base_amount: float) -> 
         logger.info(
             f"[dev3] 🟡 getQuote: {from_token} → {to_token}, amount = {amount}"
         )
-        quote = get_quote(from_token, to_token, amount)
+        quote = get_quote(from_token, to_token, amount, quote_limits=quote_limits)
         if quote:
             if quote.get("msg") == "amount too low":
                 logger.warning(
