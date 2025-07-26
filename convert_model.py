@@ -15,6 +15,13 @@ logger = logging.getLogger(__name__)
 _model = None
 _is_fallback = False
 
+# Load local quote limits if available
+if os.path.exists("quote_limits.json"):
+    with open("quote_limits.json", "r", encoding="utf-8") as f:
+        quote_limits = json.load(f)
+else:
+    quote_limits = {}
+
 
 def train_model(X, y):
     from sklearn.ensemble import RandomForestClassifier
@@ -158,7 +165,11 @@ def extract_features(history: List[Dict[str, Any]]) -> np.ndarray:
         if score_val is None:
             logger.warning("[dev3] score is None in history row: %s", row)
 
-        amount = float(row.get("amount") or 0.0)
+        amount_data = row.get("amount", 0.0)
+        if isinstance(amount_data, dict):
+            amount = float(amount_data.get("from", 0.0))
+        else:
+            amount = float(amount_data)
         from_hash = _hash_token(row.get("from_token", ""))
         to_hash = _hash_token(row.get("to_token", ""))
         features_list.append([ratio, inverse_ratio, amount, from_hash, to_hash])
@@ -194,7 +205,11 @@ def predict(
     try:
         ratio = float(quote_data.get("ratio", 0.0))
         inverse_ratio = float(quote_data.get("inverseRatio", 0.0))
-        amount = float(quote_data.get("amount", 0.0))
+        amount_data = quote_data.get("amount", 0.0)
+        if isinstance(amount_data, dict):
+            amount = float(amount_data.get("from", 0.0))
+        else:
+            amount = float(amount_data)
 
         features = np.array(
             [

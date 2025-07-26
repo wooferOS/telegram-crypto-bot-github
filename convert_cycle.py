@@ -7,6 +7,13 @@ from typing import List, Dict, Any
 
 from convert_logger import logger
 
+# Load local quote limits if available
+if os.path.exists("quote_limits.json"):
+    with open("quote_limits.json", "r", encoding="utf-8") as f:
+        quote_limits = json.load(f)
+else:
+    quote_limits = {}
+
 from convert_api import (
     get_quote_with_retry,
     accept_quote,
@@ -166,6 +173,13 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         )
         log_quote_skipped(from_token, to_token, "invalid_quote")
         return False
+
+    amount_data = quote.get("amount", 0.0)
+    if isinstance(amount_data, dict):
+        amount = amount_data.get("from", 0.0)
+    else:
+        amount = amount_data
+    logger.info(f"[dev3] Quote amount: {amount}")
 
     if float(quote.get("toAmount", 0)) < min_notional(to_token):
         logger.info(
