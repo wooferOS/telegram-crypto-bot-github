@@ -9,9 +9,13 @@ from convert_logger import logger
 
 # Load local quote limits if available
 try:
-    with open("quote_limits.json", "r", encoding="utf-8") as f:
-        quote_limits = json.load(f)
-except FileNotFoundError:
+    if os.path.exists("quote_limits.json"):
+        with open("quote_limits.json", "r", encoding="utf-8") as f:
+            quote_limits = json.load(f)
+    else:
+        quote_limits = {}
+except Exception as e:
+    logger.warning(f"[dev3] ⚠️ Failed to load quote_limits.json: {e}")
     quote_limits = {}
 
 from convert_api import (
