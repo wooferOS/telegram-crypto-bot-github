@@ -168,18 +168,39 @@ def get_ratio(base: str, quote: str) -> float:
 
 
 def get_binance_balances() -> dict:
-    """Повертає баланс по всіх доступних токенах."""
-    from binance.client import Client
-    from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
-
-    client = Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+    """Return balance info for all tokens with USDT valuation."""
+    client = get_binance_client()
     account_info = client.get_account()
-    balances = {}
-    for asset in account_info["balances"]:
-        free = float(asset["free"])
-        if free > 0:
-            balances[asset["asset"]] = free
-    return balances
+    balances = account_info["balances"]
+
+    result = {}
+    total_usdt = 0.0
+
+    for entry in balances:
+        asset = entry["asset"]
+        free = float(entry["free"])
+
+        if free == 0 or asset in ["USDT", "BUSD"]:
+            continue
+
+        symbol = asset + "USDT"
+
+        try:
+            price = float(get_symbol_price(symbol))
+            usdt_value = free * price
+            result[asset] = {
+                "free": free,
+                "price": price,
+                "notional": usdt_value,
+                "usdt_value": usdt_value,
+            }
+            total_usdt += usdt_value
+        except Exception as e:
+            log(f"⚠️ Failed to fetch price for {symbol}: {e}")
+            continue
+
+    result["total"] = round(total_usdt, 4)
+    return result
 
 
 _lot_step_cache: dict[str, dict] = {}
