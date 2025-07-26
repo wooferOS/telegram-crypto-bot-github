@@ -14,6 +14,9 @@ from convert_api import (
     is_convertible_pair,
     get_available_to_tokens,
     get_min_convert_amount,
+    load_quote_limits,
+    save_quote_limits,
+    sanitize_token_pair,
 )
 from binance_api import get_binance_balances, get_spot_price, get_ratio
 from convert_notifier import (
@@ -133,6 +136,18 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
             f"[dev3] ❌ Пара {from_token} → {to_token} недоступна для конвертації — пропущено"
         )
         return False
+
+    pair_key = sanitize_token_pair(from_token, to_token)
+    limits = load_quote_limits().get(pair_key)
+    if limits:
+        min_l = limits.get("min", 0)
+        max_l = limits.get("max", float("inf"))
+        if amount < min_l or amount > max_l:
+            msg = f"[dev3] ⚠️ skipped pair {from_token} → {to_token} due to cached limit violation"
+            with open("logs/convert_debug.log", "a") as f:
+                f.write(msg + "\n")
+            logger.info(msg)
+            return False
 
     min_amount = get_min_convert_amount(from_token, to_token)
     if amount < min_amount:
@@ -325,6 +340,7 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
 def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     """Process token pairs and attempt conversions."""
     reset_cycle()
+    load_quote_limits()
     quote_counter = 0
     MAX_QUOTES_PER_CYCLE = 20
     if pairs is None:
@@ -385,8 +401,10 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                                 "accepted": True,
                             }
                         )
+                        save_quote_limits()
                         return
         notify_no_trade(max(balances, key=balances.get), len(pairs), 0.0)
+        save_quote_limits()
         return
 
     pairs_by_from: Dict[str, List[Dict[str, Any]]] = {}
@@ -476,6 +494,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
             if quote_counter >= MAX_QUOTES_PER_CYCLE:
                 logger.warning(f"[dev3] 🚫 Досягнуто ліміту {MAX_QUOTES_PER_CYCLE} quote-запитів у цьому циклі")
+                save_quote_limits()
                 return
             quote_counter += 1
             quotes_used += 1
@@ -601,6 +620,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                                 "accepted": True,
                             }
                         )
+                        save_quote_limits()
                         return
         pred_path = os.path.join("logs", "predictions.json")
         try:
@@ -613,3 +633,6 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             best_score = max(float(p.get("score", 0)) for p in preds)
         from_token = max(balances, key=balances.get) if balances else "?"
         notify_no_trade(from_token, len(preds), best_score)
+        save_quote_limits()
+    else:
+        save_quote_limits()
