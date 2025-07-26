@@ -119,8 +119,22 @@ def get_spot_price(token: str) -> Optional[float]:
 
 
 # Backward compatibility
-def get_symbol_price(token: str) -> Optional[float]:  # pragma: no cover - alias
-    return get_spot_price(token)
+def get_symbol_price(symbol: str) -> Optional[float]:
+    """Return current price for ``symbol`` with unified USDT suffix."""
+    # 🔧 Уніфікація: прибираємо зайве "USDT" у кінці, якщо є
+    symbol = symbol.upper()
+    if symbol.endswith("USDT") and not symbol.endswith("USDTUSDT"):
+        symbol = symbol[:-4]
+    symbol = f"{symbol}USDT"
+
+    url = f"{BASE_URL}/api/v3/ticker/price"
+    try:
+        resp = _session.get(url, params={"symbol": symbol}, timeout=10)
+        data = resp.json()
+        return float(data["price"])
+    except Exception as e:  # pragma: no cover - network/parse issues
+        logger.warning(f"[dev3] ⚠️ Failed to get spot price for {symbol}: {e}")
+        return None
 
 
 def get_klines(symbol: str, interval: str = "5m", limit: int = 100) -> List[Dict[str, float]]:
