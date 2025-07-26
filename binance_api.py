@@ -6,7 +6,7 @@ import requests
 from binance.client import Client
 from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
 
-from convert_logger import logger, log
+from convert_logger import logger
 
 BASE_URL = "https://api.binance.com"
 
@@ -202,7 +202,7 @@ def get_binance_balances() -> dict:
             }
             total_usdt += usdt_value
         except Exception as e:
-            log(f"⚠️ Failed to fetch price for {symbol}: {e}")
+            logger.warning(f"⚠️ Failed to fetch price for {symbol}: {e}")
             continue
 
     result["total"] = round(total_usdt, 4)
