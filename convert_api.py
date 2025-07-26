@@ -207,6 +207,9 @@ def get_quote_with_retry(from_token: str, to_token: str, base_amount: float) -> 
         logger.info(
             f"[dev3] Retrying quote {from_token} → {to_token} з amount={amount}"
         )
+        logger.info(
+            f"[dev3] 🟡 getQuote: {from_token} → {to_token}, amount = {amount}"
+        )
         quote = get_quote(from_token, to_token, amount)
         if quote:
             if quote.get("msg") == "amount too low":
