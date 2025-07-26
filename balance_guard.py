@@ -30,7 +30,7 @@ def check_balance() -> None:
     diff = total - prev_total
 
     history = load_json(os.path.join("logs", "convert_history.json"))
-    last_trade = history[-1]["timestamp"] if history else "N/A"
+    last_trade = history[-1].get("timestamp", "N/A") if history else "N/A"
 
     if prev_total and diff < -prev_total * THRESHOLD:
         notify_failure("BALANCE", "USDT", "зменшення балансу >25%")
