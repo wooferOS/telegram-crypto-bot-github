@@ -3,12 +3,18 @@ from decimal import Decimal
 from typing import Optional, List, Dict, Any
 
 import requests
+from binance.client import Client
+from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
 
 from convert_logger import logger
 
 BASE_URL = "https://api.binance.com"
 
 _session = requests.Session()
+
+# Return authenticated Binance client
+def get_binance_client():
+    return Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
 
 # Cache for spot prices: {token: (price, timestamp)}
 _price_cache: Dict[str, tuple[float, float]] = {}
