@@ -191,19 +191,25 @@ def get_binance_balances() -> dict:
 
         symbol = asset + "USDT"
 
+        price = None
+        usdt_value = 0.0
         try:
-            price = float(get_symbol_price(symbol))
-            usdt_value = free * price
-            result[asset] = {
-                "free": free,
-                "price": price,
-                "notional": usdt_value,
-                "usdt_value": usdt_value,
-            }
-            total_usdt += usdt_value
-        except Exception as e:
+            raw_price = get_symbol_price(symbol)
+            if raw_price is not None:
+                price = float(raw_price)
+                usdt_value = free * price
+        except Exception as e:  # pragma: no cover - network/parse issues
             logger.warning(f"⚠️ Failed to fetch price for {symbol}: {e}")
-            continue
+
+        result[asset] = {
+            "free": free,
+            "price": price,
+            "notional": usdt_value if price is not None else None,
+            "usdt_value": usdt_value,
+        }
+
+        if usdt_value > 0.0:
+            total_usdt += usdt_value
 
     result["total"] = round(total_usdt, 4)
     return result
