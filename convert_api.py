@@ -5,6 +5,8 @@ import time
 from decimal import Decimal, ROUND_DOWN
 from typing import Dict, List, Any, Set, Optional
 import re
+import json
+import os
 
 import requests
 
@@ -16,6 +18,11 @@ from binance_api import get_spot_price, get_precision, get_lot_step
 
 BASE_URL = "https://api.binance.com"
 
+QUOTE_LIMITS_FILE = "quote_limits.json"
+
+_quote_limits: Dict[str, Dict[str, float]] | None = None
+_quote_limits_updated = False
+
 _session = requests.Session()
 logger = logging.getLogger(__name__)
 logged_quote_errors: Set[tuple[str, str]] = set()
@@ -24,6 +31,35 @@ _supported_pairs_cache: Optional[Set[str]] = None
 
 # Cache of discovered minimal amounts per pair
 _min_amount_cache: Dict[tuple[str, str], float] = {}
+
+
+def sanitize_token_pair(from_token: str, to_token: str) -> str:
+    """Return standardized key for quote limits."""
+    return f"{from_token.upper()}→{to_token.upper()}"
+
+
+def load_quote_limits() -> Dict[str, Dict[str, float]]:
+    """Load cached quote limits from file once per cycle."""
+    global _quote_limits
+    if _quote_limits is None:
+        if os.path.exists(QUOTE_LIMITS_FILE):
+            try:
+                with open(QUOTE_LIMITS_FILE, "r", encoding="utf-8") as f:
+                    _quote_limits = json.load(f)
+            except Exception:
+                _quote_limits = {}
+        else:
+            _quote_limits = {}
+    return _quote_limits
+
+
+def save_quote_limits() -> None:
+    """Persist quote limits if they were updated."""
+    global _quote_limits_updated
+    if _quote_limits is not None and _quote_limits_updated:
+        with open(QUOTE_LIMITS_FILE, "w", encoding="utf-8") as f:
+            json.dump(_quote_limits, f, indent=2)
+        _quote_limits_updated = False
 
 
 def _sign(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -112,8 +148,22 @@ def get_quote(
     from_token: str, to_token: str, amount: float, max_retries: int = 3
 ) -> Optional[Dict[str, Any]]:
     """Return quote data or None if invalid. Retries on missing price."""
+    global _quote_limits_updated
     increment_quote_usage()
     url = f"{BASE_URL}/sapi/v1/convert/getQuote"
+
+    pair_key = sanitize_token_pair(from_token, to_token)
+    limits = load_quote_limits().get(pair_key)
+    if limits:
+        min_amount = limits.get("min", 0)
+        max_amount = limits.get("max", float("inf"))
+        if amount < min_amount or amount > max_amount:
+            logger.info(
+                f"[dev3] ⛔ skipped {from_token} → {to_token}: amount {amount} < min={min_amount} or > max={max_amount}"
+            )
+            return {
+                "msg": f"amount outside allowed range: {amount} (min={min_amount}, max={max_amount})"
+            }
 
     logger.debug(f"[dev3] 🔍 Вхідний from_amount для quote: {amount}")
 
@@ -177,6 +227,25 @@ def get_quote(
                 "[dev3] invalid quote for %s → %s: %s", from_token, to_token, data
             )
             quote = data if isinstance(data, dict) else None
+            if isinstance(data, dict):
+                msg = data.get("msg", "")
+                m = re.search(
+                    r"outside the supported amount range\s*([0-9.eE+-]+)\s*([0-9.eE+-]+)",
+                    msg,
+                )
+                if m:
+                    try:
+                        min_amount = float(m.group(1))
+                        max_amount = float(m.group(2))
+                        limits = load_quote_limits()
+                        limits[pair_key] = {"min": min_amount, "max": max_amount}
+                        _quote_limits_updated = True
+                    except ValueError:
+                        pass
+                elif msg == "symbol not found":
+                    limits = load_quote_limits()
+                    limits[pair_key] = {"min": float("inf"), "max": 0}
+                    _quote_limits_updated = True
 
         time.sleep(0.2)
 
