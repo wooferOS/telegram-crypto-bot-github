@@ -9,8 +9,9 @@ import json
 import os
 
 import requests
+from urllib.parse import urlencode
 
-from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
+from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY, BINANCE_API_BASE_URL
 from utils_dev3 import get_current_timestamp, round_step_size
 from quote_counter import increment_quote_usage
 import convert_logger
@@ -428,3 +429,22 @@ def is_convertible_pair(from_token: str, to_token: str) -> bool:
             f"[dev3] ❗️ Помилка при перевірці пари {from_token} → {to_token}: {e}"
         )
         return False
+
+
+def get_supported_pairs():
+    url = f"{BINANCE_API_BASE_URL}/sapi/v1/convert/exchangeInfo"
+    headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
+    timestamp = str(int(time.time() * 1000))
+    params = {
+        "timestamp": timestamp
+    }
+    query_string = urlencode(params)
+    signature = hmac.new(BINANCE_SECRET_KEY.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256).hexdigest()
+    params['signature'] = signature
+
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 200:
+        return response.json().get("symbols", [])
+    else:
+        logging.warning(f"[dev3] ⚠️ Failed to fetch supported pairs: {response.text}")
+        return []
