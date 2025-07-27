@@ -84,8 +84,8 @@ def prepare_dataset(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return df.to_dict("records")
 
 def extract_labels(data: List[Dict[str, Any]]) -> List[int]:
-    """Extract labels for model training."""
-    return [1 if trade.get("accepted") else 0 for trade in data]
+    """Extract labels for model training using executed field."""
+    return [1 if trade.get("executed") else 0 for trade in data]
 
 
 def _load_model() -> Any:
