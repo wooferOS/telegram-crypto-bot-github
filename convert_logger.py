@@ -192,3 +192,8 @@ def log_conversion_error(from_token: str, to_token: str, error: str) -> None:
 def log_skipped_quotes() -> None:
     """Log that quote requests were skipped due to limit."""
     logger.warning("[dev3] \u23F8\ufe0f Достигнуто лiмiт запитiв get_quote за цикл")
+
+
+def log_error(message: str) -> None:
+    """Log an error message to the main logger."""
+    logger.error(message)
