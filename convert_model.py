@@ -262,11 +262,12 @@ def predict(
 
 
 def get_top_token_pairs(n: int = 5) -> List[Tuple[str, str]]:
-    """Return top token pairs from top_tokens.json."""
+    """Return top token pairs from top_tokens.json sorted by score."""
     path = os.path.join(os.path.dirname(__file__), "top_tokens.json")
     if not os.path.exists(path):
         logger.warning("[dev3] top_tokens.json not found")
         return []
+
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -274,15 +275,22 @@ def get_top_token_pairs(n: int = 5) -> List[Tuple[str, str]]:
         logger.warning("[dev3] failed to read top_tokens.json: %s", exc)
         return []
 
-    pairs: List[Tuple[str, str]] = []
+    # Sort records by score field descending
+    try:
+        data.sort(key=lambda x: x.get("score", 0), reverse=True)
+    except Exception as exc:  # pragma: no cover - diagnostics only
+        logger.warning("[dev3] failed to sort top tokens: %s", exc)
+
+    top_pairs: List[Tuple[str, str]] = []
     for item in data:
         from_token = item.get("from_token")
         to_token = item.get("to_token")
         if from_token and to_token:
-            pairs.append((from_token, to_token))
-        if len(pairs) >= n:
+            top_pairs.append((from_token, to_token))
+        if len(top_pairs) >= n:
             break
-    return pairs
+
+    return top_pairs
 
 
 def load_history(path: str = HISTORY_PATH) -> List[Dict[str, Any]]:
