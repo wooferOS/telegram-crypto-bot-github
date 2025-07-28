@@ -217,7 +217,26 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
         from_token = item.get("from_token")
         to_token = item.get("to_token")
-        score = safe_float(item.get("score", 0))
+        raw_score = item.get("score", 0.0)
+        score = (
+            raw_score.get("predicted", 0.0)
+            if isinstance(raw_score, dict)
+            else float(raw_score)
+        )
+
+        raw_expected_profit = item.get("expected_profit", 0.0)
+        expected_profit = (
+            raw_expected_profit.get("predicted", 0.0)
+            if isinstance(raw_expected_profit, dict)
+            else float(raw_expected_profit)
+        )
+
+        raw_prob_up = item.get("prob_up", 0.0)
+        prob_up = (
+            raw_prob_up.get("predicted", 0.0)
+            if isinstance(raw_prob_up, dict)
+            else float(raw_prob_up)
+        )
         amount = balances.get(from_token, 0)
         from convert_api import get_max_convert_amount
         max_allowed = get_max_convert_amount(from_token, to_token)
