@@ -213,6 +213,23 @@ async def convert_mode() -> None:
     }
     await asyncio.to_thread(save_json, gpt_forecast_path, gpt_data)
 
+    from datetime import datetime
+
+    # Зберегти forecast/convert_asia.json
+    os.makedirs("forecast", exist_ok=True)
+    forecast_path = os.path.join("forecast", "convert_asia.json")
+    forecast_data = {
+        "generated_at": datetime.utcnow().isoformat(),
+        "forecast_text": forecast_text,
+    }
+    await asyncio.to_thread(save_json, forecast_path, forecast_data)
+
+    # Додати лог у logs/forecast_convert.log
+    os.makedirs("logs", exist_ok=True)
+    with open("logs/forecast_convert.log", "a", encoding="utf-8") as f:
+        f.write(f"[{datetime.utcnow()}] ✅ Forecast saved to convert_asia.json\n")
+        f.write(f"{forecast_text}\n\n")
+
     if top_tokens:
         first = top_tokens[0]
         example = f"{first.get('from_token')} → {first.get('to_token')} (score={first.get('score', 0):.4f})"
