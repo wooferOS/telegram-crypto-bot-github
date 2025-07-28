@@ -151,7 +151,7 @@ def predict(
     try:
         ratio = float(quote_data.get("ratio", 0.0))
         inverse_ratio = float(quote_data.get("inverseRatio", 0.0))
-        amount = float(quote_data.get("amount", 0.0))
+        amount = float(quote_data.get("amount", {}).get("from", 0.0))
 
         features = np.array(
             [
