@@ -18,7 +18,17 @@ from convert_logger import (
     log_skipped_quotes,
 )
 from quote_counter import should_throttle, reset_cycle
-from convert_model import _hash_token, safe_float
+from convert_model import _hash_token
+
+
+def safe_float(value: Any) -> float:
+    """Return float value, handling dicts like {"value": number}."""
+    if isinstance(value, dict):
+        return float(value.get("value", 0.0))
+    try:
+        return float(value)
+    except Exception:
+        return 0.0
 
 MAX_QUOTES_PER_CYCLE = 20
 TOP_N_PAIRS = 10
@@ -127,6 +137,10 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
     best_pair = max(valid_to_tokens, key=lambda x: safe_float(x.get("score", 0)))
     selected_to_token = best_pair.get("to_token")
     amount = balances.get(fallback_token, 0.0)
+    from convert_api import get_max_convert_amount
+    max_allowed = get_max_convert_amount(fallback_token, selected_to_token)
+    if amount > max_allowed:
+        amount = max_allowed
     logger.info(f"🔄 [FALLBACK] Спроба конвертації {fallback_token} → {selected_to_token}")
 
     return try_convert(
@@ -205,6 +219,10 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         to_token = item.get("to_token")
         score = safe_float(item.get("score", 0))
         amount = balances.get(from_token, 0)
+        from convert_api import get_max_convert_amount
+        max_allowed = get_max_convert_amount(from_token, to_token)
+        if amount > max_allowed:
+            amount = max_allowed
 
         log_prediction(from_token, to_token, score)
 
@@ -219,7 +237,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         quote = get_quote(from_token, to_token, amount)
         quote_count += 1
 
-        if not quote or quote.get("price") is None:
+        if not quote or quote.get("price") is None or quote.get("code") == 401:
             log_quote_skipped(from_token, to_token, "invalid_quote")
             logger.debug(
                 f"[dev3] ⚠️ Пара {from_token} → {to_token} не має quote (price=None)"
@@ -308,7 +326,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         return
 
     if not any_successful_conversion and scored_quotes:
-        fallback = max(scored_quotes, key=lambda x: x["score"])
+        fallback = max(scored_quotes, key=lambda x: safe_float(x.get("score", 0)))
         log_reason = fallback.get("skip_reason", "no reason")
         logger.info(
             f"[dev3] ⚠️ Жодна пара не пройшла фільтри. Виконуємо fallback-конверсію: {fallback['from_token']} → {fallback['to_token']} (score={fallback['score']:.2f}, причина skip: {log_reason})"
