@@ -9,7 +9,7 @@ from binance_api import get_spot_price, get_ratio
 from convert_logger import logger
 from convert_notifier import send_telegram, notify_fallback_model_warning
 from gpt_utils import ask_gpt
-from convert_model import predict, _load_model, is_fallback_model
+from convert_model import predict, _load_model, is_fallback_model, safe_float
 from utils_dev3 import save_json
 
 _balance_cache: Dict[str, float] | None = None
@@ -173,7 +173,7 @@ async def convert_mode() -> None:
 
     top_tokens_by_score: List[Dict[str, float]] = []
     for items in grouped.values():
-        items.sort(key=lambda x: x["score"], reverse=True)
+        items.sort(key=lambda x: safe_float(x.get("score", 0)), reverse=True)
         top_tokens_by_score.extend(items[:10])
 
     # By default use score-based ranking

@@ -18,7 +18,7 @@ from convert_logger import (
     log_skipped_quotes,
 )
 from quote_counter import should_throttle, reset_cycle
-from convert_model import _hash_token
+from convert_model import _hash_token, safe_float
 
 MAX_QUOTES_PER_CYCLE = 20
 TOP_N_PAIRS = 10
@@ -124,7 +124,7 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         logger.warning("🔸 Причина: не знайдено жодного валідного `to_token` для fallback (score недостатній або немає прогнозу)")
         return False
 
-    best_pair = max(valid_to_tokens, key=lambda x: x.get("score", 0))
+    best_pair = max(valid_to_tokens, key=lambda x: safe_float(x.get("score", 0)))
     selected_to_token = best_pair.get("to_token")
     amount = balances.get(fallback_token, 0.0)
     logger.info(f"🔄 [FALLBACK] Спроба конвертації {fallback_token} → {selected_to_token}")
@@ -133,7 +133,7 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         fallback_token,
         selected_to_token,
         amount,
-        float(best_pair.get("score", 0)),
+        safe_float(best_pair.get("score", 0)),
     )
 
 
@@ -189,7 +189,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             logger.warning("[dev3] No available tokens for fallback")
         return
 
-    pairs.sort(key=lambda x: x.get("score", 0), reverse=True)
+    pairs.sort(key=lambda x: safe_float(x.get("score", 0)), reverse=True)
     quote_count = 0
     any_successful_conversion = False
     successful_count = 0
@@ -203,7 +203,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
         from_token = item.get("from_token")
         to_token = item.get("to_token")
-        score = float(item.get("score", 0))
+        score = safe_float(item.get("score", 0))
         amount = balances.get(from_token, 0)
 
         log_prediction(from_token, to_token, score)

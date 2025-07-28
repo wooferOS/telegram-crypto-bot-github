@@ -4,6 +4,7 @@ import json
 from typing import Dict, Tuple, List, Any
 
 from convert_logger import logger
+from convert_model import safe_float
 from binance_api import get_spot_price, get_ratio
 
 
@@ -29,9 +30,9 @@ def filter_top_tokens(
     filtered = [
         (token, data)
         for token, data in all_tokens.items()
-        if data.get("score", 0) >= score_threshold
+        if safe_float(data.get("score", 0)) >= score_threshold
     ]
-    filtered.sort(key=lambda x: x[1].get("score", 0), reverse=True)
+    filtered.sort(key=lambda x: safe_float(x[1].get("score", 0)), reverse=True)
 
     # Fallback logic: select tokens with highest score even if below threshold
     if not filtered:
@@ -39,7 +40,9 @@ def filter_top_tokens(
             "[dev3] ❕ Немає токенів з високим score. Використовуємо навчальні угоди."
         )
         sorted_tokens = sorted(
-            all_tokens.items(), key=lambda x: x[1].get("score", 0), reverse=True
+            all_tokens.items(),
+            key=lambda x: safe_float(x[1].get("score", 0)),
+            reverse=True,
         )
         return sorted_tokens[:fallback_n]
 
