@@ -11,7 +11,7 @@ import os
 import requests
 from urllib.parse import urlencode
 
-from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY, BINANCE_API_BASE_URL
+from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
 from utils_dev3 import get_current_timestamp, round_step_size
 from quote_counter import increment_quote_usage
 import convert_logger
@@ -438,7 +438,7 @@ def is_convertible_pair(from_token: str, to_token: str) -> bool:
 
 
 def get_supported_pairs():
-    url = f"{BINANCE_API_BASE_URL}/sapi/v1/convert/exchangeInfo"
+    url = "https://api.binance.com/sapi/v1/convert/exchangeInfo"
     headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
     try:
         response = requests.get(url, headers=headers, timeout=10)
@@ -451,7 +451,7 @@ def get_supported_pairs():
 
 def get_quote_for_pair(from_asset: str, to_asset: str, amount: float) -> Optional[dict]:
     """Отримати котирування (quote) для пари через Binance Convert."""
-    url = f"{BINANCE_API_BASE_URL}/sapi/v1/convert/getQuote"
+    url = "https://api.binance.com/sapi/v1/convert/getQuote"
     headers = {
         "X-MBX-APIKEY": BINANCE_API_KEY,
         "Content-Type": "application/json",
