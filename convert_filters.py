@@ -7,13 +7,13 @@ from convert_logger import logger
 from binance_api import get_spot_price, get_ratio
 
 
-def safe_float(value: Any) -> float:
-    """Return float value, handling dicts like {"value": number}."""
-    if isinstance(value, dict):
-        return float(value.get("value", 0.0))
+def safe_float(val: Any) -> float:
+    """Return ``float`` value, handling nested ``{"value": x}`` dicts."""
+    if isinstance(val, dict):
+        val = val.get("value", 0.0)
     try:
-        return float(value)
-    except Exception:
+        return float(val)
+    except (TypeError, ValueError):
         return 0.0
 
 
@@ -70,8 +70,8 @@ def passes_filters(score: float, quote: Dict[str, Any], balance: float) -> Tuple
     if score < MIN_SCORE:
         return False, "low_score"
 
-    from_amount = float(quote.get("fromAmount", 0))
-    to_amount = float(quote.get("toAmount", 0))
+    from_amount = safe_float(quote.get("fromAmount", 0))
+    to_amount = safe_float(quote.get("toAmount", 0))
     if to_amount <= from_amount:
         return False, "no_profit"
 
