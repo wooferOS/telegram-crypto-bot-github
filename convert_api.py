@@ -455,7 +455,6 @@ def get_quote_for_pair(from_asset: str, to_asset: str, amount: float) -> Optiona
         "fromAsset": from_asset,
         "toAsset": to_asset,
         "fromAmount": str(amount),
-        "walletType": "SPOT",
     }
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=10)
