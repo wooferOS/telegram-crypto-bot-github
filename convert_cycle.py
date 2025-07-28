@@ -286,9 +286,52 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             f"[dev3] ⚠️ Жодна пара не пройшла фільтри. Виконуємо fallback-конверсію: {fallback['from_token']} → {fallback['to_token']} (score={fallback['score']:.2f}, причина skip: {log_reason})"
         )
 
-        logger.info(f"🔄 [FALLBACK] Спроба конвертації {fallback['from_token']} → {fallback['to_token']}")
+        logger.info(
+            f"🔄 [FALLBACK] Спроба конвертації {fallback['from_token']} → {fallback['to_token']}"
+        )
         try:
-            accept_quote(fallback["quote"])
+            quote_id = fallback["quote"]
+            resp = accept_quote(quote_id) if quote_id else None
+            if resp and resp.get("success") is True:
+                logger.info("[dev3] ✅ Fallback трейд успішно виконано Binance")
+                profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
+                log_conversion_success(fallback["from_token"], fallback["to_token"], profit)
+                notify_success(
+                    fallback["from_token"],
+                    fallback["to_token"],
+                    float(resp.get("fromAmount", 0)),
+                    float(resp.get("toAmount", 0)),
+                    fallback["score"],
+                    float(resp.get("ratio", 0)) - 1 if "ratio" in resp else 0,
+                )
+                save_convert_history(
+                    {
+                        "from": fallback["from_token"],
+                        "to": fallback["to_token"],
+                        "features": [],
+                        "profit": profit,
+                        "accepted": True,
+                    }
+                )
+            else:
+                reason = resp.get("msg") if isinstance(resp, dict) else "Unknown error"
+                logger.warning(
+                    "[dev3] ❌ Fallback трейд НЕ відбувся: %s → %s. Причина: %s",
+                    fallback["from_token"],
+                    fallback["to_token"],
+                    reason,
+                )
+                log_conversion_error(fallback["from_token"], fallback["to_token"], reason)
+                notify_failure(fallback["from_token"], fallback["to_token"], reason=reason)
+                save_convert_history(
+                    {
+                        "from": fallback["from_token"],
+                        "to": fallback["to_token"],
+                        "features": [],
+                        "profit": 0.0,
+                        "accepted": False,
+                    }
+                )
         except Exception as e:
             logger.error(f"[dev3] ❌ Помилка під час fallback-конверсії: {e}")
 
