@@ -396,6 +396,17 @@ def get_min_convert_amount(from_token: str, to_token: str) -> float:
     return float(min_val) if min_val is not None else 0.0
 
 
+def get_max_convert_amount(from_token: str, to_token: str) -> float:
+    """Return maximal allowed amount for conversion based on cached limits."""
+    limits = load_quote_limits()
+    key_underscore = f"{from_token}_{to_token}"
+    key_arrow = sanitize_token_pair(from_token, to_token)
+    info = limits.get(key_underscore) or limits.get(key_arrow)
+    if info:
+        return float(info.get("max_amount") or info.get("max") or float("inf"))
+    return float("inf")
+
+
 def get_all_supported_convert_pairs() -> Set[str]:
     """Return set of all supported convert pairs."""
     global _supported_pairs_cache

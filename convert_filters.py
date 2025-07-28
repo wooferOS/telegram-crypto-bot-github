@@ -4,8 +4,17 @@ import json
 from typing import Dict, Tuple, List, Any
 
 from convert_logger import logger
-from convert_model import safe_float
 from binance_api import get_spot_price, get_ratio
+
+
+def safe_float(value: Any) -> float:
+    """Return float value, handling dicts like {"value": number}."""
+    if isinstance(value, dict):
+        return float(value.get("value", 0.0))
+    try:
+        return float(value)
+    except Exception:
+        return 0.0
 
 
 def get_ratio_from_spot(from_token: str, to_token: str) -> float:
