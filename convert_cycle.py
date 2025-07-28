@@ -258,8 +258,8 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
         if not quote or quote.get("price") is None or quote.get("code") == 401:
             log_quote_skipped(from_token, to_token, "invalid_quote")
-            logger.debug(
-                f"[dev3] ⚠️ Пара {from_token} → {to_token} не має quote (price=None)"
+            logger.warning(
+                f"[dev3] ⚠️ quote недоступний для {from_token} → {to_token} — причина: {quote}"
             )
             continue
         valid_quote_count += 1
