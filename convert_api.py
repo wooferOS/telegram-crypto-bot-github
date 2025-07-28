@@ -31,6 +31,16 @@ logged_quote_errors: Set[tuple[str, str]] = set()
 
 _supported_pairs_cache: Optional[Set[str]] = None
 
+
+def log_msg(message: str, level: str = "info") -> None:
+    """Simple logging helper respecting level argument."""
+    if level == "error":
+        logger.error(message)
+    elif level == "warning":
+        logger.warning(message)
+    else:
+        logger.info(message)
+
 # Cache of discovered minimal amounts per pair
 _min_amount_cache: Dict[tuple[str, str], float] = {}
 
@@ -468,5 +478,20 @@ def get_quote_for_pair(from_asset: str, to_asset: str, amount: float) -> Optiona
     except Exception as e:
         log_error(
             f"❌ Error getting quote for {from_asset} → {to_asset} with amount {amount}: {str(e)}"
+        )
+        return None
+
+
+def get_valid_quote(from_token: str, to_token: str, from_amount: float) -> Optional[Dict[str, Any]]:
+    """Attempt to fetch quote for the entire amount without splitting."""
+    try:
+        quote = get_quote(from_token, to_token, from_amount)
+        if quote is None or quote.get("price") is None:
+            return None
+        return quote
+    except Exception as e:  # pragma: no cover - network/logging only
+        log_msg(
+            f"❌ Error getting quote for {from_token} → {to_token} with amount {from_amount}: {e}",
+            level="error",
         )
         return None
