@@ -197,7 +197,11 @@ def get_quote(
     rounded_amount = float(Decimal(str(amount)).quantize(quant, rounding=ROUND_DOWN))
     amount = rounded_amount
 
-    params = _sign({"fromAsset": from_token, "toAsset": to_token, "fromAmount": amount})
+    payload = _sign({
+        "fromAsset": from_token,
+        "toAsset": to_token,
+        "fromAmount": str(amount)
+    })
 
     # Validate amount before requesting actual quote
     min_val = _validate_min_amount(from_token, to_token, amount)
@@ -213,7 +217,7 @@ def get_quote(
             f"🔁 Спроба {i+1}/{max_retries} отримати quote {from_token} → {to_token} з amount={amount:.10f}"
         )
         try:
-            resp = _session.post(url, data=params, headers=_headers(), timeout=10)
+            resp = _session.post(url, json=payload, headers=_headers(), timeout=10)
             data = resp.json()
         except Exception as exc:  # pragma: no cover - network
             logger.warning("[dev3] get_quote error %s → %s: %s", from_token, to_token, exc)
