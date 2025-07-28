@@ -48,12 +48,20 @@ def main() -> None:
     cleanup()
     logger.info("[dev3] 🔄 Запуск convert трейдингу")
     try:
+        logger.info("[dev3] 📄 Перевірка наявності файлу top_tokens.json...")
+        if not os.path.exists("top_tokens.json"):
+            logger.warning("[dev3] ⛔️ Файл top_tokens.json не знайдено. Завершуємо цикл.")
+            return
+
         with open("top_tokens.json") as f:
             top_tokens = json.load(f)
-        if top_tokens:
-            process_top_pairs(top_tokens)
-        else:
+
+        if not top_tokens:
             logger.warning("[dev3] ⛔️ Файл top_tokens.json порожній. Пропускаємо трейд.")
+            return
+
+        logger.info(f"[dev3] ✅ Завантажено {len(top_tokens)} пар з top_tokens.json")
+        process_top_pairs(top_tokens)
     except Exception as e:
         logger.error(f"[dev3] ❌ Помилка при завантаженні top_tokens.json: {e}")
         return
