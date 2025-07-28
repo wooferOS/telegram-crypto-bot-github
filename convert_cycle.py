@@ -21,13 +21,13 @@ from quote_counter import should_throttle, reset_cycle
 from convert_model import _hash_token
 
 
-def safe_float(value: Any) -> float:
-    """Return float value, handling dicts like {"value": number}."""
-    if isinstance(value, dict):
-        return float(value.get("value", 0.0))
+def safe_float(val: Any) -> float:
+    """Return ``float`` value, handling nested ``{"value": x}`` dicts."""
+    if isinstance(val, dict):
+        val = val.get("value", 0.0)
     try:
-        return float(value)
-    except Exception:
+        return float(val)
+    except (TypeError, ValueError):
         return 0.0
 
 MAX_QUOTES_PER_CYCLE = 20
@@ -60,20 +60,20 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
     quote_id = quote.get("quoteId")
     resp = accept_quote(quote_id) if quote_id else None
     if resp and resp.get("success") is True:
-        profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
+        profit = safe_float(resp.get("toAmount", 0)) - safe_float(resp.get("fromAmount", 0))
         log_conversion_success(from_token, to_token, profit)
         notify_success(
             from_token,
             to_token,
-            float(resp.get("fromAmount", 0)),
-            float(resp.get("toAmount", 0)),
+            safe_float(resp.get("fromAmount", 0)),
+            safe_float(resp.get("toAmount", 0)),
             score,
-            float(quote.get("ratio", 0)) - 1,
+            safe_float(quote.get("ratio", 0)) - 1,
         )
         features = [
-            float(quote.get("ratio", 0)),
-            float(quote.get("inverseRatio", 0)),
-            float(amount),
+            safe_float(quote.get("ratio", 0)),
+            safe_float(quote.get("inverseRatio", 0)),
+            safe_float(amount),
             _hash_token(from_token),
             _hash_token(to_token),
         ]
@@ -96,9 +96,9 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
             "from": from_token,
             "to": to_token,
             "features": [
-                float(quote.get("ratio", 0)),
-                float(quote.get("inverseRatio", 0)),
-                float(amount),
+                safe_float(quote.get("ratio", 0)),
+                safe_float(quote.get("inverseRatio", 0)),
+                safe_float(amount),
                 _hash_token(from_token),
                 _hash_token(to_token),
             ],
@@ -267,20 +267,20 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             any_successful_conversion = True
             successful_count += 1
             logger.info("[dev3] ✅ Трейд успішно прийнято Binance")
-            profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
+            profit = safe_float(resp.get("toAmount", 0)) - safe_float(resp.get("fromAmount", 0))
             log_conversion_success(from_token, to_token, profit)
             notify_success(
                 from_token,
                 to_token,
-                float(resp.get("fromAmount", 0)),
-                float(resp.get("toAmount", 0)),
+                safe_float(resp.get("fromAmount", 0)),
+                safe_float(resp.get("toAmount", 0)),
                 score,
-                float(quote.get("ratio", 0)) - 1,
+                safe_float(quote.get("ratio", 0)) - 1,
             )
             features = [
-                float(quote.get("ratio", 0)),
-                float(quote.get("inverseRatio", 0)),
-                float(amount),
+                safe_float(quote.get("ratio", 0)),
+                safe_float(quote.get("inverseRatio", 0)),
+                safe_float(amount),
                 _hash_token(from_token),
                 _hash_token(to_token),
             ]
@@ -308,9 +308,9 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                     "from": from_token,
                     "to": to_token,
                     "features": [
-                        float(quote.get("ratio", 0)),
-                        float(quote.get("inverseRatio", 0)),
-                        float(amount),
+                        safe_float(quote.get("ratio", 0)),
+                        safe_float(quote.get("inverseRatio", 0)),
+                        safe_float(amount),
                         _hash_token(from_token),
                         _hash_token(to_token),
                     ],
@@ -340,15 +340,15 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             resp = accept_quote(quote_id) if quote_id else None
             if resp and resp.get("success") is True:
                 logger.info("[dev3] ✅ Fallback трейд успішно виконано Binance")
-                profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
+                profit = safe_float(resp.get("toAmount", 0)) - safe_float(resp.get("fromAmount", 0))
                 log_conversion_success(fallback["from_token"], fallback["to_token"], profit)
                 notify_success(
                     fallback["from_token"],
                     fallback["to_token"],
-                    float(resp.get("fromAmount", 0)),
-                    float(resp.get("toAmount", 0)),
+                    safe_float(resp.get("fromAmount", 0)),
+                    safe_float(resp.get("toAmount", 0)),
                     fallback["score"],
-                    float(resp.get("ratio", 0)) - 1 if "ratio" in resp else 0,
+                    safe_float(resp.get("ratio", 0)) - 1 if "ratio" in resp else 0,
                 )
                 save_convert_history(
                     {
