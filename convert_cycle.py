@@ -524,6 +524,18 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 )
                 continue
             quote = get_quote_with_retry(from_token, to_token, amount, quote_limits)
+            if quote and quote.get("price") is not None:
+                accepted = accept_quote(quote)
+                if accepted:
+                    logger.info(
+                        f"[dev3] ✅ Успішна конверсія {from_token} → {to_token} через accept_quote"
+                    )
+                else:
+                    logger.warning(
+                        f"[dev3] ❌ accept_quote повернув False для {from_token} → {to_token}"
+                    )
+                continue  # після accept більше не пробуємо цю пару
+
             if not quote or quote.get("price") is None:
                 logger.warning(
                     f"⛔️ Пропуск {from_token} → {to_token}: quote.price is None після всіх спроб"

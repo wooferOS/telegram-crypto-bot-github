@@ -299,3 +299,51 @@ def load_history(path: str = HISTORY_PATH) -> List[Dict[str, Any]]:
         return []
     with open(path, "r") as f:
         return json.load(f)
+
+
+def predict_top_tokens(forecast_path: str) -> List[Dict[str, Any]]:
+    """Return list of token predictions sorted by score."""
+    try:
+        with open(forecast_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception as exc:
+        logger.warning("[dev3] ❌ Failed to read forecast file %s: %s", forecast_path, exc)
+        return []
+
+    if isinstance(data, dict) and "predictions" in data:
+        data = data["predictions"]
+
+    top_tokens: List[Dict[str, Any]] = []
+    for item in data:
+        from_token = item.get("from_token") or item.get("from")
+        to_token = item.get("to_token") or item.get("to")
+        expected_profit = item.get("expected_profit")
+        prob_up = item.get("prob_up")
+
+        # Обробка expected_profit, якщо це dict (поганий формат GPT)
+        if isinstance(expected_profit, dict):
+            expected_profit = expected_profit.get("value", 0.0)
+
+        # Перевірка типів
+        if not isinstance(expected_profit, (float, int)) or not isinstance(prob_up, (float, int)):
+            continue  # Пропустити некоректний запис
+
+        score = prob_up * expected_profit
+
+        top_tokens.append(
+            {
+                "from_token": from_token,
+                "to_token": to_token,
+                "prob_up": prob_up,
+                "expected_profit": expected_profit,
+                "score": score,
+            }
+        )
+
+    try:
+        top_tokens.sort(key=lambda x: x.get("score", 0), reverse=True)
+    except TypeError:
+        logger.warning("[dev3] ⚠️ Пропуск сортування — деякі score некоректні")
+        top_tokens = [t for t in top_tokens if isinstance(t.get("score", 0), (float, int))]
+
+    return top_tokens
