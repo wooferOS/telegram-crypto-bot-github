@@ -99,8 +99,11 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
     return False
 
 
-def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) -> None:
-    """Attempt fallback conversion using the token with the highest balance."""
+def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) -> bool:
+    """Attempt fallback conversion using the token with the highest balance.
+
+    Returns True if a conversion was successfully executed.
+    """
 
     # Choose token with the largest balance excluding stablecoins and delisted tokens
     candidates = [
@@ -112,21 +115,21 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
 
     if not fallback_token:
         logger.warning("🔹 [FALLBACK] Не знайдено жодного токена з балансом для fallback")
-        return
+        return False
 
     valid_to_tokens = [p for p in pairs if p.get("from_token") == fallback_token]
 
     if not valid_to_tokens:
         logger.warning(f"🔹 [FALLBACK] Актив '{fallback_token}' з найбільшим балансом не сконвертовано")
         logger.warning("🔸 Причина: не знайдено жодного валідного `to_token` для fallback (score недостатній або немає прогнозу)")
-        return
+        return False
 
     best_pair = max(valid_to_tokens, key=lambda x: x.get("score", 0))
     selected_to_token = best_pair.get("to_token")
     amount = balances.get(fallback_token, 0.0)
     logger.info(f"🔄 [FALLBACK] Спроба конвертації {fallback_token} → {selected_to_token}")
 
-    try_convert(
+    return try_convert(
         fallback_token,
         selected_to_token,
         amount,
@@ -150,10 +153,13 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
 def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     """Process top pairs from daily analysis."""
     reset_cycle()
+    logger.info("[dev3] ▶️ Запуск циклу конверсії через Binance Convert API")
     if pairs is None:
         pairs = _load_top_pairs()
     if not pairs:
-        logger.warning("[dev3] No pairs to process")
+        logger.warning(
+            "[dev3] ⛔ Усі пари відкинуті фільтрами — цикл завершено без спроб отримати quote."
+        )
         return
 
     top_token_pairs_raw = list(pairs)
@@ -166,10 +172,19 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     pairs = [p for p in pairs if p.get("from_token") in available_from_tokens]
 
     balances = get_balances()
+    successful_count = 0
 
     if not pairs:
         if binance_balances:
-            fallback_convert(top_token_pairs_raw, binance_balances)
+            if fallback_convert(top_token_pairs_raw, binance_balances):
+                successful_count = 1
+                logger.info(
+                    f"[dev3] ✅ Успішно завершено цикл. Виконано {successful_count} конверсій."
+                )
+            else:
+                logger.info(
+                    "[dev3] ❌ Жодна з пар не пройшла accept_quote — цикл завершено без виконання."
+                )
         else:
             logger.warning("[dev3] No available tokens for fallback")
         return
@@ -177,6 +192,8 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     pairs.sort(key=lambda x: x.get("score", 0), reverse=True)
     quote_count = 0
     any_successful_conversion = False
+    successful_count = 0
+    valid_quote_count = 0
     scored_quotes: List[Dict[str, Any]] = []
 
     for item in pairs[:TOP_N_PAIRS]:
@@ -202,9 +219,13 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         quote = get_quote(from_token, to_token, amount)
         quote_count += 1
 
-        if not quote:
+        if not quote or quote.get("price") is None:
             log_quote_skipped(from_token, to_token, "invalid_quote")
+            logger.debug(
+                f"[dev3] ⚠️ Пара {from_token} → {to_token} не має quote (price=None)"
+            )
             continue
+        valid_quote_count += 1
 
         valid, reason = passes_filters(score, quote, amount)
         if not valid:
@@ -226,6 +247,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         resp = accept_quote(quote_id) if quote_id else None
         if resp and resp.get("success") is True:
             any_successful_conversion = True
+            successful_count += 1
             logger.info("[dev3] ✅ Трейд успішно прийнято Binance")
             profit = float(resp.get("toAmount", 0)) - float(resp.get("fromAmount", 0))
             log_conversion_success(from_token, to_token, profit)
@@ -279,6 +301,12 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 }
             )
 
+    if valid_quote_count == 0:
+        logger.warning(
+            "[dev3] ❌ Всі quote недоступні (price=None) — цикл завершено без угод."
+        )
+        return
+
     if not any_successful_conversion and scored_quotes:
         fallback = max(scored_quotes, key=lambda x: x["score"])
         log_reason = fallback.get("skip_reason", "no reason")
@@ -313,6 +341,8 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                         "accepted": True,
                     }
                 )
+                any_successful_conversion = True
+                successful_count += 1
             else:
                 reason = resp.get("msg") if isinstance(resp, dict) else "Unknown error"
                 logger.warning(
@@ -335,5 +365,12 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         except Exception as e:
             logger.error(f"[dev3] ❌ Помилка під час fallback-конверсії: {e}")
 
-    logger.info("[dev3] ✅ Цикл завершено")
+    if successful_count > 0:
+        logger.info(
+            f"[dev3] ✅ Успішно завершено цикл. Виконано {successful_count} конверсій."
+        )
+    else:
+        logger.info(
+            "[dev3] ❌ Жодна з пар не пройшла accept_quote — цикл завершено без виконання."
+        )
 
