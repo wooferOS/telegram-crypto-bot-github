@@ -361,6 +361,7 @@ def accept_quote(quote: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                     quote["fromAsset"], quote["toAsset"], msg or str(code)
                 )
             return None
+        logger.info(f"[dev3] 🔄 accept_quote виконано: {quote_id}")
         return data
     except Exception as e:
         error_msg = str(e)
