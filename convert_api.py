@@ -442,3 +442,27 @@ def get_supported_pairs():
     except Exception as e:
         log_error(f"❌ Error fetching supported pairs: {str(e)}")
         return []
+
+
+def get_quote_for_pair(from_asset: str, to_asset: str, amount: float) -> Optional[dict]:
+    """Отримати котирування (quote) для пари через Binance Convert."""
+    url = f"{BINANCE_API_BASE_URL}/sapi/v1/convert/getQuote"
+    headers = {
+        "X-MBX-APIKEY": BINANCE_API_KEY,
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "fromAsset": from_asset,
+        "toAsset": to_asset,
+        "fromAmount": str(amount),
+        "walletType": "SPOT",
+    }
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        log_error(
+            f"❌ Error getting quote for {from_asset} → {to_asset} with amount {amount}: {str(e)}"
+        )
+        return None
