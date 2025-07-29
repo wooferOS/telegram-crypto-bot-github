@@ -190,17 +190,31 @@ async def convert_mode() -> None:
             "[dev3] ❌ top_tokens.json порожній — відсутні релевантні прогнози"
         )
 
+    for token in top_tokens:
+        token["score"] = safe_float(token.get("score", 0))
+        token["expected_profit"] = safe_float(token.get("expected_profit", 0))
+        token["prob_up"] = safe_float(token.get("prob_up", 0))
+
     prompt: str = json.dumps({"predictions": predictions}, ensure_ascii=False)
-    forecast_text: Optional[str] = await ask_gpt(prompt)
-    if not forecast_text:
+    forecast_text: Optional[str] = ""
+    forecast_response = await ask_gpt(prompt)
+    if forecast_response:
+        try:
+            forecast_json = json.loads(forecast_response)
+            if isinstance(forecast_json, list):
+                top_tokens = forecast_json
+                forecast_text = ""
+            elif isinstance(forecast_json, dict) and "forecast_text" in forecast_json:
+                forecast_text = forecast_json.get("forecast_text", "")
+            else:
+                forecast_text = forecast_response
+        except Exception:
+            forecast_text = forecast_response
+    else:
         logger.warning(f"[dev3] ⚠️ GPT не повернув forecast_text. Prompt був: {prompt}")
-        forecast_text = await ask_gpt(
-            json.dumps(top_tokens_by_score, ensure_ascii=False)
-        )
+        forecast_text = await ask_gpt(json.dumps(top_tokens_by_score, ensure_ascii=False))
         if not forecast_text:
-            send_telegram(
-                "[dev3] ❌ GPT не згенерував прогноз для convert. Пропущено трейд."
-            )
+            send_telegram("[dev3] ❌ GPT не згенерував прогноз для convert. Пропущено трейд.")
 
     top_tokens_path = os.path.join(os.path.dirname(__file__), "top_tokens.json")
     await asyncio.to_thread(save_json, top_tokens_path, top_tokens)
