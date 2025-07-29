@@ -4,7 +4,7 @@ import json
 import os
 from typing import Callable, Dict, List, Optional
 
-from convert_api import get_available_to_tokens, get_balances
+from convert_api import get_available_to_tokens, get_balances, sanitize_token_pair
 from binance_api import get_spot_price, get_ratio
 from convert_logger import logger
 from convert_notifier import send_telegram, notify_fallback_model_warning
@@ -194,6 +194,24 @@ async def convert_mode() -> None:
         token["score"] = safe_float(token.get("score", 0))
         token["expected_profit"] = safe_float(token.get("expected_profit", 0))
         token["prob_up"] = safe_float(token.get("prob_up", 0))
+
+    # 🧪 Timely logging of GPT forecast
+    forecast_map = await ask_gpt(top_tokens, mode="convert")
+
+    if not forecast_map:
+        print("❌ GPT forecast is empty or None — forecast_map:", forecast_map)
+        os.makedirs("logs", exist_ok=True)
+        with open("logs/convert_gpt.log", "a", encoding="utf-8") as f:
+            f.write("❌ GPT forecast is empty or None\n")
+        return
+    else:
+        os.makedirs("logs", exist_ok=True)
+        with open("logs/convert_gpt.log", "w", encoding="utf-8") as f:
+            json.dump(forecast_map, f, indent=2)
+
+    for token in top_tokens:
+        pair_key = sanitize_token_pair(token.get("from_token"), token.get("to_token"))
+        token["gpt"] = forecast_map.get(pair_key, {})
 
     prompt: str = json.dumps({"predictions": predictions}, ensure_ascii=False)
     forecast_text: Optional[str] = ""

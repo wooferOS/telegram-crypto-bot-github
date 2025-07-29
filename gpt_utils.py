@@ -1,12 +1,13 @@
+import json
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from config_dev3 import OPENAI_API_KEY
 
 logger = logging.getLogger(__name__)
 
 
-async def ask_gpt(prompt: str, model: str = "gpt-4o") -> Optional[str]:
+async def ask_gpt(prompt: Any, mode: str = "", model: str = "gpt-4o") -> Optional[str]:
     """Send ``prompt`` to OpenAI and return the response text.
 
     Returns ``None`` if the request fails or the library is unavailable.
@@ -21,6 +22,9 @@ async def ask_gpt(prompt: str, model: str = "gpt-4o") -> Optional[str]:
     if not api_key:
         logger.warning("[dev3] ❌ OPENAI_API_KEY not set")
         return None
+
+    if not isinstance(prompt, str):
+        prompt = json.dumps(prompt, ensure_ascii=False)
 
     client = AsyncOpenAI(api_key=api_key)
 
