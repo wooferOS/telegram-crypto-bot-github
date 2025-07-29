@@ -32,6 +32,7 @@ def safe_float(val: Any) -> float:
 
 MAX_QUOTES_PER_CYCLE = 20
 TOP_N_PAIRS = 10
+GPT_SCORE_THRESHOLD = 0.5
 
 
 def try_convert(from_token: str, to_token: str, amount: float, score: float) -> bool:
@@ -127,7 +128,13 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         logger.warning("🔹 [FALLBACK] Не знайдено жодного токена з балансом для fallback")
         return False
 
-    valid_to_tokens = [p for p in pairs if p.get("from_token") == fallback_token]
+    valid_to_tokens = [
+        p
+        for p in pairs
+        if p.get("from_token") == fallback_token
+        and safe_float(p.get("gpt", {}).get("score", p.get("gpt", 0)))
+        > GPT_SCORE_THRESHOLD
+    ]
 
     if not valid_to_tokens:
         logger.warning(f"🔹 [FALLBACK] Актив '{fallback_token}' з найбільшим балансом не сконвертовано")
@@ -223,6 +230,12 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             logger.warning("[dev3] No available tokens for fallback")
         return
 
+    pairs = [
+        p
+        for p in pairs
+        if safe_float(p.get("gpt", {}).get("score", p.get("gpt", 0)))
+        > GPT_SCORE_THRESHOLD
+    ]
     pairs.sort(key=lambda x: safe_float(x.get("score", 0)), reverse=True)
     quote_count = 0
     any_successful_conversion = False
