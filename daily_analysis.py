@@ -202,7 +202,26 @@ async def convert_mode() -> None:
         try:
             forecast_json = json.loads(forecast_response)
             if isinstance(forecast_json, list):
-                top_tokens = forecast_json
+                # Вставляємо GPT-прогноз у поле "gpt"
+                enriched_tokens = []
+                for gpt_item in forecast_json:
+                    from_token = gpt_item.get("from")
+                    to_token = gpt_item.get("to")
+                    matching = [
+                        t
+                        for t in top_tokens
+                        if t.get("from_token") == from_token
+                        and t.get("to_token") == to_token
+                    ]
+                    if matching:
+                        token = matching[0]
+                        token["gpt"] = {
+                            "score": gpt_item.get("score"),
+                            "profit": gpt_item.get("profit"),
+                            "prob_up": gpt_item.get("prob_up"),
+                        }
+                        enriched_tokens.append(token)
+                top_tokens = enriched_tokens
                 forecast_text = ""
             elif isinstance(forecast_json, dict) and "forecast_text" in forecast_json:
                 forecast_text = forecast_json.get("forecast_text", "")
