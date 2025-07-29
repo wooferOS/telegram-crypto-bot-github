@@ -30,9 +30,13 @@ def filter_top_tokens(
     filtered = [
         (token, data)
         for token, data in all_tokens.items()
-        if safe_float(data.get("score", 0)) >= score_threshold
+        if safe_float(data.get("score", data.get("gpt", {}).get("score", 0)))
+        >= score_threshold
     ]
-    filtered.sort(key=lambda x: safe_float(x[1].get("score", 0)), reverse=True)
+    filtered.sort(
+        key=lambda x: safe_float(x[1].get("score", x[1].get("gpt", {}).get("score", 0))),
+        reverse=True,
+    )
 
     # Fallback logic: select tokens with highest score even if below threshold
     if not filtered:
@@ -41,7 +45,9 @@ def filter_top_tokens(
         )
         sorted_tokens = sorted(
             all_tokens.items(),
-            key=lambda x: safe_float(x[1].get("score", 0)),
+            key=lambda x: safe_float(
+                x[1].get("score", x[1].get("gpt", {}).get("score", 0))
+            ),
             reverse=True,
         )
         return sorted_tokens[:fallback_n]

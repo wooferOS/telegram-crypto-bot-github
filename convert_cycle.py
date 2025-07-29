@@ -169,9 +169,11 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
     top_quotes: List[tuple[float, Dict[str, Any]]] = []
     for item in data:
         if isinstance(item, dict):
-            score_val = item.get("score", 0)
+            score_val = item.get("score")
+            if score_val is None:
+                score_val = item.get("gpt", {}).get("score", 0)
             if isinstance(score_val, dict):
-                score_val = score_val.get("predicted", 0)
+                score_val = score_val.get("predicted", score_val.get("value", 0))
             score = safe_float(score_val)
             top_quotes.append((score, item))
         elif isinstance(item, (list, tuple)) and len(item) >= 2:

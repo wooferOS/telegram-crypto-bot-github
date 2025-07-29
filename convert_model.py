@@ -99,12 +99,12 @@ def extract_features(history: List[Dict[str, Any]]) -> np.ndarray:
         ratio_value = row.get("ratio")
         if ratio_value is None:
             logger.warning("[dev3] ratio is None in history row: %s", row)
-        ratio = float(ratio_value or 0.0)
+        ratio = safe_float(ratio_value)
 
         inverse_ratio_value = row.get("inverseRatio")
         if inverse_ratio_value is None:
             logger.warning("[dev3] inverseRatio is None in history row: %s", row)
-        inverse_ratio = float(inverse_ratio_value or 0.0)
+        inverse_ratio = safe_float(inverse_ratio_value)
 
         expected_profit_val = row.get("expected_profit")
         if expected_profit_val is None:
@@ -118,7 +118,7 @@ def extract_features(history: List[Dict[str, Any]]) -> np.ndarray:
         if score_val is None:
             logger.warning("[dev3] score is None in history row: %s", row)
 
-        amount = float(row.get("amount") or 0.0)
+        amount = safe_float(row.get("amount"))
         from_hash = _hash_token(row.get("from_token", ""))
         to_hash = _hash_token(row.get("to_token", ""))
         features_list.append([ratio, inverse_ratio, amount, from_hash, to_hash])
@@ -152,9 +152,9 @@ def predict(
         return 0.0, 0.0, 0.0
 
     try:
-        ratio = float(quote_data.get("ratio", 0.0))
-        inverse_ratio = float(quote_data.get("inverseRatio", 0.0))
-        amount = float(quote_data.get("amount", {}).get("from", 0.0))
+        ratio = safe_float(quote_data.get("ratio", 0.0))
+        inverse_ratio = safe_float(quote_data.get("inverseRatio", 0.0))
+        amount = safe_float(quote_data.get("amount", {}).get("from", 0.0))
 
         features = np.array(
             [
