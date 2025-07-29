@@ -2,6 +2,20 @@ import json
 import os
 import time
 from decimal import Decimal
+from typing import Any
+
+
+def safe_float(val: Any) -> float:
+    """Return float value, handling nested dicts like {"value": x}."""
+    if isinstance(val, dict):
+        if "value" in val:
+            val = val.get("value")
+        elif "predicted" in val:
+            val = val.get("predicted")
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def normalize_symbol(symbol: str) -> str:
