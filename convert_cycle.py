@@ -158,10 +158,30 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
         return []
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
     except Exception as exc:  # pragma: no cover - file issues
         logger.warning("[dev3] failed to read top_tokens.json: %s", exc)
         return []
+
+    # Normalize format: handle both [(score, quote), ...] and [{...}, ...]
+    top_quotes: List[tuple[float, Dict[str, Any]]] = []
+    for item in data:
+        if isinstance(item, dict):
+            score_val = item.get("score", 0)
+            if isinstance(score_val, dict):
+                score_val = score_val.get("predicted", 0)
+            score = safe_float(score_val)
+            top_quotes.append((score, item))
+        elif isinstance(item, (list, tuple)) and len(item) >= 2:
+            score = safe_float(item[0])
+            quote = item[1]
+            if isinstance(quote, dict):
+                top_quotes.append((score, quote))
+        else:
+            logger.debug("[dev3] invalid item in top_tokens.json: %s", item)
+
+    top_quotes = sorted(top_quotes, key=lambda x: x[0], reverse=True)
+    return [q for _, q in top_quotes]
 
 
 def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
