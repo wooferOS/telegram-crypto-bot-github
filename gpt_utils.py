@@ -23,15 +23,26 @@ async def ask_gpt(prompt: Any, mode: str = "", model: str = "gpt-4o") -> Optiona
         logger.warning("[dev3] ❌ OPENAI_API_KEY not set")
         return None
 
-    if not isinstance(prompt, str):
-        prompt = json.dumps(prompt, ensure_ascii=False)
+    system_prompt = (
+        "You are a data extractor. Always return a valid JSON object with no explanation or markdown formatting. "
+        "Each key must be a string like 'BONK->BTTC', and the value must be an object with keys: "
+        "'score' (float), 'profit' (float), and 'prob_up' (float)."
+    )
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {
+            "role": "user",
+            "content": prompt if isinstance(prompt, str) else json.dumps(prompt),
+        },
+    ]
 
     client = AsyncOpenAI(api_key=api_key)
 
     try:
         response = await client.chat.completions.create(
             model=model,
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
             temperature=0.3,
         )
     except Exception as exc:  # pragma: no cover - network
