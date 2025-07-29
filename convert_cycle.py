@@ -132,7 +132,7 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         p
         for p in pairs
         if p.get("from_token") == fallback_token
-        and safe_float(p.get("gpt", {}).get("score", p.get("gpt", 0)))
+        and safe_float(p.get("gpt", {}).get("score", 0))
         > GPT_SCORE_THRESHOLD
     ]
 
@@ -233,7 +233,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     pairs = [
         p
         for p in pairs
-        if safe_float(p.get("gpt", {}).get("score", p.get("gpt", 0)))
+        if safe_float(p.get("gpt", {}).get("score", 0))
         > GPT_SCORE_THRESHOLD
     ]
     pairs.sort(key=lambda x: safe_float(x.get("score", 0)), reverse=True)
