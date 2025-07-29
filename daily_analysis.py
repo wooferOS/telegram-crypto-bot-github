@@ -217,7 +217,11 @@ async def convert_mode() -> None:
             json.dump(forecast_map, f, indent=2)
 
     for token in top_tokens:
-        pair_key = sanitize_token_pair(token.get("from_token"), token.get("to_token"))
+        token_from = token.get("from") or token.get("from_token")
+        token_to = token.get("to") or token.get("to_token")
+        if not token_from or not token_to:
+            continue
+        pair_key = f"{token_from}->{token_to}"
         token["gpt"] = forecast_map.get(pair_key, {})
 
     prompt: str = json.dumps({"predictions": predictions}, ensure_ascii=False)
