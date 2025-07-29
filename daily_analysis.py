@@ -198,6 +198,13 @@ async def convert_mode() -> None:
     # 🧪 Timely logging of GPT forecast
     forecast_map = await ask_gpt(top_tokens, mode="convert")
 
+    if isinstance(forecast_map, str):
+        try:
+            forecast_map = json.loads(forecast_map)
+        except json.JSONDecodeError:
+            logger.warning("\u274c GPT forecast is not valid JSON")
+            forecast_map = {}
+
     if not forecast_map:
         print("❌ GPT forecast is empty or None — forecast_map:", forecast_map)
         os.makedirs("logs", exist_ok=True)
