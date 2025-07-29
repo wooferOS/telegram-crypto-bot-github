@@ -222,6 +222,8 @@ async def convert_mode() -> None:
         if not token_from or not token_to:
             continue
         pair_key = f"{token_from}->{token_to}"
+        token["from"] = token_from
+        token["to"] = token_to
         token["gpt"] = forecast_map.get(pair_key, {})
 
     prompt: str = json.dumps({"predictions": predictions}, ensure_ascii=False)
@@ -244,6 +246,8 @@ async def convert_mode() -> None:
                     ]
                     if matching:
                         token = matching[0]
+                        token["from"] = from_token
+                        token["to"] = to_token
                         token["gpt"] = {
                             "score": gpt_item.get("score"),
                             "profit": gpt_item.get("profit"),
