@@ -5,16 +5,7 @@ from typing import Dict, Tuple, List, Any
 
 from convert_logger import logger
 from binance_api import get_spot_price, get_ratio
-
-
-def safe_float(val: Any) -> float:
-    """Return ``float`` value, handling nested ``{"value": x}`` dicts."""
-    if isinstance(val, dict):
-        val = val.get("value", 0.0)
-    try:
-        return float(val)
-    except (TypeError, ValueError):
-        return 0.0
+from utils_dev3 import safe_float
 
 
 def get_ratio_from_spot(from_token: str, to_token: str) -> float:

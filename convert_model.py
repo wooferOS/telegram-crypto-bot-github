@@ -8,6 +8,7 @@ import numpy as np
 
 import joblib
 import pandas as pd
+from utils_dev3 import safe_float
 
 MODEL_PATH = "model_convert.joblib"
 logger = logging.getLogger(__name__)
@@ -15,14 +16,6 @@ _model = None
 _is_fallback = False
 
 
-def safe_float(value: Any) -> float:
-    """Return float value, handling dicts like {"value": number}."""
-    if isinstance(value, dict):
-        return float(value.get("value", 0.0))
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return 0.0
 
 
 def train_model(X, y):

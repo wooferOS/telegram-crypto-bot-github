@@ -19,16 +19,7 @@ from convert_logger import (
 )
 from quote_counter import should_throttle, reset_cycle
 from convert_model import _hash_token
-
-
-def safe_float(val: Any) -> float:
-    """Return ``float`` value, handling nested ``{"value": x}`` dicts."""
-    if isinstance(val, dict):
-        val = val.get("value", 0.0)
-    try:
-        return float(val)
-    except (TypeError, ValueError):
-        return 0.0
+from utils_dev3 import safe_float
 
 
 def gpt_score(data: Dict[str, Any]) -> float:
