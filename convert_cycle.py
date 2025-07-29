@@ -156,7 +156,7 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         fallback_token,
         selected_to_token,
         amount,
-        safe_float(best_pair.get("score", 0)),
+        safe_float(best_pair.get("gpt", {}).get("score", 0)),
     )
 
 
