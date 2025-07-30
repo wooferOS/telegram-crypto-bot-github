@@ -249,7 +249,7 @@ async def convert_mode() -> None:
                         token["from"] = from_token
                         token["to"] = to_token
                         token["gpt"] = {
-                            "score": gpt_item.get("score"),
+                            "score": safe_float(gpt_item.get("score")),
                             "profit": gpt_item.get("profit"),
                             "prob_up": gpt_item.get("prob_up"),
                         }

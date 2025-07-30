@@ -169,7 +169,7 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
     top_quotes: List[tuple[float, Dict[str, Any]]] = []
     for item in data:
         if isinstance(item, dict):
-            score_val = item.get("score")
+            score_val = safe_float(item.get("score"))
             if score_val is None:
                 score_val = item.get("gpt", {}).get("score", 0)
             if isinstance(score_val, dict):
@@ -396,7 +396,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                     fallback["to_token"],
                     safe_float(resp.get("fromAmount", 0)),
                     safe_float(resp.get("toAmount", 0)),
-                    fallback["score"],
+                    safe_float(fallback.get("score")),
                     safe_float(resp.get("ratio", 0)) - 1 if "ratio" in resp else 0,
                 )
                 save_convert_history(
