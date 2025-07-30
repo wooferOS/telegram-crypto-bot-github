@@ -114,7 +114,7 @@ def extract_features(history: List[Dict[str, Any]]) -> np.ndarray:
         if prob_up_val is None:
             logger.warning("[dev3] prob_up is None in history row: %s", row)
 
-        score_val = row.get("score")
+        score_val = safe_float(row.get("score"))
         if score_val is None:
             logger.warning("[dev3] score is None in history row: %s", row)
 
