@@ -23,8 +23,13 @@ from utils_dev3 import safe_float
 
 
 def gpt_score(data: Dict[str, Any]) -> float:
-    """Return GPT score as a float from nested dict structure."""
-    return safe_float(data.get("gpt", {}).get("score", 0))
+    score = data.get("score", 0.0)
+    if isinstance(score, (int, float)):
+        return float(score)
+    elif isinstance(score, dict):
+        # Якщо score — це словник (наприклад: {"value": 0.81}), беремо значення ключа "value"
+        return float(score.get("value", 0.0))
+    return 0.0
 
 MAX_QUOTES_PER_CYCLE = 20
 TOP_N_PAIRS = 10
