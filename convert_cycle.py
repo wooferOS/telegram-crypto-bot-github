@@ -22,13 +22,19 @@ from convert_model import _hash_token
 from utils_dev3 import safe_float
 
 
-def gpt_score(data: Dict[str, Any]) -> float:
-    score = data.get("score", 0.0)
-    if isinstance(score, (int, float)):
-        return float(score)
-    elif isinstance(score, dict):
-        # Якщо score — це словник (наприклад: {"value": 0.81}), беремо значення ключа "value"
-        return float(score.get("value", 0.0))
+def gpt_score(data: Dict[str, Any] | float | int) -> float:
+    """Normalize score from various formats to a float."""
+    if isinstance(data, (int, float)):
+        return float(data)
+
+    if isinstance(data, dict):
+        score = data.get("score", 0.0)
+        if isinstance(score, (int, float)):
+            return float(score)
+        if isinstance(score, dict):
+            # Якщо score — це словник (наприклад: {"value": 0.81}), беремо значення ключа "value"
+            return float(score.get("value", 0.0))
+
     return 0.0
 
 MAX_QUOTES_PER_CYCLE = 20
@@ -123,7 +129,7 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         for token, amt in balances.items()
         if amt > 0 and token not in ("USDT", "AMB", "DELISTED")
     ]
-    fallback_token = max(candidates, key=lambda x: x[1], default=(None, 0.0))[0]
+    fallback_token = max(candidates, key=lambda x: gpt_score(x[1]), default=(None, 0.0))[0]
 
     if not fallback_token:
         logger.warning("🔹 [FALLBACK] Не знайдено жодного токена з балансом для fallback")
