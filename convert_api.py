@@ -147,7 +147,7 @@ def _validate_min_amount(from_token: str, to_token: str, amount: float) -> Optio
             if min_val is not None:
                 _min_amount_cache[(from_token, to_token)] = min_val
                 return min_val
-        if data.get("price") is not None:
+        if data.get("ratio") is not None:
             _min_amount_cache[(from_token, to_token)] = amount
             return amount
     return None
@@ -166,134 +166,47 @@ def get_available_to_tokens(from_token: str) -> List[str]:
     return [item.get("toAsset") for item in data.get("toAssetList", [])]
 
 
-def get_quote(
-    from_token: str,
-    to_token: str,
-    amount: float,
-    max_retries: int = 3,
-    quote_limits: Dict[str, Dict[str, float]] | None = None,
-) -> Optional[Dict[str, Any]]:
-    """Return quote data or None if invalid. Retries on missing price."""
-    global _quote_limits_updated
-    increment_quote_usage()
-    url = f"{BASE_URL}/sapi/v1/convert/getQuote"
-
-    pair_key = sanitize_token_pair(from_token, to_token)
-
-    logger.debug(f"[dev3] 🔍 Вхідний from_amount для quote: {amount}")
-
+def get_quote(from_asset: str, to_asset: str, amount: float) -> Optional[Dict[str, Any]]:
+    """Fetch quote from Binance Convert API and return parsed data."""
+    endpoint = "/sapi/v1/convert/getQuote"
+    timestamp = int(time.time() * 1000)
+    params = {
+        "fromAsset": from_asset,
+        "toAsset": to_asset,
+        "fromAmount": amount,
+        "recvWindow": 5000,
+        "timestamp": timestamp,
+    }
+    query_string = urlencode(params)
+    signature = hmac.new(
+        BINANCE_SECRET_KEY.encode("utf-8"),
+        query_string.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
+    full_url = f"{BASE_URL}{endpoint}?{query_string}&signature={signature}"
     try:
-        precision = get_precision(from_token)
-    except Exception:
-        precision = 0
-    if precision <= 0:
-        step = get_lot_step(from_token).get("stepSize", "1")
-        try:
-            precision = max(-Decimal(step).as_tuple().exponent, 0)
-        except Exception:
-            precision = 0
+        response = requests.post(full_url, headers=headers)
+        data = response.json()
 
-    step_info = get_lot_step(from_token)
-    try:
-        step_size = float(step_info.get("stepSize", "1"))
-    except Exception:
-        step_size = 1.0
-    amount = round_step_size(amount, step_size)
-    logger.debug(
-        f"[dev3] 🧮 step_size={step_size} після округлення amount={amount}"
-    )
-
-    quant = Decimal("1") / (Decimal(10) ** precision)
-    rounded_amount = float(Decimal(str(amount)).quantize(quant, rounding=ROUND_DOWN))
-    amount = rounded_amount
-
-    payload = _sign({
-        "fromAsset": from_token,
-        "toAsset": to_token,
-        "fromAmount": str(amount)
-    })
-
-    # Validate amount before requesting actual quote
-    min_val = _validate_min_amount(from_token, to_token, amount)
-    if min_val is not None and amount < min_val:
-        return {"msg": "amount too low", "min_amount": min_val}
-
-    quote: Optional[Dict[str, Any]] = None
-    for i in range(max_retries):
-        logger.info(
-            f"[dev3] 🟡 Attempt {i + 1}: getQuote({from_token} → {to_token}, amount={amount})"
-        )
-        logger.info(
-            f"🔁 Спроба {i+1}/{max_retries} отримати quote {from_token} → {to_token} з amount={amount:.10f}"
-        )
-        try:
-            resp = _session.post(url, json=payload, headers=_headers(), timeout=10)
-            data = resp.json()
-        except Exception as exc:  # pragma: no cover - network
-            logger.warning("[dev3] get_quote error %s → %s: %s", from_token, to_token, exc)
-            data = None
-
-        if isinstance(data, dict) and "ratio" in data:
-            quote = data
-            if quote.get("price") is not None:
-                try:
-                    limits = load_quote_limits()
-                    key = f"{from_token}_{to_token}"
-                    value = {
-                        "min_amount": float(data.get("minLimit", 0)),
-                        "max_amount": float(data.get("maxLimit", 0)),
-                    }
-                    limits[key] = value
-                    if quote_limits is not None:
-                        quote_limits[key] = value
-                    _quote_limits_updated = True
-                except Exception:
-                    pass
-                break
+        if "ratio" in data and "toAmount" in data:
+            return {
+                "ratio": float(data["ratio"]),
+                "inverseRatio": float(data.get("inverseRatio", 0)),
+                "fromAmount": float(data["fromAmount"]),
+                "toAmount": float(data["toAmount"]),
+                "validUntil": data.get("validTimestamp"),
+            }
         else:
-            if isinstance(data, dict) and data.get("code") == 345239:
-                logger.warning("[dev3] 🟥 Binance limit reached 345239 for %s → %s", from_token, to_token)
-                quote = {"code": 345239}
-                break
-            logger.warning(
-                "[dev3] invalid quote for %s → %s: %s", from_token, to_token, data
+            convert_logger.warning(
+                f"❌ No valid quote returned for {from_asset} → {to_asset}: {data}"
             )
-            quote = data if isinstance(data, dict) else None
-            if isinstance(data, dict):
-                msg = data.get("msg", "")
-                m = re.search(
-                    r"outside the supported amount range\s*([0-9.eE+-]+)\s*([0-9.eE+-]+)",
-                    msg,
-                )
-                if m:
-                    try:
-                        min_amount = float(m.group(1))
-                        max_amount = float(m.group(2))
-                        limits = load_quote_limits()
-                        limits[pair_key] = {"min": min_amount, "max": max_amount}
-                        _quote_limits_updated = True
-                    except ValueError:
-                        pass
-                elif msg == "symbol not found":
-                    limits = load_quote_limits()
-                    limits[pair_key] = {"min": float("inf"), "max": 0}
-                    _quote_limits_updated = True
-
-        time.sleep(0.2)
-
-    if not quote or quote.get("price") is None:
-        if min_val is not None and amount >= min_val:
-            logger.warning(
-                "[dev3] ⚠️ getQuote returned price=None despite passing min_amount check"
-            )
-        if (from_token, to_token) not in logged_quote_errors:
-            logger.warning(
-                f"❌ Усі спроби отримати quote для {from_token} → {to_token} не дали результату (price=None)"
-            )
-            logged_quote_errors.add((from_token, to_token))
-    if quote is not None:
-        quote["created_at"] = time.time()  # зберігаємо час створення котирування
-    return quote
+            return None
+    except Exception as e:  # pragma: no cover - network
+        convert_logger.error(
+            f"❌ Exception in get_quote() for {from_asset} → {to_asset}: {str(e)}"
+        )
+        return None
 
 
 def get_quote_with_retry(
@@ -319,7 +232,7 @@ def get_quote_with_retry(
         logger.info(
             f"[dev3] 🟡 getQuote: {from_token} → {to_token}, amount = {amount}"
         )
-        quote = get_quote(from_token, to_token, amount, quote_limits=quote_limits)
+        quote = get_quote(from_token, to_token, amount)
         if quote:
             if quote.get("msg") == "amount too low":
                 logger.warning(
@@ -330,12 +243,12 @@ def get_quote_with_retry(
             created_at = quote.get("created_at")
             if created_at and time.time() - created_at > 9.5:
                 continue
-            if quote.get("price"):
+            if quote.get("ratio"):
                 return quote
     logger.info(
         f"[dev3] ⛔️ Всі спроби get_quote завершились без price для {from_token} → {to_token}"
     )
-    if quote and quote.get("price") is None:
+    if quote and quote.get("ratio") is None:
         convert_logger.log_quote_skipped(from_token, to_token, reason="amount_too_low")
     return None
 
@@ -497,7 +410,7 @@ def get_valid_quote(from_token: str, to_token: str, from_amount: float) -> Optio
     """Attempt to fetch quote for the entire amount without splitting."""
     try:
         quote = get_quote(from_token, to_token, from_amount)
-        if quote is None or quote.get("price") is None:
+        if quote is None or quote.get("ratio") is None:
             return None
         return quote
     except Exception as e:  # pragma: no cover - network/logging only
