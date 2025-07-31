@@ -72,14 +72,26 @@ def passes_filters(score: float, quote: Dict[str, Any], balance: float) -> Tuple
     if to_amount <= from_amount:
         return False, "no_profit"
 
+    from_token = quote.get("fromAsset")
     to_token = quote.get("toAsset")
+    if not from_token or not to_token:
+        logger.warning(
+            "[dev3] ❌ Один із токенів None: from_token=%s, to_token=%s",
+            from_token,
+            to_token,
+        )
+        return False, "invalid_tokens"
+
+    from_symbol = from_token.upper()
+    to_symbol = to_token.upper()
+
     try:
-        to_price = get_spot_price(to_token)
+        to_price = get_spot_price(to_symbol)
         to_usdt_value = to_amount * to_price
     except Exception as e:
         return False, f"price_lookup_failed: {e}"
 
-    spot_ratio = get_ratio(quote.get("fromAsset"), to_token)
+    spot_ratio = get_ratio(from_symbol, to_symbol)
     if spot_ratio <= 0:
         return False, "spot_ratio_failed"
     if spot_ratio <= 1.0:
