@@ -39,6 +39,21 @@ def gpt_score(data: Dict[str, Any]) -> float:
         score = score_data
     return _metric_value(score)
 
+
+_balances_cache: Dict[str, float] | None = None
+
+
+def get_token_balances() -> Dict[str, float]:
+    """Return balances for all tokens using cached Binance data."""
+    global _balances_cache
+    if _balances_cache is None:
+        try:
+            _balances_cache = get_balances()
+        except Exception as exc:  # pragma: no cover - network
+            logger.warning("[dev3] ❌ get_token_balances помилка: %s", exc)
+            _balances_cache = {}
+    return _balances_cache
+
 MAX_QUOTES_PER_CYCLE = 20
 TOP_N_PAIRS = 10
 GPT_SCORE_THRESHOLD = 0.5
@@ -200,247 +215,73 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
 
 
 def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
-    """Process top pairs from daily analysis."""
-    reset_cycle()
-    logger.info("[dev3] ▶️ Запуск циклу конверсії через Binance Convert API")
-    if pairs is None:
-        pairs = _load_top_pairs()
+    """Process top token pairs and execute conversions if score is high enough."""
+    logger.info("[dev3] 🔍 Запуск process_top_pairs з %d парами", len(pairs) if pairs else 0)
+
+    balances = get_token_balances()
     if not pairs:
-        logger.warning(
-            "[dev3] ⛔ Усі пари відкинуті фільтрами — цикл завершено без спроб отримати quote."
-        )
+        logger.warning("[dev3] ⛔️ Список пар порожній — нічого обробляти")
         return
 
-    top_token_pairs_raw = list(pairs)
-    binance_balances = get_binance_balances()
-    available_from_tokens = [
-        token
-        for token, amt in binance_balances.items()
-        if amt > 0 and token not in ("USDT", "AMB", "DELISTED")
-    ]
-    pairs = [p for p in pairs if p.get("from_token") in available_from_tokens]
+    filtered_pairs = []
+    for p in pairs:
+        score = gpt_score(p)
+        from_token = p.get("from_token") or p.get("from")
+        to_token = p.get("to_token") or p.get("to")
 
-    balances = get_balances()
+        if from_token not in balances:
+            logger.info("[dev3] ⏭ Пропущено %s → %s: немає балансу", from_token, to_token)
+            continue
+
+        if score <= GPT_SCORE_THRESHOLD:
+            logger.info(
+                "[dev3] ⏭ Пропущено %s → %s: score=%.4f нижче %.2f",
+                from_token,
+                to_token,
+                score,
+                GPT_SCORE_THRESHOLD,
+            )
+            continue
+
+        filtered_pairs.append(p)
+
+    logger.info("[dev3] ✅ Кількість пар після фільтрації: %d", len(filtered_pairs))
+
+    if not filtered_pairs:
+        logger.warning("[dev3] ⛔️ Жодна пара не пройшла фільтри — трейд пропущено")
+        fallback_convert(pairs, balances)
+        return
+
     successful_count = 0
-
-    if not pairs:
-        if binance_balances:
-            if fallback_convert(top_token_pairs_raw, binance_balances):
-                successful_count = 1
-                logger.info(
-                    f"[dev3] ✅ Успішно завершено цикл. Виконано {successful_count} конверсій."
-                )
-            else:
-                logger.info(
-                    "[dev3] ❌ Жодна з пар не пройшла accept_quote — цикл завершено без виконання."
-                )
-        else:
-            logger.warning("[dev3] No available tokens for fallback")
-        return
-
-    pairs = [
-        p
-        for p in pairs
-        if gpt_score(p) > GPT_SCORE_THRESHOLD
-    ]
-    pairs.sort(key=gpt_score, reverse=True)
     quote_count = 0
-    any_successful_conversion = False
-    successful_count = 0
-    valid_quote_count = 0
-    scored_quotes: List[Dict[str, Any]] = []
-
-    for item in pairs[:TOP_N_PAIRS]:
+    for p in filtered_pairs:
         if quote_count >= MAX_QUOTES_PER_CYCLE:
-            log_skipped_quotes()
+            logger.info(
+                "[dev3] ⛔️ Досягнуто ліміту %d запитів на котирування",
+                MAX_QUOTES_PER_CYCLE,
+            )
             break
 
-        from_token = item.get("from_token")
-        to_token = item.get("to_token")
-        score = _metric_value(item.get("score", 0))
-
-        expected_profit = _metric_value(item.get("expected_profit", 0))
-
-        prob_up = _metric_value(item.get("prob_up", 0))
-
-        logger.debug(
-            f"[dev3] 🧪 Обробка: score={score}, expected_profit={expected_profit}, prob_up={prob_up}"
-        )
-
-        score = safe_float(score)
-        expected_profit = safe_float(expected_profit)
-        prob_up = safe_float(prob_up)
+        from_token = p.get("from_token") or p.get("from")
+        to_token = p.get("to_token") or p.get("to")
         amount = balances.get(from_token, 0)
-        from convert_api import get_max_convert_amount
-        max_allowed = get_max_convert_amount(from_token, to_token)
-        if amount > max_allowed:
-            amount = max_allowed
-
-        log_prediction(from_token, to_token, score)
+        score = gpt_score(p)
 
         if amount <= 0:
-            log_quote_skipped(from_token, to_token, "no_balance")
-            continue
-
-        if should_throttle(from_token, to_token):
-            log_quote_skipped(from_token, to_token, "throttled")
-            continue
-
-        quote = get_quote(from_token, to_token, amount)
-        quote_count += 1
-
-        if not quote or quote.get("price") is None or quote.get("code") == 401:
-            log_quote_skipped(from_token, to_token, "invalid_quote")
-            logger.warning(
-                f"[dev3] ⚠️ quote недоступний для {from_token} → {to_token} — причина: {quote}"
-            )
-            continue
-        valid_quote_count += 1
-
-        valid, reason = passes_filters(score, quote, amount)
-        if not valid:
             logger.info(
-                f"[dev3] \u26d4\ufe0f Пропуск {from_token} → {to_token}: score={score:.4f}, причина={reason}, quote={quote}"
-            )
-            scored_quotes.append(
-                {
-                    "from_token": from_token,
-                    "to_token": to_token,
-                    "score": score,
-                    "quote": quote.get("quoteId"),
-                    "skip_reason": reason,
-                }
+                "[dev3] ⏭ %s → %s: amount %.4f недостатній",
+                from_token,
+                to_token,
+                amount,
             )
             continue
 
-        quote_id = quote.get("quoteId")
-        resp = accept_quote(quote_id) if quote_id else None
-        if resp and resp.get("success") is True:
-            any_successful_conversion = True
+        if try_convert(from_token, to_token, amount, score):
             successful_count += 1
-            logger.info("[dev3] ✅ Трейд успішно прийнято Binance")
-            profit = safe_float(resp.get("toAmount", 0)) - safe_float(resp.get("fromAmount", 0))
-            log_conversion_success(from_token, to_token, profit)
-            notify_success(
-                from_token,
-                to_token,
-                safe_float(resp.get("fromAmount", 0)),
-                safe_float(resp.get("toAmount", 0)),
-                score,
-                safe_float(quote.get("ratio", 0)) - 1,
-            )
-            features = [
-                safe_float(quote.get("ratio", 0)),
-                safe_float(quote.get("inverseRatio", 0)),
-                safe_float(amount),
-                _hash_token(from_token),
-                _hash_token(to_token),
-            ]
-            save_convert_history(
-                {
-                    "from": from_token,
-                    "to": to_token,
-                    "features": features,
-                    "profit": profit,
-                    "accepted": True,
-                }
-            )
-        else:
-            reason = resp.get("msg") if isinstance(resp, dict) else "Unknown error"
-            logger.warning(
-                "[dev3] ❌ Трейд НЕ відбувся: %s → %s. Причина: %s",
-                from_token,
-                to_token,
-                reason,
-            )
-            log_conversion_error(from_token, to_token, reason)
-            notify_failure(from_token, to_token, reason=reason)
-            save_convert_history(
-                {
-                    "from": from_token,
-                    "to": to_token,
-                    "features": [
-                        safe_float(quote.get("ratio", 0)),
-                        safe_float(quote.get("inverseRatio", 0)),
-                        safe_float(amount),
-                        _hash_token(from_token),
-                        _hash_token(to_token),
-                    ],
-                    "profit": 0.0,
-                    "accepted": False,
-                }
-            )
+            quote_count += 1
 
-    if valid_quote_count == 0:
-        logger.warning(
-            "[dev3] ❌ Всі quote недоступні (price=None) — цикл завершено без угод."
-        )
-        return
+    logger.info("[dev3] ✅ Успішних конверсій: %d", successful_count)
 
-    if not any_successful_conversion and scored_quotes:
-        fallback = max(scored_quotes, key=gpt_score)
-        log_reason = fallback.get("skip_reason", "no reason")
-        logger.info(
-            f"[dev3] ⚠️ Жодна пара не пройшла фільтри. Виконуємо fallback-конверсію: {fallback['from_token']} → {fallback['to_token']} (score={fallback['score']:.2f}, причина skip: {log_reason})"
-        )
-
-        logger.info(
-            f"🔄 [FALLBACK] Спроба конвертації {fallback['from_token']} → {fallback['to_token']}"
-        )
-        try:
-            quote_id = fallback["quote"]
-            resp = accept_quote(quote_id) if quote_id else None
-            if resp and resp.get("success") is True:
-                logger.info("[dev3] ✅ Fallback трейд успішно виконано Binance")
-                profit = safe_float(resp.get("toAmount", 0)) - safe_float(resp.get("fromAmount", 0))
-                log_conversion_success(fallback["from_token"], fallback["to_token"], profit)
-                notify_success(
-                    fallback["from_token"],
-                    fallback["to_token"],
-                    safe_float(resp.get("fromAmount", 0)),
-                    safe_float(resp.get("toAmount", 0)),
-                    safe_float(fallback.get("score")),
-                    safe_float(resp.get("ratio", 0)) - 1 if "ratio" in resp else 0,
-                )
-                save_convert_history(
-                    {
-                        "from": fallback["from_token"],
-                        "to": fallback["to_token"],
-                        "features": [],
-                        "profit": profit,
-                        "accepted": True,
-                    }
-                )
-                any_successful_conversion = True
-                successful_count += 1
-            else:
-                reason = resp.get("msg") if isinstance(resp, dict) else "Unknown error"
-                logger.warning(
-                    "[dev3] ❌ Fallback трейд НЕ відбувся: %s → %s. Причина: %s",
-                    fallback["from_token"],
-                    fallback["to_token"],
-                    reason,
-                )
-                log_conversion_error(fallback["from_token"], fallback["to_token"], reason)
-                notify_failure(fallback["from_token"], fallback["to_token"], reason=reason)
-                save_convert_history(
-                    {
-                        "from": fallback["from_token"],
-                        "to": fallback["to_token"],
-                        "features": [],
-                        "profit": 0.0,
-                        "accepted": False,
-                    }
-                )
-        except Exception as e:
-            logger.error(f"[dev3] ❌ Помилка під час fallback-конверсії: {e}")
-
-    if successful_count > 0:
-        logger.info(
-            f"[dev3] ✅ Успішно завершено цикл. Виконано {successful_count} конверсій."
-        )
-    else:
-        logger.info(
-            "[dev3] ❌ Жодна з пар не пройшла accept_quote — цикл завершено без виконання."
-        )
-
+    if successful_count == 0:
+        logger.warning("[dev3] ⚠️ Жодної конверсії не виконано — викликаємо fallback")
+        fallback_convert(pairs, balances)
