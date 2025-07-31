@@ -16,26 +16,20 @@ from convert_logger import (
     log_conversion_success,
     log_conversion_error,
     log_skipped_quotes,
+    log_error,
 )
 from quote_counter import should_throttle, reset_cycle
 from convert_model import _hash_token
 from utils_dev3 import safe_float
 
 
-def gpt_score(data: Dict[str, Any] | float | int) -> float:
-    """Normalize score from various formats to a float."""
-    if isinstance(data, (int, float)):
-        return float(data)
-
-    if isinstance(data, dict):
-        score = data.get("score", 0.0)
-        if isinstance(score, (int, float)):
-            return float(score)
-        if isinstance(score, dict):
-            # Якщо score — це словник (наприклад: {"value": 0.81}), беремо значення ключа "value"
-            return float(score.get("value", 0.0))
-
-    return 0.0
+def gpt_score(data: Dict[str, Any]) -> float:
+    """Return numeric score value from dict with validation."""
+    val = data.get("score", 0)
+    if isinstance(val, dict):
+        log_error(f"[dev3] ❌ score is dict: {val}")
+        return 0.0
+    return safe_float(val)
 
 MAX_QUOTES_PER_CYCLE = 20
 TOP_N_PAIRS = 10
@@ -129,7 +123,7 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         for token, amt in balances.items()
         if amt > 0 and token not in ("USDT", "AMB", "DELISTED")
     ]
-    fallback_token = max(candidates, key=lambda x: gpt_score(x[1]), default=(None, 0.0))[0]
+    fallback_token = max(candidates, key=lambda x: x[1], default=(None, 0.0))[0]
 
     if not fallback_token:
         logger.warning("🔹 [FALLBACK] Не знайдено жодного токена з балансом для fallback")
@@ -147,7 +141,7 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         logger.warning("🔸 Причина: не знайдено жодного валідного `to_token` для fallback (score недостатній або немає прогнозу)")
         return False
 
-    best_pair = max(valid_to_tokens, key=lambda x: gpt_score(x))
+    best_pair = max(valid_to_tokens, key=gpt_score)
     selected_to_token = best_pair.get("to_token")
     amount = balances.get(fallback_token, 0.0)
     from convert_api import get_max_convert_amount
@@ -243,7 +237,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         for p in pairs
         if gpt_score(p) > GPT_SCORE_THRESHOLD
     ]
-    pairs.sort(key=lambda x: gpt_score(x), reverse=True)
+    pairs.sort(key=gpt_score, reverse=True)
     quote_count = 0
     any_successful_conversion = False
     successful_count = 0
@@ -386,7 +380,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         return
 
     if not any_successful_conversion and scored_quotes:
-        fallback = max(scored_quotes, key=lambda x: gpt_score(x))
+        fallback = max(scored_quotes, key=gpt_score)
         log_reason = fallback.get("skip_reason", "no reason")
         logger.info(
             f"[dev3] ⚠️ Жодна пара не пройшла фільтри. Виконуємо fallback-конверсію: {fallback['from_token']} → {fallback['to_token']} (score={fallback['score']:.2f}, причина skip: {log_reason})"
