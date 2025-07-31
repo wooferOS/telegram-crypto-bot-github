@@ -32,7 +32,11 @@ def _metric_value(val: Any) -> float:
 
 def gpt_score(data: Dict[str, Any]) -> float:
     """Return score as float using ``safe_float`` for robustness."""
-    score = data.get("score", 0)
+    score_data = data.get("score", 0)
+    if isinstance(score_data, dict):
+        score = score_data.get("score", 0)
+    else:
+        score = score_data
     return _metric_value(score)
 
 MAX_QUOTES_PER_CYCLE = 20
