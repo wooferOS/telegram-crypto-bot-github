@@ -19,6 +19,8 @@ def safe_float(val: Any) -> float:
 
 
 def normalize_symbol(symbol: str) -> str:
+    if not symbol:
+        return ""
     return symbol.upper().replace("USDT", "")
 
 

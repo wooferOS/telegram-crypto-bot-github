@@ -47,6 +47,9 @@ _min_amount_cache: Dict[tuple[str, str], float] = {}
 
 def sanitize_token_pair(from_token: str, to_token: str) -> str:
     """Return standardized key for quote limits."""
+    if not from_token or not to_token:
+        logger.warning("[dev3] ❌ Невірний токен: token=None під час symbol.upper()")
+        return ""
     return f"{from_token.upper()}→{to_token.upper()}"
 
 
