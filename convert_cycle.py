@@ -23,9 +23,17 @@ from convert_model import _hash_token
 from utils_dev3 import safe_float
 
 
+def _metric_value(val: Any) -> float:
+    """Return float metric from raw value or nested dict."""
+    if isinstance(val, dict):
+        val = val.get("value", val.get("predicted", 0))
+    return safe_float(val)
+
+
 def gpt_score(data: Dict[str, Any]) -> float:
     """Return score as float using ``safe_float`` for robustness."""
-    return safe_float(data.get("score", 0.0))
+    score = data.get("score", 0)
+    return _metric_value(score)
 
 MAX_QUOTES_PER_CYCLE = 20
 TOP_N_PAIRS = 10
@@ -170,12 +178,10 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
     top_quotes: List[tuple[float, Dict[str, Any]]] = []
     for item in data:
         if isinstance(item, dict):
-            score_val = safe_float(item.get("score"))
+            score_val = item.get("score")
             if score_val is None:
                 score_val = item.get("gpt", {}).get("score", 0)
-            if isinstance(score_val, dict):
-                score_val = score_val.get("predicted", score_val.get("value", 0))
-            score = safe_float(score_val)
+            score = _metric_value(score_val)
             top_quotes.append((score, item))
         elif isinstance(item, (list, tuple)) and len(item) >= 2:
             score = safe_float(item[0])
@@ -247,19 +253,11 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
         from_token = item.get("from_token")
         to_token = item.get("to_token")
-        score = item.get("score", 0)
-        if isinstance(score, dict):
-            score = score.get("value", score.get("predicted", 0))
+        score = _metric_value(item.get("score", 0))
 
-        expected_profit = item.get("expected_profit", 0)
-        if isinstance(expected_profit, dict):
-            expected_profit = expected_profit.get(
-                "value", expected_profit.get("predicted", 0)
-            )
+        expected_profit = _metric_value(item.get("expected_profit", 0))
 
-        prob_up = item.get("prob_up", 0)
-        if isinstance(prob_up, dict):
-            prob_up = prob_up.get("value", prob_up.get("predicted", 0))
+        prob_up = _metric_value(item.get("prob_up", 0))
 
         logger.debug(
             f"[dev3] 🧪 Обробка: score={score}, expected_profit={expected_profit}, prob_up={prob_up}"
