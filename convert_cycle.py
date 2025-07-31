@@ -24,12 +24,8 @@ from utils_dev3 import safe_float
 
 
 def gpt_score(data: Dict[str, Any]) -> float:
-    """Return numeric score value from dict with validation."""
-    val = data.get("score", 0)
-    if isinstance(val, dict):
-        log_error(f"[dev3] ❌ score is dict: {val}")
-        return 0.0
-    return safe_float(val)
+    """Return score as float using ``safe_float`` for robustness."""
+    return safe_float(data.get("score", 0.0))
 
 MAX_QUOTES_PER_CYCLE = 20
 TOP_N_PAIRS = 10
