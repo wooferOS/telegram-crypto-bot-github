@@ -221,8 +221,15 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     filtered_pairs = []
     for p in pairs:
         score = gpt_score(p)
-        from_token = p.get("from_token") or p.get("from")
-        to_token = p.get("to_token") or p.get("to")
+        from_token = (
+            p.get("from_token") or p.get("from") or p.get("symbol_from")
+        )
+        to_token = p.get("to_token") or p.get("to") or p.get("symbol_to")
+        if not from_token or not to_token:
+            logger.warning(
+                "[dev3] ❗️ Неможливо визначити токени з пари: %s", p
+            )
+            continue
 
         if from_token not in balances:
             logger.info("[dev3] ⏭ Пропущено %s → %s: немає балансу", from_token, to_token)
@@ -257,8 +264,15 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             )
             break
 
-        from_token = p.get("from_token") or p.get("from")
-        to_token = p.get("to_token") or p.get("to")
+        from_token = (
+            p.get("from_token") or p.get("from") or p.get("symbol_from")
+        )
+        to_token = p.get("to_token") or p.get("to") or p.get("symbol_to")
+        if not from_token or not to_token:
+            logger.warning(
+                "[dev3] ❗️ Неможливо визначити токени з пари: %s", p
+            )
+            continue
         amount = balances.get(from_token, 0)
         score = gpt_score(p)
 
