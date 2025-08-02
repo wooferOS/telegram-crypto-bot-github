@@ -103,30 +103,24 @@ def log_quote(from_token: str, to_token: str, quote_data: dict) -> None:
 
 
 def log_convert_history(entry: dict):
-    """Append a single convert entry to HISTORY_FILE"""
-    ensure_dir_exists("logs")
-    FILE_PATH = os.path.join("logs", "convert_history.json")
-    path = FILE_PATH
+    """Append a single convert entry to HISTORY_FILE."""
+    save_convert_history(entry)
 
-    if os.path.exists(path):
-        with open(path, "r") as f:
-            try:
-                history = json.load(f)
-            except json.JSONDecodeError:
-                history = []
-    else:
+
+def save_convert_history(entry: dict) -> None:
+    """Persist convert history entry safely handling missing file."""
+    ensure_dir_exists("logs")
+    try:
+        with open(HISTORY_FILE, "r") as f:
+            history = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
         history = []
 
     entry["timestamp"] = datetime.utcnow().isoformat()
     history.append(entry)
 
-    with open(path, "w") as f:
+    with open(HISTORY_FILE, "w") as f:
         json.dump(history, f, indent=2)
-
-
-def save_convert_history(entry: dict) -> None:
-    """Alias for log_convert_history for backward compatibility."""
-    log_convert_history(entry)
 
 
 def log_conversion_result(quote: dict, accepted: bool) -> None:
