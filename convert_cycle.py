@@ -83,7 +83,7 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         return False
 
     quote_id = quote.get("quoteId")
-    resp = accept_quote(quote) if quote else None
+    resp = accept_quote(quote, from_token, to_token) if quote else None
     if resp and resp.get("success") is True:
         profit = safe_float(resp.get("toAmount", 0)) - safe_float(resp.get("fromAmount", 0))
         log_conversion_success(from_token, to_token, profit)

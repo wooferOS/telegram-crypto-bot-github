@@ -256,13 +256,15 @@ def get_quote_with_retry(
     return None
 
 
-def accept_quote(quote: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def accept_quote(
+    quote: Dict[str, Any], from_token: str, to_token: str
+) -> Optional[Dict[str, Any]]:
     """Accept a quote if it is still valid."""
     created_at = quote.get("created_at")
     if created_at and (time.time() - created_at > 9.5):  # TTL Binance ~10s
         convert_logger.log_quote_skipped(
-            quote["fromAsset"],
-            quote["toAsset"],
+            from_token,
+            to_token,
             reason="⛔️ Пропущено: quoteId протерміновано",
         )
         return None
@@ -282,13 +284,13 @@ def accept_quote(quote: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             code = data.get("code")
             if code in (-23000, 345103) or "quoteId expired" in msg:
                 convert_logger.log_quote_skipped(
-                    quote["fromAsset"],
-                    quote["toAsset"],
+                    from_token,
+                    to_token,
                     reason=msg or str(code),
                 )
             else:
                 convert_logger.log_conversion_error(
-                    quote["fromAsset"], quote["toAsset"], msg or str(code)
+                    from_token, to_token, msg or str(code)
                 )
             return None
         logger.info(f"[dev3] 🔄 accept_quote виконано: {quote_id}")
@@ -296,7 +298,7 @@ def accept_quote(quote: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     except Exception as e:
         error_msg = str(e)
         convert_logger.log_conversion_error(
-            quote.get("fromAsset"), quote.get("toAsset"), error_msg
+            from_token, to_token, error_msg
         )
         return None
 
