@@ -174,6 +174,18 @@ def get_available_to_tokens(from_token: str) -> List[str]:
 
 def get_quote(from_asset: str, to_asset: str, amount: float) -> Optional[Dict[str, Any]]:
     """Fetch quote from Binance Convert API and return parsed data."""
+    if not from_asset or not to_asset:
+        logger.warning(
+            "❌ Один із токенів None: from_asset=%s, to_asset=%s",
+            from_asset,
+            to_asset,
+        )
+        log_quote_skipped(
+            from_asset or "None",
+            to_asset or "None",
+            reason="⛔️ Пропущено: invalid_tokens",
+        )
+        return None
     endpoint = "/sapi/v1/convert/getQuote"
     timestamp = int(time.time() * 1000)
     params = {
@@ -236,6 +248,18 @@ def get_quote_with_retry(
     quote_limits: Dict[str, Dict[str, float]] | None = None,
 ) -> Optional[Dict[str, Any]]:
     """Retry get_quote with increasing amounts until price is available."""
+    if not from_token or not to_token:
+        logger.warning(
+            "❌ Один із токенів None: from_token=%s, to_token=%s",
+            from_token,
+            to_token,
+        )
+        log_quote_skipped(
+            from_token or "None",
+            to_token or "None",
+            reason="⛔️ Пропущено: invalid_tokens",
+        )
+        return None
     min_required = get_min_convert_amount(from_token, to_token)
     amount_from = base_amount
     if amount_from < min_required:
@@ -283,6 +307,9 @@ def accept_quote(
     if pair:
         from_token = from_token or pair.get("from")
         to_token = to_token or pair.get("to")
+
+    from_token = from_token or quote.get("fromToken")
+    to_token = to_token or quote.get("toToken")
 
     if not from_token or not to_token:
         logger.warning(
@@ -443,6 +470,18 @@ def get_quote_for_pair(from_asset: str, to_asset: str, amount: float) -> Optiona
 def get_valid_quote(from_token: str, to_token: str, from_amount: float) -> Optional[Dict[str, Any]]:
     """Attempt to fetch quote for the entire amount without splitting."""
     try:
+        if not from_token or not to_token:
+            logger.warning(
+                "❌ Один із токенів None: from_token=%s, to_token=%s",
+                from_token,
+                to_token,
+            )
+            log_quote_skipped(
+                from_token or "None",
+                to_token or "None",
+                reason="⛔️ Пропущено: invalid_tokens",
+            )
+            return None
         quote = get_quote(from_token, to_token, from_amount)
         if quote is None or quote.get("ratio") is None:
             return None
