@@ -13,8 +13,6 @@ from convert_logger import (
     save_convert_history,
     log_prediction,
     log_quote_skipped,
-    log_conversion_success,
-    log_conversion_error,
     log_skipped_quotes,
     log_error,
 )
@@ -82,11 +80,9 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         )
         return False
 
-    quote_id = quote.get("quoteId")
-    resp = accept_quote(quote, from_token, to_token) if quote else None
+    resp = accept_quote(quote, from_token, to_token)
     if resp and resp.get("success") is True:
         profit = safe_float(resp.get("toAmount", 0)) - safe_float(resp.get("fromAmount", 0))
-        log_conversion_success(from_token, to_token, profit)
         notify_success(
             from_token,
             to_token,
@@ -114,7 +110,6 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         return True
 
     reason = resp.get("msg") if isinstance(resp, dict) else "Unknown error"
-    log_conversion_error(from_token, to_token, reason)
     notify_failure(from_token, to_token, reason=reason)
     save_convert_history(
         {

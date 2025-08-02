@@ -12,10 +12,10 @@ import requests
 from urllib.parse import urlencode
 
 from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
-from utils_dev3 import get_current_timestamp, round_step_size
+from utils_dev3 import get_current_timestamp, round_step_size, safe_float
 from quote_counter import increment_quote_usage
 import convert_logger
-from convert_logger import log_error
+from convert_logger import log_error, log_conversion_success, log_conversion_error
 from binance_api import get_spot_price, get_precision, get_lot_step
 
 BASE_URL = "https://api.binance.com"
@@ -279,28 +279,21 @@ def accept_quote(
         resp = _session.post(url, data=params, headers=_headers(), timeout=10)
         data = resp.json()
         logger.info("[dev3] Binance response (accept_quote): %s", data)
-        if isinstance(data, dict) and not data.get("success", True):
-            msg = data.get("msg", "")
-            code = data.get("code")
-            if code in (-23000, 345103) or "quoteId expired" in msg:
-                convert_logger.log_quote_skipped(
-                    from_token,
-                    to_token,
-                    reason=msg or str(code),
-                )
-            else:
-                convert_logger.log_conversion_error(
-                    from_token, to_token, msg or str(code)
-                )
-            return None
-        logger.info(f"[dev3] 🔄 accept_quote виконано: {quote_id}")
-        return data
     except Exception as e:
         error_msg = str(e)
-        convert_logger.log_conversion_error(
-            from_token, to_token, error_msg
-        )
+        log_conversion_error(from_token, to_token, error_msg)
         return None
+
+    if data and data.get("success") is True:
+        profit = safe_float(data.get("toAmount", 0)) - safe_float(
+            data.get("fromAmount", 0)
+        )
+        log_conversion_success(from_token, to_token, profit)
+        logger.info(f"[dev3] 🔄 accept_quote виконано: {quote_id}")
+        return data
+
+    log_conversion_error(from_token, to_token, data)
+    return None
 
 
 def get_min_convert_amount(from_token: str, to_token: str) -> float:
