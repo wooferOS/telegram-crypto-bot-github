@@ -147,12 +147,16 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         logger.warning("🔹 [FALLBACK] Не знайдено жодного токена з балансом для fallback")
         return False
 
-    valid_to_tokens = [
-        p
-        for p in pairs
-        if p.get("from_token") == fallback_token
-        and gpt_score(p) > GPT_SCORE_THRESHOLD
-    ]
+    valid_to_tokens = []
+    for p in pairs:
+        from_token = p.get("from_token") or p.get("from")
+        to_token = p.get("to_token") or p.get("to")
+        if (
+            from_token == fallback_token
+            and to_token is not None
+            and gpt_score(p) > GPT_SCORE_THRESHOLD
+        ):
+            valid_to_tokens.append(p)
 
     if not valid_to_tokens:
         logger.warning(f"🔹 [FALLBACK] Актив '{fallback_token}' з найбільшим балансом не сконвертовано")
@@ -160,16 +164,19 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         return False
 
     best_pair = max(valid_to_tokens, key=gpt_score)
-    selected_to_token = best_pair.get("to_token")
-    amount = balances.get(fallback_token, 0.0)
+    from_token = best_pair.get("from_token") or best_pair.get("from")
+    selected_to_token = best_pair.get("to_token") or best_pair.get("to")
+    amount = balances.get(from_token, 0.0)
     from convert_api import get_max_convert_amount
-    max_allowed = get_max_convert_amount(fallback_token, selected_to_token)
+    max_allowed = get_max_convert_amount(from_token, selected_to_token)
     if amount > max_allowed:
         amount = max_allowed
-    logger.info(f"🔄 [FALLBACK] Спроба конвертації {fallback_token} → {selected_to_token}")
+    logger.info(
+        f"🔄 [FALLBACK] Спроба конвертації {from_token} → {selected_to_token}"
+    )
 
     return try_convert(
-        fallback_token,
+        from_token,
         selected_to_token,
         amount,
         gpt_score(best_pair),
