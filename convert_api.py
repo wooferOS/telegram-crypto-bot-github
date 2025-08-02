@@ -260,6 +260,18 @@ def accept_quote(
     quote: Dict[str, Any], from_token: str, to_token: str
 ) -> Optional[Dict[str, Any]]:
     """Accept a quote if it is still valid."""
+    if not from_token or not to_token:
+        convert_logger.logger.warning(
+            "[dev3] ❌ Один із токенів None у accept_quote: from_token=%s, to_token=%s",
+            from_token,
+            to_token,
+        )
+        convert_logger.log_quote_skipped(
+            from_token or "None",
+            to_token or "None",
+            reason="⛔️ Пропущено: invalid_tokens",
+        )
+        return None
     created_at = quote.get("created_at")
     if created_at and (time.time() - created_at > 9.5):  # TTL Binance ~10s
         convert_logger.log_quote_skipped(
