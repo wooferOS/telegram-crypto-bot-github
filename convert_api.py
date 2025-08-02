@@ -196,14 +196,15 @@ def get_quote(from_asset: str, to_asset: str, amount: float) -> Optional[Dict[st
         data = response.json()
 
         if "ratio" in data and "toAmount" in data and "quoteId" in data:
-            try:
-                valid_until = int(data["validUntil"])
-            except KeyError:
+            valid_until = data.get("validUntil") or data.get("validTimestamp")
+            if not valid_until:
                 logger.warning(
-                    f"[dev3] ❌ Quote для {from_asset} → {to_asset} не містить 'validUntil': {data}"
+                    f"[dev3] ❌ Quote для {from_asset} → {to_asset} не містить "
+                    f"'validUntil' або 'validTimestamp': {data}"
                 )
                 log_quote_skipped(from_asset, to_asset, reason="invalid_quote")
                 return None
+            valid_until = int(valid_until)
             return {
                 "quoteId": data["quoteId"],
                 "ratio": float(data["ratio"]),
