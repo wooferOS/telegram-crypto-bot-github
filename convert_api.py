@@ -271,12 +271,19 @@ def get_quote_with_retry(
 
 
 def accept_quote(
-    quote: Dict[str, Any], from_token: str, to_token: str
+    quote: Dict[str, Any],
+    from_token: Optional[str] = None,
+    to_token: Optional[str] = None,
+    pair: Optional[Dict[str, Any]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Accept a quote if it is still valid."""
+    if pair:
+        from_token = from_token or pair.get("from")
+        to_token = to_token or pair.get("to")
+
     if not from_token or not to_token:
         logger.warning(
-            "[dev3] ❌ Один із токенів None у accept_quote: from_token=%s, to_token=%s",
+            "❌ Один із токенів None: from_token=%s, to_token=%s",
             from_token,
             to_token,
         )
