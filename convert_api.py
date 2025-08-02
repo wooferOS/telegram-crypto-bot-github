@@ -205,7 +205,7 @@ def get_quote(from_asset: str, to_asset: str, amount: float) -> Optional[Dict[st
                 log_quote_skipped(from_asset, to_asset, reason="invalid_quote")
                 return None
             valid_until = int(valid_until)
-            return {
+            quote = {
                 "quoteId": data["quoteId"],
                 "ratio": float(data["ratio"]),
                 "inverseRatio": float(data["inverseRatio"]),
@@ -214,6 +214,9 @@ def get_quote(from_asset: str, to_asset: str, amount: float) -> Optional[Dict[st
                 "validUntil": valid_until,
                 "created_at": time.time(),
             }
+            quote["fromToken"] = from_asset
+            quote["toToken"] = to_asset
+            return quote
         else:
             logger.warning(
                 f"❌ No valid quote returned for {from_asset} → {to_asset}: {data}"
