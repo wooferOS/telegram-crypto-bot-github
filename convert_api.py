@@ -1,6 +1,5 @@
 import hmac
 import hashlib
-import logging
 import time
 from decimal import Decimal, ROUND_DOWN
 from typing import Dict, List, Any, Set, Optional
@@ -14,8 +13,13 @@ from urllib.parse import urlencode
 from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
 from utils_dev3 import get_current_timestamp, round_step_size, safe_float
 from quote_counter import increment_quote_usage
-import convert_logger
-from convert_logger import log_error, log_conversion_success, log_conversion_error
+from convert_logger import (
+    logger,
+    log_error,
+    log_conversion_success,
+    log_conversion_error,
+    log_quote_skipped,
+)
 from binance_api import get_spot_price, get_precision, get_lot_step
 
 BASE_URL = "https://api.binance.com"
@@ -26,7 +30,6 @@ _quote_limits: Dict[str, Dict[str, float]] | None = None
 _quote_limits_updated = False
 
 _session = requests.Session()
-logger = logging.getLogger(__name__)
 logged_quote_errors: Set[tuple[str, str]] = set()
 
 _supported_pairs_cache: Optional[Set[str]] = None
@@ -203,12 +206,12 @@ def get_quote(from_asset: str, to_asset: str, amount: float) -> Optional[Dict[st
                 "created_at": time.time(),
             }
         else:
-            convert_logger.warning(
+            logger.warning(
                 f"❌ No valid quote returned for {from_asset} → {to_asset}: {data}"
             )
             return None
     except Exception as e:  # pragma: no cover - network
-        convert_logger.error(
+        logger.error(
             f"❌ Exception in get_quote() for {from_asset} → {to_asset}: {str(e)}"
         )
         return None
@@ -254,7 +257,7 @@ def get_quote_with_retry(
         f"[dev3] ⛔️ Всі спроби get_quote завершились без price для {from_token} → {to_token}"
     )
     if quote and quote.get("ratio") is None:
-        convert_logger.log_quote_skipped(from_token, to_token, reason="amount_too_low")
+        log_quote_skipped(from_token, to_token, reason="amount_too_low")
     return None
 
 
@@ -263,12 +266,12 @@ def accept_quote(
 ) -> Optional[Dict[str, Any]]:
     """Accept a quote if it is still valid."""
     if not from_token or not to_token:
-        convert_logger.logger.warning(
+        logger.warning(
             "[dev3] ❌ Один із токенів None у accept_quote: from_token=%s, to_token=%s",
             from_token,
             to_token,
         )
-        convert_logger.log_quote_skipped(
+        log_quote_skipped(
             from_token or "None",
             to_token or "None",
             reason="⛔️ Пропущено: invalid_tokens",
@@ -276,7 +279,7 @@ def accept_quote(
         return None
     created_at = quote.get("created_at")
     if created_at and (time.time() - created_at > 9.5):  # TTL Binance ~10s
-        convert_logger.log_quote_skipped(
+        log_quote_skipped(
             from_token,
             to_token,
             reason="⛔️ Пропущено: quoteId протерміновано",
