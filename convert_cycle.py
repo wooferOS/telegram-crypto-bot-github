@@ -81,7 +81,10 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         return False
 
     resp = accept_quote(quote, from_token, to_token)
-    if resp and resp.get("success") is True:
+    if resp is None:
+        notify_failure(from_token, to_token, reason="accept_quote returned None")
+        return False
+    if resp.get("status") == "success":
         profit = safe_float(resp.get("toAmount", 0)) - safe_float(resp.get("fromAmount", 0))
         notify_success(
             from_token,
