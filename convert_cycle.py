@@ -226,20 +226,21 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         return
 
     filtered_pairs = []
-    for p in pairs:
-        score = gpt_score(p)
-        from_token = (
-            p.get("from_token") or p.get("from") or p.get("symbol_from")
-        )
-        to_token = p.get("to_token") or p.get("to") or p.get("symbol_to")
+    for pair in pairs:
+        score = gpt_score(pair)
+        from_token = pair.get("from_token") or pair.get("from")
+        to_token = pair.get("to_token") or pair.get("to")
+
         if not from_token or not to_token:
-            logger.warning(
-                "[dev3] ❗️ Неможливо визначити токени з пари: %s", p
-            )
+            logger.warning("[dev3] ❗️ Неможливо визначити токени з пари: %s", pair)
             continue
 
         if from_token not in balances:
-            logger.info("[dev3] ⏭ Пропущено %s → %s: немає балансу", from_token, to_token)
+            logger.info(
+                "[dev3] ⏭ Пропущено %s → %s: немає балансу",
+                from_token,
+                to_token,
+            )
             continue
 
         if score <= GPT_SCORE_THRESHOLD:
@@ -252,7 +253,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             )
             continue
 
-        filtered_pairs.append(p)
+        filtered_pairs.append(pair)
 
     logger.info("[dev3] ✅ Кількість пар після фільтрації: %d", len(filtered_pairs))
 
@@ -263,7 +264,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
     successful_count = 0
     quote_count = 0
-    for p in filtered_pairs:
+    for pair in filtered_pairs:
         if quote_count >= MAX_QUOTES_PER_CYCLE:
             logger.info(
                 "[dev3] ⛔️ Досягнуто ліміту %d запитів на котирування",
@@ -271,17 +272,27 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             )
             break
 
-        from_token = (
-            p.get("from_token") or p.get("from") or p.get("symbol_from")
-        )
-        to_token = p.get("to_token") or p.get("to") or p.get("symbol_to")
+        quote = pair.get("quote")
+        score = gpt_score(pair)
+        from_token = pair.get("from_token") or pair.get("from")
+        to_token = pair.get("to_token") or pair.get("to")
+
         if not from_token or not to_token:
             logger.warning(
-                "[dev3] ❗️ Неможливо визначити токени з пари: %s", p
+                "[dev3] ❌ Один із токенів None: from_token=%s, to_token=%s",
+                from_token,
+                to_token,
+            )
+            logger.info(
+                "[dev3] ⛔️ Пропуск %s → %s: score=%.4f, причина=invalid_tokens, quote=%s",
+                from_token,
+                to_token,
+                score,
+                quote,
             )
             continue
+
         amount = balances.get(from_token, 0)
-        score = gpt_score(p)
 
         if amount <= 0:
             logger.info(
