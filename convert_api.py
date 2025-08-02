@@ -192,13 +192,15 @@ def get_quote(from_asset: str, to_asset: str, amount: float) -> Optional[Dict[st
         response = requests.post(full_url, headers=headers)
         data = response.json()
 
-        if "ratio" in data and "toAmount" in data:
+        if "ratio" in data and "toAmount" in data and "quoteId" in data:
             return {
+                "quoteId": data["quoteId"],
                 "ratio": float(data["ratio"]),
-                "inverseRatio": float(data.get("inverseRatio", 0)),
+                "inverseRatio": float(data["inverseRatio"]),
                 "fromAmount": float(data["fromAmount"]),
                 "toAmount": float(data["toAmount"]),
-                "validUntil": data.get("validTimestamp"),
+                "validUntil": int(data["validUntil"]),
+                "created_at": time.time(),
             }
         else:
             convert_logger.warning(
