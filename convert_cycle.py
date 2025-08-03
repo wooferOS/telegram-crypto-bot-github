@@ -4,7 +4,7 @@ import json
 import os
 from typing import List, Dict, Any
 
-from convert_api import get_quote, accept_quote, get_balances
+from convert_api import get_quote, accept_quote, get_balances, get_token_info
 from binance_api import get_binance_balances
 from convert_notifier import notify_success, notify_failure
 from convert_filters import passes_filters
@@ -152,8 +152,14 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
 
     valid_to_tokens = []
     for p in pairs:
-        from_token = p.get("from_token") or p.get("from")
-        to_token = p.get("to_token") or p.get("to")
+        from_key = p.get("fromToken") or p.get("from_token") or p.get("from")
+        to_key = p.get("toToken") or p.get("to_token") or p.get("to")
+
+        from_info = get_token_info(from_key)
+        to_info = get_token_info(to_key)
+        from_token = from_info.get("symbol") if from_info else None
+        to_token = to_info.get("symbol") if to_info else None
+
         if (
             from_token == fallback_token
             and to_token is not None
@@ -167,8 +173,14 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         return False
 
     best_pair = max(valid_to_tokens, key=gpt_score)
-    from_token = best_pair.get("from_token") or best_pair.get("from")
-    selected_to_token = best_pair.get("to_token") or best_pair.get("to")
+    from_key = best_pair.get("fromToken") or best_pair.get("from_token") or best_pair.get("from")
+    to_key = best_pair.get("toToken") or best_pair.get("to_token") or best_pair.get("to")
+
+    from_info = get_token_info(from_key)
+    to_info = get_token_info(to_key)
+    from_token = from_info.get("symbol") if from_info else None
+    selected_to_token = to_info.get("symbol") if to_info else None
+
     amount = balances.get(from_token, 0.0)
     from convert_api import get_max_convert_amount
     max_allowed = get_max_convert_amount(from_token, selected_to_token)
@@ -231,8 +243,13 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     filtered_pairs = []
     for pair in pairs:
         score = gpt_score(pair)
-        from_token = pair.get("from_token") or pair.get("from")
-        to_token = pair.get("to_token") or pair.get("to")
+        from_key = pair.get("fromToken") or pair.get("from_token") or pair.get("from")
+        to_key = pair.get("toToken") or pair.get("to_token") or pair.get("to")
+
+        from_info = get_token_info(from_key)
+        to_info = get_token_info(to_key)
+        from_token = from_info.get("symbol") if from_info else None
+        to_token = to_info.get("symbol") if to_info else None
 
         if not from_token or not to_token:
             logger.warning("[dev3] ❗️ Неможливо визначити токени з пари: %s", pair)
@@ -277,8 +294,13 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
         quote = pair.get("quote")
         score = gpt_score(pair)
-        from_token = pair.get("from_token") or pair.get("from")
-        to_token = pair.get("to_token") or pair.get("to")
+        from_key = pair.get("fromToken") or pair.get("from_token") or pair.get("from")
+        to_key = pair.get("toToken") or pair.get("to_token") or pair.get("to")
+
+        from_info = get_token_info(from_key)
+        to_info = get_token_info(to_key)
+        from_token = from_info.get("symbol") if from_info else None
+        to_token = to_info.get("symbol") if to_info else None
 
         if not from_token or not to_token:
             logger.warning(

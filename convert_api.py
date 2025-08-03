@@ -513,5 +513,7 @@ def get_token_info(token_key: str):
     Якщо ключ порожній або некоректний — повертає None.
     """
     if not token_key or not isinstance(token_key, str):
+        logger.warning(f"[dev3] ⚠️ Невалідний ключ токена: {token_key}")
         return None
+    logger.debug(f"[dev3] ℹ️ get_token_info(): token_key = {token_key}")
     return {"symbol": token_key}
