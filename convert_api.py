@@ -506,14 +506,3 @@ def get_valid_quote(from_token: str, to_token: str, from_amount: float) -> Optio
             level="error",
         )
         return None
-
-def get_token_info(token_key: str):
-    """
-    Повертає інформацію про токен у форматі {"symbol": token_key}.
-    Якщо ключ порожній або некоректний — повертає None.
-    """
-    if not token_key or not isinstance(token_key, str):
-        logger.warning(f"[dev3] ⚠️ Невалідний ключ токена: {token_key}")
-        return None
-    logger.debug(f"[dev3] ℹ️ get_token_info(): token_key = {token_key}")
-    return {"symbol": token_key}

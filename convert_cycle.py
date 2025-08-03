@@ -5,10 +5,9 @@ import os
 from typing import List, Dict, Any
 
 from convert_api import get_quote, accept_quote, get_balances
-from convert_api import get_token_info
 from binance_api import get_binance_balances
 from convert_notifier import notify_success, notify_failure
-from convert_filters import passes_filters
+from convert_filters import passes_filters, get_token_info
 from convert_logger import (
     logger,
     save_convert_history,
