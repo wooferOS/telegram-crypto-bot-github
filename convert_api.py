@@ -308,8 +308,8 @@ def accept_quote(
         from_token = from_token or pair.get("from")
         to_token = to_token or pair.get("to")
 
-    from_token = from_token or quote.get("fromToken")
-    to_token = to_token or quote.get("toToken")
+    from_token = from_token or quote.get("fromToken") or quote.get("from_token")
+    to_token = to_token or quote.get("toToken") or quote.get("to_token")
 
     if not from_token or not to_token:
         logger.warning(
