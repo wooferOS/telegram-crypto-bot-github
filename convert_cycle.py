@@ -17,7 +17,7 @@ from convert_logger import (
     log_error,
 )
 from quote_counter import should_throttle, reset_cycle
-from convert_model import _hash_token
+from convert_model import _hash_token, predict
 from utils_dev3 import safe_float
 
 
@@ -57,8 +57,14 @@ TOP_N_PAIRS = 10
 GPT_SCORE_THRESHOLD = 0.5
 
 
-def try_convert(from_token: str, to_token: str, amount: float, score: float) -> bool:
-    """Attempt a single conversion and log the result."""
+def try_convert(
+    from_token: str,
+    to_token: str,
+    amount: float,
+    score: float,
+    quote_data: Dict[str, Any] | None = None,
+) -> bool:
+    """Attempt a single conversion using optional pre-fetched quote."""
     log_prediction(from_token, to_token, score)
     if amount <= 0:
         log_quote_skipped(from_token, to_token, "no_balance")
@@ -68,7 +74,7 @@ def try_convert(from_token: str, to_token: str, amount: float, score: float) -> 
         log_quote_skipped(from_token, to_token, "throttled")
         return False
 
-    quote = get_quote(from_token, to_token, amount)
+    quote = quote_data or get_quote(from_token, to_token, amount)
     if not quote:
         log_quote_skipped(from_token, to_token, "invalid_quote")
         return False
@@ -292,8 +298,6 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             )
             break
 
-        quote = pair.get("quote")
-        score = gpt_score(pair)
         from_key = pair.get("fromToken") or pair.get("from_token") or pair.get("from")
         to_key = pair.get("toToken") or pair.get("to_token") or pair.get("to")
 
@@ -309,16 +313,13 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 to_token,
             )
             logger.info(
-                "[dev3] ⛔️ Пропуск %s → %s: score=%.4f, причина=invalid_tokens, quote=%s",
+                "[dev3] ⛔️ Пропуск %s → %s: причина=invalid_tokens",
                 from_token,
                 to_token,
-                score,
-                quote,
             )
             continue
 
         amount = balances.get(from_token, 0)
-
         if amount <= 0:
             logger.info(
                 "[dev3] ⏭ %s → %s: amount %.4f недостатній",
@@ -328,7 +329,29 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             )
             continue
 
-        if try_convert(from_token, to_token, amount, score):
+        if should_throttle(from_token, to_token):
+            log_quote_skipped(from_token, to_token, "throttled")
+            continue
+
+        quote = pair.get("quote")
+        if not quote:
+            quote = get_quote(from_token, to_token, amount)
+        if not quote:
+            log_quote_skipped(from_token, to_token, "invalid_quote")
+            continue
+
+        expected_profit, prob_up, score = predict(from_token, to_token, quote)
+        logger.info(
+            f"[dev3] \U0001f4ca Модель: {from_token} → {to_token}: profit={expected_profit:.4f}, prob={prob_up:.4f}, score={score:.4f}"
+        )
+
+        if score <= 0:
+            logger.info(
+                f"[dev3] \ud83d\udd15\uFE0F Пропуск: низький score для {from_token} → {to_token}"
+            )
+            continue
+
+        if try_convert(from_token, to_token, amount, score, quote):
             successful_count += 1
             quote_count += 1
 
