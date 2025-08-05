@@ -32,7 +32,7 @@ from convert_model import (
 )
 
 MODEL_PATH = "model_convert.joblib"
-HISTORY_PATH = "logs/convert_history.json"
+HISTORY_PATH = "convert_history.json"
 
 
 def load_convert_history(path: str = "convert_history.json") -> List[Dict[str, Any]]:
