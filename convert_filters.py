@@ -1,7 +1,8 @@
 from __future__ import annotations
+
 import os
 import json
-from typing import Dict, Tuple, List, Any
+from typing import Dict, List, Tuple, Any
 
 from convert_logger import logger
 from binance_api import get_spot_price, get_ratio, get_lot_step, get_precision
@@ -18,37 +19,6 @@ MIN_SCORE = -0.0005
 HISTORY_FILE = os.path.join("logs", "convert_history.json")
 
 
-_token_limits_cache: Dict[str, Dict[str, Any]] | None = None
-_logged_missing_tokens: set[str] = set()
-
-
-def _load_token_limits() -> Dict[str, Dict[str, Any]]:
-    """Lazy-load token limits from ``quote_limits.json``."""
-    global _token_limits_cache
-    if _token_limits_cache is None:
-        try:
-            with open("quote_limits.json", "r", encoding="utf-8") as f:
-                _token_limits_cache = json.load(f)
-        except Exception as exc:  # pragma: no cover - file issues
-            logger.warning("[dev3] ❌ Не вдалося прочитати quote_limits.json: %s", exc)
-            _token_limits_cache = {}
-    return _token_limits_cache
-
-
-def _log_missing_token(token: str) -> None:
-    """Persist the name of tokens missing from ``quote_limits.json``."""
-    if not token or token in _logged_missing_tokens:
-        return
-    path = os.path.join("logs", "missing_tokens.log")
-    try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "a", encoding="utf-8") as f:
-            f.write(token + "\n")
-        _logged_missing_tokens.add(token)
-    except Exception as exc:  # pragma: no cover - diagnostics
-        logger.warning("[dev3] ❌ Не вдалося записати відсутній токен %s: %s", token, exc)
-
-
 def get_token_info(token_key: str) -> Dict[str, Any] | None:
     """Return token metadata with fallback values and detailed logging."""
     if not token_key or not isinstance(token_key, str):
@@ -56,15 +26,6 @@ def get_token_info(token_key: str) -> Dict[str, Any] | None:
         return None
 
     token_key = token_key.upper()
-    limits = _load_token_limits()
-    info = limits.get(token_key)
-    if info:
-        info.setdefault("symbol", token_key)
-        return info
-
-    logger.info("[dev3] ℹ️ Токен %s відсутній у quote_limits.json", token_key)
-    _log_missing_token(token_key)
-
     try:
         lot = get_lot_step(token_key)
         step = float(lot.get("stepSize", 1))
