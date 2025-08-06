@@ -4,8 +4,6 @@ import time
 from decimal import Decimal, ROUND_DOWN
 from typing import Dict, List, Any, Set, Optional
 import re
-import json
-import os
 
 import requests
 from urllib.parse import urlencode
@@ -24,10 +22,6 @@ from binance_api import get_spot_price, get_precision, get_lot_step
 
 BASE_URL = "https://api.binance.com"
 
-QUOTE_LIMITS_FILE = "quote_limits.json"
-
-_quote_limits: Dict[str, Dict[str, float]] | None = None
-_quote_limits_updated = False
 
 _session = requests.Session()
 logged_quote_errors: Set[tuple[str, str]] = set()
@@ -56,38 +50,6 @@ def sanitize_token_pair(from_token: str, to_token: str) -> str:
     return f"{from_token.upper()}→{to_token.upper()}"
 
 
-def load_quote_limits() -> Dict[str, Dict[str, float]]:
-    """Load cached quote limits from file once per cycle."""
-    global _quote_limits
-    if _quote_limits is None:
-        if os.path.exists(QUOTE_LIMITS_FILE):
-            try:
-                with open(QUOTE_LIMITS_FILE, "r", encoding="utf-8") as f:
-                    _quote_limits = json.load(f)
-            except Exception:
-                _quote_limits = {}
-        else:
-            _quote_limits = {}
-    return _quote_limits
-
-
-def save_quote_limits() -> None:
-    """Persist quote limits if they were updated."""
-    global _quote_limits_updated
-    if _quote_limits is not None and _quote_limits_updated:
-        with open(QUOTE_LIMITS_FILE, "w", encoding="utf-8") as f:
-            json.dump(_quote_limits, f, indent=2)
-        _quote_limits_updated = False
-
-
-def is_within_quote_limits(symbol_from: str, symbol_to: str, amount_from: float, quote_limits: Dict[str, Dict[str, float]]) -> bool:
-    key = f"{symbol_from}_{symbol_to}"
-    limits = quote_limits.get(key)
-    if not limits:
-        return True  # Якщо немає кешу — пробуємо
-    min_amount = float(limits.get("min_amount", 0))
-    max_amount = float(limits.get("max_amount", float('inf')))
-    return min_amount <= amount_from <= max_amount
 
 
 def _sign(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -245,7 +207,6 @@ def get_quote_with_retry(
     from_token: str,
     to_token: str,
     base_amount: float,
-    quote_limits: Dict[str, Dict[str, float]] | None = None,
 ) -> Optional[Dict[str, Any]]:
     """Retry get_quote with increasing amounts until price is available."""
     if not from_token or not to_token:
@@ -385,13 +346,7 @@ def get_min_convert_amount(from_token: str, to_token: str) -> float:
 
 
 def get_max_convert_amount(from_token: str, to_token: str) -> float:
-    """Return maximal allowed amount for conversion based on cached limits."""
-    limits = load_quote_limits()
-    key_underscore = f"{from_token}_{to_token}"
-    key_arrow = sanitize_token_pair(from_token, to_token)
-    info = limits.get(key_underscore) or limits.get(key_arrow)
-    if info:
-        return float(info.get("max_amount") or info.get("max") or float("inf"))
+    """Return maximal allowed amount for conversion."""
     return float("inf")
 
 
