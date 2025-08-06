@@ -18,7 +18,12 @@ from convert_logger import (
     log_conversion_error,
     log_quote_skipped,
 )
-from binance_api import get_spot_price, get_precision, get_lot_step
+from binance_api import (
+    get_spot_price,
+    get_precision,
+    get_lot_step,
+    get_binance_client,
+)
 
 BASE_URL = "https://api.binance.com"
 
@@ -258,6 +263,20 @@ def get_quote_with_retry(
     return None
 
 
+def get_convert_order_status(order_id: str) -> dict:
+    """Fetch convert order status from Binance API."""
+    client = get_binance_client()
+    try:
+        return client.sapi_get(
+            "/sapi/v1/convert/orderStatus", params={"orderId": order_id}
+        )
+    except Exception as e:  # pragma: no cover - network
+        logger.warning(
+            "[dev3] ❌ Не вдалося отримати статус ордера %s: %s", order_id, e
+        )
+        return {}
+
+
 def accept_quote(
     quote: Dict[str, Any],
     from_token: Optional[str] = None,
@@ -311,27 +330,41 @@ def accept_quote(
     if not quote_id:
         return None
 
-    url = f"{BASE_URL}/sapi/v1/convert/acceptQuote"
-    params = _sign({"quoteId": quote_id})
+    client = get_binance_client()
     try:
-        resp = _session.post(url, data=params, headers=_headers(), timeout=10)
-        data = resp.json()
-        logger.info("[dev3] Binance response (accept_quote): %s", data)
-    except Exception as e:
+        response = client.convert_trade(quoteId=quote_id)
+        logger.info("[dev3] Binance response (accept_quote): %s", response)
+    except Exception as e:  # pragma: no cover - network
         error_msg = str(e)
         log_conversion_error(from_token, to_token, error_msg)
-        return None
+        return {"status": "error", "msg": error_msg}
 
-    if data and data.get("success") is True:
-        profit = safe_float(data.get("toAmount", 0)) - safe_float(
-            data.get("fromAmount", 0)
+    order_id = response.get("orderId")
+    status = response.get("orderStatus") or response.get("status")
+
+    if status == "PROCESS":
+        time.sleep(1.5)
+        order_status = get_convert_order_status(order_id)
+        final_status = order_status.get("orderStatus")
+    else:
+        order_status = response
+        final_status = status
+        if status == "SUCCESS" and order_id:
+            order_status = get_convert_order_status(order_id)
+            final_status = order_status.get("orderStatus")
+
+    if final_status == "SUCCESS":
+        profit = safe_float(order_status.get("toAmount", 0)) - safe_float(
+            order_status.get("fromAmount", 0)
         )
         log_conversion_success(from_token, to_token, profit)
         logger.info(f"[dev3] 🔄 accept_quote виконано: {quote_id}")
-        return data
+        order_status["status"] = "success"
+        return order_status
 
-    log_conversion_error(from_token, to_token, data)
-    return None
+    logger.warning("[dev3] ❌ Статус ордера: %s", final_status)
+    log_conversion_error(from_token, to_token, final_status or "unknown_error")
+    return {"status": "error", "msg": final_status or "unknown_error"}
 
 
 def get_min_convert_amount(from_token: str, to_token: str) -> float:
