@@ -112,7 +112,7 @@ def passes_filters(score: float, quote: Dict[str, Any], balance: float) -> Tuple
     spot_ratio = get_ratio(from_symbol, to_symbol)
     if spot_ratio <= 0:
         return False, "spot_ratio_failed"
-    if spot_ratio <= 1.0:
+    if spot_ratio <= 1.0 and score < 2.0:
         return False, "spot_no_profit"
 
     if to_usdt_value < 0.5:
