@@ -157,6 +157,7 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         return False
 
     valid_to_tokens = []
+    backup_candidates = []
     for p in pairs:
         from_key = p.get("fromToken") or p.get("from_token") or p.get("from")
         to_key = p.get("toToken") or p.get("to_token") or p.get("to")
@@ -172,11 +173,23 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
             and gpt_score(p) > GPT_SCORE_THRESHOLD
         ):
             valid_to_tokens.append(p)
+        elif from_token == fallback_token and to_token is not None and gpt_score(p) > 0:
+            backup_candidates.append(p)
 
     if not valid_to_tokens:
-        logger.warning(f"🔹 [FALLBACK] Актив '{fallback_token}' з найбільшим балансом не сконвертовано")
-        logger.warning("🔸 Причина: не знайдено жодного валідного `to_token` для fallback (score недостатній або немає прогнозу)")
-        return False
+        if backup_candidates:
+            logger.warning(
+                "🔸 [FALLBACK] Жодна пара не пройшла фільтр score > threshold, але є навчальні кандидати (score > 0)"
+            )
+            valid_to_tokens = backup_candidates
+        else:
+            logger.warning(
+                f"🔹 [FALLBACK] Актив '{fallback_token}' з найбільшим балансом не сконвертовано"
+            )
+            logger.warning(
+                "🔸 Причина: не знайдено жодного валідного `to_token` для fallback (score <= 0 або немає прогнозу)"
+            )
+            return False
 
     best_pair = max(valid_to_tokens, key=gpt_score)
     from_key = best_pair.get("fromToken") or best_pair.get("from_token") or best_pair.get("from")
