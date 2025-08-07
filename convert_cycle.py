@@ -290,6 +290,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
     successful_count = 0
     quote_count = 0
+    fallback_candidates = []
     for pair in filtered_pairs:
         if quote_count >= MAX_QUOTES_PER_CYCLE:
             logger.info(
@@ -351,11 +352,41 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             )
             continue
 
+        valid, reason = passes_filters(score, quote, amount)
+        if not valid:
+            if reason == "spot_no_profit" and score > 0:
+                fallback_candidates.append((from_token, to_token, amount, quote, score))
+                logger.info(
+                    "[dev3] ⚠ Навчальна пара: %s → %s (score=%.4f)",
+                    from_token,
+                    to_token,
+                    score,
+                )
+                continue
+            logger.info(
+                f"[dev3] ⛔️ Пропуск {from_token} → {to_token}: причина={reason}, quote={quote}"
+            )
+            continue
+
         if try_convert(from_token, to_token, amount, score, quote):
             successful_count += 1
             quote_count += 1
 
     logger.info("[dev3] ✅ Успішних конверсій: %d", successful_count)
+
+    if successful_count == 0 and fallback_candidates:
+        fallback = max(fallback_candidates, key=lambda x: x[4])
+        f_token, t_token, amt, quote, sc = fallback
+        logger.warning(
+            "[dev3] 🧪 Виконуємо навчальну конверсію: %s → %s (score=%.4f)",
+            f_token,
+            t_token,
+            sc,
+        )
+        result = try_convert(f_token, t_token, amt, max(sc, 2.0), quote)
+        if result:
+            logger.info("[dev3] ✅ Навчальна конверсія виконана")
+            successful_count += 1
 
     if successful_count == 0:
         logger.warning("[dev3] ⚠️ Жодної конверсії не виконано — викликаємо fallback")
