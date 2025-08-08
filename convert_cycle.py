@@ -21,6 +21,8 @@ from quote_counter import should_throttle, reset_cycle
 from convert_model import _hash_token, predict
 from utils_dev3 import safe_float
 
+EXPLORE_MIN_EDGE = safe_float(os.environ.get("EXPLORE_MIN_EDGE", 0.0))
+
 
 def _metric_value(val: Any) -> float:
     """Return float metric from raw value or nested dict."""
@@ -412,7 +414,9 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 break
             min_required = get_min_convert_amount(f_token, t_token)
             explore_amt = max(min_required * EXPLORE_MIN_LOT_FACTOR, min_required)
-            ok, reason = passes_filters(0.01, q, explore_amt, force_spot=True, min_edge=0.0)
+            ok, reason = passes_filters(
+                0.01, q, explore_amt, force_spot=True, min_edge=EXPLORE_MIN_EDGE
+            )
             if not ok:
                 logger.info(safe_log(f"[dev3] ⛔️ Explore skip {f_token}→{t_token}: {reason}"))
                 continue

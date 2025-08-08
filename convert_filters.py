@@ -106,7 +106,7 @@ def passes_filters(
             safe_log(
                 f"[dev3] 🔎 passes_filters dbg: {_from}->{_to} "
                 f"score={score:.4f} ratio={ratio} inv={inv} "
-                f"fromAmount={fa} toAmount={ta} spot={spot}"
+                f"fromAmount={fa} toAmount={ta} spot={spot} min_edge={min_edge:.4f}"
             )
         )
     except Exception as e:
@@ -140,6 +140,12 @@ def passes_filters(
         if not force_spot:
             return False, "spot_no_profit"
         if (r_spot - r_convert) <= min_edge * max(r_spot, r_convert):
+            edge = (r_spot - r_convert) / max(r_spot, r_convert)
+            logger.info(
+                safe_log(
+                    f"[dev3] \U0001F515 spot_edge too small: edge={edge:.6f} < min_edge={min_edge:.6f}"
+                )
+            )
             return False, "spot_edge_too_small"
         return True, "explore_spot_positive"
 
