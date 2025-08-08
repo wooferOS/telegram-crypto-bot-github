@@ -359,7 +359,8 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
         valid, reason = passes_filters(score, quote, amount)
         if not valid:
-            if reason == "spot_no_profit" and score > 0:
+            # Уніфікуємо причини: no_profit і spot_no_profit трактуємо однаково
+            if reason in ("spot_no_profit", "no_profit") and score > 0:
                 fallback_candidates.append((from_token, to_token, amount, quote, score))
                 logger.info(
                     safe_log(
