@@ -9,7 +9,7 @@ from binance_api import get_spot_price, get_ratio
 from convert_logger import logger
 from convert_notifier import send_telegram, notify_fallback_model_warning
 from gpt_utils import ask_gpt
-from convert_model import predict, _load_model, is_fallback_model, safe_float
+from convert_model import _load_model, is_fallback_model, safe_float
 from utils_dev3 import save_json
 
 _balance_cache: Dict[str, float] | None = None
@@ -58,28 +58,13 @@ async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]
             ratio = from_price / to_price
             inverse_ratio = to_price / from_price
 
-            base_expected_profit = ratio - 1.0
-            base_prob_up = 0.5
-            base_score = base_expected_profit * base_prob_up
-
-            expected_profit, prob_up, score = predict(
-                from_token,
-                to_token,
-                {
-                    "expected_profit": base_expected_profit,
-                    "prob_up": base_prob_up,
-                    "score": base_score,
-                    "ratio": ratio,
-                    "inverseRatio": inverse_ratio,
-                    "amount": amount,
-                },
-            )
-
-            if is_fallback_model():
-                score = 0.0
+            # Базовий score від спотів вимикаємо — він некоректний для Convert
+            base_expected_profit = 0.0
+            base_prob_up = 0.0
+            base_score = 0.0
 
             logger.info(
-                f"[dev3] ✅ Прогноз: {from_token} → {to_token} | profit={expected_profit}, prob_up={prob_up}, score={score}"
+                f"[dev3] ✅ Прогноз: {from_token} → {to_token} | profit={base_expected_profit}, prob_up={base_prob_up}, score={base_score}"
             )
 
             predictions.append(
@@ -88,9 +73,9 @@ async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]
                     "to_token": to_token,
                     "ratio": ratio,
                     "inverseRatio": inverse_ratio,
-                    "expected_profit": expected_profit,
-                    "prob_up": prob_up,
-                    "score": score,
+                    "expected_profit": base_expected_profit,
+                    "prob_up": base_prob_up,
+                    "score": base_score,  # завжди 0.0, рішення приймаємо по gpt.score
                 }
             )
     except Exception as exc:  # pragma: no cover - network
