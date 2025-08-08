@@ -80,7 +80,14 @@ def filter_top_tokens(
     return filtered[:top_n]
 
 
-def passes_filters(score: float, quote: Dict[str, Any], balance: float) -> Tuple[bool, str]:
+def passes_filters(
+    score: float,
+    quote: Dict[str, Any],
+    balance: float,
+    *,
+    force_spot: bool = False,
+    min_edge: float = 0.0,
+) -> Tuple[bool, str]:
     """Validate quote against multiple convert filters."""
     # --- Diagnostic log for quote evaluation ---
     try:
@@ -108,11 +115,12 @@ def passes_filters(score: float, quote: Dict[str, Any], balance: float) -> Tuple
     if score < MIN_SCORE:
         return False, "low_score"
 
+    # Стандартний зріз по моделі, але в explore режимі дозволяємо спиратись на спот
+    if score <= 0 and not force_spot:
+        return False, "no_profit"
+
     from_amount = safe_float(quote.get("fromAmount", 0))
     to_amount = safe_float(quote.get("toAmount", 0))
-    if to_amount <= from_amount:
-        logger.info(safe_log("[dev3] ⛔️ passes_filters вирок: no_profit"))
-        return False, "no_profit"
 
     from_token = quote.get("fromAsset") or quote.get("fromToken")
     to_token = quote.get("toAsset") or quote.get("toToken")
@@ -124,6 +132,21 @@ def passes_filters(score: float, quote: Dict[str, Any], balance: float) -> Tuple
         )
         return False, "invalid_tokens"
 
+    # Перевірка по споту: якщо конверт гірший за спот — відсікаємо (або дозволяємо в explore)
+    r_convert = safe_float(quote.get("ratio", 0))
+    r_spot = get_ratio(from_token, to_token) or get_spot_price(from_token, to_token)
+    r_spot = safe_float(r_spot)
+    if r_spot and r_convert and r_convert < r_spot:
+        if not force_spot:
+            return False, "spot_no_profit"
+        if (r_spot - r_convert) <= min_edge * max(r_spot, r_convert):
+            return False, "spot_edge_too_small"
+        return True, "explore_spot_positive"
+
+    if to_amount <= from_amount:
+        logger.info(safe_log("[dev3] ⛔️ passes_filters вирок: no_profit"))
+        return False, "no_profit"
+
     from_symbol = from_token.upper()
     to_symbol = to_token.upper()
 
@@ -132,13 +155,6 @@ def passes_filters(score: float, quote: Dict[str, Any], balance: float) -> Tuple
         to_usdt_value = to_amount * to_price
     except Exception as e:
         return False, f"price_lookup_failed: {e}"
-
-    spot_ratio = get_ratio(from_symbol, to_symbol)
-    if spot_ratio <= 0:
-        return False, "spot_ratio_failed"
-    if spot_ratio <= 1.0 and score < 2.0:
-        logger.info(safe_log("[dev3] ⛔️ passes_filters вирок: spot_no_profit"))
-        return False, "spot_no_profit"
 
     if to_usdt_value < 0.5:
         return False, f"to_amount_too_low_usdt (≈{to_usdt_value:.4f})"
