@@ -29,7 +29,12 @@ def _metric_value(val: Any) -> float:
 
 
 def gpt_score(data: Dict[str, Any]) -> float:
-    """Return score as float using ``safe_float`` for robustness."""
+    """Prefer GPT forecast (data['gpt']['score']) and fallback to raw 'score'."""
+    if not isinstance(data, dict):
+        return 0.0
+    g = data.get("gpt")
+    if isinstance(g, dict) and g.get("score") is not None:
+        return _metric_value(g.get("score"))
     score_data = data.get("score", 0)
     if isinstance(score_data, dict):
         score = score_data.get("score", 0)
@@ -54,7 +59,7 @@ def get_token_balances() -> Dict[str, float]:
 
 MAX_QUOTES_PER_CYCLE = 20
 TOP_N_PAIRS = 10
-GPT_SCORE_THRESHOLD = 0.5
+GPT_SCORE_THRESHOLD = 0.0  # не зрізаємо все до котирувань
 
 
 def try_convert(
@@ -157,7 +162,6 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         return False
 
     valid_to_tokens = []
-    backup_candidates = []
     for p in pairs:
         from_key = p.get("fromToken") or p.get("from_token") or p.get("from")
         to_key = p.get("toToken") or p.get("to_token") or p.get("to")
@@ -170,26 +174,14 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         if (
             from_token == fallback_token
             and to_token is not None
-            and gpt_score(p) > GPT_SCORE_THRESHOLD
+            and gpt_score(p) >= 0.0  # allow слабко-позитивні кандидати до котирування
         ):
             valid_to_tokens.append(p)
-        elif from_token == fallback_token and to_token is not None and gpt_score(p) > 0:
-            backup_candidates.append(p)
 
     if not valid_to_tokens:
-        if backup_candidates:
-            logger.warning(
-                "🔸 [FALLBACK] Жодна пара не пройшла фільтр score > threshold, але є навчальні кандидати (score > 0)"
-            )
-            valid_to_tokens = backup_candidates
-        else:
-            logger.warning(
-                f"🔹 [FALLBACK] Актив '{fallback_token}' з найбільшим балансом не сконвертовано"
-            )
-            logger.warning(
-                "🔸 Причина: не знайдено жодного валідного `to_token` для fallback (score <= 0 або немає прогнозу)"
-            )
-            return False
+        logger.warning(f"🔹 [FALLBACK] Актив '{fallback_token}' з найбільшим балансом не сконвертовано")
+        logger.warning("🔸 Причина: немає валідних `to_token` для fallback до котирувань; переходимо до звичайного завершення")
+        return False
 
     best_pair = max(valid_to_tokens, key=gpt_score)
     from_key = best_pair.get("fromToken") or best_pair.get("from_token") or best_pair.get("from")
@@ -282,15 +274,9 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             )
             continue
 
-        if score <= GPT_SCORE_THRESHOLD:
-            logger.info(
-                "[dev3] ⏭ Пропущено %s → %s: score=%.4f нижче %.2f",
-                from_token,
-                to_token,
-                score,
-                GPT_SCORE_THRESHOLD,
-            )
-            continue
+        # До котирувань НЕ зрізаємо пари високим порогом — офільтруємо після котирування в passes_filters
+        if score is None:
+            score = 0.0
 
         filtered_pairs.append(pair)
 
@@ -354,6 +340,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             log_quote_skipped(from_token, to_token, "invalid_quote")
             continue
 
+        # відтепер саме тут, після реального quote, працює модель та фільтри
         expected_profit, prob_up, score = predict(from_token, to_token, quote)
         logger.info(
             f"[dev3] \U0001f4ca Модель: {from_token} → {to_token}: profit={expected_profit:.4f}, prob={prob_up:.4f}, score={score:.4f}"
