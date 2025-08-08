@@ -15,6 +15,7 @@ from convert_logger import (
     log_quote_skipped,
     log_skipped_quotes,
     log_error,
+    safe_log,
 )
 from quote_counter import should_throttle, reset_cycle
 from convert_model import _hash_token, predict
@@ -53,7 +54,7 @@ def get_token_balances() -> Dict[str, float]:
         try:
             _balances_cache = get_balances()
         except Exception as exc:  # pragma: no cover - network
-            logger.warning("[dev3] ❌ get_token_balances помилка: %s", exc)
+            logger.warning(safe_log(f"[dev3] ❌ get_token_balances помилка: {exc}"))
             _balances_cache = {}
     return _balances_cache
 
@@ -87,7 +88,9 @@ def try_convert(
     valid, reason = passes_filters(score, quote, amount)
     if not valid:
         logger.info(
-            f"[dev3] \u26d4\ufe0f Пропуск {from_token} → {to_token}: score={score:.4f}, причина={reason}, quote={quote}"
+            safe_log(
+                f"[dev3] \u26d4\ufe0f Пропуск {from_token} → {to_token}: score={score:.4f}, причина={reason}, quote={quote}"
+            )
         )
         return False
 
@@ -158,7 +161,7 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
     fallback_token = max(candidates, key=lambda x: x[1], default=(None, 0.0))[0]
 
     if not fallback_token:
-        logger.warning("🔹 [FALLBACK] Не знайдено жодного токена з балансом для fallback")
+        logger.warning(safe_log("🔹 [FALLBACK] Не знайдено жодного токена з балансом для fallback"))
         return False
 
     valid_to_tokens = []
@@ -179,8 +182,8 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
             valid_to_tokens.append(p)
 
     if not valid_to_tokens:
-        logger.warning(f"🔹 [FALLBACK] Актив '{fallback_token}' з найбільшим балансом не сконвертовано")
-        logger.warning("🔸 Причина: немає валідних `to_token` для fallback до котирувань; переходимо до звичайного завершення")
+        logger.warning(safe_log(f"🔹 [FALLBACK] Актив '{fallback_token}' з найбільшим балансом не сконвертовано"))
+        logger.warning(safe_log("🔸 Причина: немає валідних `to_token` для fallback до котирувань; переходимо до звичайного завершення"))
         return False
 
     best_pair = max(valid_to_tokens, key=gpt_score)
@@ -198,7 +201,7 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
     if amount > max_allowed:
         amount = max_allowed
     logger.info(
-        f"🔄 [FALLBACK] Спроба конвертації {from_token} → {selected_to_token}"
+        safe_log(f"🔄 [FALLBACK] Спроба конвертації {from_token} → {selected_to_token}")
     )
 
     return try_convert(
@@ -212,13 +215,13 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
 def _load_top_pairs() -> List[Dict[str, Any]]:
     path = os.path.join(os.path.dirname(__file__), "top_tokens.json")
     if not os.path.exists(path):
-        logger.warning("[dev3] top_tokens.json not found")
+        logger.warning(safe_log("[dev3] top_tokens.json not found"))
         return []
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception as exc:  # pragma: no cover - file issues
-        logger.warning("[dev3] failed to read top_tokens.json: %s", exc)
+        logger.warning(safe_log(f"[dev3] failed to read top_tokens.json: {exc}"))
         return []
 
     # Normalize format: handle both [(score, quote), ...] and [{...}, ...]
@@ -236,7 +239,7 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
             if isinstance(quote, dict):
                 top_quotes.append((score, quote))
         else:
-            logger.debug("[dev3] invalid item in top_tokens.json: %s", item)
+            logger.debug(safe_log(f"[dev3] invalid item in top_tokens.json: {item}"))
 
     top_quotes = sorted(top_quotes, key=lambda x: x[0], reverse=True)
     return [q for _, q in top_quotes]
@@ -244,11 +247,11 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
 
 def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     """Process top token pairs and execute conversions if score is high enough."""
-    logger.info("[dev3] 🔍 Запуск process_top_pairs з %d парами", len(pairs) if pairs else 0)
+    logger.info(safe_log(f"[dev3] 🔍 Запуск process_top_pairs з {len(pairs) if pairs else 0} парами"))
 
     balances = get_token_balances()
     if not pairs:
-        logger.warning("[dev3] ⛔️ Список пар порожній — нічого обробляти")
+        logger.warning(safe_log("[dev3] ⛔️ Список пар порожній — нічого обробляти"))
         return
 
     filtered_pairs = []
@@ -263,14 +266,12 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         to_token = to_info.get("symbol") if to_info else None
 
         if not from_token or not to_token:
-            logger.warning("[dev3] ❗️ Неможливо визначити токени з пари: %s", pair)
+            logger.warning(safe_log(f"[dev3] ❗️ Неможливо визначити токени з пари: {pair}"))
             continue
 
         if from_token not in balances:
             logger.info(
-                "[dev3] ⏭ Пропущено %s → %s: немає балансу",
-                from_token,
-                to_token,
+                safe_log(f"[dev3] ⏭ Пропущено {from_token} → {to_token}: немає балансу")
             )
             continue
 
@@ -280,10 +281,10 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
         filtered_pairs.append(pair)
 
-    logger.info("[dev3] ✅ Кількість пар після фільтрації: %d", len(filtered_pairs))
+    logger.info(safe_log(f"[dev3] ✅ Кількість пар після фільтрації: {len(filtered_pairs)}"))
 
     if not filtered_pairs:
-        logger.warning("[dev3] ⛔️ Жодна пара не пройшла фільтри — трейд пропущено")
+        logger.warning(safe_log("[dev3] ⛔️ Жодна пара не пройшла фільтри — трейд пропущено"))
         fallback_convert(pairs, balances)
         return
 
@@ -293,8 +294,9 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     for pair in filtered_pairs:
         if quote_count >= MAX_QUOTES_PER_CYCLE:
             logger.info(
-                "[dev3] ⛔️ Досягнуто ліміту %d запитів на котирування",
-                MAX_QUOTES_PER_CYCLE,
+                safe_log(
+                    f"[dev3] ⛔️ Досягнуто ліміту {MAX_QUOTES_PER_CYCLE} запитів на котирування"
+                )
             )
             break
 
@@ -308,24 +310,23 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
         if not from_token or not to_token:
             logger.warning(
-                "[dev3] ❌ Один із токенів None: from_token=%s, to_token=%s",
-                from_token,
-                to_token,
+                safe_log(
+                    f"[dev3] ❌ Один із токенів None: from_token={from_token}, to_token={to_token}"
+                )
             )
             logger.info(
-                "[dev3] ⛔️ Пропуск %s → %s: причина=invalid_tokens",
-                from_token,
-                to_token,
+                safe_log(
+                    f"[dev3] ⛔️ Пропуск {from_token} → {to_token}: причина=invalid_tokens"
+                )
             )
             continue
 
         amount = balances.get(from_token, 0)
         if amount <= 0:
             logger.info(
-                "[dev3] ⏭ %s → %s: amount %.4f недостатній",
-                from_token,
-                to_token,
-                amount,
+                safe_log(
+                    f"[dev3] ⏭ {from_token} → {to_token}: amount {amount:.4f} недостатній"
+                )
             )
             continue
 
@@ -343,12 +344,16 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         # відтепер саме тут, після реального quote, працює модель та фільтри
         expected_profit, prob_up, score = predict(from_token, to_token, quote)
         logger.info(
-            f"[dev3] \U0001f4ca Модель: {from_token} → {to_token}: profit={expected_profit:.4f}, prob={prob_up:.4f}, score={score:.4f}"
+            safe_log(
+                f"[dev3] \U0001f4ca Модель: {from_token} → {to_token}: profit={expected_profit:.4f}, prob={prob_up:.4f}, score={score:.4f}"
+            )
         )
 
         if score <= 0:
             logger.info(
-                f"[dev3] \ud83d\udd15\uFE0F Пропуск: низький score для {from_token} → {to_token}"
+                safe_log(
+                    f"[dev3] 🔕 Пропуск після predict: score={score:.4f} для {from_token} → {to_token}"
+                )
             )
             continue
 
@@ -357,14 +362,15 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             if reason == "spot_no_profit" and score > 0:
                 fallback_candidates.append((from_token, to_token, amount, quote, score))
                 logger.info(
-                    "[dev3] ⚠ Навчальна пара: %s → %s (score=%.4f)",
-                    from_token,
-                    to_token,
-                    score,
+                    safe_log(
+                        f"[dev3] ⚠ Навчальна пара: {from_token} → {to_token} (score={score:.4f})"
+                    )
                 )
                 continue
             logger.info(
-                f"[dev3] ⛔️ Пропуск {from_token} → {to_token}: причина={reason}, quote={quote}"
+                safe_log(
+                    f"[dev3] ⛔️ Пропуск {from_token} → {to_token}: причина={reason}, quote={quote}"
+                )
             )
             continue
 
@@ -372,22 +378,21 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             successful_count += 1
             quote_count += 1
 
-    logger.info("[dev3] ✅ Успішних конверсій: %d", successful_count)
+    logger.info(safe_log(f"[dev3] ✅ Успішних конверсій: {successful_count}"))
 
     if successful_count == 0 and fallback_candidates:
         fallback = max(fallback_candidates, key=lambda x: x[4])
         f_token, t_token, amt, quote, sc = fallback
         logger.warning(
-            "[dev3] 🧪 Виконуємо навчальну конверсію: %s → %s (score=%.4f)",
-            f_token,
-            t_token,
-            sc,
+            safe_log(
+                f"[dev3] 🧪 Виконуємо навчальну конверсію: {f_token} → {t_token} (score={sc:.4f})"
+            )
         )
         result = try_convert(f_token, t_token, amt, max(sc, 2.0), quote)
         if result:
-            logger.info("[dev3] ✅ Навчальна конверсія виконана")
+            logger.info(safe_log("[dev3] ✅ Навчальна конверсія виконана"))
             successful_count += 1
 
     if successful_count == 0:
-        logger.warning("[dev3] ⚠️ Жодної конверсії не виконано — викликаємо fallback")
+        logger.warning(safe_log("[dev3] ⚠️ Жодної конверсії не виконано — викликаємо fallback"))
         fallback_convert(pairs, balances)
