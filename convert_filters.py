@@ -4,7 +4,7 @@ import os
 import json
 from typing import Dict, List, Tuple, Any
 
-from convert_logger import logger
+from convert_logger import logger, safe_log
 from binance_api import get_spot_price, get_ratio, get_lot_step, get_precision
 from utils_dev3 import safe_float
 
@@ -82,12 +82,36 @@ def filter_top_tokens(
 
 def passes_filters(score: float, quote: Dict[str, Any], balance: float) -> Tuple[bool, str]:
     """Validate quote against multiple convert filters."""
+    # --- Diagnostic log for quote evaluation ---
+    try:
+        _from = quote.get("fromToken") or quote.get("fromAsset")
+        _to = quote.get("toToken") or quote.get("toAsset")
+        ratio = safe_float(quote.get("ratio", 0))
+        inv = safe_float(quote.get("inverseRatio", 0))
+        fa = safe_float(quote.get("fromAmount", 0))
+        ta = safe_float(quote.get("toAmount", 0))
+        spot = None
+        try:
+            spot = get_ratio(_from, _to)
+        except Exception:
+            spot = None
+        logger.info(
+            safe_log(
+                f"[dev3] 🔎 passes_filters dbg: {_from}->{_to} "
+                f"score={score:.4f} ratio={ratio} inv={inv} "
+                f"fromAmount={fa} toAmount={ta} spot={spot}"
+            )
+        )
+    except Exception as e:
+        logger.warning(safe_log(f"[dev3] ⚠️ passes_filters dbg failed: {e}"))
+
     if score < MIN_SCORE:
         return False, "low_score"
 
     from_amount = safe_float(quote.get("fromAmount", 0))
     to_amount = safe_float(quote.get("toAmount", 0))
     if to_amount <= from_amount:
+        logger.info(safe_log("[dev3] ⛔️ passes_filters вирок: no_profit"))
         return False, "no_profit"
 
     from_token = quote.get("fromAsset") or quote.get("fromToken")
@@ -113,13 +137,14 @@ def passes_filters(score: float, quote: Dict[str, Any], balance: float) -> Tuple
     if spot_ratio <= 0:
         return False, "spot_ratio_failed"
     if spot_ratio <= 1.0 and score < 2.0:
+        logger.info(safe_log("[dev3] ⛔️ passes_filters вирок: spot_no_profit"))
         return False, "spot_no_profit"
 
     if to_usdt_value < 0.5:
         return False, f"to_amount_too_low_usdt (≈{to_usdt_value:.4f})"
     if balance < from_amount:
         return False, "insufficient_balance"
-    return True, ""
+    return True, "ok"
 
 
 from datetime import datetime, timedelta
