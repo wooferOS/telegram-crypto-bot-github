@@ -4,7 +4,7 @@ import json
 import os
 from typing import List, Dict, Any
 
-from convert_api import get_quote, accept_quote, get_balances
+from convert_api import get_quote, accept_quote, get_balances, get_min_convert_amount
 from binance_api import get_binance_balances
 from convert_notifier import notify_success, notify_failure
 from convert_filters import passes_filters, get_token_info
@@ -254,6 +254,12 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         logger.warning(safe_log("[dev3] ⛔️ Список пар порожній — нічого обробляти"))
         return
 
+    # ENV-прапори explore режиму
+    EXPLORE_MODE = os.getenv("EXPLORE_MODE", "1") == "1"
+    EXPLORE_MAX = int(os.getenv("EXPLORE_MAX", "2"))
+    EXPLORE_PAPER = os.getenv("EXPLORE_PAPER", "1") == "1"
+    EXPLORE_MIN_LOT_FACTOR = safe_float(os.getenv("EXPLORE_MIN_LOT_FACTOR", "1.0")) or 1.0
+
     filtered_pairs = []
     for pair in pairs:
         score = gpt_score(pair)
@@ -291,6 +297,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
     successful_count = 0
     quote_count = 0
     fallback_candidates = []
+    all_quotes: List[tuple[str, str, float, Dict[str, Any], float]] = []
     for pair in filtered_pairs:
         if quote_count >= MAX_QUOTES_PER_CYCLE:
             logger.info(
@@ -355,6 +362,7 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                     f"[dev3] 🔕 Пропуск після predict: score={score:.4f} для {from_token} → {to_token}"
                 )
             )
+            all_quotes.append((from_token, to_token, amount, quote, score))
             continue
 
         valid, reason = passes_filters(score, quote, amount)
@@ -368,10 +376,11 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                 fallback_candidates.append((from_token, to_token, amount, quote, score))
                 logger.info(
                     safe_log(
-                        f"[dev3] ⚠ Додаємо до навчальних: {from_token} → {to_token} (score={score:.4f})"
+                        f"[dev3] ⚠ Навчальна пара: {from_token} → {to_token} (score={score:.4f})"
                     )
                 )
                 continue
+            all_quotes.append((from_token, to_token, amount, quote, score))
             continue
 
         if try_convert(from_token, to_token, amount, score, quote):
@@ -392,6 +401,55 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
         if result:
             logger.info(safe_log("[dev3] ✅ Навчальна конверсія виконана"))
             successful_count += 1
+
+    # --- EXPLORE MODE: коли взагалі немає угод і модель негативна скрізь ---
+    if successful_count == 0 and EXPLORE_MODE:
+        logger.warning(safe_log("[dev3] 🧭 Explore mode: усі score ≤ 0 — пробуємо топ кандидатів за спотом"))
+        ranked = sorted(all_quotes, key=lambda x: x[4], reverse=True)
+        tried = 0
+        for f_token, t_token, amt, q, sc in ranked:
+            if tried >= EXPLORE_MAX:
+                break
+            min_required = get_min_convert_amount(f_token, t_token)
+            explore_amt = max(min_required * EXPLORE_MIN_LOT_FACTOR, min_required)
+            ok, reason = passes_filters(0.01, q, explore_amt, force_spot=True, min_edge=0.0)
+            if not ok:
+                logger.info(safe_log(f"[dev3] ⛔️ Explore skip {f_token}→{t_token}: {reason}"))
+                continue
+            tried += 1
+            if EXPLORE_PAPER:
+                faux_profit = safe_float(q.get("toAmount", 0)) - safe_float(q.get("fromAmount", 0))
+                logger.info(
+                    safe_log(
+                        f"[dev3] [PAPER] ✅ Explore {f_token}→{t_token} ok, profit={faux_profit:.8f}"
+                    )
+                )
+                save_convert_history(
+                    {
+                        "from": f_token,
+                        "to": t_token,
+                        "features": [
+                            safe_float(q.get("ratio", 0)),
+                            safe_float(q.get("inverseRatio", 0)),
+                            safe_float(explore_amt),
+                            _hash_token(f_token),
+                            _hash_token(t_token),
+                        ],
+                        "profit": faux_profit,
+                        "accepted": False,
+                        "paper": True,
+                    }
+                )
+                successful_count += 1
+            else:
+                logger.warning(
+                    safe_log(
+                        f"[dev3] 🧭 Explore EXEC {f_token}→{t_token} amount={explore_amt:.8f}"
+                    )
+                )
+                if try_convert(f_token, t_token, explore_amt, 0.01, q):
+                    successful_count += 1
+        logger.info(safe_log(f"[dev3] 🧭 Explore complete: successes={successful_count}"))
 
     if successful_count == 0:
         logger.warning(safe_log("[dev3] ⚠️ Жодної конверсії не виконано — викликаємо fallback"))
