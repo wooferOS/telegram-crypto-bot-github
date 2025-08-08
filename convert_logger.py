@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+import sys
 from datetime import datetime
 
 
@@ -19,6 +20,19 @@ CONVERT_LOG_FILE = os.path.join("logs", "convert.log")
 
 os.makedirs("logs", exist_ok=True)
 formatter = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:  # pragma: no cover - safety
+        pass
+
+
+def safe_log(msg: str) -> str:
+    try:
+        return str(msg).encode("utf-8", "replace").decode("utf-8")
+    except Exception:  # pragma: no cover - safety
+        return str(msg)
 
 
 def init_logger() -> logging.Logger:
@@ -76,7 +90,7 @@ if not any(
 
 # Summary logger for overall cycle results
 summary_logger = logging.getLogger("summary")
-summary_handler = logging.FileHandler("logs/convert_summary.log")
+summary_handler = logging.FileHandler("logs/convert_summary.log", encoding="utf-8")
 summary_handler.setFormatter(formatter)
 summary_logger.addHandler(summary_handler)
 summary_logger.setLevel(logging.INFO)
@@ -97,7 +111,9 @@ def log_trade(data: dict) -> None:
 
 def log_quote(from_token: str, to_token: str, quote_data: dict) -> None:
     logger.info(
-        f"[dev3] \U0001F4E5 Quote {from_token} → {to_token}: {json.dumps(quote_data, indent=2)}"
+        safe_log(
+            f"[dev3] \U0001F4E5 Quote {from_token} → {to_token}: {json.dumps(quote_data, indent=2)}"
+        )
     )
 
 
@@ -140,52 +156,42 @@ def log_conversion_result(quote: dict, accepted: bool) -> None:
         status = "ACCEPTED" if accepted else "REJECTED"
         f.write(f"[dev3] ✅ {status} {entry}\n")
     if accepted:
-        logger.info("✅ ACCEPTED")
+        logger.info(safe_log("✅ ACCEPTED"))
 
 
 def log_prediction(from_token: str, to_token: str, score: float) -> None:
     """Log prediction score for a token pair."""
     logger.info(
-        "[dev3] \u2728 Прогноз %s → %s | score=%.6f",
-        from_token,
-        to_token,
-        score,
+        safe_log(f"[dev3] ✨ Прогноз {from_token} → {to_token} | score={score:.6f}")
     )
 
 
 def log_quote_skipped(from_token: str, to_token: str, reason: str) -> None:
     """Log reason for skipping quote execution."""
     logger.info(
-        "[dev3] \u23ed\ufe0f Пропуск %s → %s: %s",
-        from_token,
-        to_token,
-        reason,
+        safe_log(f"[dev3] ⏭ Пропуск {from_token} → {to_token}: {reason}")
     )
 
 
 def log_conversion_success(from_token: str, to_token: str, profit: float) -> None:
     """Log successful conversion with profit."""
     logger.info(
-        "[dev3] \u2705 Конверсія %s → %s успiшна | profit=%.8f",
-        from_token,
-        to_token,
-        profit,
+        safe_log(
+            f"[dev3] ✅ Конверсія {from_token} → {to_token} успiшна | profit={profit:.8f}"
+        )
     )
 
 
 def log_conversion_error(from_token: str, to_token: str, error: str) -> None:
     """Log conversion error."""
     logger.warning(
-        "[dev3] \u274c Помилка конверсії %s → %s: %s",
-        from_token,
-        to_token,
-        error,
+        safe_log(f"[dev3] ❌ Помилка конверсії {from_token} → {to_token}: {error}")
     )
 
 
 def log_skipped_quotes() -> None:
     """Log that quote requests were skipped due to limit."""
-    logger.warning("[dev3] \u23F8\ufe0f Достигнуто лiмiт запитiв get_quote за цикл")
+    logger.warning(safe_log("[dev3] ⏸️ Достигнуто лiмiт запитiв get_quote за цикл"))
 
 
 def log_error(message: str) -> None:

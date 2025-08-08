@@ -4,11 +4,11 @@ import subprocess
 import json
 
 from convert_cycle import process_top_pairs
-from convert_logger import logger
+from convert_logger import logger, safe_log
 from quote_counter import can_request_quote
 
 if not can_request_quote():
-    logger.warning("[dev3] ⛔ Ліміт запитів до Convert API досягнуто. Пропускаємо цикл.")
+    logger.warning(safe_log("[dev3] ⛔ Ліміт запитів до Convert API досягнуто. Пропускаємо цикл."))
     exit(0)
 
 CACHE_FILES = [
@@ -46,36 +46,36 @@ def cleanup() -> None:
 
 def main() -> None:
     cleanup()
-    logger.info("[dev3] 🔄 Запуск convert трейдингу")
+    logger.info(safe_log("[dev3] 🔄 Запуск convert трейдингу"))
     try:
-        logger.info("[dev3] 📄 Перевірка наявності файлу top_tokens.json...")
+        logger.info(safe_log("[dev3] 📄 Перевірка наявності файлу top_tokens.json..."))
         if not os.path.exists("top_tokens.json"):
-            logger.warning("[dev3] ⛔️ Файл top_tokens.json не знайдено. Завершуємо цикл.")
+            logger.warning(safe_log("[dev3] ⛔️ Файл top_tokens.json не знайдено. Завершуємо цикл."))
             return
 
         with open("top_tokens.json") as f:
             top_tokens = json.load(f)
 
         if not top_tokens:
-            logger.warning("[dev3] ⛔️ Файл top_tokens.json порожній. Пропускаємо трейд.")
+            logger.warning(safe_log("[dev3] ⛔️ Файл top_tokens.json порожній. Пропускаємо трейд."))
             return
 
-        logger.info(f"[dev3] ✅ Завантажено {len(top_tokens)} пар з top_tokens.json")
+        logger.info(safe_log(f"[dev3] ✅ Завантажено {len(top_tokens)} пар з top_tokens.json"))
         process_top_pairs(top_tokens)
     except Exception as e:
-        logger.error(f"[dev3] ❌ Помилка при завантаженні top_tokens.json: {e}")
+        logger.error(safe_log(f"[dev3] ❌ Помилка при завантаженні top_tokens.json: {e}"))
         return
     cleanup()
-    logger.info("[dev3] ✅ Цикл завершено")
+    logger.info(safe_log("[dev3] ✅ Цикл завершено"))
 
     # 🧠 Автоматичне навчання моделі
-    logger.info("[dev3] 📚 Починаємо автоматичне навчання моделі...")
+    logger.info(safe_log("[dev3] 📚 Починаємо автоматичне навчання моделі..."))
     try:
         subprocess.run(["python3", "train_convert_model.py", "--force-train"], check=True)
     except Exception as exc:
-        logger.error(f"[dev3] ❌ Навчання моделі завершилось з помилкою: {exc}")
+        logger.error(safe_log(f"[dev3] ❌ Навчання моделі завершилось з помилкою: {exc}"))
         return
-    logger.info("[dev3] ✅ Навчання завершено")
+    logger.info(safe_log("[dev3] ✅ Навчання завершено"))
 
     predictions_path = os.path.join("logs", "predictions.json")
     if os.path.exists(predictions_path):
