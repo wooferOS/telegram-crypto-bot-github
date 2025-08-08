@@ -17,6 +17,7 @@ from convert_logger import (
     log_conversion_success,
     log_conversion_error,
     log_quote_skipped,
+    safe_log,
 )
 from binance_api import (
     get_spot_price,
@@ -354,8 +355,14 @@ def accept_quote(
             final_status = order_status.get("orderStatus")
 
     if final_status == "SUCCESS":
-        profit = safe_float(order_status.get("toAmount", 0)) - safe_float(
-            order_status.get("fromAmount", 0)
+        from_amt = safe_float(order_status.get("fromAmount", 0))
+        to_amt = safe_float(order_status.get("toAmount", 0))
+        profit = to_amt - from_amt
+        logger.info(
+            safe_log(
+                f"[dev3] ✅ accept_quote result: {from_token}->{to_token} "
+                f"fromAmount={from_amt} toAmount={to_amt} profit={profit}"
+            )
         )
         log_conversion_success(from_token, to_token, profit)
         logger.info(f"[dev3] 🔄 accept_quote виконано: {quote_id}")

@@ -359,20 +359,19 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
         valid, reason = passes_filters(score, quote, amount)
         if not valid:
-            # Уніфікуємо причини: no_profit і spot_no_profit трактуємо однаково
-            if reason in ("spot_no_profit", "no_profit") and score > 0:
+            logger.info(
+                safe_log(
+                    f"[dev3] ⛔️ Пропуск {from_token} → {to_token}: score={score:.4f}, причина={reason}, quote={quote}"
+                )
+            )
+            if reason == "spot_no_profit" and score > 0:
                 fallback_candidates.append((from_token, to_token, amount, quote, score))
                 logger.info(
                     safe_log(
-                        f"[dev3] ⚠ Навчальна пара: {from_token} → {to_token} (score={score:.4f})"
+                        f"[dev3] ⚠ Додаємо до навчальних: {from_token} → {to_token} (score={score:.4f})"
                     )
                 )
                 continue
-            logger.info(
-                safe_log(
-                    f"[dev3] ⛔️ Пропуск {from_token} → {to_token}: причина={reason}, quote={quote}"
-                )
-            )
             continue
 
         if try_convert(from_token, to_token, amount, score, quote):
