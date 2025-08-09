@@ -7,6 +7,19 @@ from convert_cycle import process_top_pairs
 from convert_logger import logger, safe_log
 from quote_counter import can_request_quote
 
+EXPLORE_MODE = int(os.getenv("EXPLORE_MODE", "0"))
+EXPLORE_PAPER = int(os.getenv("EXPLORE_PAPER", "1"))
+EXPLORE_MAX = int(os.getenv("EXPLORE_MAX", "2"))
+EXPLORE_MIN_EDGE = float(os.getenv("EXPLORE_MIN_EDGE", "0.001"))
+EXPLORE_MIN_LOT_FACTOR = float(os.getenv("EXPLORE_MIN_LOT_FACTOR", "0.5"))
+
+logger.info(
+    safe_log(
+        f"[dev3] Explore: MODE={EXPLORE_MODE} PAPER={EXPLORE_PAPER} MAX={EXPLORE_MAX} "
+        f"MIN_EDGE={EXPLORE_MIN_EDGE} MIN_LOT_FACTOR={EXPLORE_MIN_LOT_FACTOR}"
+    )
+)
+
 if not can_request_quote():
     logger.warning(safe_log("[dev3] ⛔ Ліміт запитів до Convert API досягнуто. Пропускаємо цикл."))
     exit(0)

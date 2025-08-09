@@ -12,6 +12,38 @@ from gpt_utils import ask_gpt
 from convert_model import _load_model, is_fallback_model, safe_float
 from utils_dev3 import save_json
 
+# --- daily_analysis: helper filters ---
+FIAT_BLACKLIST = {
+    "ARS",
+    "BRL",
+    "ZAR",
+    "TRY",
+    "EUR",
+    "GBP",
+    "PLN",
+    "UAH",
+    "NGN",
+    "IDR",
+    "VND",
+    "THB",
+    "TWD",
+    "JPY",
+    "KRW",
+}
+
+
+def _is_bad_symbol(sym: str) -> bool:
+    s = sym.upper()
+    if s in FIAT_BLACKLIST:
+        return True
+    for f in FIAT_BLACKLIST:
+        if s.startswith(f) and s.endswith("USDT"):
+            return True
+    if any(ch.isdigit() for ch in s) and not s.endswith("SATS"):
+        return True
+    return False
+
+
 _balance_cache: Dict[str, float] | None = None
 
 
@@ -40,6 +72,20 @@ async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]
         return predictions
 
     try:
+        to_tokens = [t for t in to_tokens if not _is_bad_symbol(t)]
+
+        safe_to_tokens = []
+        for t in to_tokens:
+            try:
+                from_ok = await asyncio.to_thread(get_spot_price, from_token)
+                to_ok = await asyncio.to_thread(get_spot_price, t)
+                if from_ok is not None and to_ok is not None:
+                    safe_to_tokens.append(t)
+            except Exception:
+                continue
+
+        to_tokens = safe_to_tokens
+
         for to_token in to_tokens:
             from_price = await asyncio.to_thread(get_spot_price, from_token)
             to_price = await asyncio.to_thread(get_spot_price, to_token)
