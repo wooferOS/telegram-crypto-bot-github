@@ -4,8 +4,8 @@ import json
 import os
 from typing import List, Dict, Any
 
-from convert_api import get_quote, accept_quote, get_balances, get_min_convert_amount
-from binance_api import get_binance_balances
+from convert_api import get_quote, accept_quote, get_balances
+from binance_api import get_binance_balances, get_ratio
 from convert_notifier import notify_success, notify_failure
 from convert_filters import passes_filters, get_token_info
 from convert_logger import (
@@ -21,7 +21,26 @@ from quote_counter import should_throttle, reset_cycle
 from convert_model import _hash_token, predict
 from utils_dev3 import safe_float
 
-EXPLORE_MIN_EDGE = safe_float(os.environ.get("EXPLORE_MIN_EDGE", 0.0))
+EXPLORE_MODE = int(os.getenv("EXPLORE_MODE", "0"))
+EXPLORE_MIN_EDGE = safe_float(os.environ.get("EXPLORE_MIN_EDGE", "0.001"))
+
+
+def _pick_best_by_edge(candidates: list[dict[str, Any]]):
+    best = None
+    best_edge = -1.0
+    for c in candidates:
+        from_token = c.get("from")
+        to_token = c.get("to")
+        quote = c.get("quote", {})
+        spot_ratio = get_ratio(from_token, to_token)
+        spot_inv = 1 / spot_ratio if spot_ratio else 0
+        quote_inv = safe_float(quote.get("inverseRatio", 0))
+        edge = (spot_inv - quote_inv) / spot_inv if spot_inv > 0 else -1.0
+        c["edge"] = edge
+        if edge > best_edge:
+            best_edge = edge
+            best = c
+    return best, best_edge
 
 
 def _metric_value(val: Any) -> float:
@@ -404,56 +423,61 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             logger.info(safe_log("[dev3] ✅ Навчальна конверсія виконана"))
             successful_count += 1
 
-    # --- EXPLORE MODE: коли взагалі немає угод і модель негативна скрізь ---
     if successful_count == 0 and EXPLORE_MODE:
-        logger.warning(safe_log("[dev3] 🧭 Explore mode: усі score ≤ 0 — пробуємо топ кандидатів за спотом"))
-        ranked = sorted(all_quotes, key=lambda x: x[4], reverse=True)
-        tried = 0
-        for f_token, t_token, amt, q, sc in ranked:
-            if tried >= EXPLORE_MAX:
-                break
-            min_required = get_min_convert_amount(f_token, t_token)
-            explore_amt = max(min_required * EXPLORE_MIN_LOT_FACTOR, min_required)
-            ok, reason = passes_filters(
-                0.01, q, explore_amt, force_spot=True, min_edge=EXPLORE_MIN_EDGE
+        all_checked_candidates = [
+            {"from": f, "to": t, "amount": amt, "quote": q}
+            for f, t, amt, q, sc in all_quotes
+        ]
+        best, best_edge = _pick_best_by_edge(all_checked_candidates)
+        if best and best_edge >= EXPLORE_MIN_EDGE:
+            logger.info(
+                safe_log(
+                    f"[FALLBACK-EXPLORE] Виконуємо паперову угоду {best['from']}→{best['to']} edge={best_edge:.4%}"
+                )
             )
-            if not ok:
-                logger.info(safe_log(f"[dev3] ⛔️ Explore skip {f_token}→{t_token}: {reason}"))
-                continue
-            tried += 1
-            if EXPLORE_PAPER:
-                faux_profit = safe_float(q.get("toAmount", 0)) - safe_float(q.get("fromAmount", 0))
-                logger.info(
-                    safe_log(
-                        f"[dev3] [PAPER] ✅ Explore {f_token}→{t_token} ok, profit={faux_profit:.8f}"
+            try:
+                explore_amt = best.get("amount", 0)
+                q = best.get("quote", {})
+                if EXPLORE_PAPER:
+                    faux_profit = safe_float(q.get("toAmount", 0)) - safe_float(q.get("fromAmount", 0))
+                    logger.info(
+                        safe_log(
+                            f"[dev3] [PAPER] ✅ Explore fallback {best['from']}→{best['to']} profit={faux_profit:.8f}"
+                        )
                     )
-                )
-                save_convert_history(
-                    {
-                        "from": f_token,
-                        "to": t_token,
-                        "features": [
-                            safe_float(q.get("ratio", 0)),
-                            safe_float(q.get("inverseRatio", 0)),
-                            safe_float(explore_amt),
-                            _hash_token(f_token),
-                            _hash_token(t_token),
-                        ],
-                        "profit": faux_profit,
-                        "accepted": False,
-                        "paper": True,
-                    }
-                )
-                successful_count += 1
-            else:
-                logger.warning(
-                    safe_log(
-                        f"[dev3] 🧭 Explore EXEC {f_token}→{t_token} amount={explore_amt:.8f}"
+                    save_convert_history(
+                        {
+                            "from": best["from"],
+                            "to": best["to"],
+                            "features": [
+                                safe_float(q.get("ratio", 0)),
+                                safe_float(q.get("inverseRatio", 0)),
+                                safe_float(explore_amt),
+                                _hash_token(best["from"]),
+                                _hash_token(best["to"]),
+                            ],
+                            "profit": faux_profit,
+                            "accepted": False,
+                            "paper": True,
+                        }
                     )
-                )
-                if try_convert(f_token, t_token, explore_amt, 0.01, q):
                     successful_count += 1
-        logger.info(safe_log(f"[dev3] 🧭 Explore complete: successes={successful_count}"))
+                else:
+                    logger.warning(
+                        safe_log(
+                            f"[dev3] 🧭 Explore EXEC {best['from']}→{best['to']} amount={explore_amt:.8f}"
+                        )
+                    )
+                    if try_convert(best["from"], best["to"], explore_amt, 0.01, q):
+                        successful_count += 1
+            except Exception as e:
+                logger.warning(safe_log(f"Fallback-explore помилка: {e}"))
+        else:
+            logger.info(
+                safe_log(
+                    "[FALLBACK-EXPLORE] Немає кандидатів з позитивним edge ≥ EXPLORE_MIN_EDGE"
+                )
+            )
 
     if successful_count == 0:
         logger.warning(safe_log("[dev3] ⚠️ Жодної конверсії не виконано — викликаємо fallback"))
