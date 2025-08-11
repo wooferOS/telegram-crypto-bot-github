@@ -2,9 +2,18 @@ from __future__ import annotations
 
 import json
 import os
-from typing import List, Dict, Any
+import time
+from pathlib import Path
+from typing import List, Dict, Any, Optional
 
-from convert_api import get_quote, accept_quote, get_balances
+from convert_api import (
+    get_quote,
+    accept_quote,
+    get_balances,
+    get_order_status,
+    ORDER_POLL_MAX_SEC,
+    ORDER_POLL_INTERVAL,
+)
 from binance_api import get_binance_balances, get_ratio
 from convert_notifier import notify_success, notify_failure
 from convert_filters import passes_filters, get_token_info
@@ -19,7 +28,12 @@ from convert_logger import (
 )
 from quote_counter import should_throttle, reset_cycle
 from convert_model import _hash_token, predict
-from utils_dev3 import safe_float
+from utils_dev3 import (
+    safe_float,
+    safe_json_load,
+    safe_json_dump,
+    HISTORY_PATH,
+)
 
 EXPLORE_MODE = int(os.getenv("EXPLORE_MODE", "0"))
 EXPLORE_MIN_EDGE = safe_float(os.environ.get("EXPLORE_MIN_EDGE", "0.001"))
@@ -63,6 +77,51 @@ def gpt_score(data: Dict[str, Any]) -> float:
     else:
         score = score_data
     return _metric_value(score)
+
+
+# Єдине місце читання/запису історії
+history_file = HISTORY_PATH
+
+
+def load_history() -> list[dict]:
+    data = safe_json_load(history_file, default=[])
+    if not isinstance(data, list):
+        return []
+    return data
+
+
+def save_history(items: list[dict]) -> None:
+    try:
+        safe_json_dump(history_file, items)
+    except Exception as e:  # pragma: no cover - filesystem
+        logger.error("❌ Помилка при збереженні історії: %s", e)
+
+
+def _score_of(item: dict) -> float:
+    # нормалізація: шукаємо score на різних рівнях
+    for key_path in (("score",), ("gpt", "score"), ("model", "score")):
+        cur = item
+        try:
+            for k in key_path:
+                cur = cur[k]
+            return float(cur)
+        except Exception:
+            continue
+    return 0.0
+
+
+def select_top_pairs(pairs: List[Dict[str, Any]], limit: int = 5) -> List[Dict[str, Any]]:
+    # фільтр від None токенів ДО сортування
+    norm: List[Dict[str, Any]] = []
+    for p in pairs or []:
+        ft = p.get("from") or p.get("from_token") or p.get("fromToken")
+        tt = p.get("to") or p.get("to_token") or p.get("toToken")
+        if not (isinstance(ft, str) and isinstance(tt, str) and ft and tt):
+            logger.warning("❌ Один із токенів None: from_token=%s, to_token=%s", ft, tt)
+            continue
+        norm.append(p)
+    pairs_sorted = sorted(norm, key=_score_of, reverse=True)
+    return pairs_sorted[:limit]
 
 
 _balances_cache: Dict[str, float] | None = None
@@ -119,6 +178,32 @@ def try_convert(
     if resp is None:
         notify_failure(from_token, to_token, reason="accept_quote returned None")
         return False
+    if isinstance(resp, dict):
+        order_id = str(resp.get("orderId", ""))
+        status = str(resp.get("orderStatus", resp.get("status", "")))
+        if status == "PROCESS" and order_id:
+            start = time.time()
+            while time.time() - start < ORDER_POLL_MAX_SEC:
+                st = get_order_status(order_id)
+                if not st:
+                    time.sleep(ORDER_POLL_INTERVAL)
+                    continue
+                st_code = str(st.get("orderStatus", ""))
+                if st_code in ("SUCCESS", "FAILED", "FAIL", "EXPIRED", "CANCELED"):
+                    resp = st
+                    status = st_code
+                    resp["status"] = "success" if st_code == "SUCCESS" else "error"
+                    break
+                time.sleep(ORDER_POLL_INTERVAL)
+            logger.info(
+                "[dev3] ✅ orderId=%s final status=%s", order_id, status or "UNKNOWN"
+            )
+        if resp.get("status") != "success":
+            logger.warning(
+                "❌ Конверсія не підтверджена: orderId=%s status=%s",
+                order_id,
+                status,
+            )
     if resp.get("status") == "success":
         profit = safe_float(resp.get("toAmount", 0)) - safe_float(resp.get("fromAmount", 0))
         notify_success(
