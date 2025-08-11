@@ -2,6 +2,7 @@ import json
 import os
 import time
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 
@@ -47,3 +48,24 @@ def save_json(path: str, data) -> None:
 
 def get_current_timestamp() -> int:
     return int(time.time() * 1000)
+
+
+# Єдине місце визначення шляху історії конверсій
+HISTORY_PATH = Path("convert_history.json")
+
+
+def safe_json_load(path: str | Path, default: Any) -> Any:
+    p = Path(path)
+    try:
+        if not p.exists() or p.stat().st_size == 0:
+            return default
+        with p.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+
+def safe_json_dump(path: str | Path, data: Any) -> None:
+    p = Path(path)
+    with p.open("w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)

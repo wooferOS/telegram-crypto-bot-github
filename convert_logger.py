@@ -4,6 +4,8 @@ import json
 import sys
 from datetime import datetime
 
+from utils_dev3 import safe_json_load, safe_json_dump, HISTORY_PATH
+
 
 def ensure_dir_exists(path: str) -> None:
     """Create directory if it doesn't exist."""
@@ -14,7 +16,7 @@ LOG_FILE = os.path.join("logs", "convert_trade.log")
 DEBUG_LOG_FILE = os.path.join("logs", "convert_debug.log")
 ERROR_LOG_FILE = os.path.join("logs", "convert_errors.log")
 BALANCE_LOG_FILE = os.path.join("logs", "balance_guard.log")
-HISTORY_FILE = os.path.join("logs", "convert_history.json")
+HISTORY_FILE = str(HISTORY_PATH)
 CONVERT_LOG_FILE = os.path.join("logs", "convert.log")
 
 
@@ -125,18 +127,12 @@ def log_convert_history(entry: dict):
 
 def save_convert_history(entry: dict) -> None:
     """Persist convert history entry safely handling missing file."""
-    ensure_dir_exists("logs")
-    try:
-        with open(HISTORY_FILE, "r") as f:
-            history = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
+    history = safe_json_load(HISTORY_FILE, default=[])
+    if not isinstance(history, list):
         history = []
-
     entry["timestamp"] = datetime.utcnow().isoformat()
     history.append(entry)
-
-    with open(HISTORY_FILE, "w") as f:
-        json.dump(history, f, indent=2)
+    safe_json_dump(HISTORY_FILE, history)
 
 
 def log_conversion_result(quote: dict, accepted: bool) -> None:
