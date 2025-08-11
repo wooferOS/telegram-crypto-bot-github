@@ -6,8 +6,7 @@ from typing import Dict, List, Tuple, Any
 
 from convert_logger import logger, safe_log
 from binance_api import get_spot_price, get_ratio, get_lot_step, get_precision
-from utils_dev3 import safe_float
-import os
+from utils_dev3 import safe_float, safe_json_load, HISTORY_PATH
 
 
 def get_ratio_from_spot(from_token: str, to_token: str) -> float:
@@ -28,7 +27,18 @@ def _compute_edge(spot_inverse: float, quote_inverse: float) -> float:
         return -1.0
     return (spot_inverse - quote_inverse) / spot_inverse
 
-HISTORY_FILE = os.path.join("logs", "convert_history.json")
+HISTORY_FILE = str(HISTORY_PATH)
+
+
+def _score(item: Dict[str, Any]) -> float:
+    try:
+        return float(item.get("score", item.get("gpt", {}).get("score", 0)))
+    except Exception:
+        return 0.0
+
+
+def sort_by_score(candidates: List[Dict[str, Any]]):
+    return sorted(candidates or [], key=_score, reverse=True)
 
 
 def get_token_info(token_key: str) -> Dict[str, Any] | None:
@@ -192,13 +202,8 @@ from datetime import datetime, timedelta
 
 def was_token_recently_bought(to_token: str, hours: int = 72) -> bool:
     """Check if the token was bought in the last `hours` hours."""
-    if not os.path.exists(HISTORY_FILE):
-        return False
-
-    try:
-        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-            history = json.load(f)
-    except Exception:
+    history = safe_json_load(HISTORY_FILE, default=[])
+    if not isinstance(history, list):
         return False
 
     threshold_time = datetime.utcnow() - timedelta(hours=hours)

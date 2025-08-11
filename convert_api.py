@@ -34,6 +34,9 @@ logged_quote_errors: Set[tuple[str, str]] = set()
 
 _supported_pairs_cache: Optional[Set[str]] = None
 
+ORDER_POLL_MAX_SEC = 15
+ORDER_POLL_INTERVAL = 1.0
+
 
 def log_msg(message: str, level: str = "info") -> None:
     """Simple logging helper respecting level argument."""
@@ -173,7 +176,21 @@ def get_quote(from_asset: str, to_asset: str, amount: float) -> Optional[Dict[st
     full_url = f"{BASE_URL}{endpoint}?{query_string}&signature={signature}"
     try:
         response = requests.post(full_url, headers=headers)
+        if response.status_code == 401:
+            logger.error(
+                "❌ getQuote 401 Unauthorized for %s → %s amount=%s",
+                from_asset,
+                to_asset,
+                amount,
+            )
+            time.sleep(1.0)
+            return None
         data = response.json()
+        if not data:
+            logger.warning(
+                f"❌ Empty quote for {from_asset} → {to_asset}"
+            )
+            return None
 
         if "ratio" in data and "toAmount" in data and "quoteId" in data:
             valid_until = data.get("validUntil") or data.get("validTimestamp")
@@ -196,6 +213,21 @@ def get_quote(from_asset: str, to_asset: str, amount: float) -> Optional[Dict[st
             }
             quote["fromToken"] = from_asset
             quote["toToken"] = to_asset
+            try:
+                r = float(data["ratio"])
+                quote["price"] = (1.0 / r) if r else None
+            except Exception:
+                quote["price"] = None
+            if quote.get("price") is None and "inverseRatio" in data:
+                try:
+                    quote["price"] = float(data["inverseRatio"])
+                except Exception:
+                    pass
+            if quote.get("price") is None:
+                logger.warning(
+                    f"❌ No valid quote returned for {from_asset} → {to_asset}: {data}"
+                )
+                return None
             return quote
         else:
             logger.warning(
@@ -264,18 +296,22 @@ def get_quote_with_retry(
     return None
 
 
-def get_convert_order_status(order_id: str) -> dict:
+def get_order_status(order_id: str) -> Optional[Dict[str, Any]]:
     """Fetch convert order status from Binance API."""
-    client = get_binance_client()
     try:
-        return client.sapi_get(
-            "/sapi/v1/convert/orderStatus", params={"orderId": order_id}
+        resp = _session.get(
+            f"{BASE_URL}/sapi/v1/convert/orderStatus",
+            params=_sign({"orderId": order_id}),
+            headers=_headers(),
+            timeout=10,
         )
+        resp.raise_for_status()
+        return resp.json()
     except Exception as e:  # pragma: no cover - network
         logger.warning(
             "[dev3] ❌ Не вдалося отримати статус ордера %s: %s", order_id, e
         )
-        return {}
+        return None
 
 
 def accept_quote(
@@ -341,18 +377,18 @@ def accept_quote(
         return {"status": "error", "msg": error_msg}
 
     order_id = response.get("orderId")
-    status = response.get("orderStatus") or response.get("status")
-
-    if status == "PROCESS":
-        time.sleep(1.5)
-        order_status = get_convert_order_status(order_id)
-        final_status = order_status.get("orderStatus")
-    else:
-        order_status = response
-        final_status = status
-        if status == "SUCCESS" and order_id:
-            order_status = get_convert_order_status(order_id)
-            final_status = order_status.get("orderStatus")
+    final_status = response.get("orderStatus") or response.get("status") or ""
+    order_status = response
+    if order_id:
+        start = time.time()
+        while final_status in ("PROCESS", "") and time.time() - start < ORDER_POLL_MAX_SEC:
+            time.sleep(ORDER_POLL_INTERVAL)
+            order_status = get_order_status(order_id) or {}
+            polled = order_status.get("orderStatus")
+            if polled:
+                final_status = polled
+            if final_status in ("SUCCESS", "FAILED", "FAIL", "EXPIRED", "CANCELED"):
+                break
 
     if final_status == "SUCCESS":
         from_amt = safe_float(order_status.get("fromAmount", 0))

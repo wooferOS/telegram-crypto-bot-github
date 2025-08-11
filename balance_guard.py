@@ -4,7 +4,7 @@ import os
 from convert_api import get_balances
 from convert_logger import balance_logger
 from convert_notifier import notify_failure
-from utils_dev3 import load_json
+from utils_dev3 import safe_json_load, HISTORY_PATH
 
 SNAPSHOT_FILE = "balance_snapshot.json"
 THRESHOLD = 0.25
@@ -29,7 +29,7 @@ def check_balance() -> None:
     prev_total = snapshot.get("total", total)
     diff = total - prev_total
 
-    history = load_json(os.path.join("logs", "convert_history.json"))
+    history = safe_json_load(HISTORY_PATH, default=[])
     last_trade = history[-1].get("timestamp", "N/A") if history else "N/A"
 
     if prev_total and diff < -prev_total * THRESHOLD:
