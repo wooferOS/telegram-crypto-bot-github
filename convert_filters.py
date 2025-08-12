@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import os
-import json
 from typing import Dict, List, Tuple, Any
 
 from convert_logger import logger, safe_log
-from binance_api import get_spot_price, get_ratio, get_lot_step, get_precision
+from binance_api import get_ratio, get_lot_step, get_precision
 from utils_dev3 import safe_float, safe_json_load, HISTORY_PATH
 
 
@@ -15,10 +13,6 @@ def get_ratio_from_spot(from_token: str, to_token: str) -> float:
 
 # Allow slight negative scores and smaller toAmount for training trades
 MIN_SCORE = -0.0005
-
-EXPLORE_MODE = int(os.getenv("EXPLORE_MODE", "0"))
-EXPLORE_PAPER = int(os.getenv("EXPLORE_PAPER", "0"))
-EXPLORE_MIN_EDGE = float(os.getenv("EXPLORE_MIN_EDGE", "0.001"))
 
 
 def _compute_edge(spot_inverse: float, quote_inverse: float) -> float:
@@ -107,11 +101,11 @@ def passes_filters(
     quote: Dict[str, Any],
     balance: float,
     *,
-    force_spot: bool = False,
-    min_edge: float = 0.0,
-) -> Tuple[bool, str]:
+    context: str,
+    explore_min_edge: float,
+    min_lot_factor: float,
+) -> Tuple[bool, str, float]:
     """Validate quote against multiple convert filters."""
-    # --- Diagnostic log for quote evaluation ---
     try:
         _from = quote.get("fromToken") or quote.get("fromAsset")
         _to = quote.get("toToken") or quote.get("toAsset")
@@ -119,16 +113,11 @@ def passes_filters(
         inv = safe_float(quote.get("inverseRatio", 0))
         fa = safe_float(quote.get("fromAmount", 0))
         ta = safe_float(quote.get("toAmount", 0))
-        spot = None
-        try:
-            spot = get_ratio(_from, _to)
-        except Exception:
-            spot = None
         logger.info(
             safe_log(
-                f"[dev3] 🔎 passes_filters dbg: {_from}->{_to} "
-                f"score={score:.4f} ratio={ratio} inv={inv} "
-                f"fromAmount={fa} toAmount={ta} spot={spot} min_edge={min_edge:.4f}"
+                f"[dev3] \U0001f50e passes_filters dbg: {_from}->{_to} score={score:.4f} "
+                f"ratio={ratio:.6f} inv={inv:.6f} fromAmount={fa:.6f} toAmount={ta:.6f} "
+                f"min_edge={explore_min_edge:.6f}"
             )
         )
     except Exception as e:
@@ -145,56 +134,42 @@ def passes_filters(
             from_token,
             to_token,
         )
-        return False, "invalid_tokens"
+        return False, "invalid_tokens", -1.0
 
     r_convert = safe_float(quote.get("ratio", 0))
     r_spot = get_ratio(from_token, to_token)
+    if r_convert <= 0 or r_spot <= 0:
+        return False, "price_zero", -1.0
+
     spot_inv = 1 / r_spot if r_spot else 0
     quote_inv = 1 / r_convert if r_convert else 0
     edge = _compute_edge(spot_inv, quote_inv)
+    logger.debug(
+        "edge_dbg: spot_inv={:.6f} quote_inv={:.6f} edge={:.6f} min_edge={:.6f}",
+        spot_inv,
+        quote_inv,
+        edge,
+        explore_min_edge,
+    )
 
-    if EXPLORE_MODE:
-        if edge >= EXPLORE_MIN_EDGE:
-            return True, "ok_explore"
-        return False, "edge_too_small_explore"
+    lot = get_lot_step(from_token)
+    min_qty = safe_float(lot.get("minQty", lot.get("stepSize", 0)))
+    if from_amount < min_qty * min_lot_factor:
+        return False, "min_lot", edge
 
     if score < MIN_SCORE:
-        return False, "low_score"
+        return False, "low_score", edge
 
-    if edge <= 0 and not force_spot:
-        return False, "no_profit"
+    if context == "explore" and edge < explore_min_edge:
+        return False, "edge_too_small_explore", edge
 
-    if r_spot and r_convert and r_convert < r_spot:
-        if not force_spot:
-            return False, "spot_no_profit"
-        if (r_spot - r_convert) <= min_edge * max(r_spot, r_convert):
-            edge_val = (r_spot - r_convert) / max(r_spot, r_convert)
-            logger.info(
-                safe_log(
-                    f"[dev3] \U0001F515 spot_edge too small: edge={edge_val:.6f} < min_edge={min_edge:.6f}"
-                )
-            )
-            return False, "spot_edge_too_small"
-        return True, "explore_spot_positive"
+    if to_amount <= 0 or from_amount <= 0:
+        return False, "price_zero", edge
 
-    if to_amount <= from_amount:
-        logger.info(safe_log("[dev3] ⛔️ passes_filters вирок: no_profit"))
-        return False, "no_profit"
-
-    from_symbol = from_token.upper()
-    to_symbol = to_token.upper()
-
-    try:
-        to_price = get_spot_price(to_symbol)
-        to_usdt_value = to_amount * to_price
-    except Exception as e:
-        return False, f"price_lookup_failed: {e}"
-
-    if to_usdt_value < 0.5:
-        return False, f"to_amount_too_low_usdt (≈{to_usdt_value:.4f})"
     if balance < from_amount:
-        return False, "insufficient_balance"
-    return True, "ok"
+        return False, "insufficient_balance", edge
+
+    return True, "ok", edge
 
 
 from datetime import datetime, timedelta

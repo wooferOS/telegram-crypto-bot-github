@@ -14,6 +14,7 @@ MODEL_PATH = "model_convert.joblib"
 logger = logging.getLogger(__name__)
 _model = None
 _is_fallback = False
+_model_valid = False
 
 
 
@@ -58,12 +59,14 @@ def extract_labels(data: List[Dict[str, Any]]) -> List[int]:
 
 def _load_model() -> Any:
     """Load model from disk or return cached instance."""
-    global _model, _is_fallback
+    global _model, _is_fallback, _model_valid
     if _model is None:
         if not os.path.exists(MODEL_PATH):
+            _model_valid = False
             raise FileNotFoundError(MODEL_PATH)
         try:
             _model = joblib.load(MODEL_PATH)
+            _model_valid = True
             if hasattr(_model, "classes_") and len(_model.classes_) == 1:
                 _is_fallback = True
                 print("[dev3] ⚠️ Model has one class — limited accuracy")
@@ -73,6 +76,7 @@ def _load_model() -> Any:
             logger.warning("Failed to load model: %s", exc)
             _model = None
             _is_fallback = False
+            _model_valid = False
     return _model
 
 
@@ -85,6 +89,12 @@ def is_fallback_model() -> bool:
         except FileNotFoundError:
             return False
     return _is_fallback
+
+
+def model_is_valid() -> bool:
+    """Return True if a trained model is available and valid."""
+    global _model_valid
+    return _model_valid
 
 
 def _hash_token(token: str) -> float:
@@ -146,9 +156,11 @@ def predict(
         model = _load_model()
     except FileNotFoundError:
         logger.debug("[dev3] model file not found")
+        _model_valid = False
         return 0.0, 0.0, 0.0
 
     if model is None:
+        _model_valid = False
         return 0.0, 0.0, 0.0
 
     try:
@@ -193,6 +205,10 @@ def predict(
 
         expected_profit = ratio - 1.0
         score_val = expected_profit * prob_up
+        if expected_profit <= -0.999 and abs(prob_up - 0.57) < 0.01:
+            logger.warning("[dev3] invalid model prediction sentinel detected")
+            _model_valid = False
+            return 0.0, 0.0, 0.0
 
         logger.debug(
             "[dev3] predict result: expected_profit=%.6f prob_up=%.6f score=%.6f",
@@ -203,6 +219,7 @@ def predict(
         return expected_profit, prob_up, score_val
     except Exception as exc:  # pragma: no cover - diagnostics only
         logger.exception("[dev3] prediction failed: %s", exc)
+        _model_valid = False
         return 0.0, 0.0, 0.0
 
 

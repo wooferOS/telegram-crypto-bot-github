@@ -4,7 +4,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 from convert_api import (
     get_quote,
@@ -16,7 +16,7 @@ from convert_api import (
 )
 from binance_api import get_binance_balances, get_ratio
 from convert_notifier import notify_success, notify_failure
-from convert_filters import passes_filters, get_token_info
+from convert_filters import passes_filters, get_token_info, _compute_edge
 from convert_logger import (
     logger,
     save_convert_history,
@@ -27,7 +27,7 @@ from convert_logger import (
     safe_log,
 )
 from quote_counter import should_throttle, reset_cycle
-from convert_model import _hash_token, predict
+from convert_model import _hash_token, predict, model_is_valid
 from utils_dev3 import (
     safe_float,
     safe_json_load,
@@ -35,8 +35,7 @@ from utils_dev3 import (
     HISTORY_PATH,
 )
 
-EXPLORE_MODE = int(os.getenv("EXPLORE_MODE", "0"))
-EXPLORE_MIN_EDGE = safe_float(os.environ.get("EXPLORE_MIN_EDGE", "0.001"))
+FIAT_TOKENS = {"COP", "RON", "MXN"}
 
 
 def _pick_best_by_edge(candidates: list[dict[str, Any]]):
@@ -49,7 +48,7 @@ def _pick_best_by_edge(candidates: list[dict[str, Any]]):
         spot_ratio = get_ratio(from_token, to_token)
         spot_inv = 1 / spot_ratio if spot_ratio else 0
         quote_inv = safe_float(quote.get("inverseRatio", 0))
-        edge = (spot_inv - quote_inv) / spot_inv if spot_inv > 0 else -1.0
+        edge = _compute_edge(spot_inv, quote_inv)
         c["edge"] = edge
         if edge > best_edge:
             best_edge = edge
@@ -77,6 +76,25 @@ def gpt_score(data: Dict[str, Any]) -> float:
     else:
         score = score_data
     return _metric_value(score)
+
+
+def _write_summary(
+    stats: Dict[str, int],
+    best_edge: float,
+    candidates: int,
+    fallback_attempted: bool,
+    fallback_result: bool,
+) -> None:
+    summary = {
+        **stats,
+        "best_edge": best_edge,
+        "candidates": candidates,
+        "fallback_attempted": fallback_attempted,
+        "fallback_result": fallback_result,
+    }
+    os.makedirs("logs", exist_ok=True)
+    with open("logs/convert_summary.log", "a", encoding="utf-8") as f:
+        f.write(json.dumps(summary) + "\n")
 
 
 # Єдине місце читання/запису історії
@@ -149,35 +167,26 @@ def try_convert(
     amount: float,
     score: float,
     quote_data: Dict[str, Any] | None = None,
-) -> bool:
+) -> Tuple[bool, str]:
     """Attempt a single conversion using optional pre-fetched quote."""
     log_prediction(from_token, to_token, score)
     if amount <= 0:
         log_quote_skipped(from_token, to_token, "no_balance")
-        return False
+        return False, "other"
 
     if should_throttle(from_token, to_token):
         log_quote_skipped(from_token, to_token, "throttled")
-        return False
+        return False, "other"
 
     quote = quote_data or get_quote(from_token, to_token, amount)
     if not quote:
         log_quote_skipped(from_token, to_token, "invalid_quote")
-        return False
-
-    valid, reason = passes_filters(score, quote, amount)
-    if not valid:
-        logger.info(
-            safe_log(
-                f"[dev3] \u26d4\ufe0f Пропуск {from_token} → {to_token}: score={score:.4f}, причина={reason}, quote={quote}"
-            )
-        )
-        return False
+        return False, "no_quote"
 
     resp = accept_quote(quote, from_token, to_token)
     if resp is None:
         notify_failure(from_token, to_token, reason="accept_quote returned None")
-        return False
+        return False, "api_error"
     if isinstance(resp, dict):
         order_id = str(resp.get("orderId", ""))
         status = str(resp.get("orderStatus", resp.get("status", "")))
@@ -230,7 +239,7 @@ def try_convert(
                 "accepted": True,
             }
         )
-        return True
+        return True, "ok"
 
     reason = resp.get("msg") if isinstance(resp, dict) else "Unknown error"
     notify_failure(from_token, to_token, reason=reason)
@@ -249,10 +258,15 @@ def try_convert(
             "accepted": False,
         }
     )
-    return False
+    return False, "api_error"
 
 
-def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) -> bool:
+def fallback_convert(
+    pairs: List[Dict[str, Any]],
+    balances: Dict[str, float],
+    config: Dict[str, Any],
+    stats: Dict[str, int],
+) -> bool:
     """Attempt fallback conversion using the token with the highest balance.
 
     Returns True if a conversion was successfully executed.
@@ -310,12 +324,41 @@ def fallback_convert(pairs: List[Dict[str, Any]], balances: Dict[str, float]) ->
         safe_log(f"🔄 [FALLBACK] Спроба конвертації {from_token} → {selected_to_token}")
     )
 
-    return try_convert(
+    quote = get_quote(from_token, selected_to_token, amount)
+    if not quote:
+        stats["no_quote"] += 1
+        return False
+    valid, reason, _ = passes_filters(
+        gpt_score(best_pair),
+        quote,
+        amount,
+        context="fallback",
+        explore_min_edge=config.get("min_edge", 0.0),
+        min_lot_factor=config.get("min_lot_factor", 1.0),
+    )
+    if not valid:
+        if reason == "price_zero":
+            stats["price_zero"] += 1
+        elif reason == "min_lot":
+            stats["min_lot"] += 1
+        else:
+            stats["other"] += 1
+        return False
+    success, fail_reason = try_convert(
         from_token,
         selected_to_token,
         amount,
         gpt_score(best_pair),
+        quote,
     )
+    if success:
+        stats["accepted_quotes"] += 1
+        return True
+    if fail_reason == "api_error":
+        stats["api_error"] += 1
+    else:
+        stats["other"] += 1
+    return False
 
 
 def _load_top_pairs() -> List[Dict[str, Any]]:
@@ -351,59 +394,80 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
     return [q for _, q in top_quotes]
 
 
-def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
-    """Process top token pairs and execute conversions if score is high enough."""
-    logger.info(safe_log(f"[dev3] 🔍 Запуск process_top_pairs з {len(pairs) if pairs else 0} парами"))
+
+def process_top_pairs(
+    pairs: List[Dict[str, Any]] | None = None,
+    config: Dict[str, Any] | None = None,
+) -> None:
+    config = config or {}
+    logger.info(
+        safe_log(
+            f"[dev3] 🔍 Запуск process_top_pairs з {len(pairs) if pairs else 0} парами"
+        )
+    )
 
     balances = get_token_balances()
     if not pairs:
         logger.warning(safe_log("[dev3] ⛔️ Список пар порожній — нічого обробляти"))
         return
 
-    # ENV-прапори explore режиму
-    EXPLORE_MODE = os.getenv("EXPLORE_MODE", "1") == "1"
-    EXPLORE_MAX = int(os.getenv("EXPLORE_MAX", "2"))
-    EXPLORE_PAPER = os.getenv("EXPLORE_PAPER", "1") == "1"
-    EXPLORE_MIN_LOT_FACTOR = safe_float(os.getenv("EXPLORE_MIN_LOT_FACTOR", "1.0")) or 1.0
+    non_tradable = 0
+    tradable: List[Dict[str, Any]] = []
+    for p in pairs:
+        ft = p.get("fromToken") or p.get("from")
+        tt = p.get("toToken") or p.get("to")
+        if not ft or not tt or ft == tt or ft in FIAT_TOKENS or tt in FIAT_TOKENS:
+            non_tradable += 1
+            continue
+        tradable.append(p)
+    if non_tradable:
+        logger.info(safe_log(f"[dev3] ℹ️ Відсіяно {non_tradable} non-tradable пар"))
 
-    filtered_pairs = []
-    for pair in pairs:
+    filtered_pairs: List[Dict[str, Any]] = []
+    for pair in tradable:
         score = gpt_score(pair)
         from_key = pair.get("fromToken") or pair.get("from_token") or pair.get("from")
         to_key = pair.get("toToken") or pair.get("to_token") or pair.get("to")
-
         from_info = get_token_info(from_key)
         to_info = get_token_info(to_key)
         from_token = from_info.get("symbol") if from_info else None
         to_token = to_info.get("symbol") if to_info else None
-
         if not from_token or not to_token:
-            logger.warning(safe_log(f"[dev3] ❗️ Неможливо визначити токени з пари: {pair}"))
             continue
-
         if from_token not in balances:
-            logger.info(
-                safe_log(f"[dev3] ⏭ Пропущено {from_token} → {to_token}: немає балансу")
-            )
             continue
-
-        # До котирувань НЕ зрізаємо пари високим порогом — офільтруємо після котирування в passes_filters
-        if score is None:
-            score = 0.0
-
         filtered_pairs.append(pair)
 
-    logger.info(safe_log(f"[dev3] ✅ Кількість пар після фільтрації: {len(filtered_pairs)}"))
+    logger.info(
+        safe_log(f"[dev3] ✅ Кількість пар після фільтрації: {len(filtered_pairs)}")
+    )
+
+    stats = {
+        "predict_skip_negative": 0,
+        "edge_too_small_explore": 0,
+        "price_zero": 0,
+        "min_lot": 0,
+        "no_quote": 0,
+        "api_error": 0,
+        "other": 0,
+        "accepted_quotes": 0,
+    }
+    best_edge = -1.0
+    fallback_attempted = False
+    fallback_result = False
 
     if not filtered_pairs:
-        logger.warning(safe_log("[dev3] ⛔️ Жодна пара не пройшла фільтри — трейд пропущено"))
-        fallback_convert(pairs, balances)
+        logger.warning(
+            safe_log("[dev3] ⛔️ Жодна пара не пройшла фільтри — трейд пропущено")
+        )
+        fallback_attempted = True
+        fallback_result = fallback_convert(tradable, balances, config, stats)
+        _write_summary(stats, best_edge, len(filtered_pairs), fallback_attempted, fallback_result)
         return
 
     successful_count = 0
     quote_count = 0
-    fallback_candidates = []
-    all_quotes: List[tuple[str, str, float, Dict[str, Any], float]] = []
+    all_checked: List[dict] = []
     for pair in filtered_pairs:
         if quote_count >= MAX_QUOTES_PER_CYCLE:
             logger.info(
@@ -415,46 +479,29 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
 
         from_key = pair.get("fromToken") or pair.get("from_token") or pair.get("from")
         to_key = pair.get("toToken") or pair.get("to_token") or pair.get("to")
-
         from_info = get_token_info(from_key)
         to_info = get_token_info(to_key)
         from_token = from_info.get("symbol") if from_info else None
         to_token = to_info.get("symbol") if to_info else None
-
         if not from_token or not to_token:
-            logger.warning(
-                safe_log(
-                    f"[dev3] ❌ Один із токенів None: from_token={from_token}, to_token={to_token}"
-                )
-            )
-            logger.info(
-                safe_log(
-                    f"[dev3] ⛔️ Пропуск {from_token} → {to_token}: причина=invalid_tokens"
-                )
-            )
+            stats["other"] += 1
             continue
 
         amount = balances.get(from_token, 0)
         if amount <= 0:
-            logger.info(
-                safe_log(
-                    f"[dev3] ⏭ {from_token} → {to_token}: amount {amount:.4f} недостатній"
-                )
-            )
+            stats["other"] += 1
             continue
 
         if should_throttle(from_token, to_token):
-            log_quote_skipped(from_token, to_token, "throttled")
+            stats["other"] += 1
             continue
 
-        quote = pair.get("quote")
-        if not quote:
-            quote = get_quote(from_token, to_token, amount)
+        quote = pair.get("quote") or get_quote(from_token, to_token, amount)
         if not quote:
             log_quote_skipped(from_token, to_token, "invalid_quote")
+            stats["no_quote"] += 1
             continue
 
-        # відтепер саме тут, після реального quote, працює модель та фільтри
         expected_profit, prob_up, score = predict(from_token, to_token, quote)
         logger.info(
             safe_log(
@@ -462,68 +509,54 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
             )
         )
 
-        if score <= 0:
-            logger.info(
-                safe_log(
-                    f"[dev3] 🔕 Пропуск після predict: score={score:.4f} для {from_token} → {to_token}"
-                )
-            )
-            all_quotes.append((from_token, to_token, amount, quote, score))
+        if score <= 0 and model_is_valid() and not config.get("model_only", False):
+            stats["predict_skip_negative"] += 1
+            all_checked.append({"from": from_token, "to": to_token, "amount": amount, "quote": quote})
             continue
 
-        valid, reason = passes_filters(score, quote, amount)
+        valid, reason, edge = passes_filters(
+            score,
+            quote,
+            amount,
+            context="explore",
+            explore_min_edge=config.get("min_edge", 0.0),
+            min_lot_factor=config.get("min_lot_factor", 1.0),
+        )
+        best_edge = max(best_edge, edge)
         if not valid:
-            logger.info(
-                safe_log(
-                    f"[dev3] ⛔️ Пропуск {from_token} → {to_token}: score={score:.4f}, причина={reason}, quote={quote}"
-                )
-            )
-            if reason == "spot_no_profit" and score > 0:
-                fallback_candidates.append((from_token, to_token, amount, quote, score))
-                logger.info(
-                    safe_log(
-                        f"[dev3] ⚠ Навчальна пара: {from_token} → {to_token} (score={score:.4f})"
-                    )
-                )
-                continue
-            all_quotes.append((from_token, to_token, amount, quote, score))
+            if reason == "edge_too_small_explore":
+                stats["edge_too_small_explore"] += 1
+            elif reason == "price_zero":
+                stats["price_zero"] += 1
+            elif reason == "min_lot":
+                stats["min_lot"] += 1
+            else:
+                stats["other"] += 1
+            all_checked.append({"from": from_token, "to": to_token, "amount": amount, "quote": quote})
             continue
 
-        if try_convert(from_token, to_token, amount, score, quote):
+        success, fail_reason = try_convert(from_token, to_token, amount, score, quote)
+        if success:
+            stats["accepted_quotes"] += 1
             successful_count += 1
             quote_count += 1
+        else:
+            if fail_reason == "api_error":
+                stats["api_error"] += 1
+            else:
+                stats["other"] += 1
+        all_checked.append({"from": from_token, "to": to_token, "amount": amount, "quote": quote})
 
     logger.info(safe_log(f"[dev3] ✅ Успішних конверсій: {successful_count}"))
 
-    if successful_count == 0 and fallback_candidates:
-        fallback = max(fallback_candidates, key=lambda x: x[4])
-        f_token, t_token, amt, quote, sc = fallback
-        logger.warning(
-            safe_log(
-                f"[dev3] 🧪 Виконуємо навчальну конверсію: {f_token} → {t_token} (score={sc:.4f})"
-            )
-        )
-        result = try_convert(f_token, t_token, amt, max(sc, 2.0), quote)
-        if result:
-            logger.info(safe_log("[dev3] ✅ Навчальна конверсія виконана"))
-            successful_count += 1
-
-    if successful_count == 0 and EXPLORE_MODE:
-        all_checked_candidates = [
-            {"from": f, "to": t, "amount": amt, "quote": q}
-            for f, t, amt, q, sc in all_quotes
-        ]
-        best, best_edge = _pick_best_by_edge(all_checked_candidates)
-        if best and best_edge >= EXPLORE_MIN_EDGE:
-            logger.info(
-                safe_log(
-                    f"[FALLBACK-EXPLORE] Виконуємо паперову угоду {best['from']}→{best['to']} edge={best_edge:.4%}"
-                )
-            )
+    if successful_count == 0 and config.get("mode"):
+        best, edge_val = _pick_best_by_edge(all_checked)
+        best_edge = max(best_edge, edge_val)
+        if best and edge_val >= config.get("min_edge", 0.0):
             try:
                 explore_amt = best.get("amount", 0)
                 q = best.get("quote", {})
-                if EXPLORE_PAPER:
+                if config.get("paper", True):
                     faux_profit = safe_float(q.get("toAmount", 0)) - safe_float(q.get("fromAmount", 0))
                     logger.info(
                         safe_log(
@@ -548,22 +581,23 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None) -> None:
                     )
                     successful_count += 1
                 else:
-                    logger.warning(
-                        safe_log(
-                            f"[dev3] 🧭 Explore EXEC {best['from']}→{best['to']} amount={explore_amt:.8f}"
-                        )
-                    )
-                    if try_convert(best["from"], best["to"], explore_amt, 0.01, q):
+                    if try_convert(best["from"], best["to"], explore_amt, 0.01, q)[0]:
                         successful_count += 1
             except Exception as e:
                 logger.warning(safe_log(f"Fallback-explore помилка: {e}"))
-        else:
-            logger.info(
-                safe_log(
-                    "[FALLBACK-EXPLORE] Немає кандидатів з позитивним edge ≥ EXPLORE_MIN_EDGE"
-                )
-            )
 
     if successful_count == 0:
-        logger.warning(safe_log("[dev3] ⚠️ Жодної конверсії не виконано — викликаємо fallback"))
-        fallback_convert(pairs, balances)
+        logger.warning(
+            safe_log("[dev3] ⚠️ Жодної конверсії не виконано — викликаємо fallback")
+        )
+        fallback_attempted = True
+        fallback_result = fallback_convert(tradable, balances, config, stats)
+
+    _write_summary(
+        stats,
+        best_edge,
+        len(filtered_pairs),
+        fallback_attempted,
+        fallback_result,
+    )
+
