@@ -300,7 +300,17 @@ async def convert_mode() -> None:
             send_telegram("[dev3] ❌ GPT не згенерував прогноз для convert. Пропущено трейд.")
 
     top_tokens_path = os.path.join(os.path.dirname(__file__), "top_tokens.json")
-    await asyncio.to_thread(save_json, top_tokens_path, top_tokens)
+    all_zero = all(
+        safe_float(t.get("score", t.get("gpt", {}).get("score", 0))) == 0
+        and safe_float(t.get("expected_profit", t.get("gpt", {}).get("profit", 0))) == 0
+        for t in top_tokens
+    )
+    if all_zero:
+        os.makedirs("logs", exist_ok=True)
+        with open("logs/gpt_convert.log", "a", encoding="utf-8") as f:
+            f.write("[WARNING] top_tokens all zero — keeping previous file\n")
+    else:
+        await asyncio.to_thread(save_json, top_tokens_path, top_tokens)
 
     gpt_forecast_path = os.path.join(os.path.dirname(__file__), "gpt_forecast.json")
     gpt_data = {

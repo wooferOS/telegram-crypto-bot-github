@@ -6,6 +6,7 @@ import json
 from convert_cycle import process_top_pairs
 from convert_logger import logger, safe_log
 from quote_counter import can_request_quote
+from utils_dev3 import safe_float
 
 EXPLORE_MODE = int(os.getenv("EXPLORE_MODE", "0"))
 EXPLORE_PAPER = int(os.getenv("EXPLORE_PAPER", "1"))
@@ -74,7 +75,22 @@ def main() -> None:
             return
 
         logger.info(safe_log(f"[dev3] ✅ Завантажено {len(top_tokens)} пар з top_tokens.json"))
-        process_top_pairs(top_tokens)
+        all_zero = all(
+            safe_float(item.get("gpt", {}).get("score", item.get("score", 0))) == 0
+            and safe_float(item.get("expected_profit", 0)) == 0
+            for item in top_tokens
+        )
+        if all_zero:
+            logger.warning(safe_log("[dev3] ⚠️ top_tokens all zeros — GPT gating disabled"))
+        config = {
+            "mode": EXPLORE_MODE,
+            "paper": EXPLORE_PAPER,
+            "max": EXPLORE_MAX,
+            "min_edge": EXPLORE_MIN_EDGE,
+            "min_lot_factor": EXPLORE_MIN_LOT_FACTOR,
+            "model_only": all_zero,
+        }
+        process_top_pairs(top_tokens, config)
     except Exception as e:
         logger.error(safe_log(f"[dev3] ❌ Помилка при завантаженні top_tokens.json: {e}"))
         return

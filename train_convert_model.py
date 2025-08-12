@@ -8,6 +8,7 @@ from collections import Counter
 import argparse
 
 import joblib
+import numpy as np
 
 logging.basicConfig(
     filename="logs/train_model.log",
@@ -70,7 +71,7 @@ def main():
         if not prepared:
             logger.error("❌ Немає даних після фільтрації prepare_dataset.")
             return
-        if len(prepared) < 20:
+        if len(prepared) < 200:
             logger.warning(
                 f"[dev3] 🚫 Недостатньо даних для навчання: {len(prepared)}"
             )
@@ -105,6 +106,12 @@ def main():
                 "[dev3] ❌ Навчання зупинено: неможливо згенерувати ознаки — масив features порожній."
             )
             sys.exit(1)
+        if not np.isfinite(X).all():
+            logger.warning("[dev3] 🚫 Дані містять NaN/inf — навчання пропущено")
+            return
+        if np.allclose(X.var(axis=0), 0):
+            logger.warning("[dev3] 🚫 Ознаки константні — навчання пропущено")
+            return
 
         y = extract_labels(prepared)
 
