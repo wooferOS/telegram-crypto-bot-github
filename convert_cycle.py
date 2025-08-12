@@ -501,6 +501,7 @@ def process_top_pairs(
             log_quote_skipped(from_token, to_token, "invalid_quote")
             stats["no_quote"] += 1
             continue
+        quote_count += 1
 
         expected_profit, prob_up, score = predict(from_token, to_token, quote)
         logger.info(
