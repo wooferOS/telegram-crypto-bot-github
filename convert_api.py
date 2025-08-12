@@ -1,70 +1,47 @@
 import hmac
-import hashlib
 import time
-from decimal import Decimal, ROUND_DOWN
-from typing import Dict, List, Any, Set, Optional
-import re
+import hashlib
+import logging
+from typing import Any, Dict, Optional
 
 import requests
-from urllib.parse import urlencode
 
-from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
-from utils_dev3 import get_current_timestamp, round_step_size, safe_float
-from quote_counter import increment_quote_usage
-from convert_logger import (
-    logger,
-    log_error,
-    log_conversion_success,
-    log_conversion_error,
-    log_quote_skipped,
-    safe_log,
-)
-from binance_api import (
-    get_spot_price,
-    get_precision,
-    get_lot_step,
-    get_binance_client,
-)
+try:
+    from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
+except Exception:  # pragma: no cover - optional keys for tests
+    BINANCE_API_KEY = ""
+    BINANCE_SECRET_KEY = ""
 
+logger = logging.getLogger(__name__)
+
+# ======= Константи Convert API =======
 BASE_URL = "https://api.binance.com"
+SAPI_PREFIX = "/sapi/v1/convert"
+
+# Глобальні таймаути/ретраї для мережі
+HTTP_TIMEOUT = 10
+RETRY_COUNT = 2
+
+# Ліміти опитування статусу ордера (імпортуються іншими модулями)
+ORDER_POLL_MAX_SEC = 30
+ORDER_POLL_INTERVAL = 2
 
 
-_session = requests.Session()
-logged_quote_errors: Set[tuple[str, str]] = set()
-
-_supported_pairs_cache: Optional[Set[str]] = None
-
-ORDER_POLL_MAX_SEC = 15
-ORDER_POLL_INTERVAL = 1.0
-
-
-def log_msg(message: str, level: str = "info") -> None:
-    """Simple logging helper respecting level argument."""
-    if level == "error":
-        logger.error(message)
-    elif level == "warning":
-        logger.warning(message)
-    else:
-        logger.info(message)
-
-# Cache of discovered minimal amounts per pair
-_min_amount_cache: Dict[tuple[str, str], float] = {}
-
-
-def sanitize_token_pair(from_token: str, to_token: str) -> str:
-    """Return standardized key for quote limits."""
-    if not from_token or not to_token:
-        logger.warning("[dev3] ❌ Невірний токен: token=None під час symbol.upper()")
-        return ""
-    return f"{from_token.upper()}→{to_token.upper()}"
-
-
+# ======= Хелпери підпису запитів =======
+def _ts() -> int:
+    return int(time.time() * 1000)
 
 
 def _sign(params: Dict[str, Any]) -> Dict[str, Any]:
-    params["timestamp"] = get_current_timestamp()
-    query = "&".join(f"{k}={v}" for k, v in params.items())
-    signature = hmac.new(BINANCE_SECRET_KEY.encode(), query.encode(), hashlib.sha256).hexdigest()
+    """Додає timestamp і підпис (HMAC SHA256) до params."""
+    params = dict(params)
+    params.setdefault("timestamp", _ts())
+    qs = "&".join(f"{k}={params[k]}" for k in sorted(params.keys()))
+    signature = hmac.new(
+        BINANCE_SECRET_KEY.encode("utf-8"),
+        qs.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
     params["signature"] = signature
     return params
 
@@ -73,467 +50,153 @@ def _headers() -> Dict[str, str]:
     return {"X-MBX-APIKEY": BINANCE_API_KEY}
 
 
+def _post(path: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    url = f"{BASE_URL}{path}"
+    last_err: Optional[str] = None
+    for _ in range(RETRY_COUNT + 1):
+        try:
+            resp = requests.post(
+                url, headers=_headers(), params=_sign(params), timeout=HTTP_TIMEOUT
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            last_err = resp.text
+        except Exception as e:  # pragma: no cover - network
+            last_err = str(e)
+        time.sleep(0.2)
+    logger.warning("Convert POST %s failed: %s", path, last_err)
+    return None
+
+
+def _get(path: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    url = f"{BASE_URL}{path}"
+    last_err: Optional[str] = None
+    for _ in range(RETRY_COUNT + 1):
+        try:
+            resp = requests.get(
+                url, headers=_headers(), params=_sign(params), timeout=HTTP_TIMEOUT
+            )
+            if resp.status_code == 200:
+                return resp.json()
+            last_err = resp.text
+        except Exception as e:  # pragma: no cover - network
+            last_err = str(e)
+        time.sleep(0.2)
+    logger.warning("Convert GET %s failed: %s", path, last_err)
+    return None
+
+
+# ======= Публічні функції, які вже використовує код =======
+def get_quote(from_token: str, to_token: str, amount: float) -> Optional[Dict[str, Any]]:
+    """POST /sapi/v1/convert/getQuote"""
+    if not from_token or not to_token or amount <= 0:
+        return None
+    payload = {
+        "fromAsset": from_token,
+        "toAsset": to_token,
+        "fromAmount": f"{amount:.8f}",
+    }
+    data = _post(f"{SAPI_PREFIX}/getQuote", payload)
+    if not isinstance(data, dict) or "quoteId" not in data:
+        return None
+    quote = {
+        "quoteId": data.get("quoteId"),
+        "ratio": float(data.get("ratio", 0)) or 0.0,
+        "inverseRatio": float(data.get("inverseRatio", 0))
+        or (
+            1.0 / float(data.get("ratio", 0))
+            if float(data.get("ratio", 0) or 0)
+            else 0.0
+        ),
+        "fromAmount": float(data.get("fromAmount", 0)) or 0.0,
+        "toAmount": float(data.get("toAmount", 0)) or 0.0,
+        "validTime": data.get("validTime"),
+        "fromAsset": data.get("fromAsset", from_token),
+        "toAsset": data.get("toAsset", to_token),
+    }
+    return quote
+
+
+def accept_quote(
+    quote: Dict[str, Any],
+    from_token: str,
+    to_token: str,
+) -> Optional[Dict[str, Any]]:
+    """POST /sapi/v1/convert/acceptQuote"""
+    if not isinstance(quote, dict):
+        return None
+    quote_id = quote.get("quoteId")
+    if not quote_id:
+        return None
+    payload = {"quoteId": quote_id}
+    data = _post(f"{SAPI_PREFIX}/acceptQuote", payload)
+    if not isinstance(data, dict) or "orderId" not in data:
+        return {
+            "status": "error",
+            "msg": data.get("msg") if isinstance(data, dict) else "acceptQuote failed",
+        }
+    resp = {
+        "orderId": data.get("orderId"),
+        "orderStatus": data.get("orderStatus", "PROCESS"),
+        "status": "success" if data.get("orderStatus") == "SUCCESS" else "pending",
+        "fromAmount": quote.get("fromAmount", 0.0),
+        "toAmount": quote.get("toAmount", 0.0),
+        "fromAsset": from_token,
+        "toAsset": to_token,
+    }
+    return resp
+
+
+def get_order_status(order_id: str) -> Optional[Dict[str, Any]]:
+    """GET /sapi/v1/convert/orderStatus"""
+    if not order_id:
+        return None
+    data = _get(f"{SAPI_PREFIX}/orderStatus", {"orderId": order_id})
+    if not isinstance(data, dict) or "orderId" not in data:
+        return None
+    return {
+        "orderId": data.get("orderId"),
+        "orderStatus": data.get("orderStatus"),
+        "status": "success"
+        if data.get("orderStatus") == "SUCCESS"
+        else "error"
+        if data.get("orderStatus") in ("FAILED", "FAIL", "EXPIRED", "CANCELED")
+        else "pending",
+        "fromAmount": float(data.get("fromAmount", 0)) if data.get("fromAmount") else None,
+        "toAmount": float(data.get("toAmount", 0)) if data.get("toAmount") else None,
+        "fromAsset": data.get("fromAsset"),
+        "toAsset": data.get("toAsset"),
+    }
+
+
+# === Інтерфейс, який використовує інший код ===
+def sanitize_token_pair(from_token: str, to_token: str) -> str:
+    if not from_token or not to_token:
+        logger.warning("[dev3] ❌ Невірний токен: token=None під час symbol.upper()")
+        return ""
+    return f"{from_token.upper()}→{to_token.upper()}"
+
+
 def get_balances() -> Dict[str, float]:
-    url = f"{BASE_URL}/api/v3/account"
-    params = _sign({})
-    resp = _session.get(url, params=params, headers=_headers(), timeout=10)
-    data = resp.json()
+    data = _get("/api/v3/account", {})
     balances: Dict[str, float] = {}
-    for bal in data.get("balances", []):
-        total = float(bal.get("free", 0)) + float(bal.get("locked", 0))
-        if total > 0:
-            balances[bal["asset"]] = total
+    if isinstance(data, dict):
+        for bal in data.get("balances", []):
+            total = float(bal.get("free", 0)) + float(bal.get("locked", 0))
+            if total > 0:
+                asset = bal.get("asset")
+                if asset:
+                    balances[asset] = total
     return balances
 
 
-def _parse_min_amount(msg: str) -> Optional[float]:
-    """Extract minimal amount value from Binance error message."""
-    numbers = re.findall(r"[0-9]*\.?[0-9]+", msg)
-    if numbers:
-        try:
-            return float(numbers[0])
-        except ValueError:
-            return None
-    return None
-
-
-def _validate_min_amount(from_token: str, to_token: str, amount: float) -> Optional[float]:
-    """Call Binance Convert getQuote with validateOnly to detect minimal amount."""
-    url = f"{BASE_URL}/sapi/v1/convert/getQuote"
-    params = _sign(
-        {
-            "fromAsset": from_token,
-            "toAsset": to_token,
-            "fromAmount": amount,
-            "validateOnly": True,
-        }
-    )
-    try:
-        resp = _session.post(url, data=params, headers=_headers(), timeout=10)
-        data = resp.json()
-    except Exception as exc:  # pragma: no cover - network
-        logger.warning(
-            "[dev3] validateOnly error %s → %s: %s", from_token, to_token, exc
-        )
-        return None
-
-    if isinstance(data, dict):
-        if data.get("code") == 345233:
-            msg = data.get("msg", "")
-            min_val = _parse_min_amount(msg)
-            if min_val is not None:
-                _min_amount_cache[(from_token, to_token)] = min_val
-                return min_val
-        if data.get("ratio") is not None:
-            _min_amount_cache[(from_token, to_token)] = amount
-            return amount
-    return None
-
-
-
-
-def get_available_to_tokens(from_token: str) -> List[str]:
-    url = f"{BASE_URL}/sapi/v1/convert/exchangeInfo"
-    params = _sign({"fromAsset": from_token})
-    resp = _session.get(url, params=params, headers=_headers(), timeout=10)
-    data = resp.json()
-    # Ensure compatibility with both list and dict responses
+def get_available_to_tokens(from_token: str) -> list[str]:
+    data = _get(f"{SAPI_PREFIX}/exchangeInfo", {"fromAsset": from_token})
     if isinstance(data, list):
         data = {"toAssetList": data}
     return [item.get("toAsset") for item in data.get("toAssetList", [])]
 
 
-def get_quote(from_asset: str, to_asset: str, amount: float) -> Optional[Dict[str, Any]]:
-    """Fetch quote from Binance Convert API and return parsed data."""
-    if not from_asset or not to_asset:
-        logger.warning(
-            "❌ Один із токенів None: from_asset=%s, to_asset=%s",
-            from_asset,
-            to_asset,
-        )
-        log_quote_skipped(
-            from_asset or "None",
-            to_asset or "None",
-            reason="⛔️ Пропущено: invalid_tokens",
-        )
-        return None
-    endpoint = "/sapi/v1/convert/getQuote"
-    timestamp = int(time.time() * 1000)
-    params = {
-        "fromAsset": from_asset,
-        "toAsset": to_asset,
-        "fromAmount": amount,
-        "recvWindow": 5000,
-        "timestamp": timestamp,
-    }
-    query_string = urlencode(params)
-    signature = hmac.new(
-        BINANCE_SECRET_KEY.encode("utf-8"),
-        query_string.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-    headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
-    full_url = f"{BASE_URL}{endpoint}?{query_string}&signature={signature}"
-    try:
-        response = requests.post(full_url, headers=headers)
-        if response.status_code == 401:
-            logger.error(
-                "❌ getQuote 401 Unauthorized for %s → %s amount=%s",
-                from_asset,
-                to_asset,
-                amount,
-            )
-            time.sleep(1.0)
-            return None
-        data = response.json()
-        if not data:
-            logger.warning(
-                f"❌ Empty quote for {from_asset} → {to_asset}"
-            )
-            return None
-
-        if "ratio" in data and "toAmount" in data and "quoteId" in data:
-            valid_until = data.get("validUntil") or data.get("validTimestamp")
-            if not valid_until:
-                logger.warning(
-                    f"[dev3] ❌ Quote для {from_asset} → {to_asset} не містить "
-                    f"'validUntil' або 'validTimestamp': {data}"
-                )
-                log_quote_skipped(from_asset, to_asset, reason="invalid_quote")
-                return None
-            valid_until = int(valid_until)
-            quote = {
-                "quoteId": data["quoteId"],
-                "ratio": float(data["ratio"]),
-                "inverseRatio": float(data["inverseRatio"]),
-                "fromAmount": float(data["fromAmount"]),
-                "toAmount": float(data["toAmount"]),
-                "validUntil": valid_until,
-                "created_at": time.time(),
-            }
-            quote["fromToken"] = from_asset
-            quote["toToken"] = to_asset
-            try:
-                r = float(data["ratio"])
-                quote["price"] = (1.0 / r) if r else None
-            except Exception:
-                quote["price"] = None
-            if quote.get("price") is None and "inverseRatio" in data:
-                try:
-                    quote["price"] = float(data["inverseRatio"])
-                except Exception:
-                    pass
-            if quote.get("price") is None:
-                logger.warning(
-                    f"❌ No valid quote returned for {from_asset} → {to_asset}: {data}"
-                )
-                return None
-            return quote
-        else:
-            logger.warning(
-                f"❌ No valid quote returned for {from_asset} → {to_asset}: {data}"
-            )
-            return None
-    except Exception as e:  # pragma: no cover - network
-        logger.error(
-            f"❌ Exception in get_quote() for {from_asset} → {to_asset}: {str(e)}"
-        )
-        return None
-
-
-def get_quote_with_retry(
-    from_token: str,
-    to_token: str,
-    base_amount: float,
-) -> Optional[Dict[str, Any]]:
-    """Retry get_quote with increasing amounts until price is available."""
-    if not from_token or not to_token:
-        logger.warning(
-            "❌ Один із токенів None: from_token=%s, to_token=%s",
-            from_token,
-            to_token,
-        )
-        log_quote_skipped(
-            from_token or "None",
-            to_token or "None",
-            reason="⛔️ Пропущено: invalid_tokens",
-        )
-        return None
-    min_required = get_min_convert_amount(from_token, to_token)
-    amount_from = base_amount
-    if amount_from < min_required:
-        logger.warning(
-            f"[dev3] ⚠️ {from_token} → {to_token} має надто малу кількість ({amount_from:.2f} < {min_required:.2f}) — підставляємо мінімальну для спроби quote"
-        )
-        amount_from = min_required
-
-    for multiplier in [1, 2, 5, 10, 20, 50, 100, 200]:
-        amount = amount_from * multiplier
-        logger.info(
-            f"[dev3] Retrying quote {from_token} → {to_token} з amount={amount}"
-        )
-        logger.info(
-            f"[dev3] 🟡 getQuote: {from_token} → {to_token}, amount = {amount}"
-        )
-        quote = get_quote(from_token, to_token, amount)
-        if quote:
-            if quote.get("msg") == "amount too low":
-                logger.warning(
-                    f"[dev3] ❌ Binance Convert API: amount too low for {from_token} → {to_token}"
-                )
-            if quote.get("code") == 345239:
-                return None
-            created_at = quote.get("created_at")
-            if created_at and time.time() - created_at > 9.5:
-                continue
-            if quote.get("ratio"):
-                return quote
-    logger.info(
-        f"[dev3] ⛔️ Всі спроби get_quote завершились без price для {from_token} → {to_token}"
-    )
-    if quote and quote.get("ratio") is None:
-        log_quote_skipped(from_token, to_token, reason="amount_too_low")
-    return None
-
-
-def get_order_status(order_id: str) -> Optional[Dict[str, Any]]:
-    """Fetch convert order status from Binance API."""
-    try:
-        resp = _session.get(
-            f"{BASE_URL}/sapi/v1/convert/orderStatus",
-            params=_sign({"orderId": order_id}),
-            headers=_headers(),
-            timeout=10,
-        )
-        resp.raise_for_status()
-        return resp.json()
-    except Exception as e:  # pragma: no cover - network
-        logger.warning(
-            "[dev3] ❌ Не вдалося отримати статус ордера %s: %s", order_id, e
-        )
-        return None
-
-
-def accept_quote(
-    quote: Dict[str, Any],
-    from_token: Optional[str] = None,
-    to_token: Optional[str] = None,
-    pair: Optional[Dict[str, Any]] = None,
-) -> Optional[Dict[str, Any]]:
-    """Accept a quote if it is still valid."""
-    if pair:
-        from_token = from_token or pair.get("from")
-        to_token = to_token or pair.get("to")
-
-    from_token = (
-        from_token
-        or quote.get("fromAsset")
-        or quote.get("fromToken")
-        or quote.get("from_token")
-    )
-    to_token = (
-        to_token
-        or quote.get("toAsset")
-        or quote.get("toToken")
-        or quote.get("to_token")
-    )
-
-    logger.debug(
-        f"[dev3] 🔍 accept_quote(): from_token={from_token}, to_token={to_token}, keys={list(quote.keys())}"
-    )
-
-    if not from_token or not to_token:
-        logger.warning(
-            "❌ Один із токенів None: from_token=%s, to_token=%s",
-            from_token,
-            to_token,
-        )
-        log_quote_skipped(
-            from_token or "None",
-            to_token or "None",
-            reason="⛔️ Пропущено: invalid_tokens",
-        )
-        return None
-    created_at = quote.get("created_at")
-    if created_at and (time.time() - created_at > 9.5):  # TTL Binance ~10s
-        log_quote_skipped(
-            from_token,
-            to_token,
-            reason="⛔️ Пропущено: quoteId протерміновано",
-        )
-        return None
-
-    quote_id = quote.get("quoteId")
-    if not quote_id:
-        return None
-
-    client = get_binance_client()
-    try:
-        response = client.convert_trade(quoteId=quote_id)
-        logger.info("[dev3] Binance response (accept_quote): %s", response)
-    except Exception as e:  # pragma: no cover - network
-        error_msg = str(e)
-        log_conversion_error(from_token, to_token, error_msg)
-        return {"status": "error", "msg": error_msg}
-
-    order_id = response.get("orderId")
-    final_status = response.get("orderStatus") or response.get("status") or ""
-    order_status = response
-    if order_id:
-        start = time.time()
-        while final_status in ("PROCESS", "") and time.time() - start < ORDER_POLL_MAX_SEC:
-            time.sleep(ORDER_POLL_INTERVAL)
-            order_status = get_order_status(order_id) or {}
-            polled = order_status.get("orderStatus")
-            if polled:
-                final_status = polled
-            if final_status in ("SUCCESS", "FAILED", "FAIL", "EXPIRED", "CANCELED"):
-                break
-
-    if final_status == "SUCCESS":
-        from_amt = safe_float(order_status.get("fromAmount", 0))
-        to_amt = safe_float(order_status.get("toAmount", 0))
-        profit = to_amt - from_amt
-        logger.info(
-            safe_log(
-                f"[dev3] ✅ accept_quote result: {from_token}->{to_token} "
-                f"fromAmount={from_amt} toAmount={to_amt} profit={profit}"
-            )
-        )
-        log_conversion_success(from_token, to_token, profit)
-        logger.info(f"[dev3] 🔄 accept_quote виконано: {quote_id}")
-        order_status["status"] = "success"
-        return order_status
-
-    logger.warning("[dev3] ❌ Статус ордера: %s", final_status)
-    log_conversion_error(from_token, to_token, final_status or "unknown_error")
-    return {"status": "error", "msg": final_status or "unknown_error"}
-
-
-def get_min_convert_amount(from_token: str, to_token: str) -> float:
-    """Return minimal allowed amount for conversion via Binance Convert API."""
-    key = (from_token, to_token)
-    cached = _min_amount_cache.get(key)
-    if cached is not None:
-        return cached
-
-    min_val = _validate_min_amount(from_token, to_token, 0.00000001)
-    return float(min_val) if min_val is not None else 0.0
-
-
 def get_max_convert_amount(from_token: str, to_token: str) -> float:
-    """Return maximal allowed amount for conversion."""
+    # Поточний ліміт Binance Convert фактично не обмежений через API
     return float("inf")
-
-
-def get_all_supported_convert_pairs() -> Set[str]:
-    """Return set of all supported convert pairs."""
-    global _supported_pairs_cache
-    if _supported_pairs_cache is None:
-        url = f"{BASE_URL}/sapi/v1/convert/exchangeInfo"
-        params = _sign({})
-        try:
-            resp = _session.get(url, params=params, headers=_headers(), timeout=10)
-            data = resp.json()
-        except Exception as exc:  # pragma: no cover - diagnostics only
-            logger.warning("Failed to fetch convert pairs: %s", exc)
-            data = {}
-
-        pairs: Set[str] = set()
-        if isinstance(data, dict):
-            for item in data.get("fromAssetList", []):
-                from_asset = item.get("fromAsset")
-                for to in item.get("toAssetList", []):
-                    to_asset = to.get("toAsset")
-                    if from_asset and to_asset:
-                        pairs.add(f"{from_asset}{to_asset}")
-        _supported_pairs_cache = pairs
-    return _supported_pairs_cache
-
-
-def is_valid_convert_pair(from_token: str, to_token: str) -> bool:
-    """Check if pair exists on Binance Convert."""
-    valid_pairs = get_all_supported_convert_pairs()
-    symbol = f"{from_token}{to_token}"
-    return symbol in valid_pairs
-
-
-def is_convertible_pair(from_token: str, to_token: str) -> bool:
-    """Check via Binance Convert API if a pair can be converted."""
-    url = f"{BASE_URL}/sapi/v1/convert/exchangeInfo"
-    params = {"fromAsset": from_token, "toAsset": to_token}
-    try:
-        response = _session.get(url, headers=_headers(), params=params, timeout=5)
-        data = response.json()
-        return (
-            isinstance(data, dict)
-            and data.get("fromAsset") == from_token
-            and data.get("toAsset") == to_token
-        )
-    except Exception as e:  # pragma: no cover - network
-        logger.warning(
-            f"[dev3] ❗️ Помилка при перевірці пари {from_token} → {to_token}: {e}"
-        )
-        return False
-
-
-def get_supported_pairs():
-    url = "https://api.binance.com/sapi/v1/convert/exchangeInfo"
-    headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        return response.json()  # це вже список
-    except Exception as e:
-        log_error(f"❌ Error fetching supported pairs: {str(e)}")
-        return []
-
-
-def get_quote_for_pair(from_asset: str, to_asset: str, amount: float) -> Optional[dict]:
-    """Отримати котирування (quote) для пари через Binance Convert."""
-    url = "https://api.binance.com/sapi/v1/convert/getQuote"
-    headers = {
-        "X-MBX-APIKEY": BINANCE_API_KEY,
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "fromAsset": from_asset,
-        "toAsset": to_asset,
-        "fromAmount": str(amount),
-    }
-    try:
-        response = requests.post(url, headers=headers, json=payload, timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        log_error(
-            f"❌ Error getting quote for {from_asset} → {to_asset} with amount {amount}: {str(e)}"
-        )
-        return None
-
-
-def get_valid_quote(from_token: str, to_token: str, from_amount: float) -> Optional[Dict[str, Any]]:
-    """Attempt to fetch quote for the entire amount without splitting."""
-    try:
-        if not from_token or not to_token:
-            logger.warning(
-                "❌ Один із токенів None: from_token=%s, to_token=%s",
-                from_token,
-                to_token,
-            )
-            log_quote_skipped(
-                from_token or "None",
-                to_token or "None",
-                reason="⛔️ Пропущено: invalid_tokens",
-            )
-            return None
-        quote = get_quote(from_token, to_token, from_amount)
-        if quote is None or quote.get("ratio") is None:
-            return None
-        return quote
-    except Exception as e:  # pragma: no cover - network/logging only
-        log_msg(
-            f"❌ Error getting quote for {from_token} → {to_token} with amount {from_amount}: {e}",
-            level="error",
-        )
-        return None
