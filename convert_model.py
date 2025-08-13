@@ -230,16 +230,17 @@ def get_top_token_pairs(n: int = 5) -> List[Tuple[str, str]]:
         logger.warning("[dev3] top_tokens.json not found")
         return []
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        from run_convert_trade import load_top_pairs
+
+        data = load_top_pairs(path)
     except Exception as exc:  # pragma: no cover - file issues
         logger.warning("[dev3] failed to read top_tokens.json: %s", exc)
         return []
 
     pairs: List[Tuple[str, str]] = []
     for item in data:
-        from_token = item.get("from_token")
-        to_token = item.get("to_token")
+        from_token = item.get("from") or item.get("from_token")
+        to_token = item.get("to") or item.get("to_token")
         if from_token and to_token:
             pairs.append((from_token, to_token))
         if len(pairs) >= n:
