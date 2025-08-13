@@ -1,8 +1,11 @@
 import hmac
-import time
 import hashlib
+import time
+import json
 import logging
+import threading
 from typing import Any, Dict, Optional
+from urllib.parse import urlencode
 
 import requests
 
@@ -10,7 +13,7 @@ try:
     from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
 except Exception:  # pragma: no cover - optional keys for tests
     BINANCE_API_KEY = ""
-    BINANCE_SECRET_KEY = ""
+BINANCE_SECRET_KEY = ""
 
 logger = logging.getLogger(__name__)
 
@@ -27,23 +30,53 @@ ORDER_POLL_MAX_SEC = 30
 ORDER_POLL_INTERVAL = 2
 
 
-# ======= Хелпери підпису запитів =======
-def _ts() -> int:
+_TIME_SKEW_MS = 0
+_SKEW_LOCK = threading.Lock()
+
+
+def _binance_server_ms() -> Optional[int]:
+    try:  # pragma: no cover - network
+        import urllib.request
+
+        with urllib.request.urlopen(
+            "https://api.binance.com/api/v3/time", timeout=5
+        ) as r:
+            data = json.loads(r.read().decode("utf-8"))
+            return int(data.get("serverTime"))
+    except Exception:
+        return None
+
+
+def _now_ms() -> int:
     return int(time.time() * 1000)
 
 
-def _sign(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Додає timestamp і підпис (HMAC SHA256) до params."""
+def _ts() -> int:
+    return _now_ms() + _TIME_SKEW_MS
+
+
+def _refresh_time_skew() -> None:
+    global _TIME_SKEW_MS
+    with _SKEW_LOCK:
+        srv = _binance_server_ms()
+        if srv is not None:
+            _TIME_SKEW_MS = srv - _now_ms()
+
+
+def _sign(params: Dict[str, Any]) -> str:
+    """Повертає рядок параметрів з підписом для SAPI запиту."""
     params = dict(params)
-    params.setdefault("timestamp", _ts())
-    qs = "&".join(f"{k}={params[k]}" for k in sorted(params.keys()))
+    params.setdefault("recvWindow", 5000)
+    params["timestamp"] = _ts()
+    query = urlencode(params, doseq=True)
     signature = hmac.new(
         BINANCE_SECRET_KEY.encode("utf-8"),
-        qs.encode("utf-8"),
+        query.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()
-    params["signature"] = signature
-    return params
+    signed = f"{query}&signature={signature}"
+    logger.debug("[convert_api] stringToSign=%s", query)
+    return signed
 
 
 def _headers() -> Dict[str, str]:
@@ -55,12 +88,18 @@ def _post(path: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     last_err: Optional[str] = None
     for _ in range(RETRY_COUNT + 1):
         try:
+            signed_body = _sign(params)
             resp = requests.post(
-                url, headers=_headers(), params=_sign(params), timeout=HTTP_TIMEOUT
+                url,
+                headers={**_headers(), "Content-Type": "application/x-www-form-urlencoded"},
+                data=signed_body,
+                timeout=HTTP_TIMEOUT,
             )
             if resp.status_code == 200:
                 return resp.json()
             last_err = resp.text
+            if "\"-1022\"" in last_err or "Signature for this request" in last_err:
+                _refresh_time_skew()
         except Exception as e:  # pragma: no cover - network
             last_err = str(e)
         time.sleep(0.2)
@@ -73,12 +112,18 @@ def _get(path: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     last_err: Optional[str] = None
     for _ in range(RETRY_COUNT + 1):
         try:
+            signed_body = _sign(params)
             resp = requests.get(
-                url, headers=_headers(), params=_sign(params), timeout=HTTP_TIMEOUT
+                url,
+                headers=_headers(),
+                params=signed_body,
+                timeout=HTTP_TIMEOUT,
             )
             if resp.status_code == 200:
                 return resp.json()
             last_err = resp.text
+            if "\"-1022\"" in last_err or "Signature for this request" in last_err:
+                _refresh_time_skew()
         except Exception as e:  # pragma: no cover - network
             last_err = str(e)
         time.sleep(0.2)
@@ -96,6 +141,8 @@ def get_quote(from_token: str, to_token: str, amount: float) -> Optional[Dict[st
         "toAsset": to_token,
         "fromAmount": f"{amount:.8f}",
     }
+    if _TIME_SKEW_MS == 0:
+        _refresh_time_skew()
     data = _post(f"{SAPI_PREFIX}/getQuote", payload)
     if not isinstance(data, dict) or "quoteId" not in data:
         return None
