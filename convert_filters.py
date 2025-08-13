@@ -26,8 +26,22 @@ def preflight_has_balance(asset: str, min_amount: float) -> bool:
 
 def prepare_pair_for_convert(pair: dict) -> dict:
     """Нормалізація пар для Convert з уніфікацією назв."""
-    from_raw = (pair.get("from_asset") or pair.get("fromToken") or pair.get("from") or "").upper()
-    to_raw = (pair.get("to_asset") or pair.get("toToken") or pair.get("to") or "").upper()
+    from_raw = (
+        pair.get("from_token")
+        or pair.get("from_asset")
+        or pair.get("fromAsset")
+        or pair.get("fromToken")
+        or pair.get("from")
+        or ""
+    ).upper()
+    to_raw = (
+        pair.get("to_token")
+        or pair.get("to_asset")
+        or pair.get("toAsset")
+        or pair.get("toToken")
+        or pair.get("to")
+        or ""
+    ).upper()
     if not from_raw or not to_raw:
         return {"skip": True, "reason": "pair_fields_missing"}
     if not is_convert_supported_asset(from_raw) or not is_convert_supported_asset(to_raw):
