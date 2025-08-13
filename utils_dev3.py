@@ -1,9 +1,80 @@
 import json
 import os
 import time
+import re
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, List
+
+# ---- Конфіг нормалізації активів для Convert (без хардкоду) ----
+_ASSET_CFG_PATH = "convert_assets_config.json"
+_asset_aliases: Dict[str, str] = {}
+_asset_alias_regex: List[Dict[str, str]] = []  # [{"pattern": "...", "replace": "..."}]
+_unsupported_assets: set[str] = set()
+
+
+def _load_asset_cfg():
+    global _asset_aliases, _asset_alias_regex, _unsupported_assets
+    if not os.path.exists(_ASSET_CFG_PATH):
+        _asset_aliases = {}
+        _asset_alias_regex = []
+        _unsupported_assets = set()
+        return
+    try:
+        with open(_ASSET_CFG_PATH, "r") as f:
+            data = json.load(f) or {}
+        _asset_aliases = {k.upper(): v.upper() for k, v in (data.get("aliases", {}) or {}).items()}
+        _asset_alias_regex = data.get("alias_regex", []) or []
+        _unsupported_assets = set(a.upper() for a in (data.get("unsupported", []) or []))
+    except Exception:
+        # У разі помилки — працюємо з порожньою конфігурацією
+        _asset_aliases = {}
+        _asset_alias_regex = []
+        _unsupported_assets = set()
+
+
+_load_asset_cfg()
+
+
+def to_convert_asset(symbol: str) -> str:
+    """
+    Уніфікатор назви активу для Convert:
+    1) точні відповідності (aliases),
+    2) regex-маски (alias_regex),
+    3) дефолт — верхній регістр без змін.
+    """
+    s = (symbol or "").upper()
+    if not s:
+        return s
+    # 1) точний alias
+    if s in _asset_aliases:
+        return _asset_aliases[s]
+    # 2) regex-маски (універсально, без хардкоду)
+    for rule in _asset_alias_regex:
+        pat = rule.get("pattern")
+        rep = rule.get("replace", "")
+        if pat:
+            try:
+                ns = re.sub(pat, rep, s)
+                if ns != s:
+                    s = ns
+                    break
+            except re.error:
+                continue
+    return s
+
+
+def is_convert_supported_asset(symbol: str) -> bool:
+    """Чи не заборонений актив у Convert (навіть якщо аналізуємо його на СПОТ)."""
+    s = (symbol or "").upper()
+    return bool(s) and s not in _unsupported_assets
+
+
+def mark_convert_unsupported(symbol: str):
+    """Динамічно додати актив до unsupported (без редагування коду)."""
+    s = (symbol or "").upper()
+    if s:
+        _unsupported_assets.add(s)
 
 
 def safe_float(val: Any) -> float:

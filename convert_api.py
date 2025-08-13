@@ -163,12 +163,12 @@ def get_quote(from_token: str, to_token: str, amount: float) -> Optional[Dict[st
     return quote
 
 
-def accept_quote(
+def accept_quote_old(
     quote: Dict[str, Any],
     from_token: str,
     to_token: str,
 ) -> Optional[Dict[str, Any]]:
-    """POST /sapi/v1/convert/acceptQuote"""
+    """POST /sapi/v1/convert/acceptQuote (legacy wrapper)."""
     if not isinstance(quote, dict):
         return None
     quote_id = quote.get("quoteId")
@@ -246,3 +246,80 @@ def get_available_to_tokens(from_token: str) -> list[str]:
 def get_max_convert_amount(from_token: str, to_token: str) -> float:
     # Поточний ліміт Binance Convert фактично не обмежений через API
     return float("inf")
+
+
+# ======= Спрощені обгортки для прямого доступу до Convert API =======
+_TIME_OFFSET_MS = 0
+
+
+def _sync_time():
+    global _TIME_OFFSET_MS
+    try:
+        r = requests.get("https://api.binance.com/api/v3/time", timeout=5)
+        srv = r.json().get("serverTime")
+        if isinstance(srv, int):
+            _TIME_OFFSET_MS = srv - int(time.time() * 1000)
+    except Exception:
+        pass
+
+
+def _now_ms() -> int:
+    return int(time.time() * 1000) + _TIME_OFFSET_MS
+
+
+def _sign_v3(secret: str, data: dict) -> str:
+    q = urlencode(data, doseq=True)
+    sig = hmac.new(secret.encode(), q.encode(), hashlib.sha256).hexdigest()
+    return q + "&signature=" + sig
+
+
+def _signed_post(url: str, payload: dict, *, recv_window: int = 60000, retry_on_1002: bool = True):
+    payload = dict(payload)
+    payload.setdefault("recvWindow", recv_window)
+    payload["timestamp"] = _now_ms()
+    headers = {"X-MBX-APIKEY": BINANCE_API_KEY, "Content-Type": "application/x-www-form-urlencoded"}
+    r = requests.post(url, data=_sign_v3(BINANCE_API_SECRET, payload), headers=headers, timeout=10)
+    if retry_on_1002 and r.status_code == 401 and '"code":-1002' in r.text:
+        _sync_time()
+        payload["timestamp"] = _now_ms()
+        r = requests.post(url, data=_sign_v3(BINANCE_API_SECRET, payload), headers=headers, timeout=10)
+    return r
+
+
+def get_quote_raw(
+    from_asset: str,
+    to_asset: str,
+    *,
+    from_amount: str | None = None,
+    to_amount: str | None = None,
+    wallet_type: str = "SPOT_FUNDING",
+    valid_time: str = "30s",
+) -> dict:
+    assert (from_amount is None) ^ (to_amount is None), "Either from_amount or to_amount must be set"
+    payload = {
+        "fromAsset": from_asset,
+        "toAsset": to_asset,
+        "walletType": wallet_type,
+        "validTime": valid_time,
+    }
+    if from_amount:
+        payload["fromAmount"] = from_amount
+    if to_amount:
+        payload["toAmount"] = to_amount
+    r = _signed_post(f"{BASE_URL}/sapi/v1/convert/getQuote", payload)
+    return {
+        "status": r.status_code,
+        "json": r.json()
+        if "application/json" in r.headers.get("content-type", "")
+        else {"raw": r.text},
+    }
+
+
+def accept_quote(quote_id: str) -> dict:
+    r = _signed_post(f"{BASE_URL}/sapi/v1/convert/acceptQuote", {"quoteId": quote_id})
+    return {
+        "status": r.status_code,
+        "json": r.json()
+        if "application/json" in r.headers.get("content-type", "")
+        else {"raw": r.text},
+    }
