@@ -422,9 +422,24 @@ def process_top_pairs(
         tradable.append(p)
     if non_tradable:
         logger.info(safe_log(f"[dev3] ℹ️ Відсіяно {non_tradable} non-tradable пар"))
+    non_zero_pairs: List[Dict[str, Any]] = []
+    for p in tradable:
+        sc = float(p.get("score", 0) or 0)
+        ep = float(p.get("expected_profit", 0) or 0)
+        pu = float(p.get("prob_up", 0) or 0)
+        if sc == 0.0 and ep == 0.0 and pu == 0.0:
+            continue
+        non_zero_pairs.append(p)
+    if not non_zero_pairs:
+        logger.info(
+            safe_log(
+                "[dev3] ℹ️ Усі пари мають нульовий score — цикл завершено без запитів"
+            )
+        )
+        return
 
     filtered_pairs: List[Dict[str, Any]] = []
-    for pair in tradable:
+    for pair in non_zero_pairs:
         score = gpt_score(pair)
         from_key = pair.get("fromToken") or pair.get("from_token") or pair.get("from")
         to_key = pair.get("toToken") or pair.get("to_token") or pair.get("to")

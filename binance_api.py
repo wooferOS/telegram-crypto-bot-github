@@ -112,16 +112,39 @@ def get_spot_price(token: str) -> Optional[float]:
         return cached[0]
 
     symbol = f"{token}USDT"
+    # самопари (USDTUSDT) не мають сенсу
+    if len(symbol) > 4 and symbol[: len(symbol) // 2] == symbol[len(symbol) // 2 :]:
+        logger.warning("[dev3] ⚠️ get_spot_price skip self-symbol %s", symbol)
+        return None
+    if not is_symbol_supported(symbol):
+        logger.warning("[dev3] ⚠️ get_spot_price unsupported symbol %s", symbol)
+        return None
+
     url = f"{BASE_URL}/api/v3/ticker/price"
     try:
         resp = _session.get(url, params={"symbol": symbol}, timeout=10)
         data = resp.json()
-        price = float(data["price"])
-        _price_cache[token] = (price, now)
-        return price
+        price = data.get("price")
+        if price is None:
+            logger.warning(
+                "[dev3] ⚠️ get_spot_price empty price for %s: %s", symbol, data
+            )
+            return None
+        price_val = float(price)
+        _price_cache[token] = (price_val, now)
+        return price_val
     except Exception as exc:  # pragma: no cover - diagnostics only
         logger.warning("[dev3] ⚠️ get_spot_price error for %s: %s", symbol, exc)
         return None
+
+
+def is_symbol_supported(symbol: str) -> bool:
+    """Check if a trading pair exists on Binance spot market."""
+    try:
+        valid_pairs = VALID_PAIRS or get_valid_symbols()
+        return symbol in valid_pairs
+    except Exception:
+        return False
 
 
 # Backward compatibility
