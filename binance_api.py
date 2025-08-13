@@ -1,5 +1,9 @@
+import json
+import random
 import time
+import tempfile
 from decimal import Decimal
+from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 import requests
@@ -12,37 +16,71 @@ BASE_URL = "https://api.binance.com"
 
 _session = requests.Session()
 
+# caches
+_price_cache: Dict[str, tuple[float, float]] = {}
+_exchange_cache: dict | None = None
+_exchange_cache_time: float = 0.0
+_EXCHANGE_CACHE_PATH = Path(tempfile.gettempdir()) / "binance_exchange_info.json"
+
+
 # Return authenticated Binance client
 def get_binance_client():
     return Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_API_SECRET)
 
-# Cache for spot prices: {token: (price, timestamp)}
-_price_cache: Dict[str, tuple[float, float]] = {}
-
-_VALID_SYMBOLS: set[str] | None = None
 try:
     from config_dev3 import VALID_PAIRS
 except Exception:  # pragma: no cover - optional config
     VALID_PAIRS: set[str] | None = None
 
 
+
+def _load_exchange_info() -> dict:
+    """Return exchangeInfo JSON with 5 minute disk cache."""
+    global _exchange_cache, _exchange_cache_time
+    now = time.time()
+
+    if _exchange_cache and now - _exchange_cache_time < 300:
+        return _exchange_cache
+
+    if _EXCHANGE_CACHE_PATH.exists():
+        try:
+            mtime = _EXCHANGE_CACHE_PATH.stat().st_mtime
+            if now - mtime < 300:
+                with open(_EXCHANGE_CACHE_PATH, "r", encoding="utf-8") as f:
+                    _exchange_cache = json.load(f)
+                    _exchange_cache_time = mtime
+                    return _exchange_cache
+        except Exception:
+            pass
+
+    try:
+        resp = requests.get(f"{BASE_URL}/api/v3/exchangeInfo", timeout=5)
+        if resp.status_code == 200:
+            _exchange_cache = resp.json()
+            _exchange_cache_time = now
+            try:
+                with open(_EXCHANGE_CACHE_PATH, "w", encoding="utf-8") as f:
+                    json.dump(_exchange_cache, f)
+            except Exception:
+                pass
+            return _exchange_cache
+        logger.warning(
+            f"[dev3] ⚠️ exchangeInfo HTTP {resp.status_code}: {resp.text}"
+        )
+    except Exception as exc:  # pragma: no cover - network
+        logger.warning(f"[dev3] ⚠️ exchangeInfo error: {exc}")
+
+    return _exchange_cache or {}
+
+
 def get_valid_symbols() -> set[str]:
     """Return cached set of valid trading pairs from Binance."""
-    global _VALID_SYMBOLS
-    if _VALID_SYMBOLS is None:
-        try:
-            url = f"{BASE_URL}/api/v3/exchangeInfo"
-            resp = requests.get(url, timeout=10)
-            data = resp.json()
-            _VALID_SYMBOLS = {
-                s["symbol"]
-                for s in data.get("symbols", [])
-                if s.get("status") == "TRADING"
-            }
-        except Exception as exc:  # pragma: no cover - diagnostics only
-            logger.warning(f"[dev3] ❌ get_valid_symbols failed: {exc}")
-            _VALID_SYMBOLS = set()
-    return _VALID_SYMBOLS
+    data = _load_exchange_info()
+    return {
+        s.get("symbol")
+        for s in data.get("symbols", [])
+        if s.get("status") == "TRADING"
+    }
 
 
 def get_historical_prices(symbol: str, interval: str = "5m", limit: int = 100):
@@ -100,73 +138,86 @@ def get_last_prices(symbol: str, limit: int = 100):
     return [c["close"] for c in candles]
 
 
-def get_spot_price(token: str) -> Optional[float]:
-    """Return current spot price of ``token`` in USDT with 60s cache."""
-    if not token:
-        logger.warning("[dev3] ❌ Невірний токен: token=None під час symbol.upper()")
+def get_spot_price(symbol_or_base: str) -> Optional[float]:
+    """Return current spot price for ``symbol_or_base`` using public API."""
+    if not symbol_or_base:
         return None
-    token = token.upper()
+
+    token = symbol_or_base.upper()
+    symbol = token if token.endswith("USDT") else f"{token}USDT"
+
     now = time.time()
-    cached = _price_cache.get(token)
+    cached = _price_cache.get(symbol)
     if cached and now - cached[1] < 60:
         return cached[0]
 
-    symbol = f"{token}USDT"
-    # самопари (USDTUSDT) не мають сенсу
-    if len(symbol) > 4 and symbol[: len(symbol) // 2] == symbol[len(symbol) // 2 :]:
-        logger.warning("[dev3] ⚠️ get_spot_price skip self-symbol %s", symbol)
-        return None
     if not is_symbol_supported(symbol):
-        logger.warning("[dev3] ⚠️ get_spot_price unsupported symbol %s", symbol)
+        logger.debug(f"[dev3] is_symbol_supported False for {symbol}")
         return None
 
     url = f"{BASE_URL}/api/v3/ticker/price"
-    try:
-        resp = _session.get(url, params={"symbol": symbol}, timeout=10)
-        data = resp.json()
-        price = data.get("price")
-        if price is None:
-            logger.warning(
-                "[dev3] ⚠️ get_spot_price empty price for %s: %s", symbol, data
-            )
+    for attempt in range(3):
+        try:
+            resp = _session.get(url, params={"symbol": symbol}, timeout=5)
+            if resp.status_code == 200:
+                data = resp.json()
+                price = float(data.get("price", 0.0))
+                if price > 0:
+                    _price_cache[symbol] = (price, now)
+                    logger.debug(f"[dev3] get_spot_price {symbol} -> {price}")
+                    return price
+                logger.warning(
+                    f"[dev3] ⚠️ get_spot_price non-positive price for {symbol}: {data}"
+                )
+                return None
+            if resp.status_code in (429,) or resp.status_code >= 500:
+                logger.warning(
+                    f"[dev3] ⚠️ get_spot_price HTTP {resp.status_code} for {symbol}"
+                )
+                if attempt < 2:
+                    time.sleep(0.2 + random.random() * 0.3)
+                    continue
+            else:
+                logger.warning(
+                    f"[dev3] ⚠️ get_spot_price HTTP {resp.status_code} for {symbol}: {resp.text}"
+                )
             return None
-        price_val = float(price)
-        _price_cache[token] = (price_val, now)
-        return price_val
-    except Exception as exc:  # pragma: no cover - diagnostics only
-        logger.warning("[dev3] ⚠️ get_spot_price error for %s: %s", symbol, exc)
-        return None
+        except Exception as exc:  # pragma: no cover - network
+            logger.exception(f"[dev3] ❌ get_spot_price error for {symbol}: {exc}")
+            return None
+    return None
 
 
 def is_symbol_supported(symbol: str) -> bool:
-    """Check if a trading pair exists on Binance spot market."""
-    try:
-        valid_pairs = VALID_PAIRS or get_valid_symbols()
-        return symbol in valid_pairs
-    except Exception:
+    """Return True if ``symbol`` is trading against USDT."""
+    if not symbol:
         return False
+    symbol = symbol.upper()
+
+    data = _load_exchange_info()
+    for s in data.get("symbols", []):
+        if s.get("symbol") == symbol:
+            if s.get("status") != "TRADING":
+                logger.debug(
+                    f"[dev3] is_symbol_supported {symbol} status {s.get('status')}"
+                )
+                return False
+            if s.get("quoteAsset") != "USDT":
+                logger.debug(
+                    f"[dev3] is_symbol_supported {symbol} quote {s.get('quoteAsset')}"
+                )
+                return False
+            return True
+    logger.debug(f"[dev3] is_symbol_supported {symbol} not found")
+    return False
 
 
 # Backward compatibility
 def get_symbol_price(symbol: str) -> Optional[float]:
-    """Return current price for ``symbol`` with unified USDT suffix."""
-    # 🔧 Уніфікація: прибираємо зайве "USDT" у кінці, якщо є
+    """Return current price for ``symbol`` using :func:`get_spot_price`."""
     if not symbol:
-        logger.warning("[dev3] ❌ Невірний токен: token=None під час symbol.upper()")
         return None
-    symbol = symbol.upper()
-    if symbol.endswith("USDT") and not symbol.endswith("USDTUSDT"):
-        symbol = symbol[:-4]
-    symbol = f"{symbol}USDT"
-
-    url = f"{BASE_URL}/api/v3/ticker/price"
-    try:
-        resp = _session.get(url, params={"symbol": symbol}, timeout=10)
-        data = resp.json()
-        return float(data["price"])
-    except Exception as e:  # pragma: no cover - network/parse issues
-        logger.warning(f"[dev3] ⚠️ Failed to get spot price for {symbol}: {e}")
-        return None
+    return get_spot_price(symbol)
 
 
 def get_klines(symbol: str, interval: str = "5m", limit: int = 100) -> List[Dict[str, float]]:
@@ -194,8 +245,7 @@ def check_symbol_exists(from_token: str, to_token: str) -> bool:
         logger.warning("[dev3] ❌ Невірний токен: token=None під час symbol.upper()")
         return False
     symbol = f"{to_token}USDT".upper()
-    valid_pairs = VALID_PAIRS or get_valid_symbols()
-    return symbol in valid_pairs
+    return is_symbol_supported(symbol)
 
 
 def get_ratio(base: str, quote: str) -> float:
@@ -252,7 +302,7 @@ def get_binance_balances() -> dict:
         price = None
         usdt_value = 0.0
         try:
-            raw_price = get_symbol_price(symbol)
+            raw_price = get_spot_price(symbol)
             if raw_price is not None:
                 price = float(raw_price)
                 usdt_value = free * price
