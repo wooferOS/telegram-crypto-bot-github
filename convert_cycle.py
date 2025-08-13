@@ -375,28 +375,17 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
         logger.warning(safe_log("[dev3] top_tokens.json not found"))
         return []
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        from run_convert_trade import load_top_pairs
+
+        data = load_top_pairs(path)
     except Exception as exc:  # pragma: no cover - file issues
         logger.warning(safe_log(f"[dev3] failed to read top_tokens.json: {exc}"))
         return []
 
-    # Normalize format: handle both [(score, quote), ...] and [{...}, ...]
     top_quotes: List[tuple[float, Dict[str, Any]]] = []
     for item in data:
-        if isinstance(item, dict):
-            score_val = item.get("score")
-            if score_val is None:
-                score_val = item.get("gpt", {}).get("score", 0)
-            score = _metric_value(score_val)
-            top_quotes.append((score, item))
-        elif isinstance(item, (list, tuple)) and len(item) >= 2:
-            score = safe_float(item[0])
-            quote = item[1]
-            if isinstance(quote, dict):
-                top_quotes.append((score, quote))
-        else:
-            logger.debug(safe_log(f"[dev3] invalid item in top_tokens.json: {item}"))
+        score = gpt_score(item)
+        top_quotes.append((score, item))
 
     top_quotes = sorted(top_quotes, key=lambda x: x[0], reverse=True)
     return [q for _, q in top_quotes]

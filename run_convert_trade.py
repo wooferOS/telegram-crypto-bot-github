@@ -58,6 +58,8 @@ def load_top_pairs(path: str) -> list[dict]:
                 **x,
                 "from_token": frm,
                 "to_token": to,
+                "from": frm,
+                "to": to,
                 "edge": edge,
                 "prob": prob,
                 "score": score,
