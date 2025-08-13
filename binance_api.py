@@ -27,6 +27,30 @@ _EXCHANGE_CACHE_PATH = Path(tempfile.gettempdir()) / "binance_exchange_info.json
 def get_binance_client():
     return Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_API_SECRET)
 
+
+def get_token_balance(asset: str, wallet: str = "SPOT") -> float:
+    """Return balance for asset in specified wallet (SPOT or FUNDING)."""
+    if not asset:
+        return 0.0
+    asset = asset.upper()
+    try:
+        client = get_binance_client()
+        if wallet.upper() == "FUNDING":
+            data = client.get_funding_wallet(asset=asset)
+            if isinstance(data, list):
+                for item in data:
+                    if item.get("asset") == asset:
+                        return float(item.get("free", 0))
+            return 0.0
+        bal = client.get_asset_balance(asset=asset)
+        if bal:
+            return float(bal.get("free", 0) or 0)
+    except Exception as exc:  # pragma: no cover - network
+        logger.warning(
+            f"[dev3] ❌ get_token_balance помилка: {exc} asset={asset} wallet={wallet}"
+        )
+    return 0.0
+
 try:
     from config_dev3 import VALID_PAIRS
 except Exception:  # pragma: no cover - optional config

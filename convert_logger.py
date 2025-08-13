@@ -54,6 +54,10 @@ def init_logger() -> logging.Logger:
 
 logger = init_logger()
 
+# Для сумісності з новими модулями використовуємо окремі alias-логери
+err_logger = logger
+trade_logger = logger
+
 if not any(
     isinstance(h, logging.FileHandler) and h.baseFilename.endswith("convert_trade.log")
     for h in logger.handlers

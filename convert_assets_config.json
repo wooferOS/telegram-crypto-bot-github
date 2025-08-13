@@ -1,0 +1,11 @@
+{
+  "aliases": {
+    /* "SPOT_NAME": "CONVERT_NAME" */
+  },
+  "alias_regex": [
+    /* { "pattern": "^(W)(ETH)$", "replace": "ETH" } */
+  ],
+  "unsupported": [
+    /* "TOKEN_THAT_CONVERT_SHOULD_SKIP" */
+  ]
+}

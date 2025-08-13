@@ -3,8 +3,60 @@ from __future__ import annotations
 from typing import Dict, List, Tuple, Any
 
 from convert_logger import logger, safe_log
-from binance_api import get_ratio, get_lot_step, get_precision
-from utils_dev3 import safe_float, safe_json_load, HISTORY_PATH
+from binance_api import get_ratio, get_lot_step, get_precision, get_token_balance
+from utils_dev3 import (
+    safe_float,
+    safe_json_load,
+    HISTORY_PATH,
+    to_convert_asset,
+    is_convert_supported_asset,
+    mark_convert_unsupported,
+)
+from convert_api import get_quote_raw
+
+CANDIDATE_WALLETS = ["SPOT_FUNDING", "SPOT", "FUNDING"]
+
+
+def preflight_has_balance(asset: str, min_amount: float) -> bool:
+    """Перевіряємо сумарний SPOT+FUNDING перед тим, як дьоргати Convert API."""
+    spot = get_token_balance(asset, wallet="SPOT") or 0.0
+    fund = get_token_balance(asset, wallet="FUNDING") or 0.0
+    return (spot + fund) >= (min_amount or 0.0)
+
+
+def prepare_pair_for_convert(pair: dict) -> dict:
+    """Нормалізація пар для Convert з уніфікацією назв."""
+    from_raw = (pair.get("from_asset") or pair.get("fromToken") or pair.get("from") or "").upper()
+    to_raw = (pair.get("to_asset") or pair.get("toToken") or pair.get("to") or "").upper()
+    if not from_raw or not to_raw:
+        return {"skip": True, "reason": "pair_fields_missing"}
+    if not is_convert_supported_asset(from_raw) or not is_convert_supported_asset(to_raw):
+        logger.info("[dev3] skip convert (unsupported asset): %s->%s", from_raw, to_raw)
+        return {"skip": True, "reason": "unsupported_convert_asset"}
+    return {"from_asset": to_convert_asset(from_raw), "to_asset": to_convert_asset(to_raw)}
+
+
+def find_wallet_with_quote_id(from_asset: str, to_asset: str, from_amount: float):
+    """Пробуємо кілька walletType — повертаємо перший респонс із quoteId."""
+    amt = f"{from_amount:.10f}".rstrip('0').rstrip('.') if from_amount else "0"
+    for w in CANDIDATE_WALLETS:
+        resp = get_quote_raw(from_asset, to_asset, from_amount=amt, wallet_type=w)
+        js = resp.get("json", {})
+        qid = js.get("quoteId")
+        if qid:
+            return w, js
+        msg = js if isinstance(js, dict) else {}
+        logger.debug(
+            "[dev3] getQuote no quoteId %s→%s amount=%s wallet=%s resp=%s",
+            from_asset,
+            to_asset,
+            amt,
+            w,
+            msg,
+        )
+        if '"code":-1002' in str(msg) or "not supported" in str(msg).lower():
+            mark_convert_unsupported(from_asset)
+    return None
 
 
 def get_ratio_from_spot(from_token: str, to_token: str) -> float:

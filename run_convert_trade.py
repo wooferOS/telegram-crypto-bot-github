@@ -5,6 +5,7 @@ import json
 
 from convert_cycle import process_top_pairs
 from convert_logger import logger, safe_log
+from convert_api import _sync_time
 from quote_counter import can_request_quote
 from utils_dev3 import safe_float
 
@@ -60,6 +61,7 @@ def cleanup() -> None:
 
 def main() -> None:
     cleanup()
+    _sync_time()
     logger.info(safe_log("[dev3] 🔄 Запуск convert трейдингу"))
     try:
         logger.info(safe_log("[dev3] 📄 Перевірка наявності файлу top_tokens.json..."))

@@ -8,15 +8,20 @@ from typing import List, Dict, Any, Optional, Tuple
 
 from convert_api import (
     get_quote,
-    accept_quote,
     get_balances,
     get_order_status,
     ORDER_POLL_MAX_SEC,
     ORDER_POLL_INTERVAL,
+    accept_quote_old,
 )
-from binance_api import get_binance_balances, get_ratio
-from convert_notifier import notify_success, notify_failure
-from convert_filters import passes_filters, get_token_info, _compute_edge
+from convert_filters import (
+    passes_filters,
+    get_token_info,
+    _compute_edge,
+    prepare_pair_for_convert,
+    preflight_has_balance,
+    find_wallet_with_quote_id,
+)
 from convert_logger import (
     logger,
     save_convert_history,
@@ -25,15 +30,18 @@ from convert_logger import (
     log_skipped_quotes,
     log_error,
     safe_log,
+    err_logger,
+    trade_logger,
 )
+from convert_api import accept_quote as accept_quote_raw, _sync_time
+from binance_api import get_binance_balances, get_ratio
+from convert_notifier import notify_success, notify_failure
 from quote_counter import should_throttle, reset_cycle
 from convert_model import _hash_token, predict, model_is_valid
-from utils_dev3 import (
-    safe_float,
-    safe_json_load,
-    safe_json_dump,
-    HISTORY_PATH,
-)
+from utils_dev3 import safe_float, safe_json_load, safe_json_dump, HISTORY_PATH
+
+# Зворотна сумісність для старих функцій
+accept_quote = accept_quote_old
 
 FIAT_TOKENS = {"COP", "RON", "MXN"}
 
@@ -395,7 +403,7 @@ def _load_top_pairs() -> List[Dict[str, Any]]:
 
 
 
-def process_top_pairs(
+def process_top_pairs_old(
     pairs: List[Dict[str, Any]] | None = None,
     config: Dict[str, Any] | None = None,
 ) -> None:
@@ -616,4 +624,60 @@ def process_top_pairs(
         fallback_attempted,
         fallback_result,
     )
+
+
+def process_top_pairs(pairs: List[Dict[str, Any]] | None = None, config: Dict[str, Any] | None = None) -> None:
+    """Спрощений цикл конвертації на базі нових обгорток."""
+    config = config or {}
+    logger.info(
+        "[dev3] 🔍 Запуск process_top_pairs з %d парами", len(pairs) if pairs else 0
+    )
+    _sync_time()
+    selected_pairs = pairs or []
+    for pair in selected_pairs:
+        norm = prepare_pair_for_convert(pair)
+        if norm.get("skip"):
+            logger.info(
+                "[dev3] ⏭️  convert skipped: %s (reason=%s)", pair, norm.get("reason")
+            )
+            continue
+        from_asset, to_asset = norm["from_asset"], norm["to_asset"]
+
+        min_from = pair.get("min_from_amount", 0.0)
+        if from_asset == "BTC":
+            min_from = max(min_from, 0.00002)
+        if not preflight_has_balance(from_asset, min_from):
+            err_logger.info(
+                "[dev3] ❌ Баланс 0 для %s — пропускаю getQuote", from_asset
+            )
+            continue
+
+        fw = find_wallet_with_quote_id(from_asset, to_asset, min_from)
+        if not fw:
+            err_logger.info(
+                "[dev3] ❌ getQuote без quoteId: %s→%s amount≈%s",
+                from_asset,
+                to_asset,
+                min_from,
+            )
+            continue
+        wtype, q = fw
+        acc = accept_quote_raw(q["quoteId"])
+        if acc.get("status") == 200:
+            trade_logger.info(
+                "[dev3] ✅ Конверсія %s→%s amount=%s wallet=%s result=%s",
+                from_asset,
+                to_asset,
+                q.get("fromAmount"),
+                wtype,
+                acc.get("json"),
+            )
+        else:
+            err_logger.error(
+                "[dev3] ❌ acceptQuote failed: %s→%s wallet=%s resp=%s",
+                from_asset,
+                to_asset,
+                wtype,
+                acc,
+            )
 
