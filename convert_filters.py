@@ -17,38 +17,53 @@ from convert_api import get_quote_raw
 CANDIDATE_WALLETS = ["SPOT_FUNDING", "SPOT", "FUNDING"]
 
 
-def _pick_first(raw: Dict[str, Any], keys: List[str]) -> str:
-    for key in keys:
-        val = raw.get(key)
-        if val:
-            return str(val)
-    return ""
+def _safe_pick_upper(raw: dict, keys: list[str]) -> str | None:
+    """Return first non-empty value from ``raw[keys]`` stripped and uppercased."""
+    for k in keys:
+        v = raw.get(k)
+        if isinstance(v, str) and v.strip():
+            return v.strip().upper()
+    return None
 
 
 def preflight_has_balance(asset: str, min_amount: float) -> bool:
-    """Перевіряємо сумарний SPOT+FUNDING перед тим, як дьоргати Convert API."""
-    spot = get_token_balance(asset, wallet="SPOT") or 0.0
-    fund = get_token_balance(asset, wallet="FUNDING") or 0.0
-    return (spot + fund) >= (min_amount or 0.0)
+    """Перевіряємо баланс перед тим, як дьоргати Convert API."""
+    spot = get_token_balance(asset) or 0.0
+    return spot >= (min_amount or 0.0)
 
 
 def prepare_pair_for_convert(pair: dict) -> dict:
     """Нормалізація пар для Convert з уніфікацією назв."""
     raw = pair or {}
-    from_raw = _pick_first(
-        raw,
-        ["from_token", "from_asset", "fromAsset", "from", "fromToken"],
-    ).upper()
-    to_raw = _pick_first(
-        raw,
-        ["to_token", "to_asset", "toAsset", "to", "toToken"],
-    ).upper()
+    # підтримуємо всі поширені варіанти ключів
+    from_raw = _safe_pick_upper(raw, ["from_token", "from_asset", "fromAsset", "from", "fromToken"])
+    to_raw = _safe_pick_upper(raw, ["to_token", "to_asset", "toAsset", "to", "toToken"])
     if not from_raw or not to_raw:
+        logger.warning(
+            "[dev3] ❌ prepare_pair_for_convert: відсутні токени: from=%s, to=%s; raw=%s",
+            from_raw,
+            to_raw,
+            {k: raw.get(k) for k in ("from", "from_token", "to", "to_token")},
+        )
         return {"skip": True, "reason": "pair_fields_missing"}
     if not is_convert_supported_asset(from_raw) or not is_convert_supported_asset(to_raw):
         logger.info("[dev3] skip convert (unsupported asset): %s->%s", from_raw, to_raw)
         return {"skip": True, "reason": "unsupported_convert_asset"}
-    return {"from_asset": to_convert_asset(from_raw), "to_asset": to_convert_asset(to_raw)}
+
+    # нормалізуємо базові поля у єдині ключі
+    result = {**raw}
+    result["from_token"] = from_raw
+    result["to_token"] = to_raw
+    result["from_asset"] = to_convert_asset(from_raw)
+    result["to_asset"] = to_convert_asset(to_raw)
+
+    # дефолти, якщо відсутні
+    if "wallet" not in result or not isinstance(result.get("wallet"), str):
+        result["wallet"] = "SPOT"
+    aq = result.get("amount_quote")
+    if not isinstance(aq, (int, float)) or aq <= 0:
+        result["amount_quote"] = 11.0
+    return result
 
 
 def find_wallet_with_quote_id(from_asset: str, to_asset: str, from_amount: float):
