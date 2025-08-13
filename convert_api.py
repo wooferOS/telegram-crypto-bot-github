@@ -9,11 +9,10 @@ from urllib.parse import urlencode
 
 import requests
 
-try:
-    from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
-except Exception:  # pragma: no cover - optional keys for tests
-    BINANCE_API_KEY = ""
-BINANCE_SECRET_KEY = ""
+import config_dev3 as cfg
+BINANCE_API_KEY = cfg.BINANCE_API_KEY
+BINANCE_API_SECRET = cfg.BINANCE_API_SECRET
+BINANCE_SECRET_KEY = cfg.BINANCE_API_SECRET  # сумісність зі старим кодом
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +69,7 @@ def _sign(params: Dict[str, Any]) -> str:
     params["timestamp"] = _ts()
     query = urlencode(params, doseq=True)
     signature = hmac.new(
-        BINANCE_SECRET_KEY.encode("utf-8"),
+        BINANCE_API_SECRET.encode("utf-8"),
         query.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()

@@ -4,7 +4,7 @@ from typing import Optional, List, Dict, Any
 
 import requests
 from binance.client import Client
-from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
+from config_dev3 import BINANCE_API_KEY, BINANCE_API_SECRET
 
 from convert_logger import logger
 
@@ -14,7 +14,7 @@ _session = requests.Session()
 
 # Return authenticated Binance client
 def get_binance_client():
-    return Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_SECRET_KEY)
+    return Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_API_SECRET)
 
 # Cache for spot prices: {token: (price, timestamp)}
 _price_cache: Dict[str, tuple[float, float]] = {}
