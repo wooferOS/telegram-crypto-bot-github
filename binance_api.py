@@ -29,25 +29,18 @@ def get_binance_client():
 
 
 def get_token_balance(asset: str, wallet: str = "SPOT") -> float:
-    """Return balance for asset in specified wallet (SPOT or FUNDING)."""
+    """Уніфікований доступ до балансу. FUNDING не використовуємо — повертаємо SPOT."""
     if not asset:
         return 0.0
     asset = asset.upper()
     try:
         client = get_binance_client()
-        if wallet.upper() == "FUNDING":
-            data = client.get_funding_wallet(asset=asset)
-            if isinstance(data, list):
-                for item in data:
-                    if item.get("asset") == asset:
-                        return float(item.get("free", 0))
-            return 0.0
         bal = client.get_asset_balance(asset=asset)
         if bal:
-            return float(bal.get("free", 0) or 0)
+            return float(bal.get("free") or 0.0)
     except Exception as exc:  # pragma: no cover - network
         logger.warning(
-            f"[dev3] ❌ get_token_balance помилка: {exc} asset={asset} wallet={wallet}"
+            f"[dev3] get_token_balance fallback SPOT: asset={asset} err={exc}"
         )
     return 0.0
 

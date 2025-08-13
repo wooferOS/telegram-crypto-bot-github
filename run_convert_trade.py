@@ -32,6 +32,44 @@ CACHE_FILES = [
 ]
 
 
+def _pick(d: dict, keys: list[str], default=None):
+    for k in keys:
+        v = d.get(k)
+        if v is not None:
+            return v
+    return default
+
+
+def load_top_pairs(path: str) -> list[dict]:
+    """Завантажує та нормалізує список пар із різними схемами ключів."""
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    norm = []
+    for x in data:
+        frm = _pick(x, ["from_token", "from_asset", "fromAsset", "from", "fromToken"])
+        to = _pick(x, ["to_token", "to_asset", "toAsset", "to", "toToken"], "USDT")
+        edge = _pick(x, ["edge", "expected_profit"], 0.0)
+        prob = _pick(x, ["prob", "prob_up"], 0.0)
+        score = float(_pick(x, ["score"], 0.0) or 0.0)
+        wallet = _pick(x, ["wallet"], "SPOT")
+        amt_q = _pick(x, ["amount_quote"], 11.0)
+        norm.append(
+            {
+                **x,
+                "from_token": frm,
+                "to_token": to,
+                "edge": edge,
+                "prob": prob,
+                "score": score,
+                "wallet": wallet or "SPOT",
+                "amount_quote": float(amt_q)
+                if isinstance(amt_q, (int, float, str))
+                else 11.0,
+            }
+        )
+    return norm
+
+
 def cleanup() -> None:
     for path in CACHE_FILES:
         if os.path.exists(path):
@@ -69,8 +107,7 @@ def main() -> None:
             logger.warning(safe_log("[dev3] ⛔️ Файл top_tokens.json не знайдено. Завершуємо цикл."))
             return
 
-        with open("top_tokens.json") as f:
-            top_tokens = json.load(f)
+        top_tokens = load_top_pairs("top_tokens.json")
 
         if not top_tokens:
             logger.warning(safe_log("[dev3] ⛔️ Файл top_tokens.json порожній. Пропускаємо трейд."))
