@@ -17,6 +17,14 @@ from convert_api import get_quote_raw
 CANDIDATE_WALLETS = ["SPOT_FUNDING", "SPOT", "FUNDING"]
 
 
+def _pick_first(raw: Dict[str, Any], keys: List[str]) -> str:
+    for key in keys:
+        val = raw.get(key)
+        if val:
+            return str(val)
+    return ""
+
+
 def preflight_has_balance(asset: str, min_amount: float) -> bool:
     """Перевіряємо сумарний SPOT+FUNDING перед тим, як дьоргати Convert API."""
     spot = get_token_balance(asset, wallet="SPOT") or 0.0
@@ -26,21 +34,14 @@ def preflight_has_balance(asset: str, min_amount: float) -> bool:
 
 def prepare_pair_for_convert(pair: dict) -> dict:
     """Нормалізація пар для Convert з уніфікацією назв."""
-    from_raw = (
-        pair.get("from_token")
-        or pair.get("from_asset")
-        or pair.get("fromAsset")
-        or pair.get("fromToken")
-        or pair.get("from")
-        or ""
+    raw = pair or {}
+    from_raw = _pick_first(
+        raw,
+        ["from_token", "from_asset", "fromAsset", "from", "fromToken"],
     ).upper()
-    to_raw = (
-        pair.get("to_token")
-        or pair.get("to_asset")
-        or pair.get("toAsset")
-        or pair.get("toToken")
-        or pair.get("to")
-        or ""
+    to_raw = _pick_first(
+        raw,
+        ["to_token", "to_asset", "toAsset", "to", "toToken"],
     ).upper()
     if not from_raw or not to_raw:
         return {"skip": True, "reason": "pair_fields_missing"}
