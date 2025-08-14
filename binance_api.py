@@ -30,6 +30,7 @@ def get_binance_client():
 
 def get_token_balance(asset: str, wallet: str = "SPOT") -> float:
     """Уніфікований доступ до балансу. FUNDING не використовуємо — повертаємо SPOT."""
+    # ``wallet`` зберігається для сумісності, але завжди використовуємо SPOT.
     if not asset:
         return 0.0
     asset = asset.upper()
