@@ -7,21 +7,20 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
 from convert_api import (
-    get_quote,
     get_balances,
     get_order_status,
     ORDER_POLL_MAX_SEC,
     ORDER_POLL_INTERVAL,
     accept_quote_old,
 )
+from binance_api import get_quote
 from run_convert_trade import load_top_pairs
 from convert_filters import (
     passes_filters,
     get_token_info,
     _compute_edge,
     normalize_pair,
-    _pair_has_required_fields,
-    preflight_has_balance,
+    validate_pair,
     find_wallet_with_quote_id,
 )
 from convert_logger import (
@@ -605,33 +604,36 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None, config: Dict[st
         "[dev3] 🔍 Запуск process_top_pairs з %d парами", len(pairs) if pairs else 0
     )
     _sync_time()
-    selected_pairs = pairs or []
-    for pair in selected_pairs:
-        pair = normalize_pair(pair)
-        if not _pair_has_required_fields(pair):
-            logger.info(
-                "⏭️  convert skipped: %s (reason=pair_fields_missing)", pair
-            )
+    MIN_QUOTE = max(11.0, globals().get("MIN_NOTIONAL", 0.0) or 0.0)
+    normalized: List[Dict[str, Any]] = []
+    for raw in pairs or []:
+        pair = normalize_pair(raw, MIN_QUOTE)
+        ok, reason = validate_pair(pair)
+        if not ok:
+            logger.info("⏭️  convert skipped (%s): %s", reason, pair)
             continue
+        normalized.append(pair)
 
-        amount_quote = pair["amount_quote"]
+    for pair in normalized:
+        amount_quote = float(pair["amount_quote"])
         from_sym = pair["from"]
         to_sym = pair["to"]
-        wallet = pair["wallet"]
-
+        wallet = pair.get("wallet", "SPOT")
+        logger.info(
+            "🔎 getQuote try: %s→%s wallet=%s amount=%.6f",
+            from_sym,
+            to_sym,
+            wallet,
+            amount_quote,
+        )
         quote = pair.get("quote") or get_quote(
             from_sym,
             to_sym,
-            amount_quote=amount_quote,
+            amount_quote,
             wallet=wallet,
         )
         if not quote:
-            err_logger.info(
-                "[dev3] ❌ getQuote без quoteId: %s→%s amount≈%s",
-                from_sym,
-                to_sym,
-                amount_quote,
-            )
+            logger.info("⏭️  convert skipped (no_quote): %s", pair)
             continue
         wtype = wallet
         acc = accept_quote_raw(quote.get("quoteId")) if quote else None
