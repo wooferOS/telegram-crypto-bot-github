@@ -9,6 +9,7 @@ import numpy as np
 import joblib
 import pandas as pd
 from utils_dev3 import safe_float
+from run_convert_trade import load_top_pairs
 
 MODEL_PATH = "model_convert.joblib"
 logger = logging.getLogger(__name__)
@@ -225,18 +226,7 @@ def predict(
 
 def get_top_token_pairs(n: int = 5) -> List[Tuple[str, str]]:
     """Return top token pairs from top_tokens.json."""
-    path = os.path.join(os.path.dirname(__file__), "top_tokens.json")
-    if not os.path.exists(path):
-        logger.warning("[dev3] top_tokens.json not found")
-        return []
-    try:
-        from run_convert_trade import load_top_pairs
-
-        data = load_top_pairs(path)
-    except Exception as exc:  # pragma: no cover - file issues
-        logger.warning("[dev3] failed to read top_tokens.json: %s", exc)
-        return []
-
+    data = load_top_pairs("top_tokens.json")
     pairs: List[Tuple[str, str]] = []
     for item in data:
         from_token = item.get("from") or item.get("from_token")

@@ -14,11 +14,13 @@ from convert_api import (
     ORDER_POLL_INTERVAL,
     accept_quote_old,
 )
+from run_convert_trade import load_top_pairs
 from convert_filters import (
     passes_filters,
     get_token_info,
     _compute_edge,
-    prepare_pair_for_convert,
+    normalize_pair,
+    _pair_has_required_fields,
     preflight_has_balance,
     find_wallet_with_quote_id,
 )
@@ -369,27 +371,6 @@ def fallback_convert(
     return False
 
 
-def _load_top_pairs() -> List[Dict[str, Any]]:
-    path = os.path.join(os.path.dirname(__file__), "top_tokens.json")
-    if not os.path.exists(path):
-        logger.warning(safe_log("[dev3] top_tokens.json not found"))
-        return []
-    try:
-        from run_convert_trade import load_top_pairs
-
-        data = load_top_pairs(path)
-    except Exception as exc:  # pragma: no cover - file issues
-        logger.warning(safe_log(f"[dev3] failed to read top_tokens.json: {exc}"))
-        return []
-
-    top_quotes: List[tuple[float, Dict[str, Any]]] = []
-    for item in data:
-        score = gpt_score(item)
-        top_quotes.append((score, item))
-
-    top_quotes = sorted(top_quotes, key=lambda x: x[0], reverse=True)
-    return [q for _, q in top_quotes]
-
 
 
 def process_top_pairs_old(
@@ -618,54 +599,56 @@ def process_top_pairs_old(
 def process_top_pairs(pairs: List[Dict[str, Any]] | None = None, config: Dict[str, Any] | None = None) -> None:
     """Спрощений цикл конвертації на базі нових обгорток."""
     config = config or {}
+    if pairs is None:
+        pairs = load_top_pairs("top_tokens.json")
     logger.info(
         "[dev3] 🔍 Запуск process_top_pairs з %d парами", len(pairs) if pairs else 0
     )
     _sync_time()
     selected_pairs = pairs or []
     for pair in selected_pairs:
-        norm = prepare_pair_for_convert(pair)
-        if norm.get("skip"):
+        pair = normalize_pair(pair)
+        if not _pair_has_required_fields(pair):
             logger.info(
-                "[dev3] ⏭️  convert skipped: %s (reason=%s)", pair, norm.get("reason")
-            )
-            continue
-        from_asset, to_asset = norm["from_asset"], norm["to_asset"]
-
-        min_from = pair.get("min_from_amount", 0.0)
-        if from_asset == "BTC":
-            min_from = max(min_from, 0.00002)
-        if not preflight_has_balance(from_asset, min_from):
-            err_logger.info(
-                "[dev3] ❌ Баланс 0 для %s — пропускаю getQuote", from_asset
+                "⏭️  convert skipped: %s (reason=pair_fields_missing)", pair
             )
             continue
 
-        fw = find_wallet_with_quote_id(from_asset, to_asset, min_from)
-        if not fw:
+        amount_quote = pair["amount_quote"]
+        from_sym = pair["from"]
+        to_sym = pair["to"]
+        wallet = pair["wallet"]
+
+        quote = pair.get("quote") or get_quote(
+            from_sym,
+            to_sym,
+            amount_quote=amount_quote,
+            wallet=wallet,
+        )
+        if not quote:
             err_logger.info(
                 "[dev3] ❌ getQuote без quoteId: %s→%s amount≈%s",
-                from_asset,
-                to_asset,
-                min_from,
+                from_sym,
+                to_sym,
+                amount_quote,
             )
             continue
-        wtype, q = fw
-        acc = accept_quote_raw(q["quoteId"])
-        if acc.get("status") == 200:
+        wtype = wallet
+        acc = accept_quote_raw(quote.get("quoteId")) if quote else None
+        if acc and acc.get("status") == 200:
             trade_logger.info(
                 "[dev3] ✅ Конверсія %s→%s amount=%s wallet=%s result=%s",
-                from_asset,
-                to_asset,
-                q.get("fromAmount"),
+                from_sym,
+                to_sym,
+                amount_quote,
                 wtype,
-                acc.get("json"),
+                acc.get("json") if isinstance(acc, dict) else acc,
             )
         else:
             err_logger.error(
                 "[dev3] ❌ acceptQuote failed: %s→%s wallet=%s resp=%s",
-                from_asset,
-                to_asset,
+                from_sym,
+                to_sym,
                 wtype,
                 acc,
             )
