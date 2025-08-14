@@ -2,8 +2,8 @@ import os
 import glob
 import subprocess
 import json
+from pathlib import Path
 
-from convert_cycle import process_top_pairs
 from convert_logger import logger, safe_log
 from convert_api import _sync_time
 from quote_counter import can_request_quote
@@ -14,6 +14,7 @@ EXPLORE_PAPER = int(os.getenv("EXPLORE_PAPER", "1"))
 EXPLORE_MAX = int(os.getenv("EXPLORE_MAX", "2"))
 EXPLORE_MIN_EDGE = float(os.getenv("EXPLORE_MIN_EDGE", "0.001"))
 EXPLORE_MIN_LOT_FACTOR = float(os.getenv("EXPLORE_MIN_LOT_FACTOR", "0.5"))
+MIN_QUOTE_DEFAULT = 11.0
 
 logger.info(
     safe_log(
@@ -32,44 +33,38 @@ CACHE_FILES = [
 ]
 
 
-def _pick(d: dict, keys: list[str], default=None):
-    for k in keys:
-        v = d.get(k)
-        if v is not None:
-            return v
-    return default
+def load_top_pairs(path: str = "top_tokens.json") -> list[dict]:
+    p = Path(path)
+    if not p.exists():
+        p = Path("logs") / "top_tokens.json"
+    data = json.loads(p.read_text())
 
-
-def load_top_pairs(path: str) -> list[dict]:
-    """Завантажує та нормалізує список пар із різними схемами ключів."""
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    norm = []
+    out = []
     for x in data:
-        frm = _pick(x, ["from_token", "from_asset", "fromAsset", "from", "fromToken"])
-        to = _pick(x, ["to_token", "to_asset", "toAsset", "to", "toToken"], "USDT")
-        edge = _pick(x, ["edge", "expected_profit"], 0.0)
-        prob = _pick(x, ["prob", "prob_up"], 0.0)
-        score = float(_pick(x, ["score"], 0.0) or 0.0)
-        wallet = _pick(x, ["wallet"], "SPOT")
-        amt_q = _pick(x, ["amount_quote"], 11.0)
-        norm.append(
-            {
-                **x,
-                "from_token": frm,
-                "to_token": to,
-                "from": frm,
-                "to": to,
-                "edge": edge,
-                "prob": prob,
-                "score": score,
-                "wallet": wallet or "SPOT",
-                "amount_quote": float(amt_q)
-                if isinstance(amt_q, (int, float, str))
-                else 11.0,
-            }
+        norm = {
+            "from": (x.get("from") or x.get("from_token") or "").upper(),
+            "to": (x.get("to") or x.get("to_token") or "USDT").upper(),
+            "wallet": (x.get("wallet") or "SPOT").upper(),
+            "score": float(x.get("score") or 0.0),
+            "prob": float(x.get("prob") or x.get("prob_up") or 0.0),
+            "edge": float(x.get("edge") or x.get("expected_profit") or 0.0),
+        }
+        amt = (
+            x.get("amount_quote")
+            or x.get("quote_amount")
+            or x.get("amountQuote")
+            or x.get("amount")
+            or 0.0
         )
-    return norm
+        try:
+            amt = float(amt)
+        except Exception:
+            amt = 0.0
+        if amt <= 0:
+            amt = MIN_QUOTE_DEFAULT
+        norm["amount_quote"] = amt
+        out.append(norm)
+    return out
 
 
 def cleanup() -> None:
@@ -104,6 +99,8 @@ def main() -> None:
     _sync_time()
     logger.info(safe_log("[dev3] 🔄 Запуск convert трейдингу"))
     try:
+        from convert_cycle import process_top_pairs
+
         logger.info(safe_log("[dev3] 📄 Перевірка наявності файлу top_tokens.json..."))
         if not os.path.exists("top_tokens.json"):
             logger.warning(safe_log("[dev3] ⛔️ Файл top_tokens.json не знайдено. Завершуємо цикл."))

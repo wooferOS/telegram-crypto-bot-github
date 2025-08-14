@@ -30,20 +30,16 @@ def get_binance_client():
 
 def get_token_balance(asset: str, wallet: str = "SPOT") -> float:
     """Уніфікований доступ до балансу. FUNDING не використовуємо — повертаємо SPOT."""
-    # ``wallet`` зберігається для сумісності, але завжди використовуємо SPOT.
-    if not asset:
-        return 0.0
-    asset = asset.upper()
     try:
         client = get_binance_client()
-        bal = client.get_asset_balance(asset=asset)
-        if bal:
-            return float(bal.get("free") or 0.0)
-    except Exception as exc:  # pragma: no cover - network
+        bal = client.get_asset_balance(asset=asset.upper())
+        free = bal.get("free") if bal else 0.0
+        return float(free or 0.0)
+    except Exception as e:  # pragma: no cover - network
         logger.warning(
-            f"[dev3] get_token_balance fallback SPOT: asset={asset} err={exc}"
+            "❌ get_token_balance fallback: %s wallet=%s err=%s", asset, wallet, e
         )
-    return 0.0
+        return 0.0
 
 try:
     from config_dev3 import VALID_PAIRS
