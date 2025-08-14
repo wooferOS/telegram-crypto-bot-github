@@ -11,6 +11,7 @@ from binance.client import Client
 from config_dev3 import BINANCE_API_KEY, BINANCE_API_SECRET
 
 from convert_logger import logger
+from convert_api import get_quote as _convert_get_quote
 
 BASE_URL = "https://api.binance.com"
 
@@ -28,18 +29,42 @@ def get_binance_client():
     return Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_API_SECRET)
 
 
-def get_token_balance(asset: str, wallet: str = "SPOT") -> float:
+def get_token_balance(asset: str, wallet: str = "SPOT", client: Client | None = None) -> float:
     """Уніфікований доступ до балансу. FUNDING не використовуємо — повертаємо SPOT."""
     try:
-        client = get_binance_client()
-        bal = client.get_asset_balance(asset=asset.upper())
-        free = bal.get("free") if bal else 0.0
-        return float(free or 0.0)
+        client = client or get_binance_client()
+        bal = client.get_asset_balance(asset=asset.upper()) or {}
+        free = float(bal.get("free") or 0.0)
+        return max(0.0, free)
     except Exception as e:  # pragma: no cover - network
         logger.warning(
-            "❌ get_token_balance fallback: %s wallet=%s err=%s", asset, wallet, e
+            "get_token_balance fallback: %s wallet=%s err=%s", asset, wallet, e
         )
         return 0.0
+
+
+def get_quote(
+    from_sym: str, to_sym: str, amount_quote: float, wallet: str = "SPOT"
+):
+    if amount_quote is None or float(amount_quote) <= 0:
+        logger.info(
+            "❌ getQuote skip: non-positive amount %s→%s amount=%.6f",
+            from_sym,
+            to_sym,
+            amount_quote or 0.0,
+        )
+        return None
+    try:
+        return _convert_get_quote(from_sym, to_sym, float(amount_quote))
+    except Exception as e:  # pragma: no cover - network
+        logger.warning(
+            "❌ getQuote error: %s→%s amount=%s err=%s",
+            from_sym,
+            to_sym,
+            amount_quote,
+            e,
+        )
+        return None
 
 try:
     from config_dev3 import VALID_PAIRS

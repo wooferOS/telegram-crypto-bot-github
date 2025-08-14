@@ -8,13 +8,15 @@ from convert_logger import logger, safe_log
 from convert_api import _sync_time
 from quote_counter import can_request_quote
 from utils_dev3 import safe_float
+from convert_filters import normalize_pair, validate_pair
 
 EXPLORE_MODE = int(os.getenv("EXPLORE_MODE", "0"))
 EXPLORE_PAPER = int(os.getenv("EXPLORE_PAPER", "1"))
 EXPLORE_MAX = int(os.getenv("EXPLORE_MAX", "2"))
 EXPLORE_MIN_EDGE = float(os.getenv("EXPLORE_MIN_EDGE", "0.001"))
 EXPLORE_MIN_LOT_FACTOR = float(os.getenv("EXPLORE_MIN_LOT_FACTOR", "0.5"))
-MIN_QUOTE_DEFAULT = 11.0
+MIN_NOTIONAL = float(os.getenv("MIN_NOTIONAL", "0") or 0.0)
+MIN_QUOTE = max(11.0, MIN_NOTIONAL)
 
 logger.info(
     safe_log(
@@ -40,30 +42,13 @@ def load_top_pairs(path: str = "top_tokens.json") -> list[dict]:
     data = json.loads(p.read_text())
 
     out = []
-    for x in data:
-        norm = {
-            "from": (x.get("from") or x.get("from_token") or "").upper(),
-            "to": (x.get("to") or x.get("to_token") or "USDT").upper(),
-            "wallet": (x.get("wallet") or "SPOT").upper(),
-            "score": float(x.get("score") or 0.0),
-            "prob": float(x.get("prob") or x.get("prob_up") or 0.0),
-            "edge": float(x.get("edge") or x.get("expected_profit") or 0.0),
-        }
-        amt = (
-            x.get("amount_quote")
-            or x.get("quote_amount")
-            or x.get("amountQuote")
-            or x.get("amount")
-            or 0.0
-        )
-        try:
-            amt = float(amt)
-        except Exception:
-            amt = 0.0
-        if amt <= 0:
-            amt = MIN_QUOTE_DEFAULT
-        norm["amount_quote"] = amt
-        out.append(norm)
+    for raw in data:
+        pair = normalize_pair(raw, MIN_QUOTE)
+        ok, reason = validate_pair(pair)
+        if not ok:
+            logger.info("⏭️  convert skipped (%s): %s", reason, pair)
+            continue
+        out.append(pair)
     return out
 
 

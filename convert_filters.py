@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Dict, List, Tuple, Any
 
 from convert_logger import logger, safe_log
-from binance_api import get_ratio, get_lot_step, get_precision, get_token_balance
+from binance_api import get_ratio, get_lot_step, get_precision
 from utils_dev3 import (
     safe_float,
     safe_json_load,
@@ -14,107 +14,65 @@ from utils_dev3 import (
 )
 from convert_api import get_quote_raw
 
+import logging
+
 CANDIDATE_WALLETS = ["SPOT_FUNDING", "SPOT", "FUNDING"]
+
+log = logging.getLogger(__name__)
 
 REQUIRED_KEYS = ("from", "to", "amount_quote")
 
 
-def _pair_has_required_fields(p: dict) -> bool:
-    """Приймає як нові ключі (from/to/amount_quote), так і бексові (from_token/to_token/amount, amountQuote)."""
-    from_sym = p.get("from") or p.get("from_token")
-    to_sym = p.get("to") or p.get("to_token")
-    amt = (
-        p.get("amount_quote")
-        or p.get("quote_amount")
-        or p.get("amountQuote")
-        or p.get("amount")
+def normalize_pair(raw: Dict[str, Any], min_quote: float) -> Dict[str, Any]:
+    """Приводимо різні варіанти ключів до єдиних."""
+    sym_from = (
+        raw.get("from")
+        or raw.get("from_token")
+        or raw.get("base")
+        or raw.get("symbol_from")
+    )
+    sym_to = (
+        raw.get("to")
+        or raw.get("to_token")
+        or raw.get("quote")
+        or raw.get("symbol_to")
+        or "USDT"
+    )
+    wallet = (raw.get("wallet") or "SPOT").upper()
+
+    aq = (
+        raw.get("amount_quote")
+        or raw.get("amountQuote")
+        or raw.get("quote_amount")
+        or raw.get("amount")
         or 0.0
     )
     try:
-        amt = float(amt or 0.0)
+        aq = float(aq or 0.0)
     except Exception:
-        amt = 0.0
-    return bool(from_sym and to_sym and amt > 0)
+        aq = 0.0
 
-
-DEFAULT_WALLET = "SPOT"
-MIN_QUOTE_DEFAULT = 11.0
-
-
-def normalize_pair(p: dict) -> dict:
-    """Повертає пару у канонічному вигляді для конверта."""
-    out = {
-        "from": (p.get("from") or p.get("from_token") or "").upper(),
-        "to": (p.get("to") or p.get("to_token") or "USDT").upper(),
-        "wallet": (p.get("wallet") or DEFAULT_WALLET).upper(),
-        "score": float(p.get("score") or 0.0),
-        "prob": float(p.get("prob") or p.get("prob_up") or 0.0),
-        "edge": float(p.get("edge") or p.get("expected_profit") or 0.0),
+    pair = {
+        "from": (sym_from or "").upper(),
+        "to": (sym_to or "").upper(),
+        "wallet": wallet,
+        "amount_quote": aq if aq > 0 else float(min_quote),
     }
-    amt = (
-        p.get("amount_quote")
-        or p.get("quote_amount")
-        or p.get("amountQuote")
-        or p.get("amount")
-        or 0.0
-    )
-    try:
-        amt = float(amt)
-    except Exception:
-        amt = 0.0
-    if amt <= 0:
-        amt = MIN_QUOTE_DEFAULT
-    out["amount_quote"] = amt
-    return out
+    return pair
 
 
-def _safe_pick_upper(raw: dict, keys: list[str]) -> str | None:
-    """Return first non-empty value from ``raw[keys]`` stripped and uppercased."""
-    for k in keys:
-        v = raw.get(k)
-        if isinstance(v, str) and v.strip():
-            return v.strip().upper()
-    return None
-
-
-def preflight_has_balance(asset: str, min_amount: float) -> bool:
-    """Перевіряємо баланс перед тим, як дьоргати Convert API."""
-    spot = get_token_balance(asset) or 0.0
-    return spot >= (min_amount or 0.0)
-
-
-def prepare_pair_for_convert(pair: dict) -> dict:
-    """Нормалізація пар для Convert з уніфікацією назв."""
-    raw = pair or {}
-    # підтримуємо всі поширені варіанти ключів
-    from_raw = _safe_pick_upper(raw, ["from_token", "from_asset", "fromAsset", "from", "fromToken"])
-    to_raw = _safe_pick_upper(raw, ["to_token", "to_asset", "toAsset", "to", "toToken"])
-    if not from_raw or not to_raw:
-        logger.warning(
-            "[dev3] ❌ prepare_pair_for_convert: відсутні токени: from=%s, to=%s; raw=%s",
-            from_raw,
-            to_raw,
-            {k: raw.get(k) for k in ("from", "from_token", "to", "to_token")},
-        )
-        return {"skip": True, "reason": "pair_fields_missing"}
-    if not is_convert_supported_asset(from_raw) or not is_convert_supported_asset(to_raw):
-        logger.info("[dev3] skip convert (unsupported asset): %s->%s", from_raw, to_raw)
-        return {"skip": True, "reason": "unsupported_convert_asset"}
-
-    # нормалізуємо базові поля у єдині ключі
-    result = {**raw}
-    result["from_token"] = from_raw
-    result["to_token"] = to_raw
-    result["from_asset"] = to_convert_asset(from_raw)
-    result["to_asset"] = to_convert_asset(to_raw)
-
-    # дефолти, якщо відсутні
-    if "wallet" not in result or not isinstance(result.get("wallet"), str):
-        result["wallet"] = "SPOT"
-    aq = result.get("amount_quote")
-    if not isinstance(aq, (int, float)) or aq <= 0:
-        result["amount_quote"] = 11.0
-    return result
+def validate_pair(pair: Dict[str, Any]) -> Tuple[bool, str]:
+    """Перевіряємо присутність ключів та позитивну суму."""
+    for k in REQUIRED_KEYS:
+        if k not in pair:
+            return False, f"missing_{k}"
+    if not pair["from"] or not pair["to"]:
+        return False, "empty_symbol"
+    if pair["amount_quote"] is None:
+        return False, "amount_none"
+    if float(pair["amount_quote"]) <= 0:
+        return False, "amount_zero"
+    return True, "ok"
 
 
 def find_wallet_with_quote_id(from_asset: str, to_asset: str, from_amount: float):
