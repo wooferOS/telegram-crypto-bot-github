@@ -4,14 +4,17 @@ import time
 import tempfile
 from decimal import Decimal
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
+
+import math
+import pathlib
+import logging
 
 import requests
 from binance.client import Client
 from config_dev3 import BINANCE_API_KEY, BINANCE_API_SECRET
 
-from convert_logger import logger
-from convert_api import get_quote as _convert_get_quote
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.binance.com"
 
@@ -24,46 +27,128 @@ _exchange_cache_time: float = 0.0
 _EXCHANGE_CACHE_PATH = Path(tempfile.gettempdir()) / "binance_exchange_info.json"
 
 
+# --- конверт-мапа символів ---
+_CONVERT_MAP: Dict[str, str] = {}
+
+
+def _load_convert_map() -> Dict[str, str]:
+    """Load convert asset mapping from convert_assets_config.json."""
+    global _CONVERT_MAP
+    if _CONVERT_MAP:
+        return _CONVERT_MAP
+    cfg = pathlib.Path("convert_assets_config.json")
+    if cfg.exists():
+        try:
+            data = json.loads(cfg.read_text())
+            mp: Dict[str, str] = {}
+            if isinstance(data, dict):
+                if isinstance(data.get("map"), dict):
+                    mp = {str(k).upper(): str(v).upper() for k, v in data["map"].items()}
+                elif isinstance(data.get("aliases"), dict):
+                    mp = {
+                        str(k).upper(): str(v).upper()
+                        for k, v in data.get("aliases", {}).items()
+                    }
+                elif isinstance(data.get("aliases"), list):
+                    for row in data.get("aliases", []):
+                        s = str(row.get("spot", "")).upper()
+                        c = str(row.get("convert", "")).upper()
+                        if s and c:
+                            mp[s] = c
+            _CONVERT_MAP = mp
+        except Exception as e:  # pragma: no cover - invalid json
+            logger.warning("convert map load failed: %s", e)
+    return _CONVERT_MAP
+
+
+def to_convert_symbol(asset: str) -> str:
+    if not asset:
+        return asset
+    m = _load_convert_map()
+    a = str(asset).upper()
+    return m.get(a, a)
+
+
 # Return authenticated Binance client
 def get_binance_client():
     return Client(api_key=BINANCE_API_KEY, api_secret=BINANCE_API_SECRET)
 
 
 def get_token_balance(asset: str, wallet: str = "SPOT", client: Client | None = None) -> float:
-    """Уніфікований доступ до балансу. FUNDING не використовуємо — повертаємо SPOT."""
+    """Return token balance from SPOT or FUNDING wallet."""
     try:
         client = client or get_binance_client()
-        bal = client.get_asset_balance(asset=asset.upper()) or {}
-        free = float(bal.get("free") or 0.0)
-        return max(0.0, free)
+        a = str(asset).upper()
+        if wallet.upper() == "FUNDING":
+            rows = client.sapi_get_asset_getfundingasset(asset=a)
+            if isinstance(rows, list):
+                for r in rows:
+                    if str(r.get("asset", "")).upper() == a:
+                        return float(r.get("free", 0.0) or 0.0)
+            return 0.0
+        bal = client.get_asset_balance(asset=a) or {}
+        return float(bal.get("free", 0.0) or 0.0)
     except Exception as e:  # pragma: no cover - network
-        logger.warning(
-            "get_token_balance fallback: %s wallet=%s err=%s", asset, wallet, e
-        )
+        logger.warning("get_token_balance error asset=%s wallet=%s: %s", asset, wallet, e)
         return 0.0
 
 
-def get_quote(
-    from_sym: str, to_sym: str, amount_quote: float, wallet: str = "SPOT"
-):
-    if amount_quote is None or float(amount_quote) <= 0:
-        logger.info(
-            "❌ getQuote skip: non-positive amount %s→%s amount=%.6f",
-            from_sym,
-            to_sym,
-            amount_quote or 0.0,
-        )
-        return None
+def _safe_float(x) -> float:
     try:
-        return _convert_get_quote(from_sym, to_sym, float(amount_quote))
+        return float(x)
+    except Exception:
+        return 0.0
+
+
+def _spot_price(symbol: str) -> Optional[float]:
+    """Return spot price for pair like BTCUSDT."""
+    try:
+        t = get_binance_client().get_symbol_ticker(symbol=symbol)
+        return _safe_float(t.get("price"))
+    except Exception:
+        return None
+
+
+def get_quote(
+    from_asset: str,
+    to_asset: str,
+    amount_from: Optional[float] = None,
+    amount_quote: Optional[float] = None,
+    wallet: str = "SPOT",
+) -> Optional[Dict[str, Any]]:
+    """Unified getQuote for Binance Convert."""
+    fa = to_convert_symbol(from_asset)
+    ta = to_convert_symbol(to_asset)
+    payload: Dict[str, Any] = {"fromAsset": fa, "toAsset": ta}
+
+    if amount_from and amount_from > 0:
+        payload["fromAmount"] = float(amount_from)
+    elif amount_quote and amount_quote > 0:
+        spot_sym = f"{fa}{ta}"
+        px = _spot_price(spot_sym)
+        if px and px > 0:
+            payload["fromAmount"] = float(amount_quote) / px
+        else:
+            payload["fromAmount"] = float(amount_quote) * 0.000001
+    else:
+        logger.info("getQuote skipped: no amount provided (%s→%s)", fa, ta)
+        return None
+
+    try:
+        res = get_binance_client().sapi_post_convert_getquote(**payload)
+        if not res or not res.get("quoteId"):
+            logger.info("convert no_quote: %s", payload)
+            return None
+        return {
+            "quoteId": res.get("quoteId"),
+            "fromAsset": fa,
+            "toAsset": ta,
+            "toAmount": _safe_float(res.get("toAmount")),
+            "ratio": _safe_float(res.get("ratio")),
+            "raw": res,
+        }
     except Exception as e:  # pragma: no cover - network
-        logger.warning(
-            "❌ getQuote error: %s→%s amount=%s err=%s",
-            from_sym,
-            to_sym,
-            amount_quote,
-            e,
-        )
+        logger.info("Convert getQuote failed (%s): %s", payload, e)
         return None
 
 try:

@@ -14,6 +14,8 @@ BINANCE_API_KEY = cfg.BINANCE_API_KEY
 BINANCE_API_SECRET = cfg.BINANCE_API_SECRET
 BINANCE_SECRET_KEY = cfg.BINANCE_API_SECRET  # сумісність зі старим кодом
 
+from binance_api import to_convert_symbol
+
 logger = logging.getLogger(__name__)
 
 # ======= Константи Convert API =======
@@ -135,9 +137,11 @@ def get_quote(from_token: str, to_token: str, amount: float) -> Optional[Dict[st
     """POST /sapi/v1/convert/getQuote"""
     if not from_token or not to_token or amount <= 0:
         return None
+    f = to_convert_symbol(from_token)
+    t = to_convert_symbol(to_token)
     payload = {
-        "fromAsset": from_token,
-        "toAsset": to_token,
+        "fromAsset": f,
+        "toAsset": t,
         "fromAmount": f"{amount:.8f}",
     }
     if _TIME_SKEW_MS == 0:
@@ -157,8 +161,8 @@ def get_quote(from_token: str, to_token: str, amount: float) -> Optional[Dict[st
         "fromAmount": float(data.get("fromAmount", 0)) or 0.0,
         "toAmount": float(data.get("toAmount", 0)) or 0.0,
         "validTime": data.get("validTime"),
-        "fromAsset": data.get("fromAsset", from_token),
-        "toAsset": data.get("toAsset", to_token),
+        "fromAsset": data.get("fromAsset", f),
+        "toAsset": data.get("toAsset", t),
     }
     return quote
 
@@ -240,7 +244,12 @@ def get_available_to_tokens(from_token: str) -> list[str]:
     data = _get(f"{SAPI_PREFIX}/exchangeInfo", {"fromAsset": from_token})
     if isinstance(data, list):
         data = {"toAssetList": data}
-    return [item.get("toAsset") for item in data.get("toAssetList", [])]
+    if not isinstance(data, dict):
+        return []
+    tok = data.get("toAssetList")
+    if isinstance(tok, list):
+        return [item.get("toAsset") for item in tok if isinstance(item, dict)]
+    return []
 
 
 def get_max_convert_amount(from_token: str, to_token: str) -> float:
