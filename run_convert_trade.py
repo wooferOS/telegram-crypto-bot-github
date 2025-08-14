@@ -8,7 +8,7 @@ from convert_logger import logger, safe_log
 from convert_api import _sync_time
 from quote_counter import can_request_quote
 from utils_dev3 import safe_float
-from convert_filters import normalize_pair, validate_pair
+from convert_filters import normalize_pair
 
 EXPLORE_MODE = int(os.getenv("EXPLORE_MODE", "0"))
 EXPLORE_PAPER = int(os.getenv("EXPLORE_PAPER", "1"))
@@ -16,7 +16,6 @@ EXPLORE_MAX = int(os.getenv("EXPLORE_MAX", "2"))
 EXPLORE_MIN_EDGE = float(os.getenv("EXPLORE_MIN_EDGE", "0.001"))
 EXPLORE_MIN_LOT_FACTOR = float(os.getenv("EXPLORE_MIN_LOT_FACTOR", "0.5"))
 MIN_NOTIONAL = float(os.getenv("MIN_NOTIONAL", "0") or 0.0)
-MIN_QUOTE = max(11.0, MIN_NOTIONAL)
 
 logger.info(
     safe_log(
@@ -36,19 +35,23 @@ CACHE_FILES = [
 
 
 def load_top_pairs(path: str = "top_tokens.json") -> list[dict]:
+    import logging
+    log = logging.getLogger(__name__)
     p = Path(path)
     if not p.exists():
         p = Path("logs") / "top_tokens.json"
-    data = json.loads(p.read_text())
-
-    out = []
+    try:
+        data = json.loads(p.read_text())
+    except Exception as e:
+        log.error("failed to read top pairs: %s", e)
+        return []
+    out: list[dict] = []
     for raw in data:
-        pair = normalize_pair(raw, MIN_QUOTE)
-        ok, reason = validate_pair(pair)
-        if not ok:
-            logger.info("⏭️  convert skipped (%s): %s", reason, pair)
+        r, reason = normalize_pair(raw or {})
+        if reason:
+            log.info("skip pair (%s): %s", reason, raw)
             continue
-        out.append(pair)
+        out.append(r)
     return out
 
 

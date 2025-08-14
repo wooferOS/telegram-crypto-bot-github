@@ -2,7 +2,6 @@ import logging
 import os
 from typing import Any, Tuple, List, Dict
 import hashlib
-import json
 
 import numpy as np
 
@@ -10,7 +9,6 @@ import joblib
 import pandas as pd
 from utils_dev3 import safe_float
 from run_convert_trade import load_top_pairs
-from convert_filters import normalize_pair, validate_pair
 
 MODEL_PATH = "model_convert.joblib"
 logger = logging.getLogger(__name__)
@@ -240,12 +238,8 @@ def get_top_token_pairs(n: int = 5) -> List[Tuple[str, str]]:
 
 
 def load_pairs_for_training(path: str = "top_tokens.json") -> List[Dict[str, Any]]:
-    MIN_QUOTE = max(11.0, globals().get("MIN_NOTIONAL", 0.0) or 0.0)
-    raw = json.load(open(path, "r", encoding="utf-8"))
-    out: List[Dict[str, Any]] = []
-    for r in raw:
-        p = normalize_pair(r, MIN_QUOTE)
-        ok, _ = validate_pair(p)
-        if ok:
-            out.append(p)
-    return out
+    pairs = load_top_pairs(path)
+    if len(pairs) < 20:
+        logger.warning("🚫 Недостатньо даних для навчання: %d", len(pairs))
+        return []
+    return pairs

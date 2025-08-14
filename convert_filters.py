@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Dict, List, Tuple, Any
+import math
 
 from convert_logger import logger, safe_log
 from binance_api import get_ratio, get_lot_step, get_precision
@@ -23,42 +24,28 @@ log = logging.getLogger(__name__)
 REQUIRED_KEYS = ("from", "to", "amount_quote")
 
 
-def normalize_pair(raw: Dict[str, Any], min_quote: float) -> Dict[str, Any]:
-    """Приводимо різні варіанти ключів до єдиних."""
-    sym_from = (
-        raw.get("from")
-        or raw.get("from_token")
-        or raw.get("base")
-        or raw.get("symbol_from")
-    )
-    sym_to = (
-        raw.get("to")
-        or raw.get("to_token")
-        or raw.get("quote")
-        or raw.get("symbol_to")
-        or "USDT"
-    )
-    wallet = (raw.get("wallet") or "SPOT").upper()
+def _safe_pick_upper(d: Dict[str, Any], keys: list[str]) -> str:
+    for k in keys:
+        if k in d and d[k]:
+            return str(d[k]).upper()
+    return ""
 
-    aq = (
-        raw.get("amount_quote")
-        or raw.get("amountQuote")
-        or raw.get("quote_amount")
-        or raw.get("amount")
-        or 0.0
-    )
+
+def normalize_pair(row: Dict[str, Any]) -> Tuple[Dict[str, Any], str | None]:
+    """Normalize pair record and validate required fields."""
+    f = _safe_pick_upper(row, ["from", "from_token", "base", "asset", "symbol"])
+    t = _safe_pick_upper(row, ["to", "to_token", "quote", "target"])
+    w = _safe_pick_upper(row, ["wallet"]) or "SPOT"
+    aq = row.get("amount_quote")
     try:
-        aq = float(aq or 0.0)
+        aq = float(aq) if aq is not None else 11.0
     except Exception:
-        aq = 0.0
-
-    pair = {
-        "from": (sym_from or "").upper(),
-        "to": (sym_to or "").upper(),
-        "wallet": wallet,
-        "amount_quote": aq if aq > 0 else float(min_quote),
-    }
-    return pair
+        aq = 11.0
+    if not f or not t:
+        return row, "pair_fields_missing"
+    if not (aq and aq > 0):
+        return row, "amount_quote_invalid"
+    return {"from": f, "to": t, "wallet": w, "amount_quote": float(aq)}, None
 
 
 def validate_pair(pair: Dict[str, Any]) -> Tuple[bool, str]:

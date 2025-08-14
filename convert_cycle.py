@@ -19,8 +19,6 @@ from convert_filters import (
     passes_filters,
     get_token_info,
     _compute_edge,
-    normalize_pair,
-    validate_pair,
     find_wallet_with_quote_id,
 )
 from convert_logger import (
@@ -187,7 +185,9 @@ def try_convert(
         log_quote_skipped(from_token, to_token, "throttled")
         return False, "other"
 
-    quote = quote_data or get_quote(from_token, to_token, amount)
+    quote = quote_data or get_quote(
+        from_asset=from_token, to_asset=to_token, amount_from=amount
+    )
     if not quote:
         log_quote_skipped(from_token, to_token, "invalid_quote")
         return False, "no_quote"
@@ -333,7 +333,9 @@ def fallback_convert(
         safe_log(f"🔄 [FALLBACK] Спроба конвертації {from_token} → {selected_to_token}")
     )
 
-    quote = get_quote(from_token, selected_to_token, amount)
+    quote = get_quote(
+        from_asset=from_token, to_asset=selected_to_token, amount_from=amount
+    )
     if not quote:
         stats["no_quote"] += 1
         return False
@@ -488,7 +490,9 @@ def process_top_pairs_old(
             stats["other"] += 1
             continue
 
-        quote = pair.get("quote") or get_quote(from_token, to_token, amount)
+        quote = pair.get("quote") or get_quote(
+            from_asset=from_token, to_asset=to_token, amount_from=amount
+        )
         if not quote:
             log_quote_skipped(from_token, to_token, "invalid_quote")
             stats["no_quote"] += 1
@@ -604,17 +608,8 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None, config: Dict[st
         "[dev3] 🔍 Запуск process_top_pairs з %d парами", len(pairs) if pairs else 0
     )
     _sync_time()
-    MIN_QUOTE = max(11.0, globals().get("MIN_NOTIONAL", 0.0) or 0.0)
-    normalized: List[Dict[str, Any]] = []
-    for raw in pairs or []:
-        pair = normalize_pair(raw, MIN_QUOTE)
-        ok, reason = validate_pair(pair)
-        if not ok:
-            logger.info("⏭️  convert skipped (%s): %s", reason, pair)
-            continue
-        normalized.append(pair)
 
-    for pair in normalized:
+    for pair in pairs or []:
         amount_quote = float(pair["amount_quote"])
         from_sym = pair["from"]
         to_sym = pair["to"]
@@ -627,9 +622,9 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None, config: Dict[st
             amount_quote,
         )
         quote = pair.get("quote") or get_quote(
-            from_sym,
-            to_sym,
-            amount_quote,
+            from_asset=from_sym,
+            to_asset=to_sym,
+            amount_quote=amount_quote,
             wallet=wallet,
         )
         if not quote:
