@@ -5,6 +5,7 @@ import re
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List
+from json_sanitize import safe_load_json
 
 # ---- Конфіг нормалізації активів для Convert (без хардкоду) ----
 _ASSET_CFG_PATH = "convert_assets_config.json"
@@ -21,8 +22,7 @@ def _load_asset_cfg():
         _unsupported_assets = set()
         return
     try:
-        with open(_ASSET_CFG_PATH, "r") as f:
-            data = json.load(f) or {}
+        data = safe_load_json(_ASSET_CFG_PATH) or {}
         _asset_aliases = {k.upper(): v.upper() for k, v in (data.get("aliases", {}) or {}).items()}
         _asset_alias_regex = data.get("alias_regex", []) or []
         _unsupported_assets = set(a.upper() for a in (data.get("unsupported", []) or []))
@@ -107,8 +107,10 @@ def format_amount(amount: float, precision: int = 6) -> str:
 
 def load_json(path: str) -> list | dict:
     if os.path.exists(path):
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            return safe_load_json(path)
+        except Exception:
+            return [] if path.endswith(".json") else {}
     return [] if path.endswith(".json") else {}
 
 
@@ -130,8 +132,7 @@ def safe_json_load(path: str | Path, default: Any) -> Any:
     try:
         if not p.exists() or p.stat().st_size == 0:
             return default
-        with p.open("r", encoding="utf-8") as f:
-            return json.load(f)
+        return safe_load_json(p)
     except Exception:
         return default
 

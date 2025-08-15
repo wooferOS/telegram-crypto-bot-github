@@ -299,7 +299,8 @@ async def convert_mode() -> None:
         if not forecast_text:
             send_telegram("[dev3] ❌ GPT не згенерував прогноз для convert. Пропущено трейд.")
 
-    top_tokens_path = os.path.join(os.path.dirname(__file__), "top_tokens.json")
+    os.makedirs("logs", exist_ok=True)
+    top_tokens_path = os.path.join("logs", "top_tokens.json")
     all_zero = all(
         safe_float(t.get("score", t.get("gpt", {}).get("score", 0))) == 0
         and safe_float(t.get("expected_profit", t.get("gpt", {}).get("profit", 0))) == 0
@@ -350,7 +351,7 @@ async def convert_mode() -> None:
             f.write(f"Forecast: {forecast_text}\n")
 
     logger.info(
-        f"[dev3] ✅ Аналіз завершено. Створено top_tokens.json з {len(top_tokens)} записами."
+        f"[dev3] ✅ Аналіз завершено. Створено logs/top_tokens.json з {len(top_tokens)} записами."
     )
 
 
