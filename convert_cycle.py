@@ -611,10 +611,9 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None, config: Dict[st
     logger.info(
         "[dev3] 🔍 Запуск process_top_pairs з %d парами", len(pairs) if pairs else 0
     )
-    _sync_time()
 
     for pair in pairs or []:
-        amount_quote = float(pair["amount_quote"])
+        from_amount = float(pair["amount_quote"])
         from_sym = pair["from"]
         to_sym = pair["to"]
         wallet = pair.get("wallet", "SPOT")
@@ -623,25 +622,25 @@ def process_top_pairs(pairs: List[Dict[str, Any]] | None = None, config: Dict[st
             from_sym,
             to_sym,
             wallet,
-            amount_quote,
+            from_amount,
         )
         quote = pair.get("quote") or get_quote(
             from_asset=from_sym,
             to_asset=to_sym,
-            amount_quote=amount_quote,
+            from_amount=from_amount,
             wallet=wallet,
         )
-        if not quote:
+        if not quote or not quote.get("quoteId"):
             logger.info("⏭️  convert skipped (no_quote): %s", pair)
             continue
         wtype = wallet
-        acc = accept_quote_raw(quote.get("quoteId")) if quote else None
+        acc = accept_quote_raw(quote.get("quoteId"))
         if acc and acc.get("status") == 200:
             trade_logger.info(
                 "[dev3] ✅ Конверсія %s→%s amount=%s wallet=%s result=%s",
                 from_sym,
                 to_sym,
-                amount_quote,
+                from_amount,
                 wtype,
                 acc.get("json") if isinstance(acc, dict) else acc,
             )

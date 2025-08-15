@@ -45,9 +45,15 @@ def prepare_dataset(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         df = df[df["expected_profit"].notnull()]
 
     if "accepted" in df.columns:
-        df["executed"] = df["accepted"].fillna(False).astype(bool)
+        df["executed"] = df["accepted"].fillna(False)
+        if df["executed"].dtype == "object":
+            df["executed"] = df["executed"].infer_objects(copy=False)
+        df["executed"] = df["executed"].astype(bool)
     elif "success" in df.columns:
-        df["executed"] = df["success"].fillna(False).astype(bool)
+        df["executed"] = df["success"].fillna(False)
+        if df["executed"].dtype == "object":
+            df["executed"] = df["executed"].infer_objects(copy=False)
+        df["executed"] = df["executed"].astype(bool)
     else:
         df["executed"] = False
 

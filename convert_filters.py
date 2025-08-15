@@ -16,10 +16,14 @@ from utils_dev3 import (
 from convert_api import get_quote_raw
 
 import logging
+import time
 
 CANDIDATE_WALLETS = ["SPOT_FUNDING", "SPOT", "FUNDING"]
 
 log = logging.getLogger(__name__)
+
+_last_request_ts = 0.0
+_seen_pairs: set[tuple[str, str]] = set()
 
 REQUIRED_KEYS = ("from", "to", "amount_quote")
 
@@ -64,8 +68,17 @@ def validate_pair(pair: Dict[str, Any]) -> Tuple[bool, str]:
 
 def find_wallet_with_quote_id(from_asset: str, to_asset: str, from_amount: float):
     """Пробуємо кілька walletType — повертаємо перший респонс із quoteId."""
+    global _last_request_ts
+    pair_key = (from_asset.upper(), to_asset.upper())
+    if pair_key in _seen_pairs:
+        return None
+    _seen_pairs.add(pair_key)
     amt = f"{from_amount:.10f}".rstrip('0').rstrip('.') if from_amount else "0"
     for w in CANDIDATE_WALLETS:
+        sleep = 0.25 - (time.time() - _last_request_ts)
+        if sleep > 0:
+            time.sleep(sleep)
+        _last_request_ts = time.time()
         resp = get_quote_raw(from_asset, to_asset, from_amount=amt, wallet_type=w)
         js = resp.get("json", {})
         qid = js.get("quoteId")

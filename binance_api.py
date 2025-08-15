@@ -14,6 +14,7 @@ import requests
 from binance.client import Client
 from config_dev3 import BINANCE_API_KEY, BINANCE_API_SECRET
 from json_sanitize import safe_load_json
+from convert_api import _signed_request
 
 logger = logging.getLogger(__name__)
 
@@ -90,19 +91,28 @@ def get_binance_client():
 
 
 def get_token_balance(asset: str, wallet: str = "SPOT", client: Client | None = None) -> float:
-    """Return token balance from SPOT or FUNDING wallet."""
+    """Return token balance from SPOT or FUNDING wallet using REST signing."""
+
+    a = str(asset or "").upper()
+    wallet = (wallet or "SPOT").upper()
     try:
-        client = client or get_binance_client()
-        a = str(asset).upper()
-        if wallet.upper() == "FUNDING":
-            rows = client.sapi_get_asset_getfundingasset(asset=a)
-            if isinstance(rows, list):
-                for r in rows:
-                    if str(r.get("asset", "")).upper() == a:
-                        return float(r.get("free", 0.0) or 0.0)
+        if wallet == "FUNDING":
+            data = _signed_request("POST", "/sapi/v1/asset/get-funding-asset", {})
+            rows = []
+            if isinstance(data, list):
+                rows = data
+            elif isinstance(data, dict):
+                rows = data.get("balances") or data.get("data") or data.get("assets") or []
+            for r in rows:
+                if str(r.get("asset", "")).upper() == a:
+                    return float(r.get("free", 0.0) or 0.0)
             return 0.0
-        bal = client.get_asset_balance(asset=a) or {}
-        return float(bal.get("free", 0.0) or 0.0)
+        data = _signed_request("GET", "/api/v3/account", {})
+        if isinstance(data, dict):
+            for bal in data.get("balances", []):
+                if str(bal.get("asset", "")).upper() == a:
+                    return float(bal.get("free", 0.0) or 0.0)
+        return 0.0
     except Exception as e:  # pragma: no cover - network
         logger.warning("get_token_balance error asset=%s wallet=%s: %s", asset, wallet, e)
         return 0.0
@@ -462,9 +472,8 @@ def get_ratio(base: str, quote: str) -> float:
 
 def get_binance_balances() -> dict:
     """Return balance info for all tokens with USDT valuation."""
-    client = get_binance_client()
-    account_info = client.get_account()
-    balances = account_info["balances"]
+    account_info = _signed_request("GET", "/api/v3/account", {}) or {}
+    balances = account_info.get("balances", []) if isinstance(account_info, dict) else []
 
     result = {}
     total_usdt = 0.0

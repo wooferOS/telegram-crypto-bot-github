@@ -2,10 +2,31 @@ import json
 import os
 import time
 import re
+import logging
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Dict, List
 from json_sanitize import safe_load_json
+
+try:  # Optional config overrides
+    from config_dev3 import BINANCE_BASE_URL as _CFG_BASE_URL, USE_BINANCE_US
+except Exception:  # pragma: no cover - optional config
+    _CFG_BASE_URL = ""
+    USE_BINANCE_US = False
+
+# Base URL resolution with US flag handling
+logger = logging.getLogger("dev3")
+BINANCE_BASE_URL = _CFG_BASE_URL or (
+    "https://api.binance.us" if USE_BINANCE_US else "https://api.binance.com"
+)
+
+# Convert may be unavailable on Binance US
+CONVERT_ENABLED = True
+if USE_BINANCE_US and not _CFG_BASE_URL:
+    logger.warning(
+        "[dev3] ⚠️ Binance US selected; Convert API may be unavailable"
+    )
+    CONVERT_ENABLED = False
 
 # ---- Конфіг нормалізації активів для Convert (без хардкоду) ----
 _ASSET_CFG_PATH = "convert_assets_config.json"

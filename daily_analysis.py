@@ -4,7 +4,12 @@ import json
 import os
 from typing import Callable, Dict, List, Optional
 
-from convert_api import get_available_to_tokens, get_balances, sanitize_token_pair
+from convert_api import (
+    get_available_to_tokens,
+    get_balances,
+    sanitize_token_pair,
+    exchange_info,
+)
 from binance_api import get_spot_price, get_ratio
 from convert_logger import logger
 from convert_notifier import send_telegram, notify_fallback_model_warning
@@ -64,6 +69,9 @@ async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]
     predictions: List[Dict[str, float]] = []
     try:
         to_tokens = await asyncio.to_thread(get_available_to_tokens, from_token)
+        if not to_tokens:
+            logger.info(f"[dev3] ⚠️ Немає доступних to_tokens для {from_token}")
+            return predictions
         logger.info(f"[dev3] 📥 Доступні to_tokens для {from_token}: {to_tokens}")
     except Exception as exc:
         logger.warning(
@@ -135,6 +143,14 @@ async def gather_predictions(
     get_balances_func: Callable[[], Dict[str, float]],
 ) -> List[Dict[str, float]]:
     """Collect predictions for all tokens from provided balance function."""
+    try:
+        info = await asyncio.to_thread(exchange_info)
+    except Exception as exc:
+        logger.warning(f"[dev3] ❌ exchange_info помилка: {exc}")
+        info = None
+    if not info:
+        logger.warning("[dev3] ⚠️ exchange_info недоступний, пропускаємо аналіз")
+        return []
     try:
         balances = await asyncio.to_thread(get_balances_func)
     except Exception as exc:

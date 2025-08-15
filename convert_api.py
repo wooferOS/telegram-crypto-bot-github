@@ -1,335 +1,237 @@
 import hmac
 import hashlib
 import time
-import json
 import logging
-import threading
-from typing import Any, Dict, Optional
 from urllib.parse import urlencode
+from typing import Any, Dict, List
 
 import requests
 
-import config_dev3 as cfg
-BINANCE_API_KEY = cfg.BINANCE_API_KEY
-BINANCE_API_SECRET = cfg.BINANCE_API_SECRET
-BINANCE_SECRET_KEY = cfg.BINANCE_API_SECRET  # сумісність зі старим кодом
+from utils_dev3 import BINANCE_BASE_URL, CONVERT_ENABLED, to_convert_asset
 
-from binance_api import to_convert_symbol
+try:  # API credentials from config
+    import config_dev3 as cfg
 
-logger = logging.getLogger(__name__)
+    API_KEY = cfg.BINANCE_API_KEY
+    API_SECRET = cfg.BINANCE_API_SECRET
+except Exception:  # pragma: no cover - optional config
+    API_KEY = ""
+    API_SECRET = ""
 
-# ======= Константи Convert API =======
-BASE_URL = "https://api.binance.com"
-SAPI_PREFIX = "/sapi/v1/convert"
-
-# Глобальні таймаути/ретраї для мережі
-HTTP_TIMEOUT = 10
-RETRY_COUNT = 2
-
-# Ліміти опитування статусу ордера (імпортуються іншими модулями)
-ORDER_POLL_MAX_SEC = 30
-ORDER_POLL_INTERVAL = 2
-
-
-_TIME_SKEW_MS = 0
-_SKEW_LOCK = threading.Lock()
-
-
-def _binance_server_ms() -> Optional[int]:
-    try:  # pragma: no cover - network
-        import urllib.request
-
-        with urllib.request.urlopen(
-            "https://api.binance.com/api/v3/time", timeout=5
-        ) as r:
-            data = json.loads(r.read().decode("utf-8"))
-            return int(data.get("serverTime"))
-    except Exception:
-        return None
+logger = logging.getLogger("dev3")
 
 
 def _now_ms() -> int:
     return int(time.time() * 1000)
 
 
-def _ts() -> int:
-    return _now_ms() + _TIME_SKEW_MS
+def _signed_request(
+    method: str, path: str, params: Dict[str, Any] | None = None, timeout: int = 20
+) -> Dict[str, Any] | None:
+    """Perform signed REST request to Binance.
 
+    All parameters are placed into the query string; body is never sent.
+    Errors are logged and result ``None`` is returned.
+    """
 
-def _refresh_time_skew() -> None:
-    global _TIME_SKEW_MS
-    with _SKEW_LOCK:
-        srv = _binance_server_ms()
-        if srv is not None:
-            _TIME_SKEW_MS = srv - _now_ms()
-
-
-def _sign(params: Dict[str, Any]) -> str:
-    """Повертає рядок параметрів з підписом для SAPI запиту."""
-    params = dict(params)
+    if not API_KEY or not API_SECRET:
+        logger.error("[dev3] API ключі не налаштовані")
+        return None
+    params = {k: v for k, v in (params or {}).items() if v is not None}
     params.setdefault("recvWindow", 50000)
-    params["timestamp"] = _ts()
+    params["timestamp"] = _now_ms()
     query = urlencode(params, doseq=True)
     signature = hmac.new(
-        BINANCE_API_SECRET.encode("utf-8"),
-        query.encode("utf-8"),
-        hashlib.sha256,
+        API_SECRET.encode("utf-8"), query.encode("utf-8"), hashlib.sha256
     ).hexdigest()
-    signed = f"{query}&signature={signature}"
-    logger.debug("[convert_api] stringToSign=%s", query)
-    return signed
-
-
-def _headers() -> Dict[str, str]:
-    return {"X-MBX-APIKEY": BINANCE_API_KEY}
-
-
-def _post(path: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    url = f"{BASE_URL}{path}"
-    last_err: Optional[str] = None
-    for _ in range(RETRY_COUNT + 1):
-        try:
-            signed_body = _sign(params)
-            resp = requests.post(
-                url,
-                headers={**_headers(), "Content-Type": "application/x-www-form-urlencoded"},
-                data=signed_body,
-                timeout=HTTP_TIMEOUT,
-            )
-            if resp.status_code == 200:
-                return resp.json()
-            last_err = resp.text
-            if "\"-1022\"" in last_err or "Signature for this request" in last_err:
-                _refresh_time_skew()
-        except Exception as e:  # pragma: no cover - network
-            last_err = str(e)
-        time.sleep(0.2)
-    logger.warning("Convert POST %s failed: %s", path, last_err)
-    return None
-
-
-def _get(path: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    url = f"{BASE_URL}{path}"
-    last_err: Optional[str] = None
-    for _ in range(RETRY_COUNT + 1):
-        try:
-            signed_body = _sign(params)
-            resp = requests.get(
-                url,
-                headers=_headers(),
-                params=signed_body,
-                timeout=HTTP_TIMEOUT,
-            )
-            if resp.status_code == 200:
-                return resp.json()
-            last_err = resp.text
-            if "\"-1022\"" in last_err or "Signature for this request" in last_err:
-                _refresh_time_skew()
-        except Exception as e:  # pragma: no cover - network
-            last_err = str(e)
-        time.sleep(0.2)
-    logger.warning("Convert GET %s failed: %s", path, last_err)
-    return None
-
-
-# ======= Публічні функції, які вже використовує код =======
-def get_quote(from_token: str, to_token: str, amount: float) -> Optional[Dict[str, Any]]:
-    """POST /sapi/v1/convert/getQuote"""
-    if not from_token or not to_token or amount <= 0:
+    url = f"{BINANCE_BASE_URL}{path}?{query}&signature={signature}"
+    headers = {"X-MBX-APIKEY": API_KEY}
+    try:
+        resp = requests.request(method.upper(), url, headers=headers, timeout=timeout)
+    except Exception as exc:  # pragma: no cover - network
+        logger.error("Convert API network error: %s", exc)
         return None
-    f = to_convert_symbol(from_token)
-    t = to_convert_symbol(to_token)
-    payload = {
-        "fromAsset": f,
-        "toAsset": t,
-        "fromAmount": f"{amount:.8f}",
+    try:
+        data = resp.json()
+    except Exception:
+        data = {"raw": resp.text}
+    if resp.status_code != 200:
+        logger.error(
+            "Convert API error: status=%s code=%s msg=%s body=%s",
+            resp.status_code,
+            data.get("code"),
+            data.get("msg"),
+            data,
+        )
+        return None
+    return data
+
+
+# ---- exchangeInfo with 6h cache ----
+_EXCHANGE_CACHE: Dict[str, Any] | None = None
+_EXCHANGE_CACHE_TS = 0.0
+_EXCHANGE_TTL = 6 * 60 * 60
+
+
+def exchange_info() -> Dict[str, Any] | None:
+    """Return cached exchangeInfo for Convert API."""
+
+    global _EXCHANGE_CACHE, _EXCHANGE_CACHE_TS
+    now = time.time()
+    if _EXCHANGE_CACHE and now - _EXCHANGE_CACHE_TS < _EXCHANGE_TTL:
+        return _EXCHANGE_CACHE
+    data = _signed_request("GET", "/sapi/v1/convert/exchangeInfo")
+    if not isinstance(data, dict):
+        return None
+    assets = data.get("assets") or data.get("assetInfo") or data.get("assetList") or []
+    pairs_raw = (
+        data.get("pairs")
+        or data.get("symbols")
+        or data.get("quotePairs")
+        or data.get("fromAssetList")
+        or []
+    )
+    pairs: List[Dict[str, Any]] = []
+    if isinstance(pairs_raw, list):
+        for p in pairs_raw:
+            if not isinstance(p, dict):
+                continue
+            fa = p.get("fromAsset") or p.get("baseAsset") or p.get("from")
+            ta = p.get("toAsset") or p.get("quoteAsset") or p.get("to")
+            if fa and ta:
+                item = dict(p)
+                item["fromAsset"] = fa
+                item["toAsset"] = ta
+                pairs.append(item)
+    result = {"assets": assets if isinstance(assets, list) else [], "pairs": pairs}
+    _EXCHANGE_CACHE = result
+    _EXCHANGE_CACHE_TS = now
+    return result
+
+
+def get_quote(
+    from_asset: str,
+    to_asset: str,
+    from_amount: str | float,
+    wallet_type: str = "SPOT",
+) -> Dict[str, Any] | None:
+    fa = to_convert_asset(from_asset)
+    ta = to_convert_asset(to_asset)
+    params = {
+        "fromAsset": fa,
+        "toAsset": ta,
+        "fromAmount": str(from_amount),
+        "walletType": wallet_type,
     }
-    if _TIME_SKEW_MS == 0:
-        _refresh_time_skew()
-    data = _post(f"{SAPI_PREFIX}/getQuote", payload)
-    if not isinstance(data, dict) or "quoteId" not in data:
+    data = _signed_request("POST", "/sapi/v1/convert/getQuote", params)
+    if not isinstance(data, dict):
         return None
-    quote = {
+    return {
+        "ratio": float(data.get("ratio", 0) or 0.0),
+        "inverseRatio": float(data.get("inverseRatio", 0) or 0.0),
+        "validTimestamp": int(data.get("validTimestamp") or data.get("validTime") or 0),
+        "toAmount": float(data.get("toAmount", 0) or 0.0),
+        "fromAmount": float(data.get("fromAmount", 0) or 0.0),
         "quoteId": data.get("quoteId"),
-        "ratio": float(data.get("ratio", 0)) or 0.0,
-        "inverseRatio": float(data.get("inverseRatio", 0))
-        or (
-            1.0 / float(data.get("ratio", 0))
-            if float(data.get("ratio", 0) or 0)
-            else 0.0
-        ),
-        "fromAmount": float(data.get("fromAmount", 0)) or 0.0,
-        "toAmount": float(data.get("toAmount", 0)) or 0.0,
-        "validTime": data.get("validTime"),
-        "fromAsset": data.get("fromAsset", f),
-        "toAsset": data.get("toAsset", t),
+        "fromAsset": fa,
+        "toAsset": ta,
     }
-    return quote
 
 
-def accept_quote_old(
-    quote: Dict[str, Any],
-    from_token: str,
-    to_token: str,
-) -> Optional[Dict[str, Any]]:
-    """POST /sapi/v1/convert/acceptQuote (legacy wrapper)."""
+def accept_quote(quote_id: str) -> Dict[str, Any] | None:
+    if not quote_id:
+        logger.warning("[dev3] accept_quote без quoteId")
+        return None
+    return _signed_request("POST", "/sapi/v1/convert/acceptQuote", {"quoteId": quote_id})
+
+
+def accept_quote_old(quote: Dict[str, Any], from_token: str, to_token: str) -> Dict[str, Any] | None:
+    """Legacy wrapper compatible with older code paths."""
     if not isinstance(quote, dict):
         return None
-    quote_id = quote.get("quoteId")
-    if not quote_id:
+    qid = quote.get("quoteId")
+    if not qid:
         return None
-    payload = {"quoteId": quote_id}
-    data = _post(f"{SAPI_PREFIX}/acceptQuote", payload)
-    if not isinstance(data, dict) or "orderId" not in data:
-        return {
-            "status": "error",
-            "msg": data.get("msg") if isinstance(data, dict) else "acceptQuote failed",
-        }
-    resp = {
-        "orderId": data.get("orderId"),
-        "orderStatus": data.get("orderStatus", "PROCESS"),
-        "status": "success" if data.get("orderStatus") == "SUCCESS" else "pending",
-        "fromAmount": quote.get("fromAmount", 0.0),
-        "toAmount": quote.get("toAmount", 0.0),
-        "fromAsset": from_token,
-        "toAsset": to_token,
-    }
+    resp = accept_quote(qid)
+    if isinstance(resp, dict):
+        resp.setdefault("fromAmount", quote.get("fromAmount"))
+        resp.setdefault("toAmount", quote.get("toAmount"))
+        resp.setdefault("fromAsset", from_token)
+        resp.setdefault("toAsset", to_token)
     return resp
 
 
-def get_order_status(order_id: str) -> Optional[Dict[str, Any]]:
-    """GET /sapi/v1/convert/orderStatus"""
-    if not order_id:
-        return None
-    data = _get(f"{SAPI_PREFIX}/orderStatus", {"orderId": order_id})
-    if not isinstance(data, dict) or "orderId" not in data:
-        return None
-    return {
-        "orderId": data.get("orderId"),
-        "orderStatus": data.get("orderStatus"),
-        "status": "success"
-        if data.get("orderStatus") == "SUCCESS"
-        else "error"
-        if data.get("orderStatus") in ("FAILED", "FAIL", "EXPIRED", "CANCELED")
-        else "pending",
-        "fromAmount": float(data.get("fromAmount", 0)) if data.get("fromAmount") else None,
-        "toAmount": float(data.get("toAmount", 0)) if data.get("toAmount") else None,
-        "fromAsset": data.get("fromAsset"),
-        "toAsset": data.get("toAsset"),
-    }
+def _sync_time() -> None:  # legacy no-op
+    return None
 
 
-# === Інтерфейс, який використовує інший код ===
-def sanitize_token_pair(from_token: str, to_token: str) -> str:
-    if not from_token or not to_token:
-        logger.warning("[dev3] ❌ Невірний токен: token=None під час symbol.upper()")
-        return ""
-    return f"{from_token.upper()}→{to_token.upper()}"
+def get_balances(wallet: str = "SPOT") -> Dict[str, float]:
+    """Return balances for specified wallet."""
 
-
-def get_balances() -> Dict[str, float]:
-    data = _get("/api/v3/account", {})
+    wallet = (wallet or "SPOT").upper()
     balances: Dict[str, float] = {}
-    if isinstance(data, dict):
-        for bal in data.get("balances", []):
-            total = float(bal.get("free", 0)) + float(bal.get("locked", 0))
-            if total > 0:
-                asset = bal.get("asset")
-                if asset:
-                    balances[asset] = total
+    if wallet == "FUNDING":
+        data = _signed_request("POST", "/sapi/v1/asset/get-funding-asset", {})
+        rows = []
+        if isinstance(data, list):
+            rows = data
+        elif isinstance(data, dict):
+            rows = data.get("balances") or data.get("data") or data.get("assets") or []
+        for r in rows:
+            asset = r.get("asset")
+            try:
+                free = float(r.get("free", 0))
+            except Exception:
+                free = 0.0
+            if asset and free > 0:
+                balances[asset] = free
+    else:
+        data = _signed_request("GET", "/api/v3/account", {})
+        if isinstance(data, dict):
+            for b in data.get("balances", []):
+                asset = b.get("asset")
+                try:
+                    free = float(b.get("free", 0))
+                except Exception:
+                    free = 0.0
+                if asset and free > 0:
+                    balances[asset] = free
+    if not balances:
+        logger.warning("[dev3] ⚠️ get_balances returned empty result for %s", wallet)
     return balances
 
 
-def get_available_to_tokens(from_token: str) -> list[str]:
-    data = _get(f"{SAPI_PREFIX}/exchangeInfo", {"fromAsset": from_token})
-    if isinstance(data, list):
-        data = {"toAssetList": data}
-    if not isinstance(data, dict):
-        logger.warning("[dev3] ⚠️ get_available_to_tokens returned non-dict: %s", data)
+def get_available_to_tokens(from_asset: str) -> List[str]:
+    info = exchange_info()
+    if not info:
         return []
-    tok = data.get("toAssetList")
-    if isinstance(tok, list):
-        return [item.get("toAsset") for item in tok if isinstance(item, dict)]
-    return []
+    fa = (from_asset or "").strip().upper()
+    out: List[str] = []
+    for p in info.get("pairs", []):
+        if isinstance(p, dict) and p.get("fromAsset") == fa:
+            ta = p.get("toAsset")
+            if isinstance(ta, str):
+                out.append(ta)
+    return out
 
 
-def get_max_convert_amount(from_token: str, to_token: str) -> float:
-    # Поточний ліміт Binance Convert фактично не обмежений через API
-    return float("inf")
+def sanitize_token_pair(a: str, b: str) -> tuple[str, str]:
+    aa = (a or "").strip().upper()
+    bb = (b or "").strip().upper()
+    if not aa or not bb or aa == bb:
+        return "", ""
+    return aa, bb
 
 
-# ======= Спрощені обгортки для прямого доступу до Convert API =======
-_TIME_OFFSET_MS = 0
+# --- Optional helpers for order status polling ---
+ORDER_POLL_MAX_SEC = 30
+ORDER_POLL_INTERVAL = 2
 
 
-def _sync_time():
-    global _TIME_OFFSET_MS
-    try:
-        r = requests.get("https://api.binance.com/api/v3/time", timeout=5)
-        srv = r.json().get("serverTime")
-        if isinstance(srv, int):
-            _TIME_OFFSET_MS = srv - int(time.time() * 1000)
-    except Exception:
-        pass
+def get_order_status(order_id: str) -> Dict[str, Any] | None:
+    if not order_id:
+        return None
+    return _signed_request(
+        "GET", "/sapi/v1/convert/orderStatus", {"orderId": order_id}
+    )
 
-
-def _now_ms() -> int:
-    return int(time.time() * 1000) + _TIME_OFFSET_MS
-
-
-def _sign_v3(secret: str, data: dict) -> str:
-    q = urlencode(data, doseq=True)
-    sig = hmac.new(secret.encode(), q.encode(), hashlib.sha256).hexdigest()
-    return q + "&signature=" + sig
-
-
-def _signed_post(url: str, payload: dict, *, recv_window: int = 60000, retry_on_1002: bool = True):
-    payload = dict(payload)
-    payload.setdefault("recvWindow", recv_window)
-    payload["timestamp"] = _now_ms()
-    headers = {"X-MBX-APIKEY": BINANCE_API_KEY, "Content-Type": "application/x-www-form-urlencoded"}
-    r = requests.post(url, data=_sign_v3(BINANCE_API_SECRET, payload), headers=headers, timeout=10)
-    if retry_on_1002 and r.status_code == 401 and '"code":-1002' in r.text:
-        _sync_time()
-        payload["timestamp"] = _now_ms()
-        r = requests.post(url, data=_sign_v3(BINANCE_API_SECRET, payload), headers=headers, timeout=10)
-    return r
-
-
-def get_quote_raw(
-    from_asset: str,
-    to_asset: str,
-    *,
-    from_amount: str | None = None,
-    to_amount: str | None = None,
-    wallet_type: str = "SPOT_FUNDING",
-    valid_time: str = "30s",
-) -> dict:
-    assert (from_amount is None) ^ (to_amount is None), "Either from_amount or to_amount must be set"
-    payload = {
-        "fromAsset": from_asset,
-        "toAsset": to_asset,
-        "walletType": wallet_type,
-        "validTime": valid_time,
-    }
-    if from_amount:
-        payload["fromAmount"] = from_amount
-    if to_amount:
-        payload["toAmount"] = to_amount
-    r = _signed_post(f"{BASE_URL}/sapi/v1/convert/getQuote", payload)
-    return {
-        "status": r.status_code,
-        "json": r.json()
-        if "application/json" in r.headers.get("content-type", "")
-        else {"raw": r.text},
-    }
-
-
-def accept_quote(quote_id: str) -> dict:
-    r = _signed_post(f"{BASE_URL}/sapi/v1/convert/acceptQuote", {"quoteId": quote_id})
-    return {
-        "status": r.status_code,
-        "json": r.json()
-        if "application/json" in r.headers.get("content-type", "")
-        else {"raw": r.text},
-    }
