@@ -178,8 +178,12 @@ def try_convert(
     """Attempt a single conversion using optional pre-fetched quote."""
     log_prediction(from_token, to_token, score)
     if amount <= 0:
-        log_quote_skipped(from_token, to_token, "no_balance")
-        return False, "other"
+        amount = 11.0
+        logger.info(
+            safe_log(
+                f"[dev3] ℹ️ amount скориговано до {amount} для getQuote (dev3 paper)"
+            )
+        )
 
     if should_throttle(from_token, to_token):
         log_quote_skipped(from_token, to_token, "throttled")

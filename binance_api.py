@@ -13,6 +13,7 @@ import logging
 import requests
 from binance.client import Client
 from config_dev3 import BINANCE_API_KEY, BINANCE_API_SECRET
+from json_sanitize import safe_load_json
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,20 @@ _exchange_cache_time: float = 0.0
 _EXCHANGE_CACHE_PATH = Path(tempfile.gettempdir()) / "binance_exchange_info.json"
 
 
+def _log_convert_error(resp: requests.Response) -> None:
+    try:
+        j = resp.json()
+    except Exception:
+        j = {"raw": resp.text}
+    logger.error(
+        "Convert API error: status=%s code=%s msg=%s body=%s",
+        resp.status_code,
+        j.get("code"),
+        j.get("msg"),
+        j,
+    )
+
+
 # --- конверт-мапа символів ---
 _CONVERT_MAP: Dict[str, str] = {}
 
@@ -39,7 +54,7 @@ def _load_convert_map() -> Dict[str, str]:
     cfg = pathlib.Path("convert_assets_config.json")
     if cfg.exists():
         try:
-            data = json.loads(cfg.read_text())
+            data = safe_load_json(cfg)
             mp: Dict[str, str] = {}
             if isinstance(data, dict):
                 if isinstance(data.get("map"), dict):
@@ -116,40 +131,78 @@ def get_quote(
     amount_quote: Optional[float] = None,
     wallet: str = "SPOT",
 ) -> Optional[Dict[str, Any]]:
-    """Unified getQuote for Binance Convert."""
+    """Unified getQuote for Binance Convert with manual signing and walletType fallback."""
+    import hmac
+    import hashlib
+    import urllib.parse
+
     fa = to_convert_symbol(from_asset)
     ta = to_convert_symbol(to_asset)
-    payload: Dict[str, Any] = {"fromAsset": fa, "toAsset": ta}
 
+    amount = 0.0
     if amount_from and amount_from > 0:
-        payload["fromAmount"] = float(amount_from)
+        amount = float(amount_from)
     elif amount_quote and amount_quote > 0:
         spot_sym = f"{fa}{ta}"
         px = _spot_price(spot_sym)
         if px and px > 0:
-            payload["fromAmount"] = float(amount_quote) / px
+            amount = float(amount_quote) / px
         else:
-            payload["fromAmount"] = float(amount_quote) * 0.000001
-    else:
-        logger.info("getQuote skipped: no amount provided (%s→%s)", fa, ta)
-        return None
+            amount = float(amount_quote) * 0.000001
 
-    try:
-        res = get_binance_client().sapi_post_convert_getquote(**payload)
-        if not res or not res.get("quoteId"):
-            logger.info("convert no_quote: %s", payload)
-            return None
-        return {
-            "quoteId": res.get("quoteId"),
+    if amount <= 0:
+        amount = 11.0
+        logger.info("ℹ️ amount скориговано до %s для getQuote (dev3 paper)", amount)
+
+    def _request(w: str) -> requests.Response:
+        params = {
             "fromAsset": fa,
             "toAsset": ta,
-            "toAmount": _safe_float(res.get("toAmount")),
-            "ratio": _safe_float(res.get("ratio")),
-            "raw": res,
+            "fromAmount": amount,
+            "walletType": w,
+            "recvWindow": 50000,
+            "timestamp": int(time.time() * 1000),
         }
-    except Exception as e:  # pragma: no cover - network
-        logger.info("Convert getQuote failed (%s): %s", payload, e)
+        qs = urllib.parse.urlencode(params, doseq=True)
+        sig = hmac.new(BINANCE_API_SECRET.encode(), qs.encode(), hashlib.sha256).hexdigest()
+        headers = {"X-MBX-APIKEY": BINANCE_API_KEY}
+        return requests.post(
+            f"{BASE_URL}/sapi/v1/convert/getQuote",
+            headers=headers,
+            data=qs + "&signature=" + sig,
+            timeout=15,
+        )
+
+    resp = _request(wallet)
+    if resp.status_code != 200:
+        try:
+            j = resp.json()
+        except Exception:
+            j = {}
+        _log_convert_error(resp)
+        if j.get("code") == -9000:
+            alt = "FUNDING" if wallet == "SPOT" else "SPOT"
+            logger.info("↩️ retry getQuote with walletType=%s for %s→%s", alt, fa, ta)
+            resp = _request(alt)
+            if resp.status_code != 200:
+                _log_convert_error(resp)
+                return None
+        else:
+            return None
+
+    data = resp.json()
+    qid = data.get("quoteId")
+    if not qid:
+        logger.warning("Convert getQuote: 200 but no quoteId. body=%s", data)
         return None
+    return {
+        "quoteId": qid,
+        "fromAsset": fa,
+        "toAsset": ta,
+        "toAmount": _safe_float(data.get("toAmount")),
+        "ratio": _safe_float(data.get("ratio")),
+        "raw": data,
+    }
 
 try:
     from config_dev3 import VALID_PAIRS
@@ -170,10 +223,12 @@ def _load_exchange_info() -> dict:
         try:
             mtime = _EXCHANGE_CACHE_PATH.stat().st_mtime
             if now - mtime < 300:
-                with open(_EXCHANGE_CACHE_PATH, "r", encoding="utf-8") as f:
-                    _exchange_cache = json.load(f)
+                try:
+                    _exchange_cache = safe_load_json(_EXCHANGE_CACHE_PATH)
                     _exchange_cache_time = mtime
                     return _exchange_cache
+                except Exception:
+                    pass
         except Exception:
             pass
 

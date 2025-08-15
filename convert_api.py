@@ -67,7 +67,7 @@ def _refresh_time_skew() -> None:
 def _sign(params: Dict[str, Any]) -> str:
     """Повертає рядок параметрів з підписом для SAPI запиту."""
     params = dict(params)
-    params.setdefault("recvWindow", 5000)
+    params.setdefault("recvWindow", 50000)
     params["timestamp"] = _ts()
     query = urlencode(params, doseq=True)
     signature = hmac.new(
@@ -245,6 +245,7 @@ def get_available_to_tokens(from_token: str) -> list[str]:
     if isinstance(data, list):
         data = {"toAssetList": data}
     if not isinstance(data, dict):
+        logger.warning("[dev3] ⚠️ get_available_to_tokens returned non-dict: %s", data)
         return []
     tok = data.get("toAssetList")
     if isinstance(tok, list):

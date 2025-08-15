@@ -89,18 +89,21 @@ def main() -> None:
     try:
         from convert_cycle import process_top_pairs
 
-        logger.info(safe_log("[dev3] 📄 Перевірка наявності файлу top_tokens.json..."))
-        if not os.path.exists("top_tokens.json"):
-            logger.warning(safe_log("[dev3] ⛔️ Файл top_tokens.json не знайдено. Завершуємо цикл."))
+        logger.info(safe_log("[dev3] 📄 Перевірка наявності файлу logs/top_tokens.json..."))
+        path = Path("logs") / "top_tokens.json"
+        if not path.exists():
+            path = Path("top_tokens.json")
+        if not path.exists():
+            logger.warning(safe_log("[dev3] ⛔️ Файл logs/top_tokens.json не знайдено. Завершуємо цикл."))
             return
 
-        top_tokens = load_top_pairs("top_tokens.json")
+        top_tokens = load_top_pairs(str(path))
 
         if not top_tokens:
             logger.warning(safe_log("[dev3] ⛔️ Файл top_tokens.json порожній. Пропускаємо трейд."))
             return
 
-        logger.info(safe_log(f"[dev3] ✅ Завантажено {len(top_tokens)} пар з top_tokens.json"))
+        logger.info(safe_log(f"[dev3] ✅ Завантажено {len(top_tokens)} пар з {path.name}"))
         all_zero = all(
             safe_float(item.get("gpt", {}).get("score", item.get("score", 0))) == 0
             and safe_float(item.get("expected_profit", 0)) == 0
