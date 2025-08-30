@@ -7,6 +7,7 @@ from convert_cycle import process_pair
 from convert_logger import logger
 from config_dev3 import CONVERT_SCORE_THRESHOLD
 from quote_counter import can_request_quote
+from top_tokens_utils import load_top_tokens
 
 if not can_request_quote():
     logger.warning("[dev3] ⛔ Ліміт запитів до Convert API досягнуто. Пропускаємо цикл.")
@@ -30,11 +31,6 @@ def cleanup() -> None:
             os.remove(temp)
         except OSError:
             pass
-    if os.path.exists("top_tokens.json"):
-        try:
-            os.remove("top_tokens.json")
-        except OSError:
-            pass
     for qfile in glob.glob(os.path.join("logs", "quote_*.json")):
         try:
             os.remove(qfile)
@@ -51,6 +47,8 @@ def cleanup() -> None:
 def main() -> None:
     cleanup()
     logger.info("[dev3] 🔄 Запуск convert трейдингу")
+    region = os.environ.get("REGION", "ASIA")
+    load_top_tokens(region)  # ensure top tokens file exists for region
     balances = get_balances()
     for token, amount in balances.items():
         logger.info(f"[dev3] 🔄 Старт трейд-циклу для {token}")
