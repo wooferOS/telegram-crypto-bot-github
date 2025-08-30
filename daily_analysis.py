@@ -5,7 +5,8 @@ from typing import Dict, List
 from convert_api import get_balances, get_available_to_tokens, get_quote
 from convert_logger import logger
 from convert_model import predict
-from utils_dev3 import save_json
+from utils_dev3 import save_json, get_current_timestamp
+from top_tokens_utils import save_top_tokens, TOP_TOKENS_VERSION
 
 
 async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]:
@@ -107,10 +108,30 @@ async def main() -> None:
     sorted_tokens = sorted(predictions, key=lambda x: x["score"], reverse=True)
     top_tokens = sorted_tokens[:5]
     if not top_tokens:
-        logger.warning("[dev3] ❌ top_tokens.json порожній — відсутні релевантні прогнози")
-    await asyncio.to_thread(save_json, "top_tokens.json", top_tokens)
+        logger.warning("[dev3] ❌ top_tokens порожній — відсутні релевантні прогнози")
 
-    logger.info(f"[dev3] ✅ Аналіз завершено. Створено top_tokens.json з {len(top_tokens)} записами.")
+    region = os.environ.get("REGION", "ASIA").upper()
+    pairs = [
+        {
+            "from": t["from_token"],
+            "to": t["to_token"],
+            "score": t.get("score"),
+            "edge": t.get("expected_profit"),
+        }
+        for t in top_tokens
+    ]
+
+    data = {
+        "version": TOP_TOKENS_VERSION,
+        "region": region,
+        "generated_at": get_current_timestamp(),
+        "pairs": pairs,
+    }
+    await asyncio.to_thread(save_top_tokens, data, region)
+
+    logger.info(
+        f"[dev3] ✅ Аналіз завершено. Створено top_tokens для регіону {region} з {len(pairs)} записами."
+    )
 
 
 if __name__ == "__main__":
