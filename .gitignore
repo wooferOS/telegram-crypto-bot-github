@@ -1,0 +1,7 @@
+
+# local secrets & env
+config_dev3.py
+.env
+logs/
+*.log
+
