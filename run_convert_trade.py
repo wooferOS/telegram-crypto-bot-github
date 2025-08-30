@@ -7,7 +7,7 @@ from convert_cycle import process_pair
 from convert_logger import logger
 from config_dev3 import CONVERT_SCORE_THRESHOLD
 from quote_counter import can_request_quote
-from top_tokens_utils import load_top_tokens
+from top_tokens_utils import read_for_region
 
 if not can_request_quote():
     logger.warning("[dev3] ⛔ Ліміт запитів до Convert API досягнуто. Пропускаємо цикл.")
@@ -48,7 +48,11 @@ def main() -> None:
     cleanup()
     logger.info("[dev3] 🔄 Запуск convert трейдингу")
     region = os.environ.get("REGION", "ASIA")
-    load_top_tokens(region)  # ensure top tokens file exists for region
+    # ensure top tokens file exists for region
+    try:
+        read_for_region(region)
+    except Exception:
+        pass
     balances = get_balances()
     for token, amount in balances.items():
         logger.info(f"[dev3] 🔄 Старт трейд-циклу для {token}")

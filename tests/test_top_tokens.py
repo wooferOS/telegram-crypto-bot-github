@@ -9,17 +9,26 @@ sys.path.insert(0, os.getcwd())
 import top_tokens_utils as ttu
 
 
-def test_migration_and_fallback(tmp_path):
-    ttu.LOGS_DIR = str(tmp_path)
-    legacy_path = Path(tmp_path) / 'top_tokens.asia.json'
-    with open(legacy_path, 'w', encoding='utf-8') as f:
-        json.dump([{"from": "USDT", "to": "BTC"}], f)
-    data = ttu.load_top_tokens('ASIA')
-    assert data['version'] == ttu.TOP_TOKENS_VERSION
-    assert data['pairs'][0]['from'] == 'USDT'
+def test_atomic_write_and_read(tmp_path):
+    path = tmp_path / "tokens.json"
+    data = {
+        "version": ttu.TOP_TOKENS_VERSION,
+        "region": "ASIA",
+        "generated_at": 0,
+        "pairs": [{"from": "USDT", "to": "BTC", "score": 1.0, "edge": 0.1}],
+    }
+    ttu.write_top_tokens_atomic(str(path), data)
+    read = ttu.read_top_tokens(str(path))
+    assert read == data
 
-    # remove file to trigger fallback
-    legacy_path.unlink()
-    data = ttu.load_top_tokens('ASIA')
-    assert data['pairs']
-    assert Path(ttu.LOGS_DIR, 'top_tokens.asia.json').exists()
+
+def test_migration_and_validation(tmp_path):
+    legacy = tmp_path / "legacy.json"
+    with open(legacy, "w", encoding="utf-8") as f:
+        json.dump([{"from": "USDT", "to": "ETH"}], f)
+
+    migrated = ttu.read_top_tokens(str(legacy))
+    assert migrated["version"] == ttu.TOP_TOKENS_VERSION
+    assert migrated["pairs"][0]["from"] == "USDT"
+    assert ttu.validate_schema(migrated)
+

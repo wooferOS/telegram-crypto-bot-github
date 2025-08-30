@@ -6,7 +6,7 @@ from convert_api import get_balances, get_available_to_tokens, get_quote
 from convert_logger import logger
 from convert_model import predict
 from utils_dev3 import save_json, get_current_timestamp
-from top_tokens_utils import save_top_tokens, TOP_TOKENS_VERSION
+from top_tokens_utils import save_for_region, TOP_TOKENS_VERSION
 
 
 async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]:
@@ -107,10 +107,13 @@ async def main() -> None:
 
     sorted_tokens = sorted(predictions, key=lambda x: x["score"], reverse=True)
     top_tokens = sorted_tokens[:5]
-    if not top_tokens:
-        logger.warning("[dev3] ❌ top_tokens порожній — відсутні релевантні прогнози")
-
     region = os.environ.get("REGION", "ASIA").upper()
+    if not top_tokens:
+        logger.warning(
+            "[dev3] ❌ top_tokens порожній — відсутні релевантні прогнози"
+        )
+        return
+
     pairs = [
         {
             "from": t["from_token"],
@@ -127,7 +130,7 @@ async def main() -> None:
         "generated_at": get_current_timestamp(),
         "pairs": pairs,
     }
-    await asyncio.to_thread(save_top_tokens, data, region)
+    await asyncio.to_thread(save_for_region, data, region)
 
     logger.info(
         f"[dev3] ✅ Аналіз завершено. Створено top_tokens для регіону {region} з {len(pairs)} записами."
