@@ -1,60 +1,92 @@
+"""Utilities for managing top token files.
+
+The top tokens file stores conversion opportunities discovered during the
+analysis phase.  Format (version ``v1``)::
+
+    {
+        "version": "v1",
+        "region": "ASIA",
+        "generated_at": 1700000000000,  # milliseconds
+        "pairs": [
+            {"from": "USDT", "to": "BTC", "score": 0.42, "edge": 0.1},
+            ...
+        ]
+    }
+
+Files are written atomically using a ``.lock`` file and temporary rename to
+avoid corruption.  Legacy formats (plain list or dict without ``version``)
+are migrated automatically when read.
+"""
+
+from __future__ import annotations
+
+import fcntl
 import json
 import os
 import time
-import fcntl
-from typing import Dict, List, Optional
-import logging
-
-logger = logging.getLogger(__name__)
+from typing import Any, Dict, List
 
 LOGS_DIR = "logs"
-TOP_TOKENS_VERSION = 1
-DEFAULT_TOPS = [{"from": "USDT", "to": "BTC"}, {"from": "USDT", "to": "ETH"}]
+TOP_TOKENS_VERSION = "v1"
 
 
-def _file_path(region: str) -> str:
-    filename = f"top_tokens.{region.lower()}.json"
-    return os.path.join(LOGS_DIR, filename)
+# ---------------------------------------------------------------------------
+# validation & migration
+# ---------------------------------------------------------------------------
 
 
-def _validate(data: Dict[str, object]) -> bool:
+def validate_schema(data: Dict[str, Any]) -> bool:
+    """Return ``True`` if ``data`` matches the expected schema."""
+
     if not isinstance(data, dict):
         return False
     if data.get("version") != TOP_TOKENS_VERSION:
         return False
-    if "region" not in data or "generated_at" not in data:
+    if not isinstance(data.get("region"), str):
         return False
-    if not isinstance(data.get("pairs"), list):
+    if "generated_at" not in data:
         return False
-    for p in data["pairs"]:
-        if not isinstance(p, dict):
+    pairs = data.get("pairs")
+    if not isinstance(pairs, list):
+        return False
+    for item in pairs:
+        if not isinstance(item, dict):
             return False
-        if "from" not in p or "to" not in p:
+        # support both {asset: ...} and {from:..., to:...}
+        if "asset" not in item and ("from" not in item or "to" not in item):
             return False
     return True
 
 
-def _migrate(raw: object, region: str) -> Dict[str, object]:
-    """Migrate legacy formats (list or dict without version)."""
+def _migrate_raw(raw: Any, region: str) -> Dict[str, Any]:
+    """Convert legacy ``raw`` content to the new schema."""
+
     if isinstance(raw, dict) and raw.get("version") == TOP_TOKENS_VERSION:
         return raw
-    pairs: List[Dict[str, object]] = []
+
+    pairs: List[Dict[str, Any]] = []
     if isinstance(raw, list):
-        pairs = [
-            {"from": item.get("from") or item.get("from_token"),
-             "to": item.get("to") or item.get("to_token"),
-             "score": item.get("score"),
-             "edge": item.get("edge")}
-            for item in raw
-            if isinstance(item, dict)
-        ]
+        for item in raw:
+            if not isinstance(item, dict):
+                continue
+            pair: Dict[str, Any] = {}
+            if "asset" in item:
+                pair["asset"] = item["asset"]
+            if "from" in item or "from_token" in item:
+                pair["from"] = item.get("from", item.get("from_token"))
+            if "to" in item or "to_token" in item:
+                pair["to"] = item.get("to", item.get("to_token"))
+            if "score" in item:
+                pair["score"] = item.get("score")
+            if "edge" in item:
+                pair["edge"] = item.get("edge")
+            if pair:
+                pairs.append(pair)
     elif isinstance(raw, dict) and "pairs" in raw:
-        # old dict without version
         for item in raw.get("pairs", []):
             if isinstance(item, dict):
                 pairs.append(item)
-    else:
-        pairs = DEFAULT_TOPS.copy()
+
     migrated = {
         "version": TOP_TOKENS_VERSION,
         "region": region.upper(),
@@ -64,44 +96,66 @@ def _migrate(raw: object, region: str) -> Dict[str, object]:
     return migrated
 
 
-def load_top_tokens(region: str, create_if_missing: bool = True) -> Dict[str, object]:
-    path = _file_path(region)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+def migrate_legacy_if_needed(path: str) -> Dict[str, Any]:
+    """Read file ``path`` and migrate legacy formats if required."""
+
+    region = os.path.basename(path).split(".")[1].upper() if os.path.exists(path) else "ASIA"
     if not os.path.exists(path):
-        data = {
+        return {
             "version": TOP_TOKENS_VERSION,
-            "region": region.upper(),
+            "region": region,
             "generated_at": int(time.time() * 1000),
-            "pairs": DEFAULT_TOPS.copy(),
+            "pairs": [],
         }
-        if create_if_missing:
-            save_top_tokens(data, region)
-        return data
 
     with open(path, "r", encoding="utf-8") as f:
         try:
             raw = json.load(f)
         except json.JSONDecodeError:
-            raw = DEFAULT_TOPS.copy()
-    data = _migrate(raw, region)
-    if not _validate(data):
-        data = {
-            "version": TOP_TOKENS_VERSION,
-            "region": region.upper(),
-            "generated_at": int(time.time() * 1000),
-            "pairs": DEFAULT_TOPS.copy(),
-        }
+            raw = []
+    return _migrate_raw(raw, region)
+
+
+def read_top_tokens(path: str) -> Dict[str, Any]:
+    """Read and validate top tokens from ``path``."""
+
+    data = migrate_legacy_if_needed(path)
+    if not validate_schema(data):
+        raise ValueError("Invalid top tokens schema")
     return data
 
 
-def save_top_tokens(data: Dict[str, object], region: Optional[str] = None) -> None:
-    region = region or data.get("region", "ASIA")
-    path = _file_path(region)
+# ---------------------------------------------------------------------------
+# writing
+# ---------------------------------------------------------------------------
+
+
+def write_top_tokens_atomic(path: str, data: Dict[str, Any]) -> None:
+    """Atomically write ``data`` to ``path`` with file locking."""
+
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp_path = path + ".tmp"
-    with open(path + ".lock", "w") as lock:
+    lock_path = path + ".lock"
+    with open(lock_path, "w") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
         os.replace(tmp_path, path)
         fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+# convenience helpers -------------------------------------------------------
+
+
+def path_for_region(region: str) -> str:
+    return os.path.join(LOGS_DIR, f"top_tokens.{region.lower()}.json")
+
+
+def read_for_region(region: str) -> Dict[str, Any]:
+    return read_top_tokens(path_for_region(region))
+
+
+def save_for_region(data: Dict[str, Any], region: str | None = None) -> None:
+    region = region or data.get("region", "ASIA")
+    write_top_tokens_atomic(path_for_region(region), data)
+
