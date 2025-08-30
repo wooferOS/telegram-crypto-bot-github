@@ -1,6 +1,5 @@
 import hmac
 import hashlib
-
 import os
 import sys
 
@@ -26,6 +25,7 @@ def test_get_quote_uses_form(monkeypatch):
     def fake_post(self, url, data=None, params=None, headers=None, timeout=None):
         sent['data'] = data
         sent['params'] = params
+        sent['headers'] = headers
         class Resp:
             status_code = 200
             headers = {}
@@ -39,6 +39,7 @@ def test_get_quote_uses_form(monkeypatch):
     convert_api.get_quote('USDT', 'BTC', 1.0)
     assert sent['params'] is None or sent['params'] == {}
     assert isinstance(sent['data'], dict)
+    assert sent['headers']['Content-Type'] == 'application/x-www-form-urlencoded'
 
 
 def test_time_sync_retry(monkeypatch):
@@ -110,3 +111,17 @@ def test_backoff_on_429(monkeypatch):
     res = convert_api._request('POST', '/sapi/v1/convert/getQuote', {'a': 1})
     assert res == {"ok": 1}
     assert sleeps and sleeps[0] > 0
+
+
+def test_accept_quote_dry_run(monkeypatch):
+    called = {}
+
+    def fake_request(*args, **kwargs):
+        called['yes'] = True
+
+    monkeypatch.setenv('ENABLE_LIVE', '0')
+    monkeypatch.setenv('PAPER', '1')
+    monkeypatch.setattr(convert_api, '_request', fake_request)
+    res = convert_api.accept_quote('123')
+    assert res == {'dryRun': True}
+    assert called == {}
