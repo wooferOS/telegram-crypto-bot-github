@@ -1,0 +1,13 @@
+# env/secrets
+config_dev3.py
+.env
+
+# caches & venv
+__pycache__/
+*.pyc
+.venv/
+
+# logs & temp
+logs/
+*.log
+tmp_*

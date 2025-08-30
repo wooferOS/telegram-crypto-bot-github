@@ -1,0 +1,80 @@
+import os
+import glob
+import subprocess
+
+from convert_api import get_balances, get_available_to_tokens
+from convert_cycle import process_pair
+from convert_logger import logger
+from config_dev3 import CONVERT_SCORE_THRESHOLD
+from quote_counter import can_request_quote
+
+if not can_request_quote():
+    logger.warning("[dev3] ⛔ Ліміт запитів до Convert API досягнуто. Пропускаємо цикл.")
+    exit(0)
+
+CACHE_FILES = [
+    "signals.txt",
+    "last_message.txt",
+]
+
+
+def cleanup() -> None:
+    for path in CACHE_FILES:
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+    for temp in glob.glob(os.path.join("logs", "temp_*.json")):
+        try:
+            os.remove(temp)
+        except OSError:
+            pass
+    if os.path.exists("top_tokens.json"):
+        try:
+            os.remove("top_tokens.json")
+        except OSError:
+            pass
+    for qfile in glob.glob(os.path.join("logs", "quote_*.json")):
+        try:
+            os.remove(qfile)
+        except OSError:
+            pass
+    for log_path in glob.glob(os.path.join("logs", "*.log")):
+        try:
+            if os.path.getsize(log_path) > 5 * 1024 * 1024:
+                os.remove(log_path)
+        except OSError:
+            pass
+
+
+def main() -> None:
+    cleanup()
+    logger.info("[dev3] 🔄 Запуск convert трейдингу")
+    balances = get_balances()
+    for token, amount in balances.items():
+        logger.info(f"[dev3] 🔄 Старт трейд-циклу для {token}")
+        tos = get_available_to_tokens(token)
+        success = process_pair(token, tos, amount, CONVERT_SCORE_THRESHOLD)
+        if not success:
+            logger.warning(
+                "[dev3] ⚠️ Fallback: жодна пара не пройшла фільтри. Обираємо top 2 за ratio."
+            )
+    cleanup()
+    logger.info("[dev3] ✅ Цикл завершено")
+
+    # 🧠 Автоматичне навчання моделі
+    logger.info("[dev3] 📚 Починаємо автоматичне навчання моделі...")
+    subprocess.run(["python3", "train_convert_model.py"], check=True)
+    logger.info("[dev3] ✅ Навчання завершено")
+
+    predictions_path = os.path.join("logs", "predictions.json")
+    if os.path.exists(predictions_path):
+        try:
+            os.remove(predictions_path)
+        except OSError:
+            pass
+
+
+if __name__ == "__main__":
+    main()
