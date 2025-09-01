@@ -2,6 +2,7 @@ import hmac
 import hashlib
 import os
 import sys
+import pytest
 
 sys.path.insert(0, os.getcwd())
 
@@ -148,3 +149,90 @@ def test_accept_quote_dry_run(monkeypatch):
     res = convert_api.accept_quote('123')
     assert res == {'dryRun': True}
     assert called == {}
+
+
+def test_get_quote_with_id_params(monkeypatch):
+    sent = {}
+
+    def fake_request(method, path, params):
+        sent['method'] = method
+        sent['path'] = path
+        sent['params'] = params
+        return {}
+
+    monkeypatch.setattr(convert_api, '_request', fake_request)
+    convert_api.get_quote_with_id('USDT', 'BTC', 1.23, walletType='MAIN')
+    assert sent['method'] == 'POST'
+    assert sent['path'] == '/sapi/v1/convert/getQuote'
+    assert sent['params']['fromAsset'] == 'USDT'
+    assert sent['params']['toAsset'] == 'BTC'
+    assert sent['params']['fromAmount'] == 1.23
+    assert sent['params']['walletType'] == 'MAIN'
+
+
+def test_accept_quote_live(monkeypatch):
+    called = {}
+
+    def fake_request(method, path, params):
+        called['method'] = method
+        called['path'] = path
+        called['params'] = params
+        return {'orderId': '1'}
+
+    monkeypatch.setenv('PAPER', '0')
+    monkeypatch.setenv('ENABLE_LIVE', '1')
+    monkeypatch.setattr(convert_api, '_request', fake_request)
+    res = convert_api.accept_quote('abc', walletType='MAIN')
+    assert res == {'orderId': '1'}
+    assert called['path'] == '/sapi/v1/convert/acceptQuote'
+    assert called['params']['quoteId'] == 'abc'
+    assert called['params']['walletType'] == 'MAIN'
+
+
+def test_get_quote_status_params(monkeypatch):
+    sent = {}
+
+    def fake_request(method, path, params):
+        sent['method'] = method
+        sent['path'] = path
+        sent['params'] = params
+        return {'status': 'SUCCESS'}
+
+    monkeypatch.setattr(convert_api, '_request', fake_request)
+    res = convert_api.get_quote_status('1')
+    assert res['status'] == 'SUCCESS'
+    assert sent['path'] == '/sapi/v1/convert/orderStatus'
+    assert sent['params'] == {'orderId': '1'}
+
+
+def test_get_quote_live_no_paper(monkeypatch):
+    called = {}
+
+    def fake_request(method, path, params):
+        called['path'] = path
+        return {'ok': True}
+
+    monkeypatch.setenv('PAPER', '0')
+    monkeypatch.setattr(convert_api, '_request', fake_request)
+    res = convert_api.get_quote('USDT', 'BTC', 1.0)
+    assert res == {'ok': True}
+    assert called['path'] == '/sapi/v1/convert/getQuote'
+
+
+def test_permission_error(monkeypatch):
+    class Sess:
+        def post(self, url, data=None, headers=None, timeout=None, params=None):
+            class R:
+                status_code = 200
+                headers = {}
+                def json(self):
+                    return {'code': -2015}
+            return R()
+
+    monkeypatch.setattr(convert_api, '_session', Sess())
+    monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 0)
+    monkeypatch.setattr(convert_api, 'BINANCE_SECRET_KEY', 'secret')
+    monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
+
+    with pytest.raises(PermissionError):
+        convert_api._request('POST', '/sapi/v1/convert/getQuote', {'a': 1})
