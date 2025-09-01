@@ -132,6 +132,10 @@ def _request(method: str, path: str, params: Dict[str, Any]) -> Dict[str, Any]:
             _sync_time()
             continue
 
+        # API key / permission issue - fail fast
+        if isinstance(data, dict) and data.get("code") == -2015:
+            raise PermissionError("Invalid API-key, IP, or permissions")
+
         # hard rate limit / error codes
         if isinstance(data, dict) and data.get("code") in (-1003, 345239):
             time.sleep(_backoff(attempt))
@@ -234,6 +238,11 @@ def accept_quote(quote_id: str, walletType: Optional[str] = None) -> Dict[str, A
 
 def get_quote_status(order_id: str) -> Dict[str, Any]:
     return _request("GET", "/sapi/v1/convert/orderStatus", {"orderId": order_id})
+
+
+def trade_flow(**params: Any) -> Dict[str, Any]:
+    """Wrapper for ``GET /sapi/v1/convert/tradeFlow`` endpoint."""
+    return _request("GET", "/sapi/v1/convert/tradeFlow", params)
 
 
 def get_all_supported_convert_pairs() -> Set[str]:
