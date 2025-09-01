@@ -90,7 +90,11 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             accept_result = {"code": None, "msg": str(error)}
 
         order_id = accept_result.get("orderId") if isinstance(accept_result, dict) else None
-        accepted = bool(order_id)
+        accepted = bool(
+            accept_result
+            and order_id
+            and not accept_result.get("dryRun", False)
+        )
         if not accepted and isinstance(accept_result, dict):
             logger.warning(
                 f"[dev3] ❌ Помилка під час accept_quote: {quote['quoteId']} — {accept_result}"
@@ -117,6 +121,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             order_id,
             accept_result if not accepted else None,
             accept_result.get("createTime") if isinstance(accept_result, dict) else None,
+            accept_result.get("dryRun", False) if isinstance(accept_result, dict) else False,
         )
         if accepted:
             any_accepted = True
@@ -134,7 +139,11 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             accept_result = {"code": None, "msg": str(error)}
 
         order_id = accept_result.get("orderId") if isinstance(accept_result, dict) else None
-        accepted = bool(order_id)
+        accepted = bool(
+            accept_result
+            and order_id
+            and not accept_result.get("dryRun", False)
+        )
         if accepted:
             logger.info(
                 "[dev3] 📊 Навчальна угода успішна: %s orderId=%s createTime=%s",
@@ -159,6 +168,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             order_id,
             accept_result if not accepted else None,
             accept_result.get("createTime") if isinstance(accept_result, dict) else None,
+            accept_result.get("dryRun", False) if isinstance(accept_result, dict) else False,
         )
         if accepted:
             any_accepted = True
@@ -178,6 +188,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 None,
                 None,
                 None,
+                False,
             )
 
     logger.info("[dev3] ✅ Цикл завершено")
