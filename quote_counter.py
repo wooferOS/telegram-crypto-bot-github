@@ -74,6 +74,8 @@ def increment_quote_usage() -> int:
 
 def can_request_quote() -> bool:
     """Return True if current quote count is below the limit."""
+    if os.getenv("PAPER", "0") == "1":
+        return True
     return get_count() < QUOTE_LIMIT
 
 

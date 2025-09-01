@@ -3,7 +3,7 @@ from typing import List, Dict, Tuple
 from convert_api import get_quote, accept_quote
 from convert_logger import (
     logger,
-    save_convert_history,
+    log_conversion_result,
 )
 from convert_filters import filter_top_tokens
 from convert_notifier import send_telegram
@@ -79,25 +79,6 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
     selected_tokens = {t for t, _, _ in top_results}
     any_accepted = False
 
-    def log_record(token: str, quote: Dict, accepted: bool, order_id: str | None, error: Dict | None) -> None:
-        record = {
-            "quoteId": quote.get("quoteId"),
-            "orderId": order_id,
-            "from_token": from_token,
-            "to_token": token,
-            "ratio": float(quote.get("ratio")) if quote.get("ratio") is not None else None,
-            "inverseRatio": float(quote.get("inverseRatio")) if quote.get("inverseRatio") is not None else None,
-            "from_amount": float(quote.get("fromAmount", 0)),
-            "to_amount": float(quote.get("toAmount", 0)),
-            "score": float(quote.get("score", 0)),
-            "expected_profit": float(quote.get("expected_profit", quote.get("ratio", 1) - 1)),
-            "prob_up": float(quote.get("prob_up", 0.5)),
-            "accepted": accepted,
-            "error_code": error.get("code") if error else None,
-            "error_msg": error.get("msg") if error else None,
-        }
-        save_convert_history(record)
-
     for to_token, score, quote in top_results:
         accept_result = None
         try:
@@ -121,7 +102,16 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             f"[dev3] {'✅' if accepted else '❌'} Конверсія {from_token} → {to_token} (score={score:.4f})"
         )
 
-        log_record(to_token, quote, accepted, order_id, accept_result if not accepted else None)
+        log_conversion_result(
+            {
+                **quote,
+                "fromAsset": from_token,
+                "toAsset": to_token,
+            },
+            accepted,
+            order_id,
+            accept_result if not accepted else None,
+        )
         if accepted:
             any_accepted = True
 
@@ -148,7 +138,16 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
         logger.info(
             f"[dev3] {'✅' if accepted else '❌'} 📊 Навчальна угода {from_token} → {to_token} (score={score:.4f})"
         )
-        log_record(to_token, quote, accepted, order_id, accept_result if not accepted else None)
+        log_conversion_result(
+            {
+                **quote,
+                "fromAsset": from_token,
+                "toAsset": to_token,
+            },
+            accepted,
+            order_id,
+            accept_result if not accepted else None,
+        )
         if accepted:
             any_accepted = True
 
@@ -157,7 +156,16 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             continue
         quote = quotes_map.get(to_token)
         if quote:
-            log_record(to_token, quote, False, None, None)
+            log_conversion_result(
+                {
+                    **quote,
+                    "fromAsset": from_token,
+                    "toAsset": to_token,
+                },
+                False,
+                None,
+                None,
+            )
 
     logger.info("[dev3] ✅ Цикл завершено")
     return any_accepted
