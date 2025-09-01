@@ -143,8 +143,22 @@ def _request(method: str, path: str, params: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def get_balances() -> Dict[str, float]:
+    # PAPER fallback: allow specifying balances via env without hitting API
+    if os.getenv("PAPER", "0") == "1":
+        raw = os.getenv("PAPER_BALANCES", "")
+        balances: Dict[str, float] = {}
+        for part in raw.split(","):
+            if "=" in part:
+                k, v = part.split("=", 1)
+                try:
+                    balances[k.strip()] = float(v)
+                except ValueError:
+                    pass
+        if balances:
+            return balances
+
     data = _request("GET", "/api/v3/account", {})
-    balances: Dict[str, float] = {}
+    balances = {}
     for bal in data.get("balances", []):
         total = float(bal.get("free", 0)) + float(bal.get("locked", 0))
         if total > 0:
@@ -158,6 +172,10 @@ def exchange_info(**params: Any) -> Dict[str, Any]:
 
 
 def get_available_to_tokens(from_token: str) -> List[str]:
+    if os.getenv("PAPER", "0") == "1":
+        sample = ["USDT", "BTC", "ETH", "SOL"]
+        return [t for t in sample if t != from_token]
+
     data = exchange_info(fromAsset=from_token)
     if isinstance(data, list):
         data = {"toAssetList": data}
@@ -182,7 +200,25 @@ def get_quote_with_id(
 
 
 def get_quote(from_token: str, to_token: str, amount: float) -> Dict[str, Any]:
-    """Backward compatible wrapper."""
+    """Backward compatible wrapper with PAPER stub."""
+    if os.getenv("PAPER", "0") == "1":
+        import hashlib, uuid
+
+        key = f"{from_token}->{to_token}".encode()
+        h = int(hashlib.sha256(key).hexdigest(), 16)
+        drift = ((h % 2001) - 1000) / 1_000_000.0
+        ratio = max(1e-8, 1.0 + drift)
+        return {
+            "quoteId": f"paper-{uuid.uuid4().hex}",
+            "fromAsset": from_token,
+            "toAsset": to_token,
+            "ratio": ratio,
+            "inverseRatio": 1.0 / ratio,
+            "fromAmount": float(amount),
+            "toAmount": float(amount) * ratio,
+            "paper": True,
+        }
+
     return get_quote_with_id(from_token, to_token, amount)
 
 
