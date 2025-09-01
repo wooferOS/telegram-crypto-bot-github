@@ -127,7 +127,8 @@ def test_accept_quote_dry_run(monkeypatch):
     monkeypatch.setenv('PAPER', '1')
     monkeypatch.setattr(convert_api, '_request', fake_request)
     res = convert_api.accept_quote('123')
-    assert 'orderId' in res and 'createTime' in res
+    assert res.get('dryRun') is True
+    assert 'orderId' not in res
     assert called == {}
 
 
@@ -151,6 +152,31 @@ def test_get_quote_with_id_params(monkeypatch):
     assert sent['params']['walletType'] == 'MAIN'
 
 
+def test_get_quote_signed(monkeypatch):
+    sent = {}
+
+    def fake_post(self, url, data=None, params=None, headers=None, timeout=None):
+        sent['data'] = data
+        sent['headers'] = headers
+        class R:
+            status_code = 200
+            headers = {}
+            def json(self):
+                return {}
+        return R()
+
+    monkeypatch.setattr(convert_api, '_session', type('S', (), {'post': fake_post})())
+    monkeypatch.setattr(convert_api, 'BINANCE_SECRET_KEY', 'secret')
+    monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
+    monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 1)
+    monkeypatch.setattr(convert_api, 'increment_quote_usage', lambda: None)
+    convert_api.get_quote_with_id('USDT', 'BTC', from_amount=1.0)
+    assert 'fromAmount' in sent['data'] and 'toAmount' not in sent['data']
+    assert sent['data']['timestamp'] == 1
+    assert sent['data']['recvWindow'] == 20000
+    assert sent['headers']['X-MBX-APIKEY'] == 'key'
+
+
 def test_get_quote_with_id_validation(monkeypatch):
     monkeypatch.setattr(convert_api, 'increment_quote_usage', lambda: None)
     with pytest.raises(ValueError):
@@ -160,22 +186,30 @@ def test_get_quote_with_id_validation(monkeypatch):
 
 
 def test_accept_quote_live(monkeypatch):
-    called = {}
+    sent = {}
 
-    def fake_request(method, path, params):
-        called['method'] = method
-        called['path'] = path
-        called['params'] = params
-        return {'orderId': '1', 'createTime': 2}
+    def fake_post(self, url, data=None, headers=None, timeout=None, params=None):
+        sent['data'] = data
+        sent['headers'] = headers
+        class R:
+            status_code = 200
+            headers = {}
+            def json(self):
+                return {'orderId': '1', 'createTime': 2}
+        return R()
 
     monkeypatch.setenv('PAPER', '0')
     monkeypatch.setenv('ENABLE_LIVE', '1')
-    monkeypatch.setattr(convert_api, '_request', fake_request)
+    monkeypatch.setattr(convert_api, '_session', type('S', (), {'post': fake_post})())
+    monkeypatch.setattr(convert_api, 'BINANCE_SECRET_KEY', 'secret')
+    monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
+    monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 1)
     res = convert_api.accept_quote('abc', walletType='MAIN')
     assert res == {'orderId': '1', 'createTime': 2}
-    assert called['path'] == '/sapi/v1/convert/acceptQuote'
-    assert called['params']['quoteId'] == 'abc'
-    assert called['params']['walletType'] == 'MAIN'
+    assert sent['data']['quoteId'] == 'abc'
+    assert sent['data']['timestamp'] == 1
+    assert 'signature' in sent['data']
+    assert sent['headers']['X-MBX-APIKEY'] == 'key'
 
 
 def test_get_order_status_params(monkeypatch):
@@ -217,12 +251,28 @@ def test_trade_flow_params(monkeypatch):
         sent['method'] = method
         sent['path'] = path
         sent['params'] = params
-        return {}
+        return {'list': [1], 'cursor': 'next'}
 
     monkeypatch.setattr(convert_api, '_request', fake_request)
-    convert_api.trade_flow(startTime=1, endTime=2, limit=3, cursor='abc')
+    res = convert_api.trade_flow(startTime=1, endTime=2, limit=3, cursor='abc')
     assert sent['path'] == '/sapi/v1/convert/tradeFlow'
     assert sent['params'] == {'startTime': 1, 'endTime': 2, 'limit': 3, 'cursor': 'abc'}
+    assert res == {'list': [1], 'cursor': 'next'}
+
+
+def test_trade_flow_pagination(monkeypatch):
+    calls = []
+
+    def fake_request(method, path, params):
+        calls.append(params.get('cursor'))
+        return {'list': [], 'cursor': 'next' if params.get('cursor') is None else None}
+
+    monkeypatch.setattr(convert_api, '_request', fake_request)
+    first = convert_api.trade_flow()
+    assert first['cursor'] == 'next'
+    second = convert_api.trade_flow(cursor=first['cursor'])
+    assert second['cursor'] is None
+    assert calls == [None, 'next']
 
 
 def test_exchange_info_public(monkeypatch):

@@ -240,10 +240,8 @@ def get_quote(from_token: str, to_token: str, amount: float) -> Dict[str, Any]:
 
 def accept_quote(quote_id: str, walletType: Optional[str] = None) -> Dict[str, Any]:
     if os.getenv("PAPER", "1") == "1" or os.getenv("ENABLE_LIVE", "0") != "1":
-        import uuid
-
         logger.info("[dev3] DRY-RUN: acceptQuote skipped for %s", quote_id)
-        return {"orderId": f"paper-{uuid.uuid4().hex}", "createTime": _current_timestamp()}
+        return {"dryRun": True, "msg": "acceptQuote skipped in PAPER/DRY-RUN"}
     params = {"quoteId": quote_id}
     if walletType:
         params["walletType"] = walletType
@@ -281,7 +279,8 @@ def trade_flow(
         params["limit"] = limit
     if cursor is not None:
         params["cursor"] = cursor
-    return _request("GET", "/sapi/v1/convert/tradeFlow", params)
+    data = _request("GET", "/sapi/v1/convert/tradeFlow", params)
+    return {"list": data.get("list", []), "cursor": data.get("cursor")}
 
 
 def get_all_supported_convert_pairs() -> Set[str]:

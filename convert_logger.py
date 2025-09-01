@@ -111,6 +111,7 @@ def log_conversion_result(
     order_id: str | None = None,
     error: dict | None = None,
     create_time: int | None = None,
+    dry_run: bool = False,
 ) -> None:
     """Log conversion result to history using the unified schema."""
 
@@ -118,17 +119,18 @@ def log_conversion_result(
         "quoteId": quote.get("quoteId"),
         "orderId": order_id,
         "createTime": create_time,
+        "validTime": quote.get("validTime"),
         "from_token": quote.get("fromAsset"),
         "to_token": quote.get("toAsset"),
+        "fromAmount": quote.get("fromAmount"),
+        "toAmount": quote.get("toAmount"),
         "ratio": quote.get("ratio"),
         "inverseRatio": quote.get("inverseRatio"),
-        "from_amount": quote.get("fromAmount"),
-        "to_amount": quote.get("toAmount"),
-        "score": quote.get("score"),
         "expected_profit": quote.get("expected_profit"),
         "prob_up": quote.get("prob_up"),
+        "score": quote.get("score"),
         "accepted": accepted,
-        "error_code": error.get("code") if error else None,
-        "error_msg": error.get("msg") if error else None,
+        "dryRun": dry_run,
+        "error": error,
     }
     log_convert_history(entry)
