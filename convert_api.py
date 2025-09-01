@@ -1,8 +1,7 @@
 """Low level helpers for Binance Spot/SAPI Convert endpoints.
 
 This module focuses on correctly signing and sending requests to Binance.
-It implements a minimal retry policy with exponential backoff and handles
-timestamp drift (-1021 error) by syncing time with ``/api/v3/time``.  Only
+It implements a minimal retry policy with exponential backoff. Only
 ``application/x-www-form-urlencoded`` payloads are used for POST requests in
 order to comply with Binance requirements.
 
@@ -48,26 +47,17 @@ _supported_pairs_cache: Optional[Set[str]] = None
 _pairs_cache_time: float = 0
 PAIRS_TTL = 1800  # seconds
 
-# time offset between local machine and Binance server in milliseconds.  This
-# value is adjusted whenever Binance returns error ``-1021``.
-_time_offset_ms = 0
+# cache for exchangeInfo responses
+_exchange_info_cache: Optional[Dict[str, Any]] = None
+_exchange_info_time: float = 0
 
-
-def _sync_time() -> None:
-    """Synchronise local time with Binance server."""
-    global _time_offset_ms
-    try:
-        resp = _session.get(f"{BASE_URL}/api/v3/time", timeout=10)
-        server_time = resp.json().get("serverTime")
-        if server_time:
-            _time_offset_ms = int(server_time) - int(time.time() * 1000)
-    except Exception:  # pragma: no cover - network issues
-        pass
+class ClockSkewError(Exception):
+    """Raised when Binance reports timestamp drift (-1021)."""
 
 
 def _current_timestamp() -> int:
-    """Return current timestamp adjusted by server offset."""
-    return get_current_timestamp() + _time_offset_ms
+    """Return current timestamp in milliseconds."""
+    return get_current_timestamp()
 
 
 def _sign(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -102,18 +92,19 @@ def _backoff(attempt: int) -> float:
     return min(base, 30.0) + random.uniform(0, 0.25)
 
 
-def _request(method: str, path: str, params: Dict[str, Any]) -> Dict[str, Any]:
-    """Send a signed request to Binance with retry and error handling."""
+def _request(method: str, path: str, params: Dict[str, Any], *, signed: bool = True) -> Dict[str, Any]:
+    """Send a request to Binance with optional signing and retry."""
 
     url = f"{BASE_URL}{path}"
     for attempt in range(1, 6):
-        signed = _sign(params)
+        payload = _sign(params) if signed else params
+        headers = _headers() if signed else None
         try:
             if method == "GET":
-                resp = _session.get(url, params=signed, headers=_headers(), timeout=10)
+                resp = _session.get(url, params=payload, headers=headers, timeout=10)
             else:
-                resp = _session.post(url, data=signed, headers=_headers(), timeout=10)
-        except requests.RequestException as exc:  # pragma: no cover - network
+                resp = _session.post(url, data=payload, headers=headers, timeout=10)
+        except requests.RequestException:  # pragma: no cover - network
             if attempt >= 5:
                 raise
             time.sleep(_backoff(attempt))
@@ -127,14 +118,14 @@ def _request(method: str, path: str, params: Dict[str, Any]) -> Dict[str, Any]:
 
         data = resp.json()
 
-        # timestamp drift
         if isinstance(data, dict) and data.get("code") == -1021:
-            _sync_time()
-            continue
+            raise ClockSkewError(
+                "Binance timestamp rejected (possible clock skew). Adjust time or increase recvWindow."
+            )
 
         # API key / permission issue - fail fast
         if isinstance(data, dict) and data.get("code") == -2015:
-            raise PermissionError("Invalid API-key, IP, or permissions")
+            raise PermissionError("Invalid API-key or permissions")
 
         # hard rate limit / error codes
         if isinstance(data, dict) and data.get("code") in (-1003, 345239):
@@ -171,8 +162,20 @@ def get_balances() -> Dict[str, float]:
 
 
 def exchange_info(**params: Any) -> Dict[str, Any]:
-    """Return Convert exchange information."""
-    return _request("GET", "/sapi/v1/convert/exchangeInfo", params)
+    """Return Convert exchange information (public, cached)."""
+
+    global _exchange_info_cache, _exchange_info_time
+    if not params:
+        now = time.time()
+        if _exchange_info_cache and now - _exchange_info_time < PAIRS_TTL:
+            return _exchange_info_cache
+
+    data = _request("GET", "/sapi/v1/convert/exchangeInfo", params, signed=False)
+
+    if not params:
+        _exchange_info_cache = data
+        _exchange_info_time = time.time()
+    return data
 
 
 def get_available_to_tokens(from_token: str) -> List[str]:
@@ -189,15 +192,24 @@ def get_available_to_tokens(from_token: str) -> List[str]:
 def get_quote_with_id(
     from_asset: str,
     to_asset: str,
-    from_amount: float,
+    from_amount: Optional[float] = None,
+    to_amount: Optional[float] = None,
     walletType: Optional[str] = None,
 ) -> Dict[str, Any]:
+    """Request a quote. Exactly one of ``from_amount`` or ``to_amount`` must be set."""
+
+    if (from_amount is None) == (to_amount is None):
+        raise ValueError("Provide exactly one of from_amount or to_amount")
+
     increment_quote_usage()
     params = {
         "fromAsset": from_asset,
         "toAsset": to_asset,
-        "fromAmount": from_amount,
     }
+    if from_amount is not None:
+        params["fromAmount"] = from_amount
+    if to_amount is not None:
+        params["toAmount"] = to_amount
     if walletType:
         params["walletType"] = walletType
     return _request("POST", "/sapi/v1/convert/getQuote", params)
@@ -223,25 +235,52 @@ def get_quote(from_token: str, to_token: str, amount: float) -> Dict[str, Any]:
             "paper": True,
         }
 
-    return get_quote_with_id(from_token, to_token, amount)
+    return get_quote_with_id(from_token, to_token, from_amount=amount)
 
 
 def accept_quote(quote_id: str, walletType: Optional[str] = None) -> Dict[str, Any]:
     if os.getenv("PAPER", "1") == "1" or os.getenv("ENABLE_LIVE", "0") != "1":
+        import uuid
+
         logger.info("[dev3] DRY-RUN: acceptQuote skipped for %s", quote_id)
-        return {"dryRun": True}
+        return {"orderId": f"paper-{uuid.uuid4().hex}", "createTime": _current_timestamp()}
     params = {"quoteId": quote_id}
     if walletType:
         params["walletType"] = walletType
     return _request("POST", "/sapi/v1/convert/acceptQuote", params)
 
 
+def get_order_status(orderId: Optional[str] = None, quoteId: Optional[str] = None) -> Dict[str, Any]:
+    """Return order status by ``orderId`` or ``quoteId`` (exactly one)."""
+
+    if (orderId is None) == (quoteId is None):
+        raise ValueError("Provide exactly one of orderId or quoteId")
+
+    params = {"orderId": orderId} if orderId is not None else {"quoteId": quoteId}
+    return _request("GET", "/sapi/v1/convert/orderStatus", params)
+
+
 def get_quote_status(order_id: str) -> Dict[str, Any]:
-    return _request("GET", "/sapi/v1/convert/orderStatus", {"orderId": order_id})
+    return get_order_status(orderId=order_id)
 
 
-def trade_flow(**params: Any) -> Dict[str, Any]:
+def trade_flow(
+    startTime: Optional[int] = None,
+    endTime: Optional[int] = None,
+    limit: Optional[int] = None,
+    cursor: Optional[str] = None,
+) -> Dict[str, Any]:
     """Wrapper for ``GET /sapi/v1/convert/tradeFlow`` endpoint."""
+
+    params: Dict[str, Any] = {}
+    if startTime is not None:
+        params["startTime"] = startTime
+    if endTime is not None:
+        params["endTime"] = endTime
+    if limit is not None:
+        params["limit"] = limit
+    if cursor is not None:
+        params["cursor"] = cursor
     return _request("GET", "/sapi/v1/convert/tradeFlow", params)
 
 

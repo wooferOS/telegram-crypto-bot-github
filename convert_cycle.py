@@ -96,7 +96,12 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 f"[dev3] ❌ Помилка під час accept_quote: {quote['quoteId']} — {accept_result}"
             )
         else:
-            logger.info(f"[dev3] ✅ accept_quote успішний: {quote['quoteId']}")
+            logger.info(
+                "[dev3] ✅ accept_quote успішний: %s orderId=%s createTime=%s",
+                quote["quoteId"],
+                order_id,
+                accept_result.get("createTime") if isinstance(accept_result, dict) else None,
+            )
 
         logger.info(
             f"[dev3] {'✅' if accepted else '❌'} Конверсія {from_token} → {to_token} (score={score:.4f})"
@@ -111,6 +116,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             accepted,
             order_id,
             accept_result if not accepted else None,
+            accept_result.get("createTime") if isinstance(accept_result, dict) else None,
         )
         if accepted:
             any_accepted = True
@@ -130,7 +136,12 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
         order_id = accept_result.get("orderId") if isinstance(accept_result, dict) else None
         accepted = bool(order_id)
         if accepted:
-            logger.info(f"[dev3] 📊 Навчальна угода успішна: {quote['quoteId']}")
+            logger.info(
+                "[dev3] 📊 Навчальна угода успішна: %s orderId=%s createTime=%s",
+                quote["quoteId"],
+                order_id,
+                accept_result.get("createTime") if isinstance(accept_result, dict) else None,
+            )
         else:
             logger.warning(
                 f"[dev3] 📊 Навчальна угода помилка: {quote['quoteId']} — {accept_result}"
@@ -147,6 +158,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             accepted,
             order_id,
             accept_result if not accepted else None,
+            accept_result.get("createTime") if isinstance(accept_result, dict) else None,
         )
         if accepted:
             any_accepted = True
@@ -163,6 +175,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                     "toAsset": to_token,
                 },
                 False,
+                None,
                 None,
                 None,
             )
