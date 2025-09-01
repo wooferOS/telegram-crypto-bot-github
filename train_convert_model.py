@@ -1,9 +1,7 @@
-import json
 import logging
 import os
 
 from joblib import dump
-import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 
@@ -13,12 +11,10 @@ from convert_model import MODEL_PATH, prepare_dataset
 HISTORY_FILE = os.path.join("logs", "convert_history.json")
 LOG_FILE = os.path.join("logs", "model_training.log")
 
-
 logger.setLevel(logging.INFO)
 file_handler = logging.FileHandler(LOG_FILE, encoding="utf-8")
 file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
 logger.addHandler(file_handler)
-
 
 log = logger.info
 
@@ -34,39 +30,33 @@ def train_model(accepted: pd.DataFrame, rejected: pd.DataFrame) -> None:
     dump(model, MODEL_PATH)
 
     logger.info(
-        f"✅ Навчання завершено: {len(df)} записів | accepted: {len(accepted)} | rejected: {len(rejected)}"
+        f"✅ Навчання завершено: {len(df)} записів | accepted: {len(accepted)} | rejected: {len(rejected)}",
     )
 
 
 def main():
-    df = pd.read_json("convert_history.json", orient="records")
-    print("[DEBUG] df shape:", df.shape)
-    print("[DEBUG] df columns:", df.columns.tolist())
-    print("[DEBUG] accepted column unique values:", df["accepted"].unique())
-    print("[DEBUG] accepted value_counts:\n", df["accepted"].value_counts())
-
-    accepted = df[df["accepted"] == True]
-    rejected = df[df["accepted"] == False]
-
-    print("[DEBUG] accepted sample:\n", accepted.head())
-    print("[DEBUG] rejected sample:\n", rejected.head())
-
-    df["accepted"] = df["accepted"].astype(bool)
-    log(f"[DEBUG] Колонки: {df.columns.tolist()}")
-    log(f"[DEBUG] Перші рядки:\n{df.head()}")
-
-    if "accepted" not in df.columns:
-        log("❌ Колонка 'accepted' відсутня у convert_history.json. Навчання неможливе.")
+    """Load history and train model if enough data is available."""
+    try:
+        df = pd.read_json(HISTORY_FILE, orient="records")
+    except (ValueError, FileNotFoundError) as exc:
+        logger.warning(
+            f"[dev3] ❌ Історія недоступна {HISTORY_FILE}: {exc}",
+        )
         return
 
-    accepted = df[df["accepted"] == True]
-    rejected = df[df["accepted"] == False]
+    if df.empty or "accepted" not in df.columns:
+        logger.warning(
+            f"[dev3] ❌ Недостатньо даних для навчання у {HISTORY_FILE}",
+        )
+        return
 
-    logger.debug(f"[DEBUG] accepted: {len(accepted)}, rejected: {len(rejected)}")
+    df["accepted"] = df["accepted"].astype(bool)
+    accepted = df[df["accepted"]]
+    rejected = df[~df["accepted"]]
 
     if accepted.empty or rejected.empty:
         logger.warning(
-            f"❌ Недостатньо даних для навчання: accepted = {len(accepted)}, rejected = {len(rejected)}"
+            f"❌ Недостатньо даних для навчання: accepted = {len(accepted)}, rejected = {len(rejected)}",
         )
         return
 
