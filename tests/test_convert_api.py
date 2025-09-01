@@ -42,6 +42,29 @@ def test_get_quote_uses_form(monkeypatch):
     assert sent['headers']['Content-Type'] == 'application/x-www-form-urlencoded'
 
 
+def test_request_adds_signature_and_header(monkeypatch):
+    sent = {}
+
+    def fake_post(self, url, data=None, params=None, headers=None, timeout=None):
+        sent['data'] = data
+        sent['headers'] = headers
+        class Resp:
+            status_code = 200
+            headers = {}
+            def json(self):
+                return {}
+        return Resp()
+
+    monkeypatch.setattr(convert_api, '_session', type('S', (), {'post': fake_post})())
+    monkeypatch.setattr(convert_api, 'BINANCE_SECRET_KEY', 'secret')
+    monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
+    monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 1)
+
+    convert_api._request('POST', '/sapi/v1/convert/getQuote', {'a': 1})
+    assert 'timestamp' in sent['data'] and 'signature' in sent['data']
+    assert sent['headers']['X-MBX-APIKEY'] == 'key'
+
+
 def test_time_sync_retry(monkeypatch):
     class Sess:
         def __init__(self):

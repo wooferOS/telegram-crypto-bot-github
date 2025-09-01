@@ -40,14 +40,22 @@ def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, fl
     logger.debug(
         "[dev3] predict input from=%s to=%s data=%s", from_token, to_token, quote_data
     )
+    def _fallback() -> Tuple[float, float, float]:
+        ratio = float(quote_data.get("ratio", 1.0))
+        expected_profit = float(quote_data.get("expected_profit", ratio - 1.0))
+        prob_up = float(quote_data.get("prob_up", 0.5))
+        score = expected_profit * prob_up
+        logger.debug("[dev3] fallback prediction used")
+        return expected_profit, prob_up, score
+
     try:
         model = _load_model()
     except FileNotFoundError:
         logger.debug("[dev3] model file not found")
-        return 0.0, 0.0, 0.0
+        return _fallback()
 
     if model is None:
-        return 0.0, 0.0, 0.0
+        return _fallback()
 
     try:
         ratio = float(quote_data.get("ratio", 0.0))
@@ -81,4 +89,4 @@ def predict(from_token: str, to_token: str, quote_data: dict) -> Tuple[float, fl
         return expected_profit, prob_up, score_val
     except Exception as exc:  # pragma: no cover - diagnostics only
         logger.exception("[dev3] prediction failed: %s", exc)
-        return 0.0, 0.0, 0.0
+        return _fallback()
