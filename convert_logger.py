@@ -105,11 +105,19 @@ def save_convert_history(entry: dict) -> None:
     log_convert_history(entry)
 
 
-def log_conversion_result(quote: dict, accepted: bool, order_id: str | None = None, error: dict | None = None) -> None:
+def log_conversion_result(
+    quote: dict,
+    accepted: bool,
+    order_id: str | None = None,
+    error: dict | None = None,
+    create_time: int | None = None,
+) -> None:
     """Log conversion result to history using the unified schema."""
+
     entry = {
         "quoteId": quote.get("quoteId"),
         "orderId": order_id,
+        "createTime": create_time,
         "from_token": quote.get("fromAsset"),
         "to_token": quote.get("toAsset"),
         "ratio": quote.get("ratio"),

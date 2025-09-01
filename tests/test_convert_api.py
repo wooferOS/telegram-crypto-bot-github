@@ -66,41 +66,21 @@ def test_request_adds_signature_and_header(monkeypatch):
     assert sent['headers']['X-MBX-APIKEY'] == 'key'
 
 
-def test_time_sync_retry(monkeypatch):
+def test_clock_skew_error(monkeypatch):
     class Sess:
-        def __init__(self):
-            self.calls = 0
-
         def post(self, url, data=None, headers=None, timeout=None, params=None):
-            self.calls += 1
-            if self.calls == 1:
-                class R:
-                    status_code = 200
-                    headers = {}
-                    def json(self):
-                        return {"code": -1021}
-                return R()
-            class R2:
-                status_code = 200
-                headers = {}
-                def json(self):
-                    return {"ok": True}
-            return R2()
-
-        def get(self, url, params=None, headers=None, timeout=None):
             class R:
                 status_code = 200
                 headers = {}
                 def json(self):
-                    return {"serverTime": 1000}
+                    return {"code": -1021}
             return R()
 
-    sess = Sess()
-    monkeypatch.setattr(convert_api, '_session', sess)
+    monkeypatch.setattr(convert_api, '_session', Sess())
     monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 0)
-    res = convert_api._request('POST', '/sapi/v1/convert/getQuote', {'a': 1})
-    assert res == {"ok": True}
-    assert sess.calls == 2
+
+    with pytest.raises(convert_api.ClockSkewError):
+        convert_api._request('POST', '/sapi/v1/convert/getQuote', {'a': 1})
 
 
 def test_backoff_on_429(monkeypatch):
@@ -147,7 +127,7 @@ def test_accept_quote_dry_run(monkeypatch):
     monkeypatch.setenv('PAPER', '1')
     monkeypatch.setattr(convert_api, '_request', fake_request)
     res = convert_api.accept_quote('123')
-    assert res == {'dryRun': True}
+    assert 'orderId' in res and 'createTime' in res
     assert called == {}
 
 
@@ -161,13 +141,22 @@ def test_get_quote_with_id_params(monkeypatch):
         return {}
 
     monkeypatch.setattr(convert_api, '_request', fake_request)
-    convert_api.get_quote_with_id('USDT', 'BTC', 1.23, walletType='MAIN')
+    monkeypatch.setattr(convert_api, 'increment_quote_usage', lambda: None)
+    convert_api.get_quote_with_id('USDT', 'BTC', from_amount=1.23, walletType='MAIN')
     assert sent['method'] == 'POST'
     assert sent['path'] == '/sapi/v1/convert/getQuote'
     assert sent['params']['fromAsset'] == 'USDT'
     assert sent['params']['toAsset'] == 'BTC'
     assert sent['params']['fromAmount'] == 1.23
     assert sent['params']['walletType'] == 'MAIN'
+
+
+def test_get_quote_with_id_validation(monkeypatch):
+    monkeypatch.setattr(convert_api, 'increment_quote_usage', lambda: None)
+    with pytest.raises(ValueError):
+        convert_api.get_quote_with_id('USDT', 'BTC', from_amount=1, to_amount=2)
+    with pytest.raises(ValueError):
+        convert_api.get_quote_with_id('USDT', 'BTC')
 
 
 def test_accept_quote_live(monkeypatch):
@@ -177,32 +166,84 @@ def test_accept_quote_live(monkeypatch):
         called['method'] = method
         called['path'] = path
         called['params'] = params
-        return {'orderId': '1'}
+        return {'orderId': '1', 'createTime': 2}
 
     monkeypatch.setenv('PAPER', '0')
     monkeypatch.setenv('ENABLE_LIVE', '1')
     monkeypatch.setattr(convert_api, '_request', fake_request)
     res = convert_api.accept_quote('abc', walletType='MAIN')
-    assert res == {'orderId': '1'}
+    assert res == {'orderId': '1', 'createTime': 2}
     assert called['path'] == '/sapi/v1/convert/acceptQuote'
     assert called['params']['quoteId'] == 'abc'
     assert called['params']['walletType'] == 'MAIN'
 
 
-def test_get_quote_status_params(monkeypatch):
+def test_get_order_status_params(monkeypatch):
     sent = {}
 
     def fake_request(method, path, params):
         sent['method'] = method
         sent['path'] = path
         sent['params'] = params
-        return {'status': 'SUCCESS'}
+        return {
+            'orderStatus': 'SUCCESS',
+            'fromAsset': 'USDT',
+            'fromAmount': '1',
+            'toAsset': 'BTC',
+            'toAmount': '0.1',
+            'ratio': '0.1',
+        }
 
     monkeypatch.setattr(convert_api, '_request', fake_request)
-    res = convert_api.get_quote_status('1')
-    assert res['status'] == 'SUCCESS'
+    res = convert_api.get_order_status(orderId='1')
+    assert res['orderStatus'] == 'SUCCESS'
+    assert res['ratio'] == '0.1'
     assert sent['path'] == '/sapi/v1/convert/orderStatus'
     assert sent['params'] == {'orderId': '1'}
+
+    res = convert_api.get_order_status(quoteId='2')
+    assert sent['params'] == {'quoteId': '2'}
+
+    with pytest.raises(ValueError):
+        convert_api.get_order_status()
+    with pytest.raises(ValueError):
+        convert_api.get_order_status(orderId='1', quoteId='2')
+
+
+def test_trade_flow_params(monkeypatch):
+    sent = {}
+
+    def fake_request(method, path, params):
+        sent['method'] = method
+        sent['path'] = path
+        sent['params'] = params
+        return {}
+
+    monkeypatch.setattr(convert_api, '_request', fake_request)
+    convert_api.trade_flow(startTime=1, endTime=2, limit=3, cursor='abc')
+    assert sent['path'] == '/sapi/v1/convert/tradeFlow'
+    assert sent['params'] == {'startTime': 1, 'endTime': 2, 'limit': 3, 'cursor': 'abc'}
+
+
+def test_exchange_info_public(monkeypatch):
+    sent = {}
+
+    class Sess:
+        def get(self, url, params=None, headers=None, timeout=None):
+            sent['params'] = params
+            sent['headers'] = headers
+            class R:
+                status_code = 200
+                headers = {}
+                def json(self):
+                    return {}
+            return R()
+
+    monkeypatch.setattr(convert_api, '_session', Sess())
+    monkeypatch.setattr(convert_api, '_exchange_info_cache', None)
+    convert_api.exchange_info()
+    assert sent['headers'] is None
+    assert 'signature' not in (sent['params'] or {})
 
 
 def test_get_quote_live_no_paper(monkeypatch):
@@ -214,6 +255,7 @@ def test_get_quote_live_no_paper(monkeypatch):
 
     monkeypatch.setenv('PAPER', '0')
     monkeypatch.setattr(convert_api, '_request', fake_request)
+    monkeypatch.setattr(convert_api, 'increment_quote_usage', lambda: None)
     res = convert_api.get_quote('USDT', 'BTC', 1.0)
     assert res == {'ok': True}
     assert called['path'] == '/sapi/v1/convert/getQuote'
