@@ -263,18 +263,24 @@ def get_quote_status(order_id: str) -> Dict[str, Any]:
 
 
 def trade_flow(
-    startTime: Optional[int] = None,
-    endTime: Optional[int] = None,
+    startTime: int,
+    endTime: int,
     limit: Optional[int] = None,
     cursor: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Wrapper for ``GET /sapi/v1/convert/tradeFlow`` endpoint."""
+    """Wrapper for ``GET /sapi/v1/convert/tradeFlow`` endpoint.
 
-    params: Dict[str, Any] = {}
-    if startTime is not None:
-        params["startTime"] = startTime
-    if endTime is not None:
-        params["endTime"] = endTime
+    ``startTime`` and ``endTime`` are mandatory according to Binance docs. A
+    ``ValueError`` is raised if either is omitted.
+    """
+
+    if startTime is None or endTime is None:
+        raise ValueError("startTime and endTime are required")
+
+    params: Dict[str, Any] = {
+        "startTime": startTime,
+        "endTime": endTime,
+    }
     if limit is not None:
         params["limit"] = limit
     if cursor is not None:
