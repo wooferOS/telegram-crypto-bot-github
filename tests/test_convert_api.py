@@ -66,21 +66,38 @@ def test_request_adds_signature_and_header(monkeypatch):
     assert sent['headers']['X-MBX-APIKEY'] == 'key'
 
 
-def test_clock_skew_error(monkeypatch):
+def test_clock_skew_sync(monkeypatch):
     class Sess:
+        def __init__(self):
+            self.calls = 0
+
         def post(self, url, data=None, headers=None, timeout=None, params=None):
+            self.calls += 1
+            class R:
+                status_code = 200
+                headers = {}
+                def json(inner_self):
+                    if self.calls == 1:
+                        return {"code": -1021}
+                    return {"ok": 1}
+            return R()
+
+        def get(self, url, params=None, headers=None, timeout=None):
             class R:
                 status_code = 200
                 headers = {}
                 def json(self):
-                    return {"code": -1021}
+                    return {"serverTime": 5}
             return R()
 
-    monkeypatch.setattr(convert_api, '_session', Sess())
+    sess = Sess()
+    monkeypatch.setattr(convert_api, '_session', sess)
     monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 0)
-
-    with pytest.raises(convert_api.ClockSkewError):
-        convert_api._request('POST', '/sapi/v1/convert/getQuote', {'a': 1})
+    convert_api._time_offset_ms = 0
+    res = convert_api._request('POST', '/sapi/v1/convert/getQuote', {'a': 1})
+    assert res == {"ok": 1}
+    assert convert_api._time_offset_ms == 5
+    convert_api._time_offset_ms = 0
 
 
 def test_backoff_on_429(monkeypatch):
@@ -115,6 +132,94 @@ def test_backoff_on_429(monkeypatch):
     res = convert_api._request('POST', '/sapi/v1/convert/getQuote', {'a': 1})
     assert res == {"ok": 1}
     assert sleeps and sleeps[0] > 0
+
+
+def test_invalid_signature(monkeypatch):
+    class Sess:
+        def post(self, url, data=None, headers=None, timeout=None, params=None):
+            class R:
+                status_code = 200
+                headers = {}
+                def json(self):
+                    return {"code": -1022}
+            return R()
+
+    monkeypatch.setattr(convert_api, '_session', Sess())
+    with pytest.raises(ValueError):
+        convert_api._request('POST', '/sapi/v1/convert/getQuote', {'a': 1})
+
+
+def test_missing_param(monkeypatch):
+    class Sess:
+        def post(self, url, data=None, headers=None, timeout=None, params=None):
+            class R:
+                status_code = 200
+                headers = {}
+                def json(self):
+                    return {"code": -1102}
+            return R()
+
+    monkeypatch.setattr(convert_api, '_session', Sess())
+    with pytest.raises(ValueError):
+        convert_api._request('POST', '/sapi/v1/convert/getQuote', {'a': 1})
+
+
+def test_rate_limit_error(monkeypatch):
+    sleeps: list[float] = []
+
+    class Sess:
+        def __init__(self):
+            self.calls = 0
+
+        def post(self, url, data=None, headers=None, timeout=None, params=None):
+            self.calls += 1
+            if self.calls == 1:
+                class R:
+                    status_code = 200
+                    headers = {}
+                    def json(self):
+                        return {"code": -1003}
+                return R()
+            class R2:
+                status_code = 200
+                headers = {}
+                def json(self):
+                    return {"ok": 1}
+            return R2()
+
+    sess = Sess()
+    monkeypatch.setattr(convert_api, '_session', sess)
+    fake_time = types.SimpleNamespace(sleep=lambda s: sleeps.append(s), time=lambda: 0)
+    monkeypatch.setattr(convert_api, 'time', fake_time)
+    monkeypatch.setattr(convert_api, 'random', types.SimpleNamespace(uniform=lambda a, b: 0))
+    monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 0)
+    res = convert_api._request('POST', '/sapi/v1/convert/getQuote', {'a': 1})
+    assert res == {"ok": 1}
+    assert sleeps and sleeps[0] > 0
+
+
+def test_exchange_info_cache(monkeypatch):
+    calls = []
+
+    def fake_request(method, path, params, *, signed=False):
+        calls.append(t.val)
+        return {"value": len(calls)}
+
+    # monkeypatch time.time so we can simulate TTL expiry
+    t = types.SimpleNamespace(val=0.0)
+    def time_fn():
+        return t.val
+    monkeypatch.setattr(convert_api, 'time', types.SimpleNamespace(time=time_fn))
+
+    monkeypatch.setattr(convert_api, '_request', fake_request)
+    monkeypatch.setattr(convert_api, '_exchange_info_cache', None)
+
+    convert_api.exchange_info()          # call at t=0 -> request
+    convert_api.exchange_info()          # still t=0 -> cached
+    t.val = convert_api.PAIRS_TTL + 1
+    convert_api.exchange_info()          # after TTL -> new request
+    assert len(calls) == 2
+
 
 
 def test_accept_quote_dry_run(monkeypatch):
@@ -170,6 +275,7 @@ def test_get_quote_signed(monkeypatch):
     monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
     monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 1)
     monkeypatch.setattr(convert_api, 'increment_quote_usage', lambda: None)
+    convert_api._time_offset_ms = 0
     convert_api.get_quote_with_id('USDT', 'BTC', from_amount=1.0)
     assert 'fromAmount' in sent['data'] and 'toAmount' not in sent['data']
     assert sent['data']['timestamp'] == 1
@@ -204,6 +310,7 @@ def test_accept_quote_live(monkeypatch):
     monkeypatch.setattr(convert_api, 'BINANCE_SECRET_KEY', 'secret')
     monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
     monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 1)
+    convert_api._time_offset_ms = 0
     res = convert_api.accept_quote('abc', walletType='MAIN')
     assert res == {'orderId': '1', 'createTime': 2}
     assert sent['data']['quoteId'] == 'abc'
