@@ -51,13 +51,28 @@ PAIRS_TTL = 1800  # seconds
 _exchange_info_cache: Optional[Dict[str, Any]] = None
 _exchange_info_time: float = 0
 
+# offset between local time and Binance server time
+_time_offset_ms = 0
+
+
 class ClockSkewError(Exception):
     """Raised when Binance reports timestamp drift (-1021)."""
 
 
 def _current_timestamp() -> int:
-    """Return current timestamp in milliseconds."""
-    return get_current_timestamp()
+    """Return current timestamp in milliseconds including server offset."""
+    return get_current_timestamp() + _time_offset_ms
+
+
+def _sync_time() -> None:
+    """Synchronise local clock with Binance server time."""
+    global _time_offset_ms
+    try:
+        resp = _session.get(f"{BASE_URL}/api/v3/time", timeout=10)
+        server_time = int(resp.json().get("serverTime", 0))
+        _time_offset_ms = server_time - get_current_timestamp()
+    except Exception:  # pragma: no cover - network
+        _time_offset_ms = 0
 
 
 def _sign(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -96,6 +111,7 @@ def _request(method: str, path: str, params: Dict[str, Any], *, signed: bool = T
     """Send a request to Binance with optional signing and retry."""
 
     url = f"{BASE_URL}{path}"
+    tried_time_sync = False
     for attempt in range(1, 6):
         payload = _sign(params) if signed else params
         headers = _headers() if signed else None
@@ -118,19 +134,25 @@ def _request(method: str, path: str, params: Dict[str, Any], *, signed: bool = T
 
         data = resp.json()
 
-        if isinstance(data, dict) and data.get("code") == -1021:
-            raise ClockSkewError(
-                "Binance timestamp rejected (possible clock skew). Adjust time or increase recvWindow."
-            )
-
-        # API key / permission issue - fail fast
-        if isinstance(data, dict) and data.get("code") == -2015:
-            raise PermissionError("Invalid API-key or permissions")
-
-        # hard rate limit / error codes
-        if isinstance(data, dict) and data.get("code") in (-1003, 345239):
-            time.sleep(_backoff(attempt))
-            continue
+        if isinstance(data, dict):
+            code = data.get("code")
+            if code == -1021:
+                if not tried_time_sync:
+                    tried_time_sync = True
+                    _sync_time()
+                    continue
+                raise ClockSkewError(
+                    "Binance timestamp rejected (possible clock skew). Adjust time or increase recvWindow.",
+                )
+            if code == -1022:
+                raise ValueError("Signature for this request is not valid")
+            if code in (-1102, -1103):
+                raise ValueError("Missing or invalid parameter")
+            if code == -2015:
+                raise PermissionError("Invalid API-key or permissions")
+            if code in (-1003, 345239):
+                time.sleep(_backoff(attempt))
+                continue
 
         return data
 
