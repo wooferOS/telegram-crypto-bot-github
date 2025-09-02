@@ -268,9 +268,9 @@ def test_trade_flow_pagination(monkeypatch):
         return {'list': [], 'cursor': 'next' if params.get('cursor') is None else None}
 
     monkeypatch.setattr(convert_api, '_request', fake_request)
-    first = convert_api.trade_flow()
+    first = convert_api.trade_flow(startTime=0, endTime=1)
     assert first['cursor'] == 'next'
-    second = convert_api.trade_flow(cursor=first['cursor'])
+    second = convert_api.trade_flow(startTime=0, endTime=1, cursor=first['cursor'])
     assert second['cursor'] is None
     assert calls == [None, 'next']
 
