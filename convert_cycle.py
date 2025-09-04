@@ -1,6 +1,9 @@
+import os
+from decimal import Decimal, ROUND_DOWN
 from typing import List, Dict, Tuple
 
-from convert_api import get_quote, accept_quote
+import convert_api
+from convert_api import get_quote, accept_quote, get_order_status
 from convert_logger import (
     logger,
     log_conversion_result,
@@ -79,8 +82,42 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
     selected_tokens = {t for t, _, _ in top_results}
     any_accepted = False
 
-    for to_token, score, quote in top_results:
-        accept_result = None
+    mode = "paper" if os.getenv("PAPER", "0") == "1" or os.getenv("ENABLE_LIVE", "0") != "1" else "live"
+
+    def _format_amount(value, precision):
+        if value is None or precision is None:
+            return value
+        q = Decimal("1") if int(precision) == 0 else Decimal("1." + "0" * int(precision))
+        return format(Decimal(str(value)).quantize(q, rounding=ROUND_DOWN), "f")
+
+    def _execute(to_token: str, score: float, quote: Dict) -> bool:
+        quote["fromAmount"] = _format_amount(
+            quote.get("fromAmount"), quote.get("fromAmountPrecision")
+        )
+        quote["toAmount"] = _format_amount(
+            quote.get("toAmount"), quote.get("toAmountPrecision")
+        )
+
+        now = convert_api._current_timestamp()
+        valid_until = int(quote.get("validTimestamp") or 0)
+        if valid_until and now > valid_until:
+            logger.warning(
+                f"[dev3] ❌ Quote прострочено: {quote['quoteId']} для {from_token} → {to_token}"
+            )
+            log_conversion_result(
+                {**quote, "fromAsset": from_token, "toAsset": to_token},
+                False,
+                None,
+                {"msg": "quote expired"},
+                None,
+                False,
+                None,
+                mode,
+                quote.get("score"),
+            )
+            return False
+
+        accept_result: Dict | None = None
         try:
             accept_result = accept_quote(quote["quoteId"])
         except Exception as error:  # pragma: no cover - network/IO
@@ -90,87 +127,52 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             accept_result = {"code": None, "msg": str(error)}
 
         order_id = accept_result.get("orderId") if isinstance(accept_result, dict) else None
-        accepted = bool(
-            accept_result
-            and order_id
-            and not accept_result.get("dryRun", False)
-        )
-        if not accepted and isinstance(accept_result, dict):
-            logger.warning(
-                f"[dev3] ❌ Помилка під час accept_quote: {quote['quoteId']} — {accept_result}"
-            )
+        dry_run = bool(accept_result.get("dryRun")) if isinstance(accept_result, dict) else False
+        order_status: Dict | None = None
+        accepted = False
+        error: Dict | None = None
+        create_time = accept_result.get("createTime") if isinstance(accept_result, dict) else None
+
+        if order_id and not dry_run:
+            try:
+                order_status = get_order_status(orderId=order_id)
+                if order_status.get("orderStatus") == "SUCCESS":
+                    accepted = True
+                    quote["fromAmount"] = order_status.get("fromAmount", quote.get("fromAmount"))
+                    quote["toAmount"] = order_status.get("toAmount", quote.get("toAmount"))
+                else:
+                    error = order_status
+            except Exception as exc:  # pragma: no cover - network/IO
+                error = {"msg": str(exc)}
         else:
-            logger.info(
-                "[dev3] ✅ accept_quote успішний: %s orderId=%s createTime=%s",
-                quote["quoteId"],
-                order_id,
-                accept_result.get("createTime") if isinstance(accept_result, dict) else None,
-            )
+            if not dry_run:
+                error = accept_result
 
         logger.info(
             f"[dev3] {'✅' if accepted else '❌'} Конверсія {from_token} → {to_token} (score={score:.4f})"
         )
 
         log_conversion_result(
-            {
-                **quote,
-                "fromAsset": from_token,
-                "toAsset": to_token,
-            },
+            {**quote, "fromAsset": from_token, "toAsset": to_token},
             accepted,
             order_id,
-            accept_result if not accepted else None,
-            accept_result.get("createTime") if isinstance(accept_result, dict) else None,
-            accept_result.get("dryRun", False) if isinstance(accept_result, dict) else False,
+            error,
+            create_time,
+            dry_run,
+            order_status,
+            mode,
+            quote.get("score"),
         )
-        if accepted:
+        return accepted
+
+    for to_token, score, quote in top_results:
+        if _execute(to_token, score, quote):
             any_accepted = True
 
     if training_candidate:
         to_token, score, quote = training_candidate
         selected_tokens.add(to_token)
-        accept_result = None
-        try:
-            accept_result = accept_quote(quote["quoteId"])
-        except Exception as error:  # pragma: no cover - network/IO
-            logger.warning(
-                f"[dev3] 📊 Навчальна угода помилка: {quote['quoteId']} — {error}"
-            )
-            accept_result = {"code": None, "msg": str(error)}
-
-        order_id = accept_result.get("orderId") if isinstance(accept_result, dict) else None
-        accepted = bool(
-            accept_result
-            and order_id
-            and not accept_result.get("dryRun", False)
-        )
-        if accepted:
-            logger.info(
-                "[dev3] 📊 Навчальна угода успішна: %s orderId=%s createTime=%s",
-                quote["quoteId"],
-                order_id,
-                accept_result.get("createTime") if isinstance(accept_result, dict) else None,
-            )
-        else:
-            logger.warning(
-                f"[dev3] 📊 Навчальна угода помилка: {quote['quoteId']} — {accept_result}"
-            )
-        logger.info(
-            f"[dev3] {'✅' if accepted else '❌'} 📊 Навчальна угода {from_token} → {to_token} (score={score:.4f})"
-        )
-        log_conversion_result(
-            {
-                **quote,
-                "fromAsset": from_token,
-                "toAsset": to_token,
-            },
-            accepted,
-            order_id,
-            accept_result if not accepted else None,
-            accept_result.get("createTime") if isinstance(accept_result, dict) else None,
-            accept_result.get("dryRun", False) if isinstance(accept_result, dict) else False,
-        )
-        if accepted:
+        if _execute(to_token, score, quote):
             any_accepted = True
 
     for to_token in to_tokens:
@@ -179,16 +181,15 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
         quote = quotes_map.get(to_token)
         if quote:
             log_conversion_result(
-                {
-                    **quote,
-                    "fromAsset": from_token,
-                    "toAsset": to_token,
-                },
+                {**quote, "fromAsset": from_token, "toAsset": to_token},
                 False,
                 None,
                 None,
                 None,
                 False,
+                None,
+                mode,
+                quote.get("score"),
             )
 
     logger.info("[dev3] ✅ Цикл завершено")

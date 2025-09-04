@@ -53,6 +53,8 @@ _exchange_info_time: float = 0
 
 # offset between local time and Binance server time
 _time_offset_ms = 0
+# whether we already synchronised time with Binance
+_time_synced = False
 
 
 class ClockSkewError(Exception):
@@ -66,13 +68,14 @@ def _current_timestamp() -> int:
 
 def _sync_time() -> None:
     """Synchronise local clock with Binance server time."""
-    global _time_offset_ms
+    global _time_offset_ms, _time_synced
     try:
         resp = _session.get(f"{BASE_URL}/api/v3/time", timeout=10)
         server_time = int(resp.json().get("serverTime", 0))
         _time_offset_ms = server_time - get_current_timestamp()
     except Exception:  # pragma: no cover - network
         _time_offset_ms = 0
+    _time_synced = True
 
 
 def _sign(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -112,6 +115,8 @@ def _request(method: str, path: str, params: Dict[str, Any], *, signed: bool = T
 
     url = f"{BASE_URL}{path}"
     tried_time_sync = False
+    if signed and not _time_synced:
+        _sync_time()
     for attempt in range(1, 6):
         payload = _sign(params) if signed else params
         headers = _headers() if signed else None

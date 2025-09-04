@@ -112,25 +112,46 @@ def log_conversion_result(
     error: dict | None = None,
     create_time: int | None = None,
     dry_run: bool = False,
+    order_status: dict | None = None,
+    mode: str | None = None,
+    edge: float | None = None,
+    region: str | None = None,
 ) -> None:
-    """Log conversion result to history using the unified schema."""
+    """Log conversion result to history using the new unified schema."""
+
+    if mode is None:
+        mode = "paper" if os.getenv("PAPER", "0") == "1" or os.getenv("ENABLE_LIVE", "0") != "1" else "live"
+    if region is None:
+        region = os.getenv("REGION", "UNKNOWN")
+
+    status = order_status.get("orderStatus") if isinstance(order_status, dict) else None
 
     entry = {
-        "quoteId": quote.get("quoteId"),
-        "orderId": order_id,
         "createTime": create_time,
-        "validTime": quote.get("validTime"),
-        "from_token": quote.get("fromAsset"),
-        "to_token": quote.get("toAsset"),
-        "fromAmount": quote.get("fromAmount"),
-        "toAmount": quote.get("toAmount"),
-        "ratio": quote.get("ratio"),
-        "inverseRatio": quote.get("inverseRatio"),
-        "expected_profit": quote.get("expected_profit"),
-        "prob_up": quote.get("prob_up"),
-        "score": quote.get("score"),
+        "region": region,
+        "quoteId": quote.get("quoteId"),
+        "fromAsset": quote.get("fromAsset"),
+        "toAsset": quote.get("toAsset"),
+        "fromAmount": str(quote.get("fromAmount")) if quote.get("fromAmount") is not None else None,
+        "toAmount": str(quote.get("toAmount")) if quote.get("toAmount") is not None else None,
+        "ratio": str(quote.get("ratio")) if quote.get("ratio") is not None else None,
+        "inverseRatio": str(quote.get("inverseRatio")) if quote.get("inverseRatio") is not None else None,
+        "validUntil": quote.get("validTimestamp") or quote.get("validTime"),
         "accepted": accepted,
-        "dryRun": dry_run,
+        "orderId": order_id,
+        "orderStatus": status,
         "error": error,
+        "dryRun": dry_run,
+        "edge": edge,
+        "mode": mode,
     }
+
+    logger.info(
+        "[dev3] quoteId=%s accept_quote %s orderId=%s status=%s",
+        entry["quoteId"],
+        "\u2705" if accepted else "\u274c",
+        order_id,
+        status,
+    )
+
     log_convert_history(entry)

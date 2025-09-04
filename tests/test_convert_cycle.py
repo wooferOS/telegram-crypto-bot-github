@@ -31,7 +31,7 @@ def test_accept_only_with_orderid(monkeypatch):
 
     records = []
 
-    def fake_log(quote_data, accepted, order_id, error, create_time, dry_run):
+    def fake_log(quote_data, accepted, order_id, error, create_time, dry_run, order_status=None, mode=None, edge=None, region=None):
         records.append({'accepted': accepted, 'orderId': order_id, 'dryRun': dry_run})
 
     monkeypatch.setattr(convert_cycle, 'log_conversion_result', fake_log)
@@ -44,6 +44,7 @@ def test_accept_only_with_orderid(monkeypatch):
 
     records.clear()
     monkeypatch.setattr(convert_cycle, 'accept_quote', lambda qid: {'orderId': '1', 'createTime': 2})
+    monkeypatch.setattr(convert_cycle, 'get_order_status', lambda **k: {'orderStatus': 'SUCCESS'})
     res = convert_cycle.process_pair('USDT', ['BTC'], 1.0, 0.0)
     assert res is True
     assert records[0]['accepted'] is True
