@@ -50,7 +50,24 @@ def main():
         )
         return
 
+    df = df.dropna(subset=["accepted"])
     df["accepted"] = df["accepted"].astype(bool)
+
+    required_cols = [
+        "quoteId",
+        "orderId",
+        "orderStatus",
+        "fromAsset",
+        "toAsset",
+        "fromAmount",
+        "toAmount",
+    ]
+    for col in required_cols:
+        if col not in df.columns:
+            logger.warning(f"[dev3] ❌ Відсутнє поле {col} у {HISTORY_FILE}")
+            return
+    df = df.dropna(subset=required_cols)
+
     accepted = df[df["accepted"]]
     rejected = df[~df["accepted"]]
 
