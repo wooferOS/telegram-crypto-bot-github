@@ -170,13 +170,11 @@ def _request(method: str, path: str, params: Dict[str, Any], *, signed: bool = T
             if code is not None:
                 logger.warning("Binance error %s: %s", code, data.get("msg"))
             if code == -1021:
+                time.sleep(_backoff(attempt))
                 if not tried_time_sync:
                     tried_time_sync = True
                     _sync_time()
-                    continue
-                raise ClockSkewError(
-                    "Binance timestamp rejected (possible clock skew). Adjust time or increase recvWindow.",
-                )
+                continue
             if code == -1022:
                 raise ValueError("Signature for this request is not valid")
             if code in (-1102, -1103):

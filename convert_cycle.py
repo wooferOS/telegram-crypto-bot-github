@@ -9,6 +9,7 @@ from convert_logger import (
     log_conversion_result,
 )
 from convert_filters import filter_top_tokens
+from exchange_filters import load_symbol_filters, get_last_price_usdt
 from convert_notifier import send_telegram
 from quote_counter import can_request_quote, should_throttle, reset_cycle
 
@@ -30,12 +31,58 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
 
     reset_cycle()
 
+    step_size, min_notional = load_symbol_filters(from_token, "USDT")
+    if step_size is None and min_notional is None:
+        logger.warning("[dev3] ⚠️ Немає LOT_SIZE/MIN_NOTIONAL для %sUSDT", from_token)
+    if step_size and step_size > 0:
+        amount = (
+            Decimal(str(amount)) / step_size
+        ).to_integral_value(rounding=ROUND_DOWN) * step_size
+    else:
+        amount = Decimal(str(amount))
+    px = get_last_price_usdt(from_token)
+    if px is None:
+        logger.warning("[dev3] ⚠️ Не вдалося отримати ціну %sUSDT", from_token)
+    est_notional = (amount * px) if px is not None else None
+    step_str = str(step_size) if step_size is not None else None
+    min_str = str(min_notional) if min_notional is not None else None
+    px_str = str(px) if px is not None else None
+    est_str = str(est_notional) if est_notional is not None else None
+    mode = "paper" if os.getenv("PAPER", "0") == "1" or os.getenv("ENABLE_LIVE", "0") != "1" else "live"
+
     for to_token in to_tokens:
+        if min_notional and min_notional > 0 and est_notional is not None and est_notional < min_notional:
+            logger.info(
+                "[dev3] skip(minNotional): %s amount=%s px=%s est=%s < %s",
+                from_token,
+                amount,
+                px,
+                est_notional,
+                min_notional,
+            )
+            log_conversion_result(
+                {"fromAsset": from_token, "toAsset": to_token, "fromAmount": str(amount)},
+                False,
+                None,
+                {"msg": "below MIN_NOTIONAL"},
+                None,
+                False,
+                None,
+                mode,
+                None,
+                None,
+                step_str,
+                min_str,
+                px_str,
+                est_str,
+                "skip(minNotional)",
+            )
+            continue
         if should_throttle(from_token, to_token):
             skipped_pairs.append((to_token, 0.0, "throttled"))
             break
 
-        quote = get_quote(from_token, to_token, amount)
+        quote = get_quote(from_token, to_token, float(amount))
 
         if should_throttle(from_token, to_token, quote):
             break
@@ -85,8 +132,6 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
     selected_tokens = {t for t, _, _ in top_results}
     any_accepted = False
 
-    mode = "paper" if os.getenv("PAPER", "0") == "1" or os.getenv("ENABLE_LIVE", "0") != "1" else "live"
-
     def _format_amount(value, precision):
         if value is None or precision is None:
             return value
@@ -116,6 +161,12 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 None,
                 mode,
                 quote.get("score"),
+                None,
+                step_str,
+                min_str,
+                px_str,
+                est_str,
+                "below MIN_CONVERT_TOAMOUNT",
             )
             return False
 
@@ -133,6 +184,12 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 None,
                 mode,
                 quote.get("score"),
+                None,
+                step_str,
+                min_str,
+                px_str,
+                est_str,
+                "below EXPLORE_MIN_EDGE",
             )
             return False
 
@@ -152,6 +209,12 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 None,
                 mode,
                 quote.get("score"),
+                None,
+                step_str,
+                min_str,
+                px_str,
+                est_str,
+                "quote expired",
             )
             return False
 
@@ -207,6 +270,12 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             order_status,
             mode,
             quote.get("score"),
+            None,
+            step_str,
+            min_str,
+            px_str,
+            est_str,
+            None,
         )
         return accepted
 
@@ -235,6 +304,12 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 None,
                 mode,
                 quote.get("score"),
+                None,
+                step_str,
+                min_str,
+                px_str,
+                est_str,
+                None,
             )
 
     logger.info("[dev3] ✅ Цикл завершено")

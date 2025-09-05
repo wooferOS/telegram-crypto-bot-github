@@ -32,7 +32,23 @@ def test_accept_only_with_orderid(monkeypatch):
 
     records = []
 
-    def fake_log(quote_data, accepted, order_id, error, create_time, dry_run, order_status=None, mode=None, edge=None, region=None):
+    def fake_log(
+        quote_data,
+        accepted,
+        order_id,
+        error,
+        create_time,
+        dry_run,
+        order_status=None,
+        mode=None,
+        edge=None,
+        region=None,
+        step_size=None,
+        min_notional=None,
+        px=None,
+        est_notional=None,
+        reason=None,
+    ):
         records.append({'accepted': accepted, 'orderId': order_id, 'dryRun': dry_run})
 
     monkeypatch.setattr(convert_cycle, 'log_conversion_result', fake_log)
@@ -87,7 +103,23 @@ def test_not_accepted_without_success(monkeypatch):
 
     records = []
 
-    def fake_log(quote_data, accepted, order_id, error, create_time, dry_run, order_status=None, mode=None, edge=None, region=None):
+    def fake_log(
+        quote_data,
+        accepted,
+        order_id,
+        error,
+        create_time,
+        dry_run,
+        order_status=None,
+        mode=None,
+        edge=None,
+        region=None,
+        step_size=None,
+        min_notional=None,
+        px=None,
+        est_notional=None,
+        reason=None,
+    ):
         records.append({'accepted': accepted, 'orderId': order_id})
 
     monkeypatch.setattr(convert_cycle, 'log_conversion_result', fake_log)
