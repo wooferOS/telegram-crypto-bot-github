@@ -156,16 +156,23 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             return False
 
         accept_result: Dict | None = None
-        try:
-            accept_result = accept_quote(quote["quoteId"])
-        except Exception as error:  # pragma: no cover - network/IO
-            logger.warning(
-                f"[dev3] ❌ Помилка під час accept_quote: {quote['quoteId']} — {error}"
+        dry_run = os.getenv("PAPER", "0") == "1"
+        if dry_run:
+            logger.info(
+                "[dev3] DRY-RUN: acceptQuote skipped for %s", quote["quoteId"]
             )
-            accept_result = {"code": None, "msg": str(error)}
+            accept_result = {"dryRun": True}
+        else:
+            try:
+                accept_result = accept_quote(quote["quoteId"])
+            except Exception as error:  # pragma: no cover - network/IO
+                logger.warning(
+                    f"[dev3] ❌ Помилка під час accept_quote: {quote['quoteId']} — {error}"
+                )
+                accept_result = {"code": None, "msg": str(error)}
 
         order_id = accept_result.get("orderId") if isinstance(accept_result, dict) else None
-        dry_run = bool(accept_result.get("dryRun")) if isinstance(accept_result, dict) else False
+        dry_run = dry_run or bool(accept_result.get("dryRun")) if isinstance(accept_result, dict) else dry_run
         order_status: Dict | None = None
         accepted = False
         error: Dict | None = None

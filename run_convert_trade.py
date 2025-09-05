@@ -5,6 +5,7 @@ import subprocess
 from convert_api import get_balances, get_available_to_tokens
 from convert_cycle import process_pair
 from convert_logger import logger
+from trade_history_sync import sync_recent_trades
 from config_dev3 import CONVERT_SCORE_THRESHOLD
 from quote_counter import can_request_quote
 from top_tokens_utils import read_for_region
@@ -46,6 +47,7 @@ def cleanup() -> None:
 
 def main() -> None:
     cleanup()
+    sync_recent_trades()
     logger.info("[dev3] 🔄 Запуск convert трейдингу")
     region = os.environ.get("REGION", "ASIA")
     # ensure top tokens file exists for region
