@@ -132,8 +132,6 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
     selected_tokens = {t for t, _, _ in top_results}
     any_accepted = False
 
-    mode = "paper" if os.getenv("PAPER", "0") == "1" or os.getenv("ENABLE_LIVE", "0") != "1" else "live"
-
     def _format_amount(value, precision):
         if value is None or precision is None:
             return value
@@ -163,6 +161,12 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 None,
                 mode,
                 quote.get("score"),
+                None,
+                step_str,
+                min_str,
+                px_str,
+                est_str,
+                "below MIN_CONVERT_TOAMOUNT",
             )
             return False
 
@@ -180,6 +184,12 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 None,
                 mode,
                 quote.get("score"),
+                None,
+                step_str,
+                min_str,
+                px_str,
+                est_str,
+                "below EXPLORE_MIN_EDGE",
             )
             return False
 
@@ -199,6 +209,12 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 None,
                 mode,
                 quote.get("score"),
+                None,
+                step_str,
+                min_str,
+                px_str,
+                est_str,
+                "quote expired",
             )
             return False
 
@@ -254,6 +270,12 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             order_status,
             mode,
             quote.get("score"),
+            None,
+            step_str,
+            min_str,
+            px_str,
+            est_str,
+            None,
         )
         return accepted
 
@@ -282,6 +304,12 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 None,
                 mode,
                 quote.get("score"),
+                None,
+                step_str,
+                min_str,
+                px_str,
+                est_str,
+                None,
             )
 
     logger.info("[dev3] ✅ Цикл завершено")

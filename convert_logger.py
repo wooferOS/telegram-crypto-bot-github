@@ -116,6 +116,11 @@ def log_conversion_result(
     mode: str | None = None,
     edge: float | None = None,
     region: str | None = None,
+    step_size: str | None = None,
+    min_notional: str | None = None,
+    px: str | None = None,
+    est_notional: str | None = None,
+    reason: str | None = None,
 ) -> None:
     """Log conversion result to history using the new unified schema."""
 
@@ -144,14 +149,24 @@ def log_conversion_result(
         "dryRun": dry_run,
         "edge": edge,
         "mode": mode,
+        "stepSize": step_size,
+        "minNotional": min_notional,
+        "px": px,
+        "estNotional": est_notional,
+        "reason": reason,
     }
 
     logger.info(
-        "[dev3] quoteId=%s -> accept %s -> orderId=%s -> status=%s",
+        "[dev3] quoteId=%s -> accept %s -> orderId=%s -> status=%s stepSize=%s minNotional=%s px=%s est=%s reason=%s",
         entry["quoteId"],
         "\u2705" if accepted else "\u274c",
         order_id,
         status,
+        step_size,
+        min_notional,
+        px,
+        est_notional,
+        reason,
     )
 
     log_convert_history(entry)
