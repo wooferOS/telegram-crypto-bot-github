@@ -343,6 +343,7 @@ def test_get_order_status_params(monkeypatch):
     monkeypatch.setattr(convert_api, '_request', fake_request)
     res = convert_api.get_order_status(orderId='1')
     assert res['orderStatus'] == 'SUCCESS'
+    assert sent['params']['recvWindow'] == convert_api.DEFAULT_RECV_WINDOW
 
 
 def test_accept_quote_idempotent(monkeypatch):
@@ -350,7 +351,11 @@ def test_accept_quote_idempotent(monkeypatch):
     monkeypatch.setenv('ENABLE_LIVE', '1')
 
     class Sess:
+        def __init__(self):
+            self.calls = 0
+
         def post(self, url, data=None, headers=None, timeout=None, params=None):
+            self.calls += 1
             class R:
                 status_code = 200
                 headers = {}
@@ -358,7 +363,8 @@ def test_accept_quote_idempotent(monkeypatch):
                     return {}
             return R()
 
-    monkeypatch.setattr(convert_api, '_session', Sess())
+    sess = Sess()
+    monkeypatch.setattr(convert_api, '_session', sess)
     monkeypatch.setattr(convert_api, 'BINANCE_SECRET_KEY', 'secret')
     monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
     monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 1)
@@ -367,6 +373,43 @@ def test_accept_quote_idempotent(monkeypatch):
     convert_api.accept_quote('dup')
     res = convert_api.accept_quote('dup')
     assert res.get('duplicate') is True
+    assert sess.calls == 1
+
+
+def test_request_retry_on_5xx(monkeypatch):
+    sleeps: list[float] = []
+
+    class Sess:
+        def __init__(self):
+            self.calls = 0
+
+        def post(self, url, data=None, headers=None, timeout=None, params=None):
+            self.calls += 1
+            if self.calls == 1:
+                class R:
+                    status_code = 500
+                    headers = {}
+                    def json(self):
+                        return {}
+                return R()
+            class R2:
+                status_code = 200
+                headers = {}
+                def json(self):
+                    return {"ok": 1}
+            return R2()
+
+    sess = Sess()
+    fake_time = types.SimpleNamespace(sleep=lambda s: sleeps.append(s))
+    monkeypatch.setattr(convert_api, '_session', sess)
+    monkeypatch.setattr(convert_api, 'time', fake_time)
+    monkeypatch.setattr(convert_api, 'random', types.SimpleNamespace(uniform=lambda a, b: 0))
+    monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 0)
+
+    res = convert_api._request('POST', '/sapi/v1/convert/getQuote', {'a': 1})
+    assert res == {"ok": 1}
+    assert sess.calls == 2
+    assert sleeps and sleeps[0] > 0
 
 
 def test_trade_flow_params(monkeypatch):

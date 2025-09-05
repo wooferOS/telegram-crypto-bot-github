@@ -203,80 +203,6 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             return False
 
         accept_result: Dict | None = None
-        try:
-            accept_result = accept_quote(quote["quoteId"])
-        except Exception as error:  # pragma: no cover - network/IO
-            logger.warning(
-                f"[dev3] ❌ Помилка під час accept_quote: {quote['quoteId']} — {error}"
-            )
-            log_conversion_result(
-                {**quote, "fromAsset": from_token, "toAsset": to_token},
-                False,
-                None,
-                {"msg": "below MIN_CONVERT_TOAMOUNT"},
-                None,
-                False,
-                None,
-                mode,
-                quote.get("score"),
-                None,
-                step_str,
-                min_str,
-                px_str,
-                est_str,
-                "below MIN_CONVERT_TOAMOUNT",
-            )
-            return False
-
-        if score < EXPLORE_MIN_EDGE:
-            logger.info(
-                f"[dev3] ❌ Пропуск через низький edge {score:.6f} < {EXPLORE_MIN_EDGE}"
-            )
-            log_conversion_result(
-                {**quote, "fromAsset": from_token, "toAsset": to_token},
-                False,
-                None,
-                {"msg": "below EXPLORE_MIN_EDGE"},
-                None,
-                False,
-                None,
-                mode,
-                quote.get("score"),
-                None,
-                step_str,
-                min_str,
-                px_str,
-                est_str,
-                "below EXPLORE_MIN_EDGE",
-            )
-            return False
-
-        now = convert_api._current_timestamp()
-        valid_until = int(quote.get("validTimestamp") or 0)
-        if valid_until and now > valid_until:
-            logger.warning(
-                f"[dev3] ❌ Quote прострочено: {quote['quoteId']} для {from_token} → {to_token}"
-            )
-            log_conversion_result(
-                {**quote, "fromAsset": from_token, "toAsset": to_token},
-                False,
-                None,
-                {"msg": "quote expired"},
-                None,
-                False,
-                None,
-                mode,
-                quote.get("score"),
-                None,
-                step_str,
-                min_str,
-                px_str,
-                est_str,
-                "quote expired",
-            )
-            return False
-
-        accept_result: Dict | None = None
         dry_run = os.getenv("PAPER", "0") == "1"
         if dry_run:
             logger.info(
@@ -293,7 +219,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 accept_result = {"code": None, "msg": str(error)}
 
         order_id = accept_result.get("orderId") if isinstance(accept_result, dict) else None
-        dry_run = bool(accept_result.get("dryRun")) if isinstance(accept_result, dict) else False
+        dry_run = dry_run or bool(accept_result.get("dryRun")) if isinstance(accept_result, dict) else dry_run
         order_status: Dict | None = None
         accepted = False
         error: Dict | None = None

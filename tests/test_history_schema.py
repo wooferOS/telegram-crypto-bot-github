@@ -28,11 +28,11 @@ schema = {
         "toAsset",
         "fromAmount",
         "toAmount",
-        "ratio",
-        "inverseRatio",
+        "orderStatus",
         "accepted",
-        "dryRun",
+        "region",
         "mode",
+        "createTime",
     ],
     "allOf": [
         {
