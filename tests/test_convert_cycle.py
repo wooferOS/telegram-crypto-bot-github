@@ -37,23 +37,41 @@ def test_accept_only_with_orderid(monkeypatch):
 
     monkeypatch.setattr(convert_cycle, 'log_conversion_result', fake_log)
 
-    monkeypatch.setattr(convert_cycle, 'accept_quote', lambda qid: {'dryRun': True})
+    calls = {'accept': 0}
+
+    def fake_accept(qid):
+        calls['accept'] += 1
+        return {'dryRun': True}
+
+    monkeypatch.setattr(convert_cycle, 'accept_quote', fake_accept)
     res = convert_cycle.process_pair('USDT', ['BTC'], 1.0, 0.0)
     assert res is False
     assert records[0]['accepted'] is False
     assert records[0]['dryRun'] is True
+    assert calls['accept'] == 0
 
+    # live mode
     records.clear()
-    monkeypatch.setattr(convert_cycle, 'accept_quote', lambda qid: {'orderId': '1', 'createTime': 2})
+    calls['accept'] = 0
+    monkeypatch.setenv('PAPER', '0')
+    monkeypatch.setenv('ENABLE_LIVE', '1')
+
+    def fake_accept_live(qid):
+        calls['accept'] += 1
+        return {'orderId': '1', 'createTime': 2}
+
+    monkeypatch.setattr(convert_cycle, 'accept_quote', fake_accept_live)
     monkeypatch.setattr(convert_cycle, 'get_order_status', lambda **k: {'orderStatus': 'SUCCESS'})
     res = convert_cycle.process_pair('USDT', ['BTC'], 1.0, 0.0)
     assert res is True
     assert records[0]['accepted'] is True
     assert records[0]['orderId'] == '1'
+    assert calls['accept'] == 1
 
 
 def test_not_accepted_without_success(monkeypatch):
-    setup_env(monkeypatch)
+    monkeypatch.setenv('PAPER', '0')
+    monkeypatch.setenv('ENABLE_LIVE', '1')
     quote = {
         'quoteId': 'q2',
         'ratio': 1.0,

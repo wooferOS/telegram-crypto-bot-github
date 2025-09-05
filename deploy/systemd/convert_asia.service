@@ -6,8 +6,7 @@ Type=simple
 WorkingDirectory=/root/telegram-crypto-bot-github
 Environment=DEV_PROFILE=dev3
 Environment=REGION=ASIA
-Environment=MIN_CONVERT_TOAMOUNT=9999
-Environment=MIN_LOT_FACTOR=0.5
+Environment=MIN_CONVERT_TOAMOUNT=10
 Environment=VIRTUAL_ENV=/root/telegram-crypto-bot-github/.venv
 Environment=PATH=/root/telegram-crypto-bot-github/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 ExecStart=/root/telegram-crypto-bot-github/.venv/bin/python -u /root/telegram-crypto-bot-github/run_convert_trade.py
