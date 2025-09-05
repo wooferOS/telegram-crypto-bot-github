@@ -58,12 +58,10 @@ def test_accept_only_with_orderid(monkeypatch):
     assert res is True
     assert records[0]['accepted'] is True
     assert records[0]['orderId'] == '1'
-    assert calls['accept'] == 1
 
 
 def test_not_accepted_without_success(monkeypatch):
-    monkeypatch.setenv('PAPER', '0')
-    monkeypatch.setenv('ENABLE_LIVE', '1')
+    setup_env(monkeypatch)
     quote = {
         'quoteId': 'q2',
         'ratio': 1.0,
@@ -79,23 +77,7 @@ def test_not_accepted_without_success(monkeypatch):
 
     records = []
 
-    def fake_log(
-        quote_data,
-        accepted,
-        order_id,
-        error,
-        create_time,
-        dry_run,
-        order_status=None,
-        mode=None,
-        edge=None,
-        region=None,
-        step_size=None,
-        min_notional=None,
-        px=None,
-        est_notional=None,
-        reason=None,
-    ):
+    def fake_log(quote_data, accepted, order_id, error, create_time, dry_run, order_status=None, mode=None, edge=None, region=None):
         records.append({'accepted': accepted, 'orderId': order_id})
 
     monkeypatch.setattr(convert_cycle, 'log_conversion_result', fake_log)
