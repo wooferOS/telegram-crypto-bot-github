@@ -79,9 +79,6 @@ _time_offset_ms = 0
 # whether we already synchronised time with Binance
 _time_synced = False
 
-# quoteIds already processed via acceptQuote
-_accepted_quotes: Set[str] = set()
-
 
 class ClockSkewError(Exception):
     """Raised when Binance reports timestamp drift (-1021)."""

@@ -52,8 +52,6 @@ def main():
 
     df = df.dropna(subset=["accepted"])
     df["accepted"] = df["accepted"].astype(bool)
-    final_statuses = {"SUCCESS", "FAILED", "FAIL"}
-    df = df[df["orderStatus"].isin(final_statuses)]
 
     required_cols = [
         "quoteId",

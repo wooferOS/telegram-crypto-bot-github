@@ -132,6 +132,8 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
     selected_tokens = {t for t, _, _ in top_results}
     any_accepted = False
 
+    mode = "paper" if os.getenv("PAPER", "0") == "1" or os.getenv("ENABLE_LIVE", "0") != "1" else "live"
+
     def _format_amount(value, precision):
         if value is None or precision is None:
             return value
@@ -146,10 +148,31 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             quote.get("toAmount"), quote.get("toAmountPrecision")
         )
 
-        to_amt = float(quote.get("toAmount") or 0)
-        if to_amt < MIN_CONVERT_TOAMOUNT:
-            logger.info(
-                f"[dev3] ❌ Пропуск через MIN_CONVERT_TOAMOUNT {MIN_CONVERT_TOAMOUNT}: {from_token} → {to_token}"
+        now = convert_api._current_timestamp()
+        valid_until = int(quote.get("validTimestamp") or 0)
+        if valid_until and now > valid_until:
+            logger.warning(
+                f"[dev3] ❌ Quote прострочено: {quote['quoteId']} для {from_token} → {to_token}"
+            )
+            log_conversion_result(
+                {**quote, "fromAsset": from_token, "toAsset": to_token},
+                False,
+                None,
+                {"msg": "quote expired"},
+                None,
+                False,
+                None,
+                mode,
+                quote.get("score"),
+            )
+            return False
+
+        accept_result: Dict | None = None
+        try:
+            accept_result = accept_quote(quote["quoteId"])
+        except Exception as error:  # pragma: no cover - network/IO
+            logger.warning(
+                f"[dev3] ❌ Помилка під час accept_quote: {quote['quoteId']} — {error}"
             )
             log_conversion_result(
                 {**quote, "fromAsset": from_token, "toAsset": to_token},
@@ -235,7 +258,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 accept_result = {"code": None, "msg": str(error)}
 
         order_id = accept_result.get("orderId") if isinstance(accept_result, dict) else None
-        dry_run = dry_run or bool(accept_result.get("dryRun")) if isinstance(accept_result, dict) else dry_run
+        dry_run = bool(accept_result.get("dryRun")) if isinstance(accept_result, dict) else False
         order_status: Dict | None = None
         accepted = False
         error: Dict | None = None
@@ -270,12 +293,6 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             order_status,
             mode,
             quote.get("score"),
-            None,
-            step_str,
-            min_str,
-            px_str,
-            est_str,
-            None,
         )
         return accepted
 
@@ -304,12 +321,6 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 None,
                 mode,
                 quote.get("score"),
-                None,
-                step_str,
-                min_str,
-                px_str,
-                est_str,
-                None,
             )
 
     logger.info("[dev3] ✅ Цикл завершено")
