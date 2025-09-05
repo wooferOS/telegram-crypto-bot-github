@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import importlib.util
 import logging
 import os
+import pathlib
 import random
 import time
 from typing import Any, Dict, List, Optional, Set
@@ -23,11 +25,31 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
-try:  # pragma: no cover - optional config present only in production
-    from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY
-except Exception:  # pragma: no cover - used in tests/CI
-    BINANCE_API_KEY = os.getenv("BINANCE_API_KEY", "test")
-    BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY", "test")
+_DEF_CFG = "/root/telegram-crypto-bot-github/config_dev3.py"
+
+
+def load_binance_credentials() -> tuple[str, str]:
+    key = os.getenv("BINANCE_API_KEY")
+    sec = os.getenv("BINANCE_API_SECRET")
+
+    if not (key and sec):
+        cfg_path = os.getenv("DEV_CONFIG_PATH", _DEF_CFG)
+        if pathlib.Path(cfg_path).is_file():
+            spec = importlib.util.spec_from_file_location("cfg", cfg_path)
+            m = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(m)  # noqa: S301 - trusted local file
+            key = getattr(m, "BINANCE_API_KEY", None)
+            sec = getattr(m, "BINANCE_API_SECRET", None)
+
+    if not key or not sec:
+        raise RuntimeError(
+            "Binance credentials not found: set BINANCE_API_* or provide config_dev3.py"
+        )
+
+    return key, sec
+
+
+BINANCE_API_KEY, BINANCE_API_SECRET = load_binance_credentials()
 
 from utils_dev3 import get_current_timestamp
 from quote_counter import increment_quote_usage
@@ -95,7 +117,7 @@ def _sign(params: Dict[str, Any]) -> Dict[str, Any]:
     params["timestamp"] = _current_timestamp()
     query = "&".join(f"{k}={v}" for k, v in params.items())
     signature = hmac.new(
-        BINANCE_SECRET_KEY.encode(), query.encode(), hashlib.sha256
+        BINANCE_API_SECRET.encode(), query.encode(), hashlib.sha256
     ).hexdigest()
     params["signature"] = signature
     return params
