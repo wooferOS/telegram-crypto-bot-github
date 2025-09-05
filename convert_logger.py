@@ -147,7 +147,7 @@ def log_conversion_result(
     }
 
     logger.info(
-        "[dev3] quoteId=%s accept_quote %s orderId=%s status=%s",
+        "[dev3] quoteId=%s -> accept_quote %s -> orderId=%s -> status=%s",
         entry["quoteId"],
         "\u2705" if accepted else "\u274c",
         order_id,
