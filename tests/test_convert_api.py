@@ -365,7 +365,7 @@ def test_accept_quote_idempotent(monkeypatch):
 
     sess = Sess()
     monkeypatch.setattr(convert_api, '_session', sess)
-    monkeypatch.setattr(convert_api, 'BINANCE_SECRET_KEY', 'secret')
+    monkeypatch.setattr(convert_api, 'BINANCE_API_SECRET', 'secret')
     monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
     monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 1)
     convert_api._time_offset_ms = 0
