@@ -6,12 +6,15 @@ import pytest
 
 sys.path.insert(0, os.getcwd())
 
+os.environ.setdefault("BINANCE_API_KEY", "test")
+os.environ.setdefault("BINANCE_API_SECRET", "test")
+
 import types
 import convert_api
 
 
 def test_sign_deterministic(monkeypatch):
-    monkeypatch.setattr(convert_api, 'BINANCE_SECRET_KEY', 'secret')
+    monkeypatch.setattr(convert_api, 'BINANCE_API_SECRET', 'secret')
     monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 1234567890)
     params = {'fromAsset': 'USDT', 'toAsset': 'BTC'}
     signed = convert_api._sign(params.copy())
@@ -57,7 +60,7 @@ def test_request_adds_signature_and_header(monkeypatch):
         return Resp()
 
     monkeypatch.setattr(convert_api, '_session', type('S', (), {'post': fake_post})())
-    monkeypatch.setattr(convert_api, 'BINANCE_SECRET_KEY', 'secret')
+    monkeypatch.setattr(convert_api, 'BINANCE_API_SECRET', 'secret')
     monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
     monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 1)
 
@@ -272,7 +275,7 @@ def test_get_quote_signed(monkeypatch):
         return R()
 
     monkeypatch.setattr(convert_api, '_session', type('S', (), {'post': fake_post})())
-    monkeypatch.setattr(convert_api, 'BINANCE_SECRET_KEY', 'secret')
+    monkeypatch.setattr(convert_api, 'BINANCE_API_SECRET', 'secret')
     monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
     monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 1)
     monkeypatch.setattr(convert_api, 'increment_quote_usage', lambda: None)
@@ -308,7 +311,7 @@ def test_accept_quote_live(monkeypatch):
     monkeypatch.setenv('PAPER', '0')
     monkeypatch.setenv('ENABLE_LIVE', '1')
     monkeypatch.setattr(convert_api, '_session', type('S', (), {'post': fake_post})())
-    monkeypatch.setattr(convert_api, 'BINANCE_SECRET_KEY', 'secret')
+    monkeypatch.setattr(convert_api, 'BINANCE_API_SECRET', 'secret')
     monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
     monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 1)
     convert_api._time_offset_ms = 0
@@ -362,7 +365,7 @@ def test_accept_quote_idempotent(monkeypatch):
 
     sess = Sess()
     monkeypatch.setattr(convert_api, '_session', sess)
-    monkeypatch.setattr(convert_api, 'BINANCE_SECRET_KEY', 'secret')
+    monkeypatch.setattr(convert_api, 'BINANCE_API_SECRET', 'secret')
     monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
     monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 1)
     convert_api._time_offset_ms = 0
@@ -488,7 +491,7 @@ def test_permission_error(monkeypatch):
 
     monkeypatch.setattr(convert_api, '_session', Sess())
     monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 0)
-    monkeypatch.setattr(convert_api, 'BINANCE_SECRET_KEY', 'secret')
+    monkeypatch.setattr(convert_api, 'BINANCE_API_SECRET', 'secret')
     monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
 
     with pytest.raises(PermissionError):
