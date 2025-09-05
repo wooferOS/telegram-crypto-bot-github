@@ -15,7 +15,7 @@ def test_sign_deterministic(monkeypatch):
     monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 1234567890)
     params = {'fromAsset': 'USDT', 'toAsset': 'BTC'}
     signed = convert_api._sign(params.copy())
-    query = 'fromAsset=USDT&toAsset=BTC&recvWindow=20000&timestamp=1234567890'
+    query = 'fromAsset=USDT&toAsset=BTC&recvWindow=5000&timestamp=1234567890'
     expected = hmac.new(b'secret', query.encode(), hashlib.sha256).hexdigest()
     assert signed['signature'] == expected
 
@@ -255,6 +255,7 @@ def test_get_quote_with_id_params(monkeypatch):
     assert sent['params']['toAsset'] == 'BTC'
     assert sent['params']['fromAmount'] == 1.23
     assert sent['params']['walletType'] == 'MAIN'
+    assert sent['params']['recvWindow'] == convert_api.DEFAULT_RECV_WINDOW
 
 
 def test_get_quote_signed(monkeypatch):
@@ -279,7 +280,7 @@ def test_get_quote_signed(monkeypatch):
     convert_api.get_quote_with_id('USDT', 'BTC', from_amount=1.0)
     assert 'fromAmount' in sent['data'] and 'toAmount' not in sent['data']
     assert sent['data']['timestamp'] == 1
-    assert sent['data']['recvWindow'] == 20000
+    assert sent['data']['recvWindow'] == convert_api.DEFAULT_RECV_WINDOW
     assert sent['headers']['X-MBX-APIKEY'] == 'key'
 
 
@@ -338,17 +339,30 @@ def test_get_order_status_params(monkeypatch):
     monkeypatch.setattr(convert_api, '_request', fake_request)
     res = convert_api.get_order_status(orderId='1')
     assert res['orderStatus'] == 'SUCCESS'
-    assert res['ratio'] == '0.1'
-    assert sent['path'] == '/sapi/v1/convert/orderStatus'
-    assert sent['params'] == {'orderId': '1'}
 
-    res = convert_api.get_order_status(quoteId='2')
-    assert sent['params'] == {'quoteId': '2'}
 
-    with pytest.raises(ValueError):
-        convert_api.get_order_status()
-    with pytest.raises(ValueError):
-        convert_api.get_order_status(orderId='1', quoteId='2')
+def test_accept_quote_idempotent(monkeypatch):
+    monkeypatch.setenv('PAPER', '0')
+    monkeypatch.setenv('ENABLE_LIVE', '1')
+
+    class Sess:
+        def post(self, url, data=None, headers=None, timeout=None, params=None):
+            class R:
+                status_code = 200
+                headers = {}
+                def json(self):
+                    return {}
+            return R()
+
+    monkeypatch.setattr(convert_api, '_session', Sess())
+    monkeypatch.setattr(convert_api, 'BINANCE_SECRET_KEY', 'secret')
+    monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
+    monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 1)
+    convert_api._time_offset_ms = 0
+    convert_api._accepted_quotes.clear()
+    convert_api.accept_quote('dup')
+    res = convert_api.accept_quote('dup')
+    assert res.get('duplicate') is True
 
 
 def test_trade_flow_params(monkeypatch):

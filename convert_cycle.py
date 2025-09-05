@@ -16,6 +16,9 @@ from quote_counter import can_request_quote, should_throttle, reset_cycle
 # Allow executing quotes with low score for model training
 allow_learning_quotes = True
 
+MIN_CONVERT_TOAMOUNT = float(os.getenv("MIN_CONVERT_TOAMOUNT", "0"))
+EXPLORE_MIN_EDGE = float(os.getenv("EXPLORE_MIN_EDGE", "0"))
+
 
 
 def process_pair(from_token: str, to_tokens: List[str], amount: float, score_threshold: float) -> bool:
@@ -97,6 +100,41 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
         quote["toAmount"] = _format_amount(
             quote.get("toAmount"), quote.get("toAmountPrecision")
         )
+
+        to_amt = float(quote.get("toAmount") or 0)
+        if to_amt < MIN_CONVERT_TOAMOUNT:
+            logger.info(
+                f"[dev3] ❌ Пропуск через MIN_CONVERT_TOAMOUNT {MIN_CONVERT_TOAMOUNT}: {from_token} → {to_token}"
+            )
+            log_conversion_result(
+                {**quote, "fromAsset": from_token, "toAsset": to_token},
+                False,
+                None,
+                {"msg": "below MIN_CONVERT_TOAMOUNT"},
+                None,
+                False,
+                None,
+                mode,
+                quote.get("score"),
+            )
+            return False
+
+        if score < EXPLORE_MIN_EDGE:
+            logger.info(
+                f"[dev3] ❌ Пропуск через низький edge {score:.6f} < {EXPLORE_MIN_EDGE}"
+            )
+            log_conversion_result(
+                {**quote, "fromAsset": from_token, "toAsset": to_token},
+                False,
+                None,
+                {"msg": "below EXPLORE_MIN_EDGE"},
+                None,
+                False,
+                None,
+                mode,
+                quote.get("score"),
+            )
+            return False
 
         now = convert_api._current_timestamp()
         valid_until = int(quote.get("validTimestamp") or 0)

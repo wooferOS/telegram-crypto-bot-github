@@ -34,6 +34,7 @@ from quote_counter import increment_quote_usage
 
 
 BASE_URL = os.getenv("BINANCE_API_BASE", "https://api.binance.com")
+DEFAULT_RECV_WINDOW = int(os.getenv("BINANCE_RECV_WINDOW", "5000"))
 
 # requests session with a tiny retry just for connection errors.  Rate limit
 # handling is done manually below.
@@ -55,6 +56,9 @@ _exchange_info_time: float = 0
 _time_offset_ms = 0
 # whether we already synchronised time with Binance
 _time_synced = False
+
+# quoteIds already processed via acceptQuote
+_accepted_quotes: Set[str] = set()
 
 
 class ClockSkewError(Exception):
@@ -87,7 +91,7 @@ def _sign(params: Dict[str, Any]) -> Dict[str, Any]:
     """
 
     params = params.copy()
-    params.setdefault("recvWindow", 20000)
+    params.setdefault("recvWindow", DEFAULT_RECV_WINDOW)
     params["timestamp"] = _current_timestamp()
     query = "&".join(f"{k}={v}" for k, v in params.items())
     signature = hmac.new(
@@ -131,7 +135,7 @@ def _request(method: str, path: str, params: Dict[str, Any], *, signed: bool = T
             time.sleep(_backoff(attempt))
             continue
 
-        if resp.status_code in (418, 429):
+        if resp.status_code >= 500 or resp.status_code in (418, 429):
             retry_after = resp.headers.get("Retry-After")
             delay = float(retry_after) if retry_after else _backoff(attempt)
             time.sleep(delay)
@@ -141,6 +145,8 @@ def _request(method: str, path: str, params: Dict[str, Any], *, signed: bool = T
 
         if isinstance(data, dict):
             code = data.get("code")
+            if code is not None:
+                logger.warning("Binance error %s: %s", code, data.get("msg"))
             if code == -1021:
                 if not tried_time_sync:
                     tried_time_sync = True
@@ -222,6 +228,7 @@ def get_quote_with_id(
     from_amount: Optional[float] = None,
     to_amount: Optional[float] = None,
     walletType: Optional[str] = None,
+    recvWindow: int = DEFAULT_RECV_WINDOW,
 ) -> Dict[str, Any]:
     """Request a quote. Exactly one of ``from_amount`` or ``to_amount`` must be set."""
 
@@ -239,6 +246,7 @@ def get_quote_with_id(
         params["toAmount"] = to_amount
     if walletType:
         params["walletType"] = walletType
+    params["recvWindow"] = recvWindow
     return _request("POST", "/sapi/v1/convert/getQuote", params)
 
 
@@ -269,7 +277,11 @@ def accept_quote(quote_id: str, walletType: Optional[str] = None) -> Dict[str, A
     if os.getenv("PAPER", "1") == "1" or os.getenv("ENABLE_LIVE", "0") != "1":
         logger.info("[dev3] DRY-RUN: acceptQuote skipped for %s", quote_id)
         return {"dryRun": True, "msg": "acceptQuote skipped in PAPER/DRY-RUN"}
-    params = {"quoteId": quote_id}
+    if quote_id in _accepted_quotes:
+        logger.info("[dev3] Duplicate acceptQuote ignored for %s", quote_id)
+        return {"duplicate": True, "quoteId": quote_id}
+    _accepted_quotes.add(quote_id)
+    params = {"quoteId": quote_id, "recvWindow": DEFAULT_RECV_WINDOW}
     if walletType:
         params["walletType"] = walletType
     return _request("POST", "/sapi/v1/convert/acceptQuote", params)
@@ -282,6 +294,7 @@ def get_order_status(orderId: Optional[str] = None, quoteId: Optional[str] = Non
         raise ValueError("Provide exactly one of orderId or quoteId")
 
     params = {"orderId": orderId} if orderId is not None else {"quoteId": quoteId}
+    params["recvWindow"] = DEFAULT_RECV_WINDOW
     return _request("GET", "/sapi/v1/convert/orderStatus", params)
 
 
