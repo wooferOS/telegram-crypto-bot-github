@@ -1,0 +1,14 @@
+MAILTO=""
+TZ=Europe/Kyiv
+
+# ❤️ FLASK HEALTHCHECK: кожні 5 хв
+*/5 * * * * curl -fsS --max-time 5 http://127.0.0.1:10000/health >/dev/null || /usr/bin/systemctl restart crypto-bot-web >/dev/null 2>&1
+
+# 💾 БЕКАП: щодня о 08:00
+0 8 * * * /root/crypto-profit-bot/backup.sh
+
+# 🧠 РЕТРЕНІНГ ML-МОДЕЛІ: щодня о 06:00
+0 6 * * * cd /root/telegram-crypto-bot-github && /root/telegram-crypto-bot-github/.venv/bin/python -u train_model.py >> /var/log/model_retrain.log 2>&1
+
+# 💸 АВТОЦИКЛ: щогодини на 00 хв
+# 0 * * * * cd /root/telegram-crypto-bot-github && git checkout dev3 && /root/telegram-crypto-bot-github/.venv/bin/python -u train_convert_model.py >> /root/telegram-crypto-bot-github/logs/train_cron.log 2>&1

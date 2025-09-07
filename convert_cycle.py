@@ -1,4 +1,5 @@
 import os
+import math
 from decimal import Decimal, ROUND_DOWN
 from typing import List, Dict, Tuple
 
@@ -33,6 +34,9 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
 
     step_size, min_notional = load_symbol_filters(from_token, "USDT")
     if step_size is None and min_notional is None:
+        if from_token == "USDT":
+            # skip fake USDTUSDT symbol check for spot filters
+            pass
         logger.warning("[dev3] ⚠️ Немає LOT_SIZE/MIN_NOTIONAL для %sUSDT", from_token)
     if step_size and step_size > 0:
         amount = (
@@ -51,6 +55,10 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
     mode = "paper" if os.getenv("PAPER", "0") == "1" or os.getenv("ENABLE_LIVE", "0") != "1" else "live"
 
     for to_token in to_tokens:
+        if to_token == from_token:
+            continue
+        if to_token == from_token:
+            continue
         if min_notional and min_notional > 0 and est_notional is not None and est_notional < min_notional:
             logger.info(
                 "[dev3] skip(minNotional): %s amount=%s px=%s est=%s < %s",
@@ -82,7 +90,23 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             skipped_pairs.append((to_token, 0.0, "throttled"))
             break
 
-        quote = get_quote(from_token, to_token, float(amount))
+        try:
+
+            amt = float(amount)
+
+        except Exception:
+
+            logger.warning("[dev3] ❌ amount invalid for %s -> %s: %r", from_token, to_token, amount)
+
+            return False
+
+        if not math.isfinite(amt) or amt <= 0:
+
+            logger.info("[dev3] ⏭️ Пропуск %s -> %s: amount<=0 (%.8f)", from_token, to_token, amt if math.isfinite(amt) else float("nan"))
+
+            return False
+
+        quote = get_quote(from_token, to_token, amt)
 
         if should_throttle(from_token, to_token, quote):
             break
