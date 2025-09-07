@@ -2,14 +2,22 @@ import hmac
 import hashlib
 import os
 import sys
+import types
 import pytest
 
 sys.path.insert(0, os.getcwd())
 
-os.environ.setdefault("BINANCE_API_KEY", "test")
-os.environ.setdefault("BINANCE_API_SECRET", "test")
+sys.modules.setdefault(
+    "config_dev3",
+    types.SimpleNamespace(
+        BINANCE_API_KEY="k",
+        BINANCE_API_SECRET="s",
+        OPENAI_API_KEY="",
+        TELEGRAM_TOKEN="",
+        CHAT_ID="",
+    ),
+)
 
-import types
 import convert_api
 
 

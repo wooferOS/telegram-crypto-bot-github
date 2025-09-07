@@ -3,7 +3,7 @@ from collections import defaultdict
 from typing import Dict, List, Optional
 
 import requests
-from config_dev3 import TELEGRAM_CHAT_ID, TELEGRAM_TOKEN
+from config_dev3 import BINANCE_API_KEY, BINANCE_API_SECRET, OPENAI_API_KEY, TELEGRAM_TOKEN, CHAT_ID
 
 
 _current_from_token: Optional[str] = None
@@ -37,12 +37,12 @@ atexit.register(flush_failures)
 
 
 def _send(text: str) -> None:
-    if not TELEGRAM_TOKEN or not TELEGRAM_CHAT_ID:
+    if not TELEGRAM_TOKEN or not CHAT_ID:
         return
     try:
         requests.post(
             f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-            json={"chat_id": TELEGRAM_CHAT_ID, "text": text},
+            json={"chat_id": CHAT_ID, "text": text},
             timeout=10,
         )
     except Exception:

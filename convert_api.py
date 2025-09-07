@@ -13,10 +13,8 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import importlib.util
 import logging
 import os
-import pathlib
 import random
 import time
 from typing import Any, Dict, List, Optional, Set
@@ -25,31 +23,7 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
-_DEF_CFG = "/root/telegram-crypto-bot-github/config_dev3.py"
-
-
-def load_binance_credentials() -> tuple[str, str]:
-    key = os.getenv("BINANCE_API_KEY")
-    sec = os.getenv("BINANCE_API_SECRET")
-
-    if not (key and sec):
-        cfg_path = os.getenv("DEV_CONFIG_PATH", _DEF_CFG)
-        if pathlib.Path(cfg_path).is_file():
-            spec = importlib.util.spec_from_file_location("cfg", cfg_path)
-            m = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(m)  # noqa: S301 - trusted local file
-            key = getattr(m, "BINANCE_API_KEY", None)
-            sec = getattr(m, "BINANCE_API_SECRET", None)
-
-    if not key or not sec:
-        raise RuntimeError(
-            "Binance credentials not found: set BINANCE_API_* or provide config_dev3.py"
-        )
-
-    return key, sec
-
-
-BINANCE_API_KEY, BINANCE_API_SECRET = load_binance_credentials()
+from config_dev3 import BINANCE_API_KEY, BINANCE_API_SECRET
 
 from utils_dev3 import get_current_timestamp
 from quote_counter import increment_quote_usage
@@ -370,153 +344,6 @@ def get_all_supported_convert_pairs() -> Set[str]:
 def is_valid_convert_pair(from_token: str, to_token: str) -> bool:
     symbol = f"{from_token}{to_token}"
     return symbol in get_all_supported_convert_pairs()
-# === FIX 2025-09-06: Binance Convert getQuote / acceptQuote ===
-
-def _fmt_amount(amount, asset):
-    # використовуємо наявний у модулі форматер, якщо він є
-    f = (globals().get("_format_amount_for_asset")
-         or globals().get("_norm_amount_for_asset"))
-    if callable(f):
-        try:
-            return f(amount, asset)   # варіант (amount, asset)
-        except TypeError:
-            try:
-                return str(f(amount)) # варіант (amount)
-            except Exception:
-                pass
-    # базовий фолбек
-    from decimal import Decimal
-    return format(Decimal(str(amount)), "f")
-
-def get_quote_with_id(
-    from_asset,
-    to_asset,
-    from_amount=None,
-    to_amount=None,
-    walletType=None,
-    validTime=None,
-    recvWindow=None,
-):
-    # рівно один з from_amount/to_amount
-    if (from_amount is None) == (to_amount is None):
-        raise ValueError("Provide exactly ONE of from_amount or to_amount")
-
-    # recvWindow (за замовчуванням + clamp ≤ 60000)
-    if recvWindow is None:
-        recvWindow = int(globals().get("DEFAULT_RECV_WINDOW",
-                        globals().get("DEFAULT_RECV_WIN", 5000)))
-    recvWindow = min(int(recvWindow), 60000)
-
-    params = {
-        "fromAsset": from_asset,
-        "toAsset": to_asset,
-        "recvWindow": recvWindow,
-        # якщо ваш _request не додає timestamp автоматично — розкоментуйте:
-        # "timestamp": int(__import__("time").time() * 1000),
-    }
-    if from_amount is not None:
-        params["fromAmount"] = _fmt_amount(from_amount, from_asset)
-    if to_amount is not None:
-        params["toAmount"]  = _fmt_amount(to_amount,  to_asset)
-    if walletType:
-        params["walletType"] = walletType  # SPOT/FUNDING/EARN або їх комбінації
-    if validTime:
-        params["validTime"]  = validTime   # '10s' | '30s' | '1m'
-
-    # POST /sapi/v1/convert/getQuote
-    return _request("POST", "/sapi/v1/convert/getQuote", params)
-
-def accept_quote(quote_id, recvWindow=None):
-    if not quote_id:
-        raise ValueError("quote_id is required")
-
-    if recvWindow is None:
-        recvWindow = int(globals().get("DEFAULT_RECV_WINDOW",
-                        globals().get("DEFAULT_RECV_WIN", 5000)))
-    recvWindow = min(int(recvWindow), 60000)
-
-    params = {
-        "quoteId": quote_id,
-        "recvWindow": recvWindow,
-        # якщо _request не додає timestamp — розкоментуйте:
-        # "timestamp": int(__import__("time").time() * 1000),
-    }
-    # ВАЖЛИВО: walletType тут НЕ передається (за специфікацією acceptQuote)
-    return _request("POST", "/sapi/v1/convert/acceptQuote", params)
-
-# зручна обгортка, якщо десь викликається get_quote(from,to,amount)
-def get_quote(from_token, to_token, amount):
-    if amount is None:
-        raise ValueError("amount is required")
-    return get_quote_with_id(from_token, to_token, from_amount=amount)
-
-# === /FIX ===
-def _normalize_convert_response(resp):
-    if not isinstance(resp, dict):
-        return resp
-    base = resp.get("data") or resp.get("result") or resp
-    # синоніми назв
-    if "quoteID" in base and "quoteId" not in base:
-        base["quoteId"] = base["quoteID"]
-    if "convertRatio" in base and "price" not in base:
-        base["price"] = base["convertRatio"]
-    # уніфікуємо типи в str для логування/порівнянь
-    for k in ("fromAmount","toAmount","price"):
-        if k in base and base[k] is not None:
-            base[k] = str(base[k])
-    return base
-
-# обгорнемо повернення наших функцій нормалізатором
-_old_get_quote_with_id = get_quote_with_id
-def get_quote_with_id(*a, **kw):
-    return _normalize_convert_response(_old_get_quote_with_id(*a, **kw))
-
-_old_accept_quote = accept_quote
-def accept_quote(*a, **kw):
-    return _normalize_convert_response(_old_accept_quote(*a, **kw))
-import logging as _lg
-_log = _lg.getLogger(__name__)
-
-_old_accept_quote_dbg = accept_quote
-def accept_quote(*a, **kw):
-    try:
-        resp = _old_accept_quote_dbg(*a, **kw)
-        if isinstance(resp, dict) and not resp.get("orderId"):
-            _log.warning("accept_quote: no orderId in response: %s", resp)
-        return resp
-    except Exception as e:
-        _log.exception("accept_quote failed: %r", e)
-        raise
-# === Helper: try multiple walletType to obtain quoteId (per Binance Convert docs) ===
-def get_quote_with_id_try_wallets(
-    from_asset, to_asset, *,
-    from_amount=None, to_amount=None,
-    wallets=((None,'SPOT','FUNDING','EARN','SPOT_FUNDING','FUNDING_EARN','SPOT_FUNDING_EARN','SPOT_EARN')),
-    validTime="10s", recvWindow=None, **kw
-):
-    """
-    Повертає першу відповідь, у якій є quoteId. Якщо ніде не вистачає коштів —
-    повертає останню відповідь (для діагностики).
-    """
-    last = None
-    for w in wallets:
-        try:
-            resp = get_quote_with_id(
-                from_asset, to_asset,
-                from_amount=from_amount, to_amount=to_amount,
-                walletType=w, validTime=validTime, recvWindow=recvWindow, **kw
-            )
-        except Exception as e:
-            last = {"walletType": w, "error": str(e)}
-            continue
-        if isinstance(resp, dict) and resp.get("quoteId"):
-            resp["walletType"] = w
-            return resp
-        last = resp if resp else {"walletType": w}
-    return last
-
-
-
 # === Convert: exchange info helpers ===
 def get_convert_pairs():
     """
