@@ -24,6 +24,10 @@ import exchange_filters
 
 def setup_env(monkeypatch):
     monkeypatch.setattr("config_dev3.DEV3_PAPER_MODE", True)
+    monkeypatch.setattr(convert_cycle, "check_risk", lambda: (0, 0))
+    monkeypatch.setattr(convert_cycle, "get_mid_price", lambda *a, **k: 1.0)
+    monkeypatch.setattr(convert_cycle, "log_cycle_summary", lambda: None)
+    monkeypatch.setattr(convert_cycle, "set_cycle_limit", lambda limit: None)
 
 
 def test_filters_rounding_and_min_notional(monkeypatch):
@@ -60,7 +64,7 @@ def test_filters_rounding_and_min_notional(monkeypatch):
 
     calls = {"get_quote": 0, "amounts": []}
 
-    def fake_get_quote(frm, to, amt):
+    def fake_get_quote(frm, to, amt, **kwargs):
         calls["get_quote"] += 1
         calls["amounts"].append(amt)
         return {

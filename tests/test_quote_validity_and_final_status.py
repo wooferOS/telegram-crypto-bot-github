@@ -25,6 +25,10 @@ import convert_api
 def setup_env(monkeypatch):
     monkeypatch.setattr("config_dev3.DEV3_PAPER_MODE", True)
     monkeypatch.setattr(convert_cycle.config_dev3, "DEV3_PAPER_MODE", True)
+    monkeypatch.setattr(convert_cycle, "check_risk", lambda: (0, 0))
+    monkeypatch.setattr(convert_cycle, "get_mid_price", lambda *a, **k: 1.0)
+    monkeypatch.setattr(convert_cycle, "log_cycle_summary", lambda: None)
+    monkeypatch.setattr(convert_cycle, "set_cycle_limit", lambda limit: None)
 
 
 def test_expired_quote_skipped(monkeypatch):
@@ -57,6 +61,7 @@ def test_expired_quote_skipped(monkeypatch):
 
 
 def test_only_success_recorded(monkeypatch):
+    setup_env(monkeypatch)
     monkeypatch.setattr("config_dev3.DEV3_PAPER_MODE", False)
     monkeypatch.setattr(convert_cycle.config_dev3, "DEV3_PAPER_MODE", False)
     monkeypatch.setattr(convert_cycle, "reset_cycle", lambda: None)

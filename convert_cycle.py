@@ -12,7 +12,16 @@ from convert_filters import filter_top_tokens
 from exchange_filters import load_symbol_filters, get_last_price_usdt
 from convert_notifier import send_telegram
 import config_dev3
-from quote_counter import can_request_quote, should_throttle, reset_cycle
+from quote_counter import (
+    can_request_quote,
+    should_throttle,
+    reset_cycle,
+    log_cycle_summary,
+    set_cycle_limit,
+)
+from market_data import get_mid_price
+from risk_off import check_risk
+import time
 
 
 # Allow executing quotes with low score for model training
@@ -31,6 +40,22 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
     skipped_pairs: List[Tuple[str, float, str]] = []  # (token, score, reason)
 
     reset_cycle()
+    risk_level, drawdown = check_risk()
+    valid_time = "30s"
+    if risk_level >= 2:
+        logger.warning(
+            "[dev3] 🛑 Risk-off: drawdown %.1f%% — пауза", drawdown * 100
+        )
+        log_cycle_summary()
+        return False
+    if risk_level == 1:
+        set_cycle_limit(5)
+        valid_time = "10s"
+        logger.warning(
+            "[dev3] ⚠️ Risk-off: drawdown %.1f%% — зменшення активності",
+            drawdown * 100,
+        )
+        time.sleep(5)
 
     step_size, min_notional = load_symbol_filters(from_token, "USDT")  # uses convert assetInfo/exchangeInfo
     if step_size is None and min_notional is None:
@@ -106,7 +131,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
 
             return False
 
-        quote = get_quote(from_token, to_token, amt)
+        quote = get_quote(from_token, to_token, amt, validTime=valid_time)
 
         if should_throttle(from_token, to_token, quote):
             break
@@ -118,7 +143,16 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             skipped_pairs.append((to_token, 0.0, "ratio_unavailable"))
             continue
 
-        score = float(quote.get("score", 0))
+        mid = get_mid_price(from_token, to_token)
+        ratio = float(quote.get("ratio", 0))
+        edge = 0.0
+        if mid and mid > 0:
+            edge = (ratio - mid) / mid
+            if abs(edge) > 0.5:
+                edge = 0.0
+        quote["score"] = edge
+        quote["edge"] = edge
+        score = edge
         quotes_map[to_token] = quote
         scores[to_token] = score
         all_tokens[to_token] = {"score": score, "quote": quote}
@@ -330,7 +364,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 False,
                 None,
                 mode,
-                quote.get("score"),
+                quote.get("edge"),
                 None,
                 step_str,
                 min_str,
@@ -339,5 +373,6 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 None,
             )
 
+    log_cycle_summary()
     logger.info("[dev3] ✅ Цикл завершено")
     return any_accepted

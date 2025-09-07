@@ -30,7 +30,7 @@ from config_dev3 import (
 )
 
 from utils_dev3 import get_current_timestamp
-from quote_counter import increment_quote_usage
+from quote_counter import increment_quote_usage, record_weight
 
 
 # Convert endpoints always live under the main API domain; use fixed defaults
@@ -198,6 +198,7 @@ def exchange_info(**params: Any) -> Dict[str, Any]:
         if _exchange_info_cache and now - _exchange_info_time < PAIRS_TTL:
             return _exchange_info_cache
 
+    record_weight("exchangeInfo")
     data = _request("GET", "/sapi/v1/convert/exchangeInfo", params, signed=False)
 
     if not params:
@@ -209,6 +210,7 @@ def exchange_info(**params: Any) -> Dict[str, Any]:
 def asset_info(asset: str) -> Dict[str, Any]:
     """Return precision and limits for a single asset via Convert ``assetInfo``."""
 
+    record_weight("assetInfo")
     data = _request(
         "GET", "/sapi/v1/convert/assetInfo", {"asset": asset}, signed=False
     )
@@ -304,6 +306,7 @@ def accept_quote(quote_id: str, walletType: Optional[str] = None) -> Dict[str, A
         logger.info("[dev3] Duplicate acceptQuote ignored for %s", quote_id)
         return {"duplicate": True, "quoteId": quote_id}
     _accepted_quotes.add(quote_id)
+    record_weight("acceptQuote")
     params = {"quoteId": quote_id, "recvWindow": DEFAULT_RECV_WINDOW}
     if walletType:
         params["walletType"] = walletType
@@ -316,6 +319,7 @@ def get_order_status(orderId: Optional[str] = None, quoteId: Optional[str] = Non
     if (orderId is None) == (quoteId is None):
         raise ValueError("Provide exactly one of orderId or quoteId")
 
+    record_weight("orderStatus")
     params = {"orderId": orderId} if orderId is not None else {"quoteId": quoteId}
     params["recvWindow"] = DEFAULT_RECV_WINDOW
     return _request("GET", "/sapi/v1/convert/orderStatus", params)
@@ -348,6 +352,7 @@ def trade_flow(
         params["limit"] = limit
     if cursor is not None:
         params["cursor"] = cursor
+    record_weight("tradeFlow")
     data = _request("GET", "/sapi/v1/convert/tradeFlow", params)
     return {"list": data.get("list", []), "cursor": data.get("cursor")}
 
