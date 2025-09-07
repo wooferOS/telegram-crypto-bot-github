@@ -1,12 +1,12 @@
-import os
 import glob
 import subprocess
 
+import os
 from convert_api import get_balances, get_available_to_tokens
 from convert_cycle import process_pair
 from convert_logger import logger
 from trade_history_sync import sync_recent_trades
-from config_dev3 import CONVERT_SCORE_THRESHOLD
+from config_dev3 import CONVERT_SCORE_THRESHOLD, DEV3_REGION_TIMER
 from quote_counter import can_request_quote
 from top_tokens_utils import read_for_region
 
@@ -49,7 +49,7 @@ def main() -> None:
     cleanup()
     sync_recent_trades()
     logger.info("[dev3] 🔄 Запуск convert трейдингу")
-    region = os.environ.get("REGION", "ASIA")
+    region = DEV3_REGION_TIMER
     # ensure top tokens file exists for region
     try:
         read_for_region(region)

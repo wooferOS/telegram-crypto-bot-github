@@ -1,7 +1,9 @@
 import logging
-import os
 import json
+import os
 from datetime import datetime
+
+import config_dev3
 
 LOG_FILE = os.path.join("logs", "convert_trade.log")
 DEBUG_LOG_FILE = os.path.join("logs", "convert_debug.log")
@@ -125,9 +127,9 @@ def log_conversion_result(
     """Log conversion result to history using the new unified schema."""
 
     if mode is None:
-        mode = "paper" if os.getenv("PAPER", "0") == "1" or os.getenv("ENABLE_LIVE", "0") != "1" else "live"
+        mode = "paper" if config_dev3.DEV3_PAPER_MODE else "live"
     if region is None:
-        region = os.getenv("REGION", "UNKNOWN")
+        region = config_dev3.DEV3_REGION_TIMER
 
     status = order_status.get("orderStatus") if isinstance(order_status, dict) else None
 

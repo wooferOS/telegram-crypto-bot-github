@@ -2,7 +2,7 @@
 
 ## 1. Summary
 
-DEV3 relies on Binance Convert endpoints for execution. Market data for analytics is pulled from public Spot REST URLs under `data-api.binance.vision`. Secrets are expected only in `config_dev3.py`. The implementation signs all Convert requests and checks quote validity before execution. However, environment variables (`os.getenv`) are used for runtime toggles, contrary to the requirement of avoiding `os.getenv` entirely. Dedicated risk-off logic tied to drawdown and market data was not found.
+DEV3 relies on Binance Convert endpoints for execution. Market data for analytics is pulled from public Spot REST URLs under `data-api.binance.vision`. Secrets are expected only in `config_dev3.py`. The implementation signs all Convert requests and checks quote validity before acceptance, supporting `validTime` enum (`10s`, `30s`, `1m`, default `10s`). However, environment variables (`os.getenv`) are used for runtime toggles, contrary to the requirement of avoiding `os.getenv` entirely. Dedicated risk-off logic tied to drawdown and market data was not found.
 
 ## 2. API Surface Map
 
@@ -14,11 +14,17 @@ DEV3 relies on Binance Convert endpoints for execution. Market data for analytic
 | `convert_api.accept_quote` | `/sapi/v1/convert/acceptQuote` | POST | `quoteId`, `walletType?`, `recvWindow`, `timestamp`, `signature` | 500/UID | [Accept Quote][3] | Pass |
 | `convert_api.get_order_status` | `/sapi/v1/convert/orderStatus` | GET | `orderId`/`quoteId`, `recvWindow`, `timestamp`, `signature` | 100/UID | [Order Status][4] | Pass |
 | `convert_api.trade_flow` | `/sapi/v1/convert/tradeFlow` | GET | `startTime`, `endTime`, `cursor?`, `limit?`, `recvWindow`, `timestamp`, `signature` | 3000/UID | [Get Convert Trade History][5] | Pass |
-| `convert_api.get_balances` | `/sapi/v3/asset/getUserAsset` | GET | `needBtcValuation` | n/a | [General API][12] | Pass |
-| `binance_api.get_historical_prices` | `/api/v3/klines` (Market Data URL) | GET | `symbol`, `interval`, `limit` | 1 | [Market Data endpoints][2] | Pass |
+| `convert_api.get_balances` | `/sapi/v3/asset/getUserAsset` | POST | `needBtcValuation` | 5/IP | [User Asset][12] | Pass |
+| `binance_api.get_historical_prices` | `/api/v3/klines` (Market Data URL) | GET | `symbol`, `interval`, `limit` | 2 | [Market Data endpoints][2] | Pass |
 | `exchange_filters.get_last_price_usdt` | `/api/v3/ticker/price` (Market Data URL) | GET | `symbol` | 1 | [Market Data endpoints][2] | Pass |
 
-*Weights per Binance documentation.
+### Convert Weights (per docs)
+`getQuote` 200(UID), `acceptQuote` 500(UID), `orderStatus` 100(UID), `tradeFlow` 3000(UID), `exchangeInfo` 3000(IP), `assetInfo` 100(IP).
+
+*Weights per Binance documentation.*
+
+### Timing Security
+`timestamp` + `recvWindow` (default 5000, max 60000). Retry on `-1021` with time sync per [Request Security][8].
 
 ## 3. Execution Flow
 
@@ -55,15 +61,17 @@ Quote requests increment daily and per‑cycle counters in `quote_counter` (`QUO
 
 ## 9. Secrets & Config
 
-The project expects secrets only in `config_dev3.py` as documented【F:README.md†L7-L14】; sample file `config_dev3.example.py` exists but no real credentials are committed. Searches reveal uses of `os.getenv` for runtime flags (e.g., PAPER mode)【F:convert_cycle.py†L55-L57】, violating the requirement to avoid `os.getenv` entirely.
+The project expects secrets only in `config_dev3.py` as documented【F:README.md†L7-L14】. Searches reveal uses of `os.getenv` for runtime flags (e.g., PAPER mode)【F:convert_cycle.py†L55-L57】, violating the requirement to avoid `os.getenv` entirely.
 
 No `.env` files were found in the repository (`find . -name '*.env'`).
 
 ## 10. Gaps
 
-- `os.getenv` usage persists across multiple modules, conflicting with the “no os.getenv” requirement.
-- Dedicated risk‑off logic (>10% drawdown adjustments) and scoring components (`avgPrice`, `bookTicker`) are absent.
-- Environment variable based mode toggling could leak configuration outside `config_dev3.py`.
+Gaps:
+- No explicit risk-off for >10% drawdown (must use public Spot Market Data).
+- No mid-price (`avgPrice`/`bookTicker`) in scoring model; required by DEV3 logic.
+- `os.getenv` usage contradicts single-source `config_dev3.py`.
+- Ensure analytics via `data-api.binance.vision`; no Spot trading endpoints present.
 
 ## 11. Appendix
 
