@@ -1,0 +1,11 @@
+[Unit]
+Description=Schedule balance guard check
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Unit=balance_guard.service
+Persistent=true
+
+[Install]
+WantedBy=timers.target

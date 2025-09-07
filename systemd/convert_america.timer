@@ -1,0 +1,10 @@
+[Unit]
+Description=Schedule convert trade cycle (america session)
+
+[Timer]
+OnCalendar=*-*-* 17:15
+Persistent=true
+Unit=convert_america.service
+
+[Install]
+WantedBy=timers.target

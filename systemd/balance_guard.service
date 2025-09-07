@@ -1,0 +1,13 @@
+[Unit]
+Description=Run balance guard
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/crypto-bot
+ExecStart=/usr/bin/python3 /opt/crypto-bot/balance_guard.py
+Restart=no
+ExecStopPost=/bin/sleep 1
+
+[Install]
+WantedBy=multi-user.target
