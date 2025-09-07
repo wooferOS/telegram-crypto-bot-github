@@ -13,15 +13,18 @@
 | `convert_api.get_balances` | `/sapi/v3/asset/getUserAsset` | POST | `needBtcValuation`, `recvWindow`, `timestamp`, `signature` | 5 IP | [User Asset][4] | PASS |
 | `market_data.get_mid_price` | `/api/v3/ticker/bookTicker`, `/api/v3/avgPrice` | GET | `symbol` | 2 | [Market Data endpoints][9] | PASS |
 | `binance_api.get_historical_prices` | `/api/v3/klines` | GET | `symbol`, `interval`, `limit` | 2 | [Market Data endpoints][9] | PASS |
-| `exchange_filters.get_last_price_usdt` | `/api/v3/ticker/price` | GET | `symbol` | 1 | [Market Data endpoints][9] | PASS |
+| `exchange_filters.get_last_price_usdt` | `/api/v3/ticker/price` | GET | `symbol` | 2 (1 символ) / 4 (без symbol або з symbols) | [Market Data endpoints → Symbol price ticker][9] | PASS |
 | `risk_off._price_usdt` | `/api/v3/avgPrice`, `/api/v3/ticker/24hr` | GET | `symbol` | 2 | [Market Data endpoints][9] | PASS |
 
 ## 2) Execution Flow
 1. Отримання меж і дробності через `exchange_info` та `asset_info`【F:exchange_filters.py†L10-L45】 – PASS  
 2. Округлення суми вниз до `fraction` й перевірка Min/Max **до** запиту `getQuote`【F:convert_cycle.py†L60-L112】 – PASS  
 3. `getQuote` з параметром `validTime` повертає `quoteId` та `validTimestamp`【F:convert_api.py†L236-L267】 – PASS  
-4. Перед `acceptQuote` перевіряється `validTimestamp` і за потреби оновлюється quote【F:convert_cycle.py†L254-L280】 – PASS  
-5. Після `acceptQuote` викликається `orderStatus`; історія синхронізується через `tradeFlow`【F:convert_cycle.py†L282-L318】【F:trade_history_sync.py†L18-L32】 – PASS  
+4. Перед `acceptQuote` перевіряється `validTimestamp` і за потреби оновлюється quote【F:convert_cycle.py†L254-L280】 – PASS
+5. Після `acceptQuote` викликається `orderStatus`; історія синхронізується через `tradeFlow`【F:convert_cycle.py†L282-L318】【F:trade_history_sync.py†L18-L32】 – PASS
+
+Максимальний інтервал між `startTime` і `endTime` — 30 днів[13].
+
 6. Цикл повторюється, поки ліміт ваги/лічильника не вичерпано【F:convert_cycle.py†L82-L117】【F:quote_counter.py†L15-L26】 – PASS
 
 ## 3) Market-Data Analytics
@@ -29,12 +32,15 @@
 * `bookTicker` та `avgPrice` для mid‑price【F:market_data.py†L20-L41】 – PASS  
 * `klines` для історичних даних【F:binance_api.py†L46-L75】 – PASS  
 * `ticker/price` для останньої ціни【F:exchange_filters.py†L51-L66】 – PASS  
-* `ticker/24hr` у risk‑off оцінці портфеля【F:risk_off.py†L32-L47】 – PASS  
+* `ticker/24hr` у risk‑off оцінці портфеля【F:risk_off.py†L32-L47】 – PASS
+**Примітка:** Для API, що повертають лише публічні дані, базова адреса має бути `https://data-api.binance.vision` (без API-ключа)[12].
 Пошук інших Spot‑ендпойнтів не дав результатів【98a565†L1-L2】.
 
 ## 4) Security (SIGNED/Timing)
-* `timestamp` та `recvWindow` (дефолт 5000) додаються перед підписом HMAC‑SHA256【F:convert_api.py†L86-L102】 – PASS  
+* `timestamp` та `recvWindow` (дефолт 5000) додаються перед підписом HMAC‑SHA256【F:convert_api.py†L86-L102】 – PASS
 * `_request` обробляє код `-1021` із повторним синком часу【F:convert_api.py†L118-L156】 – PASS
+
+Для всіх **SIGNED** запитів використовується параметр `timestamp` і опційний `recvWindow`. Якщо `recvWindow` не передано — дефолт 5000 мс; максимум 60000 мс[11].
 
 ## 5) Rounding & Limits
 * `assetInfo` надає `fraction`, `exchangeInfo` – `fromAssetMinAmount`; обидва застосовуються перед цитуванням【F:exchange_filters.py†L10-L45】【F:convert_cycle.py†L60-L112】 – PASS
@@ -62,6 +68,13 @@
 ## 11) Gaps & Recommendations
 INFO: Виявлених невідповідностей не знайдено; код відповідає вимогам Binance та внутрішній логіці DEV3.
 
+**Doc errata (Binance references):**
+
+* `/api/v3/ticker/price` — **2** (із `symbol`) / **4** (без `symbol` або з `symbols`). Джерело: *Market Data endpoints → Symbol price ticker*. ([Binance Developers][10])
+* `recvWindow` — **дефолт 5000 мс**, **макс 60000 мс** для SIGNED. Джерело: *Request Security*. ([Binance Developers][11])
+* Публічні ендпойнти — використовувати **`https://data-api.binance.vision`**. Джерела: *General API Information*; *Market Data Only*. ([Binance Developers][12])
+* `tradeFlow` — інтервал **≤ 30 днів**. Джерело: *Get Convert Trade History*. ([Binance Developers][13])
+
 ---
 [1]: https://developers.binance.com/docs/convert/trade?utm_source=chatgpt.com
 [2]: https://developers.binance.com/docs/binance-spot-api-docs/rest-api?utm_source=chatgpt.com
@@ -72,3 +85,7 @@ INFO: Виявлених невідповідностей не знайдено;
 [7]: https://developers.binance.com/docs/convert/trade/Get-Convert-Trade-History?utm_source=chatgpt.com
 [8]: https://developers.binance.com/docs/convert/market-data/Query-order-quantity-precision-per-asset?utm_source=chatgpt.com
 [9]: https://developers.binance.com/docs/binance-spot-api-docs/rest-api/market-data-endpoints?utm_source=chatgpt.com
+[10]: https://developers.binance.com/docs/binance-spot-api-docs/rest-api/market-data-endpoints?utm_source=chatgpt.com
+[11]: https://developers.binance.com/docs/binance-spot-api-docs/rest-api/request-security?utm_source=chatgpt.com
+[12]: https://developers.binance.com/docs/binance-spot-api-docs/rest-api?utm_source=chatgpt.com
+[13]: https://developers.binance.com/docs/convert/trade/Get-Convert-Trade-History?utm_source=chatgpt.com
