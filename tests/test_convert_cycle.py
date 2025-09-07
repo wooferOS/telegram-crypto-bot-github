@@ -5,7 +5,16 @@ import types
 
 sys.path.insert(0, os.getcwd())
 
-sys.modules.setdefault('config_dev3', types.SimpleNamespace(TELEGRAM_CHAT_ID='', TELEGRAM_TOKEN=''))
+sys.modules.setdefault(
+    'config_dev3',
+    types.SimpleNamespace(
+        BINANCE_API_KEY='k',
+        BINANCE_API_SECRET='s',
+        OPENAI_API_KEY='',
+        TELEGRAM_TOKEN='',
+        CHAT_ID='',
+    ),
+)
 import convert_cycle
 import convert_api
 

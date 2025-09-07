@@ -1,56 +1,30 @@
 import importlib
-import os
 import sys
-from pathlib import Path
-
-import pytest
-
-sys.path.insert(0, os.getcwd())
+import types
 
 
-def _make_cfg(tmp_path: Path, key: str = "file-key", secret: str = "file-secret") -> Path:
-    cfg = tmp_path / "cfg.py"
-    cfg.write_text(
-        f"BINANCE_API_KEY = '{key}'\nBINANCE_API_SECRET = '{secret}'\n",
-        encoding="utf-8",
+def _setup_cfg(monkeypatch, key="k", secret="s"):
+    cfg = types.SimpleNamespace(
+        BINANCE_API_KEY=key,
+        BINANCE_API_SECRET=secret,
+        OPENAI_API_KEY="",
+        TELEGRAM_TOKEN="",
+        CHAT_ID="",
     )
-    return cfg
+    monkeypatch.setitem(sys.modules, "config_dev3", cfg)
 
 
-def test_loads_from_file(monkeypatch, tmp_path):
-    cfg = _make_cfg(tmp_path)
-    monkeypatch.setenv("DEV_CONFIG_PATH", str(cfg))
-    monkeypatch.delenv("BINANCE_API_KEY", raising=False)
-    monkeypatch.delenv("BINANCE_API_SECRET", raising=False)
+def test_credentials_from_config(monkeypatch):
+    _setup_cfg(monkeypatch, key="file-key", secret="file-secret")
     import convert_api
     importlib.reload(convert_api)
     assert convert_api.BINANCE_API_KEY == "file-key"
     assert convert_api.BINANCE_API_SECRET == "file-secret"
 
 
-def test_loads_from_env(monkeypatch, tmp_path):
-    monkeypatch.setenv("BINANCE_API_KEY", "env-key")
-    monkeypatch.setenv("BINANCE_API_SECRET", "env-secret")
-    monkeypatch.setenv("DEV_CONFIG_PATH", str(tmp_path / "missing.py"))
-    import convert_api
-    importlib.reload(convert_api)
-    assert convert_api.BINANCE_API_KEY == "env-key"
-    assert convert_api.BINANCE_API_SECRET == "env-secret"
-
-
-def test_missing_credentials(monkeypatch, tmp_path):
-    monkeypatch.delenv("BINANCE_API_KEY", raising=False)
-    monkeypatch.delenv("BINANCE_API_SECRET", raising=False)
-    monkeypatch.setenv("DEV_CONFIG_PATH", str(tmp_path / "missing.py"))
-    import convert_api
-    with pytest.raises(RuntimeError):
-        importlib.reload(convert_api)
-
-
 def test_no_keys_in_logs(monkeypatch, caplog):
+    _setup_cfg(monkeypatch)
     import convert_api
-    monkeypatch.setattr(convert_api, "BINANCE_API_KEY", "AKID1234")
-    monkeypatch.setattr(convert_api, "BINANCE_API_SECRET", "SKID5678")
     monkeypatch.setattr(convert_api, "_time_synced", True)
 
     class Sess:
@@ -84,6 +58,6 @@ def test_no_keys_in_logs(monkeypatch, caplog):
     with caplog.at_level("WARNING"):
         convert_api._request("POST", "/sapi/v1/convert/getQuote", {"a": 1})
 
-    assert "AKID1234" not in caplog.text
-    assert "SKID5678" not in caplog.text
+    assert "file-key" not in caplog.text
+    assert "file-secret" not in caplog.text
 

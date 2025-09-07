@@ -3,10 +3,15 @@ import sys
 import os
 import types
 
-os.environ.setdefault("BINANCE_API_KEY", "k")
-os.environ.setdefault("BINANCE_API_SECRET", "s")
 sys.modules.setdefault(
-    "config_dev3", types.SimpleNamespace(TELEGRAM_CHAT_ID="", TELEGRAM_TOKEN="")
+    "config_dev3",
+    types.SimpleNamespace(
+        BINANCE_API_KEY="k",
+        BINANCE_API_SECRET="s",
+        OPENAI_API_KEY="",
+        TELEGRAM_TOKEN="",
+        CHAT_ID="",
+    ),
 )
 
 sys.path.insert(0, os.getcwd())
