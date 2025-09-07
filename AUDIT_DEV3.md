@@ -53,11 +53,11 @@ Convert requests add `recvWindow`, `timestamp`, and HMAC‑SHA256 signatures via
 
 ## 7. Weight Budget & Anti‑spam
 
-Quote requests increment daily and per‑cycle counters in `quote_counter` (`QUOTE_LIMIT=950`, `MAX_PER_CYCLE=20`) and throttle when limits are hit【F:quote_counter.py†L9-L107】.
+Quote requests increment daily and per‑cycle counters in `quote_counter` (`QUOTE_LIMIT=950`, `MAX_PER_CYCLE` adjustable). Official weights are encoded for Convert and Market Data endpoints (`getQuote` 200, `acceptQuote` 500, `orderStatus` 100, `avgPrice`/`bookTicker` 2, etc.), tracking total weight per cycle and logging summaries【F:quote_counter.py†L1-L107】【F:convert_cycle.py†L358-L373】.
 
 ## 8. Risk‑off & Logging
 
-`convert_logger.log_conversion_result` records quote ID, ratio, validUntil, acceptance status, latency placeholders, edge score and counters【F:convert_logger.py†L110-L170】. `convert_notifier.flush_failures` aggregates per‑cycle Telegram notifications into a single message【F:convert_notifier.py†L13-L33】. Explicit risk‑off behaviour for >10% drawdown tied to market data was not detected.
+`convert_logger.log_conversion_result` records quote ID, ratio, validUntil, acceptance status, latency placeholders, edge score and counters【F:convert_logger.py†L110-L170】. `convert_notifier.flush_failures` aggregates per‑cycle Telegram notifications into a single message【F:convert_notifier.py†L13-L33】. `risk_off.check_risk` evaluates portfolio drawdown via public market data and lowers cycle limits or pauses trading when drawdown exceeds thresholds【F:risk_off.py†L1-L74】【F:convert_cycle.py†L33-L51】.
 
 ## 9. Secrets & Config
 
@@ -68,8 +68,6 @@ No `.env` files were found in the repository (`find . -name '*.env'`).
 ## 10. Gaps
 
 Gaps:
-- No explicit risk-off for >10% drawdown (must use public Spot Market Data).
-- No mid-price (`avgPrice`/`bookTicker`) in scoring model; required by DEV3 logic.
 - `os.getenv` usage contradicts single-source `config_dev3.py`.
 - Ensure analytics via `data-api.binance.vision`; no Spot trading endpoints present.
 

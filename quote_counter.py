@@ -9,9 +9,26 @@ from convert_logger import logger
 
 QUOTE_COUNT_FILE = os.path.join("logs", "quote_count.json")
 QUOTE_LIMIT = 950
-MAX_PER_CYCLE = 20
+DEFAULT_MAX_PER_CYCLE = 20
+MAX_WEIGHT_PER_CYCLE = 10_000
+
+WEIGHTS = {
+    "getQuote": 200,
+    "acceptQuote": 500,
+    "orderStatus": 100,
+    "tradeFlow": 3000,
+    "exchangeInfo": 3000,
+    "assetInfo": 100,
+    "avgPrice": 2,
+    "bookTicker": 2,
+    "ticker24hr": 2,
+    "klines": 2,
+}
 
 _cycle_count = 0
+_cycle_weight = 0
+_cycle_breakdown: dict[str, int] = {}
+_max_per_cycle = DEFAULT_MAX_PER_CYCLE
 
 
 def _load() -> dict:
@@ -62,14 +79,32 @@ def record_cycle_request() -> None:
 
 
 def reset_cycle() -> None:
-    """Reset per-cycle counter (should be called at the start of a cycle)."""
-    global _cycle_count
+    """Reset per-cycle counters (should be called at the start of a cycle)."""
+    global _cycle_count, _cycle_weight, _cycle_breakdown, _max_per_cycle
     _cycle_count = 0
+    _cycle_weight = 0
+    _cycle_breakdown = {}
+    _max_per_cycle = DEFAULT_MAX_PER_CYCLE
+
+
+def set_cycle_limit(limit: int) -> None:
+    """Override max per cycle (risk control)."""
+    global _max_per_cycle
+    _max_per_cycle = max(1, int(limit))
+
+
+def record_weight(endpoint: str) -> None:
+    """Record weight usage for a given endpoint."""
+    global _cycle_weight, _cycle_breakdown
+    w = WEIGHTS.get(endpoint, 1)
+    _cycle_weight += w
+    _cycle_breakdown[endpoint] = _cycle_breakdown.get(endpoint, 0) + w
 
 
 def increment_quote_usage() -> int:
     """Increment counter alias for clarity."""
     record_cycle_request()
+    record_weight("getQuote")
     return increment()
 
 
@@ -82,7 +117,7 @@ def can_request_quote() -> bool:
 
 def should_throttle(from_token: str = "", to_token: str = "", response: dict | None = None) -> bool:
     """Return True if quote requests should be throttled."""
-    global _cycle_count
+    global _cycle_count, _cycle_weight
 
     if response and isinstance(response, dict) and response.get("code") == 345239:
         logger.warning(
@@ -98,10 +133,19 @@ def should_throttle(from_token: str = "", to_token: str = "", response: dict | N
         )
         return True
 
-    if _cycle_count >= MAX_PER_CYCLE:
+    if _cycle_count >= _max_per_cycle:
         logger.warning(
             "[dev3] ⏸️ Ліміт %s quote за цикл перевищено — пропуск %s → %s",
-            MAX_PER_CYCLE,
+            _max_per_cycle,
+            from_token,
+            to_token,
+        )
+        return True
+
+    if _cycle_weight + WEIGHTS.get("getQuote", 0) > MAX_WEIGHT_PER_CYCLE:
+        logger.warning(
+            "[dev3] ⏸️ Ліміт ваги %s перевищено — пропуск %s → %s",
+            MAX_WEIGHT_PER_CYCLE,
             from_token,
             to_token,
         )
@@ -119,3 +163,21 @@ def seconds_until_reset() -> float:
 def wait_until_reset() -> None:
     time.sleep(seconds_until_reset())
     _save({"date": _today(), "count": 0})
+
+
+def get_cycle_usage() -> dict:
+    return {
+        "count": _cycle_count,
+        "weight": _cycle_weight,
+        "breakdown": dict(_cycle_breakdown),
+    }
+
+
+def log_cycle_summary() -> None:
+    usage = get_cycle_usage()
+    logger.info(
+        "[dev3] 🔢 Лічильники за цикл: запити=%s вага=%s деталізація=%s",
+        usage["count"],
+        usage["weight"],
+        usage["breakdown"],
+    )
