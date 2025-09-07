@@ -19,8 +19,8 @@ from quote_counter import (
     log_cycle_summary,
     set_cycle_limit,
 )
-from market_data import get_mid_price
 from risk_off import check_risk
+import scoring
 import time
 
 
@@ -143,16 +143,19 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             skipped_pairs.append((to_token, 0.0, "ratio_unavailable"))
             continue
 
-        mid = get_mid_price(from_token, to_token)
         ratio = float(quote.get("ratio", 0))
-        edge = 0.0
-        if mid and mid > 0:
-            edge = (ratio - mid) / mid
-            if abs(edge) > 0.5:
-                edge = 0.0
-        quote["score"] = edge
+        res = scoring.score_pair(from_token, to_token, ratio)
+        if res:
+            edge = res.get("edge", 0.0)
+            score = res.get("score", 0.0)
+        else:
+            edge = 0.0
+            score = 0.0
+        if abs(edge) > 0.5:
+            edge = 0.0
+            score = 0.0
+        quote["score"] = score
         quote["edge"] = edge
-        score = edge
         quotes_map[to_token] = quote
         scores[to_token] = score
         all_tokens[to_token] = {"score": score, "quote": quote}

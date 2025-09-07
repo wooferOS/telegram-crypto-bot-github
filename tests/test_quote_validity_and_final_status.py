@@ -26,7 +26,11 @@ def setup_env(monkeypatch):
     monkeypatch.setattr("config_dev3.DEV3_PAPER_MODE", True)
     monkeypatch.setattr(convert_cycle.config_dev3, "DEV3_PAPER_MODE", True)
     monkeypatch.setattr(convert_cycle, "check_risk", lambda: (0, 0))
-    monkeypatch.setattr(convert_cycle, "get_mid_price", lambda *a, **k: 1.0)
+    monkeypatch.setattr(
+        convert_cycle,
+        "scoring",
+        types.SimpleNamespace(score_pair=lambda f, t, r: {"edge": 0.0, "score": r}),
+    )
     monkeypatch.setattr(convert_cycle, "log_cycle_summary", lambda: None)
     monkeypatch.setattr(convert_cycle, "set_cycle_limit", lambda limit: None)
 

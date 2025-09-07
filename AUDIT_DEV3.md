@@ -11,7 +11,11 @@
 | `convert_api.exchange_info` | `/sapi/v1/convert/exchangeInfo` | GET | `fromAsset?` | 3000 IP | [Convert Market Data][3] | PASS |
 | `convert_api.asset_info` | `/sapi/v1/convert/assetInfo` | GET | `asset` | 100 IP | [Asset Precision][8] | PASS |
 | `convert_api.get_balances` | `/sapi/v3/asset/getUserAsset` | POST | `needBtcValuation`, `recvWindow`, `timestamp`, `signature` | 5 IP | [User Asset][4] | PASS |
-| `market_data.get_mid_price` | `/api/v3/ticker/bookTicker`, `/api/v3/avgPrice` | GET | `symbol` | 2 | [Market Data endpoints][9] | PASS |
+| `md_rest.mid_price` | `/api/v3/ticker/bookTicker`, `/api/v3/avgPrice` | GET | `symbol` | 2 | [Market Data endpoints][9] | PASS |
+| `md_rest.ticker_price` | `/api/v3/ticker/price` | GET | `symbol` | 2 | [Market Data endpoints → Symbol price ticker][9] | PASS |
+| `md_rest.ticker_24hr` | `/api/v3/ticker/24hr` | GET | `symbol` | 40 | [Market Data endpoints][9] | PASS |
+| `md_rest.klines` | `/api/v3/klines` | GET | `symbol`, `interval`, `limit` | 2 | [Market Data endpoints][9] | PASS |
+| `md_ws.MarketDataWS` | `wss://data-stream.binance.vision/stream` | WS | `streams` | – | [WebSocket Streams][14] | PASS |
 | `binance_api.get_historical_prices` | `/api/v3/klines` | GET | `symbol`, `interval`, `limit` | 2 | [Market Data endpoints][9] | PASS |
 | `exchange_filters.get_last_price_usdt` | `/api/v3/ticker/price` | GET | `symbol` | 2 (1 символ) / 4 (без symbol або з symbols) | [Market Data endpoints → Symbol price ticker][9] | PASS |
 | `risk_off._price_usdt` | `/api/v3/avgPrice`, `/api/v3/ticker/24hr` | GET | `symbol` | 2 | [Market Data endpoints][9] | PASS |
@@ -29,10 +33,10 @@
 
 ## 3) Market-Data Analytics
 Уся аналітика отримується з публічних REST на `data-api.binance.vision`:  
-* `bookTicker` та `avgPrice` для mid‑price【F:market_data.py†L20-L41】 – PASS  
-* `klines` для історичних даних【F:binance_api.py†L46-L75】 – PASS  
-* `ticker/price` для останньої ціни【F:exchange_filters.py†L51-L66】 – PASS  
-* `ticker/24hr` у risk‑off оцінці портфеля【F:risk_off.py†L32-L47】 – PASS
+* `bookTicker` та `avgPrice` для mid‑price【F:md_rest.py†L92-L116】【F:mid_ref.py†L22-L51】 – PASS
+* `klines` для історичних даних та моментуму【F:md_rest.py†L80-L87】 – PASS
+* `ticker/price` для останньої ціни【F:md_rest.py†L52-L57】 – PASS
+* `ticker/24hr` у risk‑off оцінці портфеля та ліквідності【F:md_rest.py†L71-L75】【F:risk_off.py†L32-L47】 – PASS
 **Примітка:** Для API, що повертають лише публічні дані, базова адреса має бути `https://data-api.binance.vision` (без API-ключа)[12].
 Пошук інших Spot‑ендпойнтів не дав результатів【98a565†L1-L2】.
 
@@ -50,7 +54,7 @@
 * `should_throttle` блокує перевищення добового/циклового ліміту та ваги【F:quote_counter.py†L118-L123】【F:convert_cycle.py†L114-L116】 – PASS
 
 ## 7) Mid-price у скорингу
-* `get_mid_price` (bookTicker/avgPrice) використовується для розрахунку `edge`【F:convert_cycle.py†L146-L153】【F:market_data.py†L20-L41】 – PASS
+* `score_pair` використовує Spot mid для розрахунку `edge`【F:convert_cycle.py†L146-L160】【F:scoring.py†L24-L59】 – PASS
 
 ## 8) Risk-off
 * `check_risk` оцінює просідання портфеля на основі балансів і публічних цін; при >10% зменшує ліміт/validTime, при >25% – пауза【F:convert_cycle.py†L42-L58】【F:risk_off.py†L32-L78】 – PASS
@@ -89,3 +93,4 @@ INFO: Виявлених невідповідностей не знайдено;
 [11]: https://developers.binance.com/docs/binance-spot-api-docs/rest-api/request-security?utm_source=chatgpt.com
 [12]: https://developers.binance.com/docs/binance-spot-api-docs/rest-api?utm_source=chatgpt.com
 [13]: https://developers.binance.com/docs/convert/trade/Get-Convert-Trade-History?utm_source=chatgpt.com
+[14]: https://developers.binance.com/docs/binance-spot-api-docs/web-socket-streams
