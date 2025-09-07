@@ -26,6 +26,7 @@ from config_dev3 import (
     BINANCE_API_KEY,
     BINANCE_API_SECRET,
     DEV3_RECV_WINDOW_MS,
+    DEV3_RECV_WINDOW_MAX_MS,
 )
 
 from utils_dev3 import get_current_timestamp
@@ -82,16 +83,13 @@ def _sync_time() -> None:
     _time_synced = True
 
 
-def _sign(params: Dict[str, Any]) -> Dict[str, Any]:
-    """Sign parameters using HMAC-SHA256.
-
-    ``timestamp`` and default ``recvWindow`` are appended *after* existing
-    parameters so that the order of keys matches the actual payload sent to
-    Binance.
-    """
+def _build_signed_params(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Return parameters with timestamp, recvWindow clamp and signature."""
 
     params = params.copy()
-    params.setdefault("recvWindow", DEFAULT_RECV_WINDOW)
+    recv = int(params.get("recvWindow", DEV3_RECV_WINDOW_MS))
+    recv = max(1, min(recv, DEV3_RECV_WINDOW_MAX_MS))
+    params["recvWindow"] = recv
     params["timestamp"] = _current_timestamp()
     query = "&".join(f"{k}={v}" for k, v in params.items())
     signature = hmac.new(
@@ -122,7 +120,7 @@ def _request(method: str, path: str, params: Dict[str, Any], *, signed: bool = T
     if signed and not _time_synced:
         _sync_time()
     for attempt in range(1, 6):
-        payload = _sign(params) if signed else params
+        payload = _build_signed_params(params) if signed else params
         headers = _headers() if signed else None
         try:
             if method == "GET":
@@ -318,6 +316,10 @@ def trade_flow(
 
     if startTime is None or endTime is None:
         raise ValueError("startTime and endTime are required")
+
+    MAX_SPAN = 30 * 24 * 60 * 60 * 1000
+    if endTime - startTime > MAX_SPAN:
+        raise ValueError("convert/tradeFlow range must be ≤ 30 days")
 
     params: Dict[str, Any] = {
         "startTime": startTime,

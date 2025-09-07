@@ -17,6 +17,9 @@ sys.modules.setdefault(
         CHAT_ID="",
         DEV3_REGION_TIMER="ASIA",
         DEV3_RECV_WINDOW_MS=5000,
+        DEV3_RECV_WINDOW_MAX_MS=60000,
+        MARKETDATA_BASE_URL="https://data-api.binance.vision",
+        SCORING_WEIGHTS={"edge": 1.0, "liquidity": 0.1, "momentum": 0.1, "spread": 0.1, "volatility": 0.1},
     ),
 )
 
@@ -27,7 +30,7 @@ def test_sign_deterministic(monkeypatch):
     monkeypatch.setattr(convert_api, 'BINANCE_API_SECRET', 'secret')
     monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 1234567890)
     params = {'fromAsset': 'USDT', 'toAsset': 'BTC'}
-    signed = convert_api._sign(params.copy())
+    signed = convert_api._build_signed_params(params.copy())
     query = 'fromAsset=USDT&toAsset=BTC&recvWindow=5000&timestamp=1234567890'
     expected = hmac.new(b'secret', query.encode(), hashlib.sha256).hexdigest()
     assert signed['signature'] == expected
@@ -49,7 +52,7 @@ def test_get_quote_uses_form(monkeypatch):
 
     monkeypatch.setattr(convert_api, 'increment_quote_usage', lambda: None)
     monkeypatch.setattr(convert_api, '_session', type('S', (), {'post': fake_post})())
-    monkeypatch.setattr(convert_api, '_sign', lambda x: x)
+    monkeypatch.setattr(convert_api, '_build_signed_params', lambda x: x)
     convert_api.get_quote('USDT', 'BTC', 1.0)
     assert sent['params'] is None or sent['params'] == {}
     assert isinstance(sent['data'], dict)
