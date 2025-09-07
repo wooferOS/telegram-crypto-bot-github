@@ -40,7 +40,7 @@ def _price_usdt(asset: str) -> float:
             return float(r.json().get("price", 0))
     except Exception:
         pass
-    record_weight("ticker24hr")
+    record_weight("ticker/24hr")
     try:
         r = requests.get(f"{BASE_URL}/api/v3/ticker/24hr", params={"symbol": symbol}, timeout=10)
         if r.status_code == 200:

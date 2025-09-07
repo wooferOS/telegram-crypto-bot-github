@@ -51,9 +51,7 @@ def sync_recent_trades(minutes: int = 15) -> int:
             order_id=item.get('orderId'),
             error=None,
             create_time=item.get('createTime'),
-            dry_run=False,
             order_status={'orderStatus': status},
-            mode='live',
             edge=None,
         )
         added += 1

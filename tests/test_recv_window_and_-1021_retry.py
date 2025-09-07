@@ -10,7 +10,6 @@ sys.modules.setdefault(
         OPENAI_API_KEY="",
         TELEGRAM_TOKEN="",
         CHAT_ID="",
-        DEV3_PAPER_MODE=True,
         DEV3_REGION_TIMER="ASIA",
         DEV3_RECV_WINDOW_MS=5000,
     ),

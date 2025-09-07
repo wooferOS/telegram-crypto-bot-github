@@ -1,9 +1,11 @@
-import types
 import os
 import sys
 import types
 
 sys.path.insert(0, os.getcwd())
+
+import convert_api
+import convert_cycle
 
 sys.modules.setdefault(
     'config_dev3',
@@ -13,18 +15,13 @@ sys.modules.setdefault(
         OPENAI_API_KEY='',
         TELEGRAM_TOKEN='',
         CHAT_ID='',
-        DEV3_PAPER_MODE=True,
         DEV3_REGION_TIMER='ASIA',
         DEV3_RECV_WINDOW_MS=5000,
     ),
 )
-import convert_cycle
-import convert_api
 
 
 def setup_env(monkeypatch):
-    monkeypatch.setattr('config_dev3.DEV3_PAPER_MODE', True)
-    monkeypatch.setattr(convert_cycle.config_dev3, 'DEV3_PAPER_MODE', True)
     monkeypatch.setattr(convert_cycle, 'check_risk', lambda: (0, 0))
     monkeypatch.setattr(
         convert_cycle,
@@ -35,7 +32,7 @@ def setup_env(monkeypatch):
     monkeypatch.setattr(convert_cycle, 'set_cycle_limit', lambda limit: None)
 
 
-def test_accept_only_with_orderid(monkeypatch):
+def test_process_pair_success(monkeypatch):
     setup_env(monkeypatch)
     quote = {
         'quoteId': 'q1',
@@ -52,63 +49,21 @@ def test_accept_only_with_orderid(monkeypatch):
 
     records = []
 
-    def fake_log(
-        quote_data,
-        accepted,
-        order_id,
-        error,
-        create_time,
-        dry_run,
-        order_status=None,
-        mode=None,
-        edge=None,
-        region=None,
-        step_size=None,
-        min_notional=None,
-        px=None,
-        est_notional=None,
-        reason=None,
-    ):
-        records.append({'accepted': accepted, 'orderId': order_id, 'dryRun': dry_run})
+    def fake_log(quote_data, accepted, order_id, error, create_time, order_status=None, edge=None, region=None, step_size=None, min_notional=None, px=None, est_notional=None, reason=None):
+        records.append({'accepted': accepted, 'orderId': order_id})
 
     monkeypatch.setattr(convert_cycle, 'log_conversion_result', fake_log)
-
-    calls = {'accept': 0}
-
-    def fake_accept(qid):
-        calls['accept'] += 1
-        return {'dryRun': True}
-
-    monkeypatch.setattr(convert_cycle, 'accept_quote', fake_accept)
-    res = convert_cycle.process_pair('USDT', ['BTC'], 1.0, 0.0)
-    assert res is False
-    assert records[0]['accepted'] is False
-    assert records[0]['dryRun'] is True
-    assert calls['accept'] == 0
-
-    # live mode
-    records.clear()
-    calls['accept'] = 0
-    monkeypatch.setattr('config_dev3.DEV3_PAPER_MODE', False)
-    monkeypatch.setattr(convert_cycle.config_dev3, 'DEV3_PAPER_MODE', False)
-
-    def fake_accept_live(qid):
-        calls['accept'] += 1
-        return {'orderId': '1', 'createTime': 2}
-
-    monkeypatch.setattr(convert_cycle, 'accept_quote', fake_accept_live)
+    monkeypatch.setattr(convert_cycle, 'accept_quote', lambda qid: {'orderId': '1', 'createTime': 2})
     monkeypatch.setattr(convert_cycle, 'get_order_status', lambda **k: {'orderStatus': 'SUCCESS'})
+
     res = convert_cycle.process_pair('USDT', ['BTC'], 1.0, 0.0)
     assert res is True
     assert records[0]['accepted'] is True
     assert records[0]['orderId'] == '1'
-    assert calls['accept'] == 1
 
 
 def test_not_accepted_without_success(monkeypatch):
     setup_env(monkeypatch)
-    monkeypatch.setattr('config_dev3.DEV3_PAPER_MODE', False)
-    monkeypatch.setattr(convert_cycle.config_dev3, 'DEV3_PAPER_MODE', False)
     quote = {
         'quoteId': 'q2',
         'ratio': 1.0,
@@ -124,28 +79,13 @@ def test_not_accepted_without_success(monkeypatch):
 
     records = []
 
-    def fake_log(
-        quote_data,
-        accepted,
-        order_id,
-        error,
-        create_time,
-        dry_run,
-        order_status=None,
-        mode=None,
-        edge=None,
-        region=None,
-        step_size=None,
-        min_notional=None,
-        px=None,
-        est_notional=None,
-        reason=None,
-    ):
+    def fake_log(quote_data, accepted, order_id, error, create_time, order_status=None, edge=None, region=None, step_size=None, min_notional=None, px=None, est_notional=None, reason=None):
         records.append({'accepted': accepted, 'orderId': order_id})
 
     monkeypatch.setattr(convert_cycle, 'log_conversion_result', fake_log)
     monkeypatch.setattr(convert_cycle, 'accept_quote', lambda qid: {'orderId': '1', 'createTime': 2})
     monkeypatch.setattr(convert_cycle, 'get_order_status', lambda **k: {'orderStatus': 'FAIL'})
+
     res = convert_cycle.process_pair('USDT', ['BTC'], 1.0, 0.0)
     assert res is False
     assert records[0]['accepted'] is False
@@ -159,7 +99,6 @@ def test_skip_expired_quote(monkeypatch):
 
     current = 1000
     monkeypatch.setattr(convert_api, '_current_timestamp', lambda: current)
-
     expired_quote = {
         'quoteId': 'q3',
         'ratio': 1.0,
@@ -169,13 +108,13 @@ def test_skip_expired_quote(monkeypatch):
         'score': 1.0,
         'validTimestamp': current - 1,
     }
-
     monkeypatch.setattr(convert_cycle, 'get_quote', lambda *a, **k: expired_quote)
+
     calls = {'accept': 0}
 
     def fake_accept(qid):
         calls['accept'] += 1
-        return {'dryRun': True}
+        return {'orderId': '1', 'createTime': 2}
 
     monkeypatch.setattr(convert_cycle, 'accept_quote', fake_accept)
     monkeypatch.setattr(convert_cycle, 'log_conversion_result', lambda *a, **k: None)

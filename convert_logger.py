@@ -113,9 +113,7 @@ def log_conversion_result(
     order_id: str | None = None,
     error: dict | None = None,
     create_time: int | None = None,
-    dry_run: bool = False,
     order_status: dict | None = None,
-    mode: str | None = None,
     edge: float | None = None,
     region: str | None = None,
     step_size: str | None = None,
@@ -126,8 +124,6 @@ def log_conversion_result(
 ) -> None:
     """Log conversion result to history using the new unified schema."""
 
-    if mode is None:
-        mode = "paper" if config_dev3.DEV3_PAPER_MODE else "live"
     if region is None:
         region = config_dev3.DEV3_REGION_TIMER
 
@@ -148,9 +144,7 @@ def log_conversion_result(
         "orderId": order_id,
         "orderStatus": status,
         "error": error,
-        "dryRun": dry_run,
         "edge": edge,
-        "mode": mode,
         "stepSize": step_size,
         "minNotional": min_notional,
         "px": px,

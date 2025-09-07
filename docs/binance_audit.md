@@ -8,7 +8,7 @@ and verifies compliance with the official specification. References:
 
 * **Base URL:** `https://api.binance.com`
 * **Timestamp:** millisecond precision, appended to every SIGNED request.
-* **recvWindow:** default `20000` ms if not supplied.
+* **recvWindow:** default `5000` ms if not supplied (max `60000`).
 * **Signing:** parameters are URL‑encoded in order, then HMAC‑SHA256 signed with
   the secret key. Header `X-MBX-APIKEY` is sent only for SIGNED endpoints.
 * **Error codes → exceptions**
@@ -25,9 +25,9 @@ and verifies compliance with the official specification. References:
 |---|---|---|---|---|---|---|---|---|
 | exchangeInfo | GET | `/sapi/v1/convert/exchangeInfo` | PUBLIC | – | `fromAsset`, `toAsset` (query) | `fromAssetList`, `toAssetList` | weight 1, cached ~30 m | none |
 | getQuote | POST | `/sapi/v1/convert/getQuote` | SIGNED | `fromAsset`, `toAsset`, **one of** `fromAmount` / `toAmount` | `walletType` | `quoteId`, `ratio`, `inverseRatio`, `toAmount`/`fromAmount`, `validTime` | weight 150 | – |
-| acceptQuote | POST | `/sapi/v1/convert/acceptQuote` | SIGNED | `quoteId` | `walletType` | `orderId`, `createTime` | weight 150 | **DRY‑RUN:** returns `{"dryRun":true}` without contacting Binance |
+| acceptQuote | POST | `/sapi/v1/convert/acceptQuote` | SIGNED | `quoteId` | `walletType` | `orderId`, `createTime` | weight 500 |
 | orderStatus | GET | `/sapi/v1/convert/orderStatus` | SIGNED | exactly one of `orderId` or `quoteId` | – | `orderStatus`, `ratio`, `fromAsset`, `toAsset`, amounts | weight 5 | parameters are mutually exclusive |
-| tradeFlow | GET | `/sapi/v1/convert/tradeFlow` | SIGNED | `startTime`, `endTime` | `cursor`, `limit` | `list`, `cursor` | weight 30, cursor pagination | none |
+| tradeFlow | GET | `/sapi/v1/convert/tradeFlow` | SIGNED | `startTime`, `endTime` | `cursor`, `limit` | `list`, `cursor` | weight 3000, cursor pagination (≤30d) | none |
 
 ### Sample
 
@@ -62,30 +62,14 @@ Response:
 | Signature & headers | `tests/test_convert_api.py::test_get_quote_signed`, `::test_accept_quote_live` |
 | Param validation | `tests/test_convert_api.py::test_get_quote_with_id_validation`, `::test_trade_flow_params` |
 | Error mapping | `tests/test_convert_api.py::test_clock_skew_sync`, `::test_invalid_signature`, `::test_missing_param`, `::test_rate_limit_error`, `::test_permission_error` |
-| DRY‑RUN semantics | `tests/test_convert_api.py::test_accept_quote_dry_run`, `tests/test_convert_cycle.py::test_accept_only_with_orderid` |
 | Trade flow pagination | `tests/test_convert_api.py::test_trade_flow_pagination` |
 | Exchange info caching | `tests/test_convert_api.py::test_exchange_info_cache` |
 | History schema | `tests/test_history_schema.py` |
 
 ## Smoke run
 
-### PAPER / DRY‑RUN
-
-```bash
-export PAPER=1 ENABLE_LIVE=0 PAPER_BALANCES="USDT=100"
-python3 daily_analysis.py
-jq 'length' logs/predictions.json           # > 0
-python3 run_convert_trade.py
-jq '[ .[] | select(.dryRun==true) ] | length' logs/convert_history.json   # > 0
-grep -E '"accepted"\s*:\s*true' -n logs/convert_history.json || echo "OK: no accepted in DRY-RUN"
-```
-
-### LIVE (keys required)
-
 ```python
 from convert_api import get_quote, trade_flow
 get_quote("USDT", "BTC", 10)
 trade_flow(startTime, endTime)
 ```
-
-`accept_quote` should be invoked only after manual review.

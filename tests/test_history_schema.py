@@ -17,9 +17,7 @@ schema = {
         "orderId": {"type": ["string", "null"]},
         "orderStatus": {"type": ["string", "null"]},
         "error": {},
-        "dryRun": {"type": "boolean"},
         "edge": {"type": ["number", "null"]},
-        "mode": {"type": ["string", "null"]},
         "timestamp": {"type": ["string", "null"]},
     },
     "required": [
@@ -31,7 +29,6 @@ schema = {
         "orderStatus",
         "accepted",
         "region",
-        "mode",
         "createTime",
     ],
     "allOf": [
@@ -59,9 +56,7 @@ def test_schema_accept_with_order():
         "orderId": "10",
         "orderStatus": "SUCCESS",
         "error": None,
-        "dryRun": False,
         "edge": 0.1,
-        "mode": "live",
     }
     jsonschema.validate(record, schema)
 
@@ -82,8 +77,6 @@ def test_schema_reject_without_order():
         "orderId": None,
         "orderStatus": None,
         "error": {"code": -1},
-        "dryRun": True,
         "edge": None,
-        "mode": "paper",
     }
     jsonschema.validate(record, schema)

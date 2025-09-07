@@ -7,7 +7,6 @@ TELEGRAM_CHAT_ID = "465786073"
 OPENAI_API_KEY = "<SET_ME>"
 
 # runtime flags
-DEV3_PAPER_MODE = False
 DEV3_REGION_TIMER = "ASIA"
 DEV3_RECV_WINDOW_MS = 5000  # default recvWindow per Binance docs (max 60000)
 
