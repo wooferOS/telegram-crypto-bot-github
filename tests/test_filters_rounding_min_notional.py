@@ -10,7 +10,6 @@ sys.modules.setdefault(
         OPENAI_API_KEY="",
         TELEGRAM_TOKEN="",
         CHAT_ID="",
-        DEV3_PAPER_MODE=True,
         DEV3_REGION_TIMER="ASIA",
         DEV3_RECV_WINDOW_MS=5000,
     ),
@@ -20,10 +19,10 @@ sys.path.insert(0, os.getcwd())
 
 import convert_cycle
 import exchange_filters
+import convert_api
 
 
 def setup_env(monkeypatch):
-    monkeypatch.setattr("config_dev3.DEV3_PAPER_MODE", True)
     monkeypatch.setattr(convert_cycle, "check_risk", lambda: (0, 0))
     monkeypatch.setattr(
         convert_cycle,
@@ -47,24 +46,15 @@ def test_filters_rounding_and_min_notional(monkeypatch):
             def json(self):
                 return self._data
 
-        if "exchangeInfo" in url:
-            data = {
-                "symbols": [
-                    {
-                        "baseAsset": "AAA",
-                        "quoteAsset": "USDT",
-                        "filters": [
-                            {"filterType": "LOT_SIZE", "stepSize": "0.01"},
-                            {"filterType": "MIN_NOTIONAL", "minNotional": "10"},
-                        ],
-                    }
-                ]
-            }
-            return Resp(data)
-        data = {"price": "2.5"}
-        return Resp(data)
+        return Resp({"price": "2.5"})
 
     monkeypatch.setattr(exchange_filters, "requests", types.SimpleNamespace(get=fake_get))
+    monkeypatch.setattr(
+        convert_api,
+        "exchange_info",
+        lambda **kw: {"toAssetList": [{"toAsset": "USDT", "fromAssetMinAmount": "10"}]},
+    )
+    monkeypatch.setattr(convert_api, "asset_info", lambda asset: {"asset": asset, "fraction": 2})
 
     calls = {"get_quote": 0, "amounts": []}
 
@@ -89,7 +79,7 @@ def test_filters_rounding_and_min_notional(monkeypatch):
 
     records = []
 
-    def fake_log(quote, accepted, order_id, error, create_time, dry_run, order_status, mode, edge, region, step_size, min_notional, px, est_notional, reason):
+    def fake_log(quote, accepted, order_id, error, create_time, order_status, edge, region, step_size, min_notional, px, est_notional, reason):
         records.append(
             {
                 "fromAmount": quote.get("fromAmount"),

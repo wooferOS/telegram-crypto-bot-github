@@ -16,9 +16,7 @@ def test_log_format(caplog):
             order_id='123',
             error=None,
             create_time=1,
-            dry_run=False,
             order_status={'orderStatus': 'SUCCESS'},
-            mode='live',
             edge=0.1,
         )
     assert any(

@@ -77,7 +77,6 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
     min_str = str(min_notional) if min_notional is not None else None
     px_str = str(px) if px is not None else None
     est_str = str(est_notional) if est_notional is not None else None
-    mode = "paper" if config_dev3.DEV3_PAPER_MODE else "live"
 
     for to_token in to_tokens:
         if to_token == from_token:
@@ -99,9 +98,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 None,
                 {"msg": "below MIN_NOTIONAL"},
                 None,
-                False,
                 None,
-                mode,
                 None,
                 None,
                 step_str,
@@ -218,9 +215,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 None,
                 {"msg": "below MIN_CONVERT_TOAMOUNT"},
                 None,
-                False,
                 None,
-                mode,
                 quote.get("score"),
                 None,
                 step_str,
@@ -241,9 +236,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 None,
                 {"msg": "below EXPLORE_MIN_EDGE"},
                 None,
-                False,
                 None,
-                mode,
                 quote.get("score"),
                 None,
                 step_str,
@@ -269,9 +262,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                     None,
                     {"msg": "quote expired"},
                     None,
-                    False,
                     None,
-                    mode,
                     quote.get("score"),
                     None,
                     step_str,
@@ -283,29 +274,21 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 return False
 
         accept_result: Dict | None = None
-        dry_run = config_dev3.DEV3_PAPER_MODE
-        if dry_run:
-            logger.info(
-                "[dev3] DRY-RUN: acceptQuote skipped for %s", quote["quoteId"]
+        try:
+            accept_result = accept_quote(quote["quoteId"])
+        except Exception as error:  # pragma: no cover - network/IO
+            logger.warning(
+                f"[dev3] ❌ Помилка під час accept_quote: {quote['quoteId']} — {error}"
             )
-            accept_result = {"dryRun": True}
-        else:
-            try:
-                accept_result = accept_quote(quote["quoteId"])
-            except Exception as error:  # pragma: no cover - network/IO
-                logger.warning(
-                    f"[dev3] ❌ Помилка під час accept_quote: {quote['quoteId']} — {error}"
-                )
-                accept_result = {"code": None, "msg": str(error)}
+            accept_result = {"code": None, "msg": str(error)}
 
         order_id = accept_result.get("orderId") if isinstance(accept_result, dict) else None
-        dry_run = dry_run or bool(accept_result.get("dryRun")) if isinstance(accept_result, dict) else dry_run
         order_status: Dict | None = None
         accepted = False
         error: Dict | None = None
         create_time = accept_result.get("createTime") if isinstance(accept_result, dict) else None
 
-        if order_id and not dry_run:
+        if order_id:
             try:
                 order_status = get_order_status(orderId=order_id)
                 if order_status.get("orderStatus") == "SUCCESS":
@@ -317,8 +300,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             except Exception as exc:  # pragma: no cover - network/IO
                 error = {"msg": str(exc)}
         else:
-            if not dry_run:
-                error = accept_result
+            error = accept_result
 
         logger.info(
             f"[dev3] {'✅' if accepted else '❌'} Конверсія {from_token} → {to_token} (score={score:.4f})"
@@ -330,9 +312,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             order_id,
             error,
             create_time,
-            dry_run,
             order_status,
-            mode,
             quote.get("score"),
             None,
             step_str,
@@ -364,9 +344,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 None,
                 None,
                 None,
-                False,
                 None,
-                mode,
                 quote.get("edge"),
                 None,
                 step_str,

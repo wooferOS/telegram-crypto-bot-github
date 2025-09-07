@@ -4,7 +4,6 @@ import time
 from datetime import datetime, timezone, timedelta
 import logging
 
-import config_dev3
 from convert_logger import logger
 
 QUOTE_COUNT_FILE = os.path.join("logs", "quote_count.json")
@@ -19,9 +18,11 @@ WEIGHTS = {
     "tradeFlow": 3000,
     "exchangeInfo": 3000,
     "assetInfo": 100,
+    "getUserAsset": 5,
     "avgPrice": 2,
     "bookTicker": 2,
-    "ticker24hr": 2,
+    "ticker/price": 2,
+    "ticker/24hr": 40,
     "klines": 2,
 }
 
@@ -110,8 +111,6 @@ def increment_quote_usage() -> int:
 
 def can_request_quote() -> bool:
     """Return True if current quote count is below the limit."""
-    if config_dev3.DEV3_PAPER_MODE:
-        return True
     return get_count() < QUOTE_LIMIT
 
 

@@ -15,7 +15,6 @@ sys.modules.setdefault(
         OPENAI_API_KEY="",
         TELEGRAM_TOKEN="",
         CHAT_ID="",
-        DEV3_PAPER_MODE=True,
         DEV3_REGION_TIMER="ASIA",
         DEV3_RECV_WINDOW_MS=5000,
     ),
@@ -48,7 +47,6 @@ def test_get_quote_uses_form(monkeypatch):
                 return {}
         return Resp()
 
-    monkeypatch.setattr(convert_api, 'DEV3_PAPER_MODE', False)
     monkeypatch.setattr(convert_api, 'increment_quote_usage', lambda: None)
     monkeypatch.setattr(convert_api, '_session', type('S', (), {'post': fake_post})())
     monkeypatch.setattr(convert_api, '_sign', lambda x: x)
@@ -237,20 +235,6 @@ def test_exchange_info_cache(monkeypatch):
 
 
 
-def test_accept_quote_dry_run(monkeypatch):
-    called = {}
-
-    def fake_request(*args, **kwargs):
-        called['yes'] = True
-
-    monkeypatch.setattr(convert_api, 'DEV3_PAPER_MODE', True)
-    monkeypatch.setattr(convert_api, '_request', fake_request)
-    res = convert_api.accept_quote('123')
-    assert res.get('dryRun') is True
-    assert 'orderId' not in res
-    assert called == {}
-
-
 def test_get_quote_with_id_params(monkeypatch):
     sent = {}
 
@@ -320,7 +304,6 @@ def test_accept_quote_live(monkeypatch):
                 return {'orderId': '1', 'createTime': 2}
         return R()
 
-    monkeypatch.setattr(convert_api, 'DEV3_PAPER_MODE', False)
     monkeypatch.setattr(convert_api, '_session', type('S', (), {'post': fake_post})())
     monkeypatch.setattr(convert_api, 'BINANCE_API_SECRET', 'secret')
     monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
@@ -358,7 +341,6 @@ def test_get_order_status_params(monkeypatch):
 
 
 def test_accept_quote_idempotent(monkeypatch):
-    monkeypatch.setattr(convert_api, 'DEV3_PAPER_MODE', False)
 
     class Sess:
         def __init__(self):
@@ -481,7 +463,6 @@ def test_get_quote_live_no_paper(monkeypatch):
         called['path'] = path
         return {'ok': True}
 
-    monkeypatch.setattr(convert_api, 'DEV3_PAPER_MODE', False)
     monkeypatch.setattr(convert_api, '_request', fake_request)
     monkeypatch.setattr(convert_api, 'increment_quote_usage', lambda: None)
     res = convert_api.get_quote('USDT', 'BTC', 1.0)

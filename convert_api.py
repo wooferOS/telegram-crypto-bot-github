@@ -25,7 +25,6 @@ from urllib3.util import Retry
 from config_dev3 import (
     BINANCE_API_KEY,
     BINANCE_API_SECRET,
-    DEV3_PAPER_MODE,
     DEV3_RECV_WINDOW_MS,
 )
 
@@ -174,11 +173,12 @@ def get_balances() -> Dict[str, float]:
 
     Docs: https://developers.binance.com/docs/wallet/asset/user-assets
     """
-
+    record_weight("getUserAsset")
+    params = {"needBtcValuation": "false", "recvWindow": DEFAULT_RECV_WINDOW}  # timestamp+signature added in _request
     data = _request(
         "POST",
         "/sapi/v3/asset/getUserAsset",
-        {"needBtcValuation": "false", "recvWindow": DEFAULT_RECV_WINDOW},
+        params,
     )
     balances: Dict[str, float] = {}
     if isinstance(data, list):
@@ -223,10 +223,6 @@ def asset_info(asset: str) -> Dict[str, Any]:
 
 
 def get_available_to_tokens(from_token: str) -> List[str]:
-    if DEV3_PAPER_MODE:
-        sample = ["USDT", "BTC", "ETH", "SOL"]
-        return [t for t in sample if t != from_token]
-
     data = exchange_info(fromAsset=from_token)
     if isinstance(data, list):
         data = {"toAssetList": data}
@@ -263,7 +259,7 @@ def get_quote_with_id(
         params["toAmount"] = to_amount
     if walletType:
         params["walletType"] = walletType
-    params["recvWindow"] = recvWindow
+    params["recvWindow"] = recvWindow  # timestamp + signature added in _request
     return _request("POST", "/sapi/v1/convert/getQuote", params)
 
 
@@ -274,40 +270,19 @@ def get_quote(
     *,
     validTime: str = "10s",
 ) -> Dict[str, Any]:
-    """Backward compatible wrapper with PAPER stub."""
-    if DEV3_PAPER_MODE:
-        import hashlib, uuid
-
-        key = f"{from_token}->{to_token}".encode()
-        h = int(hashlib.sha256(key).hexdigest(), 16)
-        drift = ((h % 2001) - 1000) / 1_000_000.0
-        ratio = max(1e-8, 1.0 + drift)
-        return {
-            "quoteId": f"paper-{uuid.uuid4().hex}",
-            "fromAsset": from_token,
-            "toAsset": to_token,
-            "ratio": ratio,
-            "inverseRatio": 1.0 / ratio,
-            "fromAmount": float(amount),
-            "toAmount": float(amount) * ratio,
-            "paper": True,
-        }
-
+    """Backward compatible helper for :func:`get_quote_with_id`."""
     return get_quote_with_id(
         from_token, to_token, from_amount=amount, validTime=validTime
     )
 
 
 def accept_quote(quote_id: str, walletType: Optional[str] = None) -> Dict[str, Any]:
-    if DEV3_PAPER_MODE:
-        logger.info("[dev3] DRY-RUN: acceptQuote skipped for %s", quote_id)
-        return {"dryRun": True, "msg": "acceptQuote skipped in PAPER mode"}
     if quote_id in _accepted_quotes:
         logger.info("[dev3] Duplicate acceptQuote ignored for %s", quote_id)
         return {"duplicate": True, "quoteId": quote_id}
     _accepted_quotes.add(quote_id)
     record_weight("acceptQuote")
-    params = {"quoteId": quote_id, "recvWindow": DEFAULT_RECV_WINDOW}
+    params = {"quoteId": quote_id, "recvWindow": DEFAULT_RECV_WINDOW}  # timestamp+signature added in _request
     if walletType:
         params["walletType"] = walletType
     return _request("POST", "/sapi/v1/convert/acceptQuote", params)
