@@ -8,7 +8,7 @@
 | `convert_api.get_quote_with_id` | `/sapi/v1/convert/getQuote` | POST | `fromAsset, toAsset, fromAmount, walletType?` | HMAC-SHA256 over form body | same as above | `get_quote_with_id("USDT","BTC",10)` |
 | `convert_api.accept_quote` | `/sapi/v1/convert/acceptQuote` | POST | `quoteId, walletType?` | HMAC-SHA256 | same as above | `accept_quote("12345")` |
 | `convert_api.get_quote_status` | `/sapi/v1/convert/orderStatus` | GET | `orderId` | HMAC-SHA256 | same as above | `get_quote_status("67890")` |
-| `convert_api.get_balances` | `/api/v3/account` | GET | none | HMAC-SHA256 | same | `get_balances()` |
+| `convert_api.get_balances` | `/sapi/v3/asset/getUserAsset` | GET | `needBtcValuation=false` | HMAC-SHA256 | same | `get_balances()` |
 
 ## Rate limit / backoff
 

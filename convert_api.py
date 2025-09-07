@@ -29,8 +29,9 @@ from utils_dev3 import get_current_timestamp
 from quote_counter import increment_quote_usage
 
 
-BASE_URL = os.getenv("BINANCE_API_BASE", "https://api.binance.com")
-DEFAULT_RECV_WINDOW = int(os.getenv("BINANCE_RECV_WINDOW", "5000"))
+# Convert endpoints always live under the main API domain; use fixed defaults
+BASE_URL = "https://api.binance.com"
+DEFAULT_RECV_WINDOW = 5000
 
 # requests session with a tiny retry just for connection errors.  Rate limit
 # handling is done manually below.
@@ -165,26 +166,17 @@ def _request(method: str, path: str, params: Dict[str, Any], *, signed: bool = T
 
 
 def get_balances() -> Dict[str, float]:
-    # PAPER fallback: allow specifying balances via env without hitting API
-    if os.getenv("PAPER", "0") == "1":
-        raw = os.getenv("PAPER_BALANCES", "")
-        balances: Dict[str, float] = {}
-        for part in raw.split(","):
-            if "=" in part:
-                k, v = part.split("=", 1)
-                try:
-                    balances[k.strip()] = float(v)
-                except ValueError:
-                    pass
-        if balances:
-            return balances
+    """Return current wallet balances using ``GET /sapi/v3/asset/getUserAsset``."""
 
-    data = _request("GET", "/api/v3/account", {})
-    balances = {}
-    for bal in data.get("balances", []):
-        total = float(bal.get("free", 0)) + float(bal.get("locked", 0))
-        if total > 0:
-            balances[bal["asset"]] = total
+    data = _request(
+        "GET", "/sapi/v3/asset/getUserAsset", {"needBtcValuation": "false"}
+    )
+    balances: Dict[str, float] = {}
+    if isinstance(data, list):
+        for bal in data:
+            total = float(bal.get("free", 0)) + float(bal.get("locked", 0))
+            if total > 0:
+                balances[bal.get("asset", "")] = total
     return balances
 
 
@@ -203,6 +195,20 @@ def exchange_info(**params: Any) -> Dict[str, Any]:
         _exchange_info_cache = data
         _exchange_info_time = time.time()
     return data
+
+
+def asset_info(asset: str) -> Dict[str, Any]:
+    """Return precision and limits for a single asset via Convert ``assetInfo``."""
+
+    data = _request(
+        "GET", "/sapi/v1/convert/assetInfo", {"asset": asset}, signed=False
+    )
+    if isinstance(data, dict):
+        return data
+    for item in data or []:
+        if item.get("asset") == asset:
+            return item
+    return {}
 
 
 def get_available_to_tokens(from_token: str) -> List[str]:

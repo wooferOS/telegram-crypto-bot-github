@@ -18,8 +18,8 @@ from quote_counter import can_request_quote, should_throttle, reset_cycle
 # Allow executing quotes with low score for model training
 allow_learning_quotes = True
 
-MIN_CONVERT_TOAMOUNT = float(os.getenv("MIN_CONVERT_TOAMOUNT", "0"))
-EXPLORE_MIN_EDGE = float(os.getenv("EXPLORE_MIN_EDGE", "0"))
+MIN_CONVERT_TOAMOUNT = 0.0
+EXPLORE_MIN_EDGE = 0.0
 
 
 
