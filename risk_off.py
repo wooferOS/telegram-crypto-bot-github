@@ -6,8 +6,9 @@ import requests
 
 from convert_api import get_balances
 from quote_counter import record_weight
+from config_dev3 import MARKETDATA_BASE_URL
 
-BASE_URL = "https://data-api.binance.vision"
+BASE_URL = MARKETDATA_BASE_URL
 HIGH_FILE = os.path.join("logs", "portfolio_high.json")
 DRAWDOWN_THRESHOLD = 0.10
 PAUSE_THRESHOLD = 0.25
@@ -40,7 +41,7 @@ def _price_usdt(asset: str) -> float:
             return float(r.json().get("price", 0))
     except Exception:
         pass
-    record_weight("ticker/24hr")
+    record_weight("ticker/24hr", 2)
     try:
         r = requests.get(f"{BASE_URL}/api/v3/ticker/24hr", params={"symbol": symbol}, timeout=10)
         if r.status_code == 200:

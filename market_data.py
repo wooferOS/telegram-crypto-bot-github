@@ -1,7 +1,8 @@
 import requests
 from quote_counter import record_weight
+from config_dev3 import MARKETDATA_BASE_URL
 
-BASE_URL = "https://data-api.binance.vision"
+BASE_URL = MARKETDATA_BASE_URL
 
 
 def _get(path: str, params: dict) -> dict | None:

@@ -11,10 +11,12 @@ from __future__ import annotations
 
 import requests
 from typing import Any, Dict, List
+import json
 
-from quote_counter import record_weight
+from quote_counter import record_weight, weight_ticker_24hr
+from config_dev3 import MARKETDATA_BASE_URL
 
-BASE_URL = "https://data-api.binance.vision"
+BASE_URL = MARKETDATA_BASE_URL
 
 # --- basic REST helpers ----------------------------------------------------
 
@@ -68,11 +70,33 @@ def book_ticker(symbol: str) -> Dict[str, Any] | None:
 
 # https://developers.binance.com/docs/binance-spot-api-docs/rest-api/market-data-endpoints#24hr-ticker-price-change-statistics
 
-def ticker_24hr(symbol: str) -> Dict[str, Any] | None:
-    """Return data from ``GET /api/v3/ticker/24hr`` (weight **40**)."""
+def _chunk(lst: List[str], n: int):
+    for i in range(0, len(lst), n):
+        yield lst[i : i + n]
 
-    record_weight("ticker/24hr")
-    return _get("/api/v3/ticker/24hr", {"symbol": symbol})
+
+def ticker_24hr(
+    symbol: str | None = None,
+    symbols: List[str] | None = None,
+    *,
+    batch_size: int = 50,
+):
+    """Return data from ``GET /api/v3/ticker/24hr`` with proper weights."""
+
+    if symbol:
+        params = {"symbol": symbol}
+        record_weight("ticker/24hr", weight_ticker_24hr(params))
+        return _get("/api/v3/ticker/24hr", params)
+    if symbols:
+        out: List[Dict[str, Any]] = []
+        for chunk in _chunk(symbols, batch_size):
+            params = {"symbols": json.dumps(chunk)}
+            record_weight("ticker/24hr", weight_ticker_24hr(params))
+            data = _get("/api/v3/ticker/24hr", params)
+            if isinstance(data, list):
+                out.extend(data)
+        return out
+    raise ValueError("ticker/24hr must be called with `symbol` or `symbols` (no bare call)")
 
 
 # https://developers.binance.com/docs/binance-spot-api-docs/rest-api/market-data-endpoints#klinecandlestick-data

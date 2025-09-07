@@ -4,6 +4,7 @@ from typing import Optional, Tuple
 import requests
 
 import convert_api
+from config_dev3 import MARKETDATA_BASE_URL
 
 
 def load_symbol_filters(
@@ -32,7 +33,7 @@ def get_last_price_usdt(asset: str):
     """Return last price of ASSETUSDT pair as Decimal or ``None`` if missing."""
     try:
         r = requests.get(
-            "https://data-api.binance.vision/api/v3/ticker/price",
+            f"{MARKETDATA_BASE_URL}/api/v3/ticker/price",
             params={"symbol": f"{asset}USDT"},
             timeout=10,
         )

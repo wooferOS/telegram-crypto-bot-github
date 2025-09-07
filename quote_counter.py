@@ -22,7 +22,6 @@ WEIGHTS = {
     "avgPrice": 2,
     "bookTicker": 2,
     "ticker/price": 2,
-    "ticker/24hr": 40,
     "klines": 2,
 }
 
@@ -30,6 +29,15 @@ _cycle_count = 0
 _cycle_weight = 0
 _cycle_breakdown: dict[str, int] = {}
 _max_per_cycle = DEFAULT_MAX_PER_CYCLE
+
+
+def weight_ticker_24hr(params: dict) -> int:
+    """Return official weight for ``ticker/24hr`` based on parameters."""
+    if params.get("symbol"):
+        return 2
+    if params.get("symbols"):
+        return 40
+    return 80
 
 
 def _load() -> dict:
@@ -94,10 +102,10 @@ def set_cycle_limit(limit: int) -> None:
     _max_per_cycle = max(1, int(limit))
 
 
-def record_weight(endpoint: str) -> None:
+def record_weight(endpoint: str, weight: int | None = None) -> None:
     """Record weight usage for a given endpoint."""
     global _cycle_weight, _cycle_breakdown
-    w = WEIGHTS.get(endpoint, 1)
+    w = weight if weight is not None else WEIGHTS.get(endpoint, 1)
     _cycle_weight += w
     _cycle_breakdown[endpoint] = _cycle_breakdown.get(endpoint, 0) + w
 
