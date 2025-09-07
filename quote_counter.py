@@ -4,6 +4,7 @@ import time
 from datetime import datetime, timezone, timedelta
 import logging
 
+import config_dev3
 from convert_logger import logger
 
 QUOTE_COUNT_FILE = os.path.join("logs", "quote_count.json")
@@ -74,7 +75,7 @@ def increment_quote_usage() -> int:
 
 def can_request_quote() -> bool:
     """Return True if current quote count is below the limit."""
-    if os.getenv("PAPER", "0") == "1":
+    if config_dev3.DEV3_PAPER_MODE:
         return True
     return get_count() < QUOTE_LIMIT
 

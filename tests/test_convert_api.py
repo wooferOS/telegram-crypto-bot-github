@@ -15,6 +15,9 @@ sys.modules.setdefault(
         OPENAI_API_KEY="",
         TELEGRAM_TOKEN="",
         CHAT_ID="",
+        DEV3_PAPER_MODE=True,
+        DEV3_REGION_TIMER="ASIA",
+        DEV3_RECV_WINDOW_MS=5000,
     ),
 )
 
@@ -45,6 +48,7 @@ def test_get_quote_uses_form(monkeypatch):
                 return {}
         return Resp()
 
+    monkeypatch.setattr(convert_api, 'DEV3_PAPER_MODE', False)
     monkeypatch.setattr(convert_api, 'increment_quote_usage', lambda: None)
     monkeypatch.setattr(convert_api, '_session', type('S', (), {'post': fake_post})())
     monkeypatch.setattr(convert_api, '_sign', lambda x: x)
@@ -239,8 +243,7 @@ def test_accept_quote_dry_run(monkeypatch):
     def fake_request(*args, **kwargs):
         called['yes'] = True
 
-    monkeypatch.setenv('ENABLE_LIVE', '0')
-    monkeypatch.setenv('PAPER', '1')
+    monkeypatch.setattr(convert_api, 'DEV3_PAPER_MODE', True)
     monkeypatch.setattr(convert_api, '_request', fake_request)
     res = convert_api.accept_quote('123')
     assert res.get('dryRun') is True
@@ -267,6 +270,7 @@ def test_get_quote_with_id_params(monkeypatch):
     assert sent['params']['fromAmount'] == 1.23
     assert sent['params']['walletType'] == 'MAIN'
     assert sent['params']['recvWindow'] == convert_api.DEFAULT_RECV_WINDOW
+    assert sent['params']['validTime'] == '10s'
 
 
 def test_get_quote_signed(monkeypatch):
@@ -316,8 +320,7 @@ def test_accept_quote_live(monkeypatch):
                 return {'orderId': '1', 'createTime': 2}
         return R()
 
-    monkeypatch.setenv('PAPER', '0')
-    monkeypatch.setenv('ENABLE_LIVE', '1')
+    monkeypatch.setattr(convert_api, 'DEV3_PAPER_MODE', False)
     monkeypatch.setattr(convert_api, '_session', type('S', (), {'post': fake_post})())
     monkeypatch.setattr(convert_api, 'BINANCE_API_SECRET', 'secret')
     monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
@@ -355,8 +358,7 @@ def test_get_order_status_params(monkeypatch):
 
 
 def test_accept_quote_idempotent(monkeypatch):
-    monkeypatch.setenv('PAPER', '0')
-    monkeypatch.setenv('ENABLE_LIVE', '1')
+    monkeypatch.setattr(convert_api, 'DEV3_PAPER_MODE', False)
 
     class Sess:
         def __init__(self):
@@ -479,7 +481,7 @@ def test_get_quote_live_no_paper(monkeypatch):
         called['path'] = path
         return {'ok': True}
 
-    monkeypatch.setenv('PAPER', '0')
+    monkeypatch.setattr(convert_api, 'DEV3_PAPER_MODE', False)
     monkeypatch.setattr(convert_api, '_request', fake_request)
     monkeypatch.setattr(convert_api, 'increment_quote_usage', lambda: None)
     res = convert_api.get_quote('USDT', 'BTC', 1.0)

@@ -10,6 +10,9 @@ sys.modules.setdefault(
         OPENAI_API_KEY="",
         TELEGRAM_TOKEN="",
         CHAT_ID="",
+        DEV3_PAPER_MODE=True,
+        DEV3_REGION_TIMER="ASIA",
+        DEV3_RECV_WINDOW_MS=5000,
     ),
 )
 
@@ -20,8 +23,7 @@ import exchange_filters
 
 
 def setup_env(monkeypatch):
-    monkeypatch.setenv("PAPER", "1")
-    monkeypatch.setenv("ENABLE_LIVE", "0")
+    monkeypatch.setattr("config_dev3.DEV3_PAPER_MODE", True)
 
 
 def test_filters_rounding_and_min_notional(monkeypatch):

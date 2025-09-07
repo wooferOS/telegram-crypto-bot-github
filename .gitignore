@@ -1,5 +1,4 @@
 # env/secrets
-config_dev3.py
 .env
 
 # caches & venv

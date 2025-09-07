@@ -1,4 +1,3 @@
-import os
 import math
 from decimal import Decimal, ROUND_DOWN
 from typing import List, Dict, Tuple
@@ -12,6 +11,7 @@ from convert_logger import (
 from convert_filters import filter_top_tokens
 from exchange_filters import load_symbol_filters, get_last_price_usdt
 from convert_notifier import send_telegram
+import config_dev3
 from quote_counter import can_request_quote, should_throttle, reset_cycle
 
 
@@ -32,7 +32,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
 
     reset_cycle()
 
-    step_size, min_notional = load_symbol_filters(from_token, "USDT")
+    step_size, min_notional = load_symbol_filters(from_token, "USDT")  # uses convert assetInfo/exchangeInfo
     if step_size is None and min_notional is None:
         if from_token == "USDT":
             # skip fake USDTUSDT symbol check for spot filters
@@ -52,7 +52,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
     min_str = str(min_notional) if min_notional is not None else None
     px_str = str(px) if px is not None else None
     est_str = str(est_notional) if est_notional is not None else None
-    mode = "paper" if os.getenv("PAPER", "0") == "1" or os.getenv("ENABLE_LIVE", "0") != "1" else "live"
+    mode = "paper" if config_dev3.DEV3_PAPER_MODE else "live"
 
     for to_token in to_tokens:
         if to_token == from_token:
@@ -223,27 +223,30 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             logger.warning(
                 f"[dev3] ❌ Quote прострочено: {quote['quoteId']} для {from_token} → {to_token}"
             )
-            log_conversion_result(
-                {**quote, "fromAsset": from_token, "toAsset": to_token},
-                False,
-                None,
-                {"msg": "quote expired"},
-                None,
-                False,
-                None,
-                mode,
-                quote.get("score"),
-                None,
-                step_str,
-                min_str,
-                px_str,
-                est_str,
-                "quote expired",
-            )
-            return False
+            quote = get_quote(from_token, to_token, amt)
+            valid_until = int(quote.get("validTimestamp") or 0)
+            if valid_until and convert_api._current_timestamp() > valid_until:
+                log_conversion_result(
+                    {**quote, "fromAsset": from_token, "toAsset": to_token},
+                    False,
+                    None,
+                    {"msg": "quote expired"},
+                    None,
+                    False,
+                    None,
+                    mode,
+                    quote.get("score"),
+                    None,
+                    step_str,
+                    min_str,
+                    px_str,
+                    est_str,
+                    "quote expired",
+                )
+                return False
 
         accept_result: Dict | None = None
-        dry_run = os.getenv("PAPER", "0") == "1"
+        dry_run = config_dev3.DEV3_PAPER_MODE
         if dry_run:
             logger.info(
                 "[dev3] DRY-RUN: acceptQuote skipped for %s", quote["quoteId"]

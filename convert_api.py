@@ -14,7 +14,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
-import os
 import random
 import time
 from typing import Any, Dict, List, Optional, Set
@@ -23,7 +22,12 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
-from config_dev3 import BINANCE_API_KEY, BINANCE_API_SECRET
+from config_dev3 import (
+    BINANCE_API_KEY,
+    BINANCE_API_SECRET,
+    DEV3_PAPER_MODE,
+    DEV3_RECV_WINDOW_MS,
+)
 
 from utils_dev3 import get_current_timestamp
 from quote_counter import increment_quote_usage
@@ -31,7 +35,7 @@ from quote_counter import increment_quote_usage
 
 # Convert endpoints always live under the main API domain; use fixed defaults
 BASE_URL = "https://api.binance.com"
-DEFAULT_RECV_WINDOW = 5000
+DEFAULT_RECV_WINDOW = DEV3_RECV_WINDOW_MS
 
 # requests session with a tiny retry just for connection errors.  Rate limit
 # handling is done manually below.
@@ -166,10 +170,15 @@ def _request(method: str, path: str, params: Dict[str, Any], *, signed: bool = T
 
 
 def get_balances() -> Dict[str, float]:
-    """Return current wallet balances using ``GET /sapi/v3/asset/getUserAsset``."""
+    """Return current wallet balances using ``POST /sapi/v3/asset/getUserAsset``.
+
+    Docs: https://developers.binance.com/docs/wallet/asset/user-assets
+    """
 
     data = _request(
-        "GET", "/sapi/v3/asset/getUserAsset", {"needBtcValuation": "false"}
+        "POST",
+        "/sapi/v3/asset/getUserAsset",
+        {"needBtcValuation": "false", "recvWindow": DEFAULT_RECV_WINDOW},
     )
     balances: Dict[str, float] = {}
     if isinstance(data, list):
@@ -212,7 +221,7 @@ def asset_info(asset: str) -> Dict[str, Any]:
 
 
 def get_available_to_tokens(from_token: str) -> List[str]:
-    if os.getenv("PAPER", "0") == "1":
+    if DEV3_PAPER_MODE:
         sample = ["USDT", "BTC", "ETH", "SOL"]
         return [t for t in sample if t != from_token]
 
@@ -228,9 +237,14 @@ def get_quote_with_id(
     from_amount: Optional[float] = None,
     to_amount: Optional[float] = None,
     walletType: Optional[str] = None,
+    validTime: str = "10s",
     recvWindow: int = DEFAULT_RECV_WINDOW,
 ) -> Dict[str, Any]:
-    """Request a quote. Exactly one of ``from_amount`` or ``to_amount`` must be set."""
+    """Request a quote with optional ``validTime``.
+
+    Exactly one of ``from_amount`` or ``to_amount`` must be set.
+    ``validTime`` accepts ``10s``, ``30s`` or ``1m``.
+    """
 
     if (from_amount is None) == (to_amount is None):
         raise ValueError("Provide exactly one of from_amount or to_amount")
@@ -239,6 +253,7 @@ def get_quote_with_id(
     params = {
         "fromAsset": from_asset,
         "toAsset": to_asset,
+        "validTime": validTime,
     }
     if from_amount is not None:
         params["fromAmount"] = from_amount
@@ -250,9 +265,15 @@ def get_quote_with_id(
     return _request("POST", "/sapi/v1/convert/getQuote", params)
 
 
-def get_quote(from_token: str, to_token: str, amount: float) -> Dict[str, Any]:
+def get_quote(
+    from_token: str,
+    to_token: str,
+    amount: float,
+    *,
+    validTime: str = "10s",
+) -> Dict[str, Any]:
     """Backward compatible wrapper with PAPER stub."""
-    if os.getenv("PAPER", "0") == "1":
+    if DEV3_PAPER_MODE:
         import hashlib, uuid
 
         key = f"{from_token}->{to_token}".encode()
@@ -270,13 +291,15 @@ def get_quote(from_token: str, to_token: str, amount: float) -> Dict[str, Any]:
             "paper": True,
         }
 
-    return get_quote_with_id(from_token, to_token, from_amount=amount)
+    return get_quote_with_id(
+        from_token, to_token, from_amount=amount, validTime=validTime
+    )
 
 
 def accept_quote(quote_id: str, walletType: Optional[str] = None) -> Dict[str, Any]:
-    if os.getenv("PAPER", "1") == "1" or os.getenv("ENABLE_LIVE", "0") != "1":
+    if DEV3_PAPER_MODE:
         logger.info("[dev3] DRY-RUN: acceptQuote skipped for %s", quote_id)
-        return {"dryRun": True, "msg": "acceptQuote skipped in PAPER/DRY-RUN"}
+        return {"dryRun": True, "msg": "acceptQuote skipped in PAPER mode"}
     if quote_id in _accepted_quotes:
         logger.info("[dev3] Duplicate acceptQuote ignored for %s", quote_id)
         return {"duplicate": True, "quoteId": quote_id}

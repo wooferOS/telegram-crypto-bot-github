@@ -7,6 +7,7 @@ from convert_logger import logger
 from convert_model import predict
 from utils_dev3 import save_json, get_current_timestamp
 from top_tokens_utils import save_for_region, TOP_TOKENS_VERSION
+from config_dev3 import DEV3_REGION_TIMER
 
 
 async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]:
@@ -107,7 +108,7 @@ async def main() -> None:
 
     sorted_tokens = sorted(predictions, key=lambda x: x["score"], reverse=True)
     top_tokens = sorted_tokens[:5]
-    region = os.environ.get("REGION", "ASIA").upper()
+    region = DEV3_REGION_TIMER.upper()
     if not top_tokens:
         logger.warning(
             "[dev3] ❌ top_tokens порожній — відсутні релевантні прогнози"
