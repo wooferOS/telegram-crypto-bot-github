@@ -5,6 +5,14 @@ crypto-bot.env
 systemd/crypto-bot.env
 *.pyc
 __pycache__/
+*.log
+*.tmp
+*.bak*
+*.backup.*
+.last_*
+last_total_balance.json
+balance_snapshot.json
+quote_limits.json
 env
 *.env
 /etc/crypto-bot.env
