@@ -11,28 +11,6 @@ BINANCE_API_KEY = "..."
 BINANCE_API_SECRET = "..."
 ```
 
-At runtime the application loads these credentials from that file. If the file is missing, it falls back to `BINANCE_API_KEY` and `BINANCE_API_SECRET` environment variables.
+At runtime the application **only** loads these credentials from `config_dev3.py`. Environment variables and `.env` files are **not** used or supported for secrets.
 
-For temporary shells you can export the variables without duplicating secrets:
-
-```bash
-export BINANCE_KEY=$(python3 - <<'PY'
-import importlib.util
-p="/root/telegram-crypto-bot-github/config_dev3.py"
-spec=importlib.util.spec_from_file_location("cfg", p)
-m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-print(getattr(m, "BINANCE_API_KEY", ""))
-PY
-)
-
-export BINANCE_SECRET=$(python3 - <<'PY'
-import importlib.util
-p="/root/telegram-crypto-bot-github/config_dev3.py"
-spec=importlib.util.spec_from_file_location("cfg", p)
-m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
-print(getattr(m, "BINANCE_API_SECRET", ""))
-PY
-)
-```
-
-Systemd units do not embed secrets; they rely on the above configuration file or explicitly exported environment variables before launch.
+Systemd units do not embed secrets; they rely exclusively on the above configuration file.
