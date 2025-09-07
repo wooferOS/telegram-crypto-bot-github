@@ -1,0 +1,10 @@
+[Unit]
+Description=Schedule daily analysis for convert (asia session)
+
+[Timer]
+OnCalendar=*-*-* 04:45
+Persistent=true
+Unit=gpt_convert_asia.service
+
+[Install]
+WantedBy=timers.target
