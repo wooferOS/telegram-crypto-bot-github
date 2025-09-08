@@ -11,7 +11,12 @@ DEV3_REGION_TIMER = "ASIA"
 DEV3_RECV_WINDOW_MS = 5000  # default recvWindow per Binance docs (max 60000)
 DEV3_RECV_WINDOW_MAX_MS = 60000
 
-MARKETDATA_BASE_URL = "https://data-api.binance.vision"
+# base URLs
+API_BASE = "https://api.binance.com"  # SIGNED/SAPI
+MARKETDATA_BASE = "https://data-api.binance.vision"  # public Spot REST
+
+# production mode by default
+PAPER_MODE = False
 
 CONVERT_SCORE_THRESHOLD = 0.01
 

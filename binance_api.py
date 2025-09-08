@@ -1,10 +1,10 @@
 import requests
 
 from convert_logger import logger
-from config_dev3 import MARKETDATA_BASE_URL
+from config_dev3 import MARKETDATA_BASE
 
 # Public market data should use the data-api base according to Binance docs
-BASE_URL = MARKETDATA_BASE_URL
+BASE_URL = MARKETDATA_BASE
 
 _VALID_SYMBOLS: set[str] | None = None
 try:

@@ -5,10 +5,10 @@ from typing import Tuple
 import requests
 
 from convert_api import get_balances
-from quote_counter import record_weight
-from config_dev3 import MARKETDATA_BASE_URL
+from quote_counter import record_weight, weight_ticker_24hr
+from config_dev3 import MARKETDATA_BASE
 
-BASE_URL = MARKETDATA_BASE_URL
+BASE_URL = MARKETDATA_BASE
 HIGH_FILE = os.path.join("logs", "portfolio_high.json")
 DRAWDOWN_THRESHOLD = 0.10
 PAUSE_THRESHOLD = 0.25
@@ -41,9 +41,10 @@ def _price_usdt(asset: str) -> float:
             return float(r.json().get("price", 0))
     except Exception:
         pass
-    record_weight("ticker/24hr", 2)
+    params = {"symbol": symbol}
+    record_weight("ticker/24hr", weight_ticker_24hr(params))
     try:
-        r = requests.get(f"{BASE_URL}/api/v3/ticker/24hr", params={"symbol": symbol}, timeout=10)
+        r = requests.get(f"{BASE_URL}/api/v3/ticker/24hr", params=params, timeout=10)
         if r.status_code == 200:
             return float(r.json().get("lastPrice", 0))
     except Exception:

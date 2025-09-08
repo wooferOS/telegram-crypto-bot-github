@@ -57,8 +57,8 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
         )
         time.sleep(5)
 
-    step_size, min_notional = load_symbol_filters(from_token, "USDT")  # uses convert assetInfo/exchangeInfo
-    if step_size is None and min_notional is None:
+    step_size, min_notional, max_notional = load_symbol_filters(from_token, "USDT")  # uses convert assetInfo/exchangeInfo
+    if step_size is None and min_notional is None and max_notional is None:
         if from_token == "USDT":
             # skip fake USDTUSDT symbol check for spot filters
             pass
@@ -83,7 +83,12 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             continue
         if to_token == from_token:
             continue
-        if min_notional and min_notional > 0 and est_notional is not None and est_notional < min_notional:
+        if (
+            min_notional
+            and min_notional > 0
+            and est_notional is not None
+            and est_notional < min_notional
+        ):
             logger.info(
                 "[dev3] skip(minNotional): %s amount=%s px=%s est=%s < %s",
                 from_token,
@@ -106,6 +111,37 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
                 px_str,
                 est_str,
                 "skip(minNotional)",
+            )
+            continue
+
+        if (
+            max_notional
+            and max_notional > 0
+            and est_notional is not None
+            and est_notional > max_notional
+        ):
+            logger.info(
+                "[dev3] skip(maxNotional): %s amount=%s px=%s est=%s > %s",
+                from_token,
+                amount,
+                px,
+                est_notional,
+                max_notional,
+            )
+            log_conversion_result(
+                {"fromAsset": from_token, "toAsset": to_token, "fromAmount": str(amount)},
+                False,
+                None,
+                {"msg": "above MAX_NOTIONAL"},
+                None,
+                None,
+                None,
+                None,
+                step_str,
+                min_str,
+                px_str,
+                est_str,
+                "skip(maxNotional)",
             )
             continue
         if should_throttle(from_token, to_token):
@@ -253,7 +289,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             logger.warning(
                 f"[dev3] ❌ Quote прострочено: {quote['quoteId']} для {from_token} → {to_token}"
             )
-            quote = get_quote(from_token, to_token, amt)
+            quote = get_quote(from_token, to_token, amt, validTime=valid_time)
             valid_until = int(quote.get("validTimestamp") or 0)
             if valid_until and convert_api._current_timestamp() > valid_until:
                 log_conversion_result(

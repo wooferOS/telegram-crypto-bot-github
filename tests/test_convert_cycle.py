@@ -18,7 +18,8 @@ sys.modules.setdefault(
         DEV3_REGION_TIMER='ASIA',
         DEV3_RECV_WINDOW_MS=5000,
         DEV3_RECV_WINDOW_MAX_MS=60000,
-        MARKETDATA_BASE_URL="https://data-api.binance.vision",
+        API_BASE="https://api.binance.com",
+        MARKETDATA_BASE="https://data-api.binance.vision",
         SCORING_WEIGHTS={"edge": 1.0, "liquidity": 0.1, "momentum": 0.1, "spread": 0.1, "volatility": 0.1},
     ),
 )
@@ -33,6 +34,8 @@ def setup_env(monkeypatch):
     )
     monkeypatch.setattr(convert_cycle, 'log_cycle_summary', lambda: None)
     monkeypatch.setattr(convert_cycle, 'set_cycle_limit', lambda limit: None)
+    monkeypatch.setattr(convert_cycle, 'load_symbol_filters', lambda *a, **k: (None, None, None))
+    monkeypatch.setattr(convert_cycle, 'get_last_price_usdt', lambda *a, **k: None)
 
 
 def test_process_pair_success(monkeypatch):
