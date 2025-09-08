@@ -1,8 +1,8 @@
 import requests
-from quote_counter import record_weight
-from config_dev3 import MARKETDATA_BASE_URL
+from quote_counter import record_weight, weight_book_ticker
+from config_dev3 import MARKETDATA_BASE
 
-BASE_URL = MARKETDATA_BASE_URL
+BASE_URL = MARKETDATA_BASE
 
 
 def _get(path: str, params: dict) -> dict | None:
@@ -20,8 +20,9 @@ def _get(path: str, params: dict) -> dict | None:
 
 def get_mid_price(from_asset: str, to_asset: str) -> float | None:
     symbol = f"{from_asset}{to_asset}"
-    record_weight("bookTicker")
-    data = _get("/api/v3/ticker/bookTicker", {"symbol": symbol})
+    params = {"symbol": symbol}
+    record_weight("bookTicker", weight_book_ticker(params))
+    data = _get("/api/v3/ticker/bookTicker", params)
     if data:
         try:
             bid = float(data.get("bidPrice", 0))

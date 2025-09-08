@@ -20,8 +20,6 @@ WEIGHTS = {
     "assetInfo": 100,
     "getUserAsset": 5,
     "avgPrice": 2,
-    "bookTicker": 2,
-    "ticker/price": 2,
     "klines": 2,
 }
 
@@ -36,8 +34,21 @@ def weight_ticker_24hr(params: dict) -> int:
     if params.get("symbol"):
         return 2
     if params.get("symbols"):
-        return 40
+        n = len(json.loads(params["symbols"]))
+        if n <= 20:
+            return 2
+        return 40 if n <= 100 else 80
     return 80
+
+
+def weight_ticker_price(params: dict) -> int:
+    """Return weight for ``ticker/price`` based on parameters."""
+    return 2 if params.get("symbol") else 4
+
+
+def weight_book_ticker(params: dict) -> int:
+    """Return weight for ``ticker/bookTicker`` based on parameters."""
+    return 2 if params.get("symbol") else 4
 
 
 def _load() -> dict:

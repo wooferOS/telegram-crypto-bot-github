@@ -27,14 +27,15 @@ from config_dev3 import (
     BINANCE_API_SECRET,
     DEV3_RECV_WINDOW_MS,
     DEV3_RECV_WINDOW_MAX_MS,
+    API_BASE,
 )
 
 from utils_dev3 import get_current_timestamp
 from quote_counter import increment_quote_usage, record_weight
 
 
-# Convert endpoints always live under the main API domain; use fixed defaults
-BASE_URL = "https://api.binance.com"
+# Convert endpoints always live under the main API domain; use configured base
+BASE_URL = API_BASE
 DEFAULT_RECV_WINDOW = DEV3_RECV_WINDOW_MS
 
 # requests session with a tiny retry just for connection errors.  Rate limit

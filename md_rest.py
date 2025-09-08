@@ -13,10 +13,15 @@ import requests
 from typing import Any, Dict, List
 import json
 
-from quote_counter import record_weight, weight_ticker_24hr
-from config_dev3 import MARKETDATA_BASE_URL
+from quote_counter import (
+    record_weight,
+    weight_ticker_24hr,
+    weight_ticker_price,
+    weight_book_ticker,
+)
+from config_dev3 import MARKETDATA_BASE
 
-BASE_URL = MARKETDATA_BASE_URL
+BASE_URL = MARKETDATA_BASE
 
 # --- basic REST helpers ----------------------------------------------------
 
@@ -52,20 +57,48 @@ def avg_price(symbol: str) -> Dict[str, Any] | None:
 
 # https://developers.binance.com/docs/binance-spot-api-docs/rest-api/market-data-endpoints#symbol-price-ticker
 
-def ticker_price(symbol: str) -> Dict[str, Any] | None:
-    """Return data from ``GET /api/v3/ticker/price`` (weight **2**)."""
+def ticker_price(
+    symbol: str | None = None, symbols: List[str] | None = None, *, batch_size: int = 100
+) -> List[Dict[str, Any]] | Dict[str, Any] | None:
+    """Return data from ``GET /api/v3/ticker/price`` with proper weights."""
 
-    record_weight("ticker/price")
-    return _get("/api/v3/ticker/price", {"symbol": symbol})
+    if symbol:
+        params = {"symbol": symbol}
+        record_weight("ticker/price", weight_ticker_price(params))
+        return _get("/api/v3/ticker/price", params)
+    if symbols:
+        out: List[Dict[str, Any]] = []
+        for chunk in _chunk(symbols, batch_size):
+            params = {"symbols": json.dumps(chunk)}
+            record_weight("ticker/price", weight_ticker_price(params))
+            data = _get("/api/v3/ticker/price", params)
+            if isinstance(data, list):
+                out.extend(data)
+        return out
+    raise ValueError("ticker/price must be called with `symbol` or `symbols`")
 
 
 # https://developers.binance.com/docs/binance-spot-api-docs/rest-api/market-data-endpoints#symbol-order-book-ticker
 
-def book_ticker(symbol: str) -> Dict[str, Any] | None:
-    """Return data from ``GET /api/v3/ticker/bookTicker`` (weight **2**)."""
+def book_ticker(
+    symbol: str | None = None, symbols: List[str] | None = None, *, batch_size: int = 100
+) -> List[Dict[str, Any]] | Dict[str, Any] | None:
+    """Return data from ``GET /api/v3/ticker/bookTicker`` with proper weights."""
 
-    record_weight("bookTicker")
-    return _get("/api/v3/ticker/bookTicker", {"symbol": symbol})
+    if symbol:
+        params = {"symbol": symbol}
+        record_weight("bookTicker", weight_book_ticker(params))
+        return _get("/api/v3/ticker/bookTicker", params)
+    if symbols:
+        out: List[Dict[str, Any]] = []
+        for chunk in _chunk(symbols, batch_size):
+            params = {"symbols": json.dumps(chunk)}
+            record_weight("bookTicker", weight_book_ticker(params))
+            data = _get("/api/v3/ticker/bookTicker", params)
+            if isinstance(data, list):
+                out.extend(data)
+        return out
+    raise ValueError("bookTicker must be called with `symbol` or `symbols`")
 
 
 # https://developers.binance.com/docs/binance-spot-api-docs/rest-api/market-data-endpoints#24hr-ticker-price-change-statistics

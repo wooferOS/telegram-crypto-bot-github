@@ -4,13 +4,13 @@ from typing import Optional, Tuple
 import requests
 
 import convert_api
-from config_dev3 import MARKETDATA_BASE_URL
+from config_dev3 import MARKETDATA_BASE
 
 
 def load_symbol_filters(
     base_asset: str, quote_asset: str = "USDT"
-) -> Tuple[Optional[Decimal], Optional[Decimal]]:
-    """Return step size and minimum from-amount for a Convert pair."""
+) -> Tuple[Optional[Decimal], Optional[Decimal], Optional[Decimal]]:
+    """Return step size and min/max notional for a Convert pair."""
 
     try:
         info = convert_api.exchange_info(fromAsset=base_asset)  # Convert exchangeInfo
@@ -18,22 +18,23 @@ def load_symbol_filters(
             for item in info.get("toAssetList", []):
                 if item.get("toAsset") == quote_asset:
                     min_from = Decimal(str(item.get("fromAssetMinAmount", "0")))
+                    max_from = Decimal(str(item.get("fromAssetMaxAmount", "0")))
                     asset_meta = convert_api.asset_info(base_asset)  # Convert assetInfo
                     frac = int(asset_meta.get("fraction", 0))
                     step = (
                         Decimal("1") / (Decimal("10") ** frac) if frac > 0 else Decimal("1")
                     )
-                    return step, min_from
+                    return step, min_from, max_from
     except Exception:  # pragma: no cover - network
         pass
-    return None, None
+    return None, None, None
 
 
 def get_last_price_usdt(asset: str):
     """Return last price of ASSETUSDT pair as Decimal or ``None`` if missing."""
     try:
         r = requests.get(
-            f"{MARKETDATA_BASE_URL}/api/v3/ticker/price",
+            f"{MARKETDATA_BASE}/api/v3/ticker/price",
             params={"symbol": f"{asset}USDT"},
             timeout=10,
         )

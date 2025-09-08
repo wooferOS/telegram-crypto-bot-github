@@ -13,7 +13,8 @@ sys.modules.setdefault(
         DEV3_REGION_TIMER="ASIA",
         DEV3_RECV_WINDOW_MS=5000,
         DEV3_RECV_WINDOW_MAX_MS=60000,
-        MARKETDATA_BASE_URL="https://data-api.binance.vision",
+        API_BASE="https://api.binance.com",
+        MARKETDATA_BASE="https://data-api.binance.vision",
         SCORING_WEIGHTS={"edge": 1.0, "liquidity": 0.1, "momentum": 0.1, "spread": 0.1, "volatility": 0.1},
     ),
 )
@@ -39,7 +40,7 @@ def test_expired_quote_skipped(monkeypatch):
     setup_env(monkeypatch)
     monkeypatch.setattr(convert_cycle, "reset_cycle", lambda: None)
     monkeypatch.setattr(convert_cycle, "should_throttle", lambda *a, **k: False)
-    monkeypatch.setattr(convert_cycle, "load_symbol_filters", lambda *a, **k: (None, None))
+    monkeypatch.setattr(convert_cycle, "load_symbol_filters", lambda *a, **k: (None, None, None))
     monkeypatch.setattr(convert_cycle, "get_last_price_usdt", lambda *a, **k: None)
     monkeypatch.setattr(
         convert_cycle, "filter_top_tokens", lambda tokens, score_threshold, top_n=2: list(tokens.items())
@@ -68,7 +69,7 @@ def test_only_success_recorded(monkeypatch):
     setup_env(monkeypatch)
     monkeypatch.setattr(convert_cycle, "reset_cycle", lambda: None)
     monkeypatch.setattr(convert_cycle, "should_throttle", lambda *a, **k: False)
-    monkeypatch.setattr(convert_cycle, "load_symbol_filters", lambda *a, **k: (None, None))
+    monkeypatch.setattr(convert_cycle, "load_symbol_filters", lambda *a, **k: (None, None, None))
     monkeypatch.setattr(convert_cycle, "get_last_price_usdt", lambda *a, **k: None)
     monkeypatch.setattr(
         convert_cycle, "filter_top_tokens", lambda tokens, score_threshold, top_n=2: list(tokens.items())
