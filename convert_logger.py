@@ -87,7 +87,7 @@ def log_convert_history(entry: dict):
     path = "logs/convert_history.json"
 
     if os.path.exists(path):
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             try:
                 history = json.load(f)
             except json.JSONDecodeError:
@@ -98,8 +98,15 @@ def log_convert_history(entry: dict):
     entry["timestamp"] = datetime.utcnow().isoformat()
     history.append(entry)
 
-    with open(path, "w") as f:
-        json.dump(history, f, indent=2)
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(
+        "w", encoding="utf-8", dir="logs", prefix="convert_history.tmp.", delete=False
+    ) as tmp:
+        json.dump(history, tmp, indent=2)
+        tmp_path = tmp.name
+
+    os.replace(tmp_path, path)
 
 
 def save_convert_history(entry: dict) -> None:

@@ -1,35 +1,40 @@
 import importlib
 import sys
-import types
+from pathlib import Path
 
 
-def _setup_cfg(monkeypatch, key="k", secret="s"):
-    cfg = types.SimpleNamespace(
-        BINANCE_API_KEY=key,
-        BINANCE_API_SECRET=secret,
-        OPENAI_API_KEY="",
-        TELEGRAM_TOKEN="",
-        CHAT_ID="",
-        DEV3_REGION_TIMER="ASIA",
-        DEV3_RECV_WINDOW_MS=5000,
-        DEV3_RECV_WINDOW_MAX_MS=60000,
-        API_BASE="https://api.binance.com",
-        MARKETDATA_BASE="https://data-api.binance.vision",
-        SCORING_WEIGHTS={"edge": 1.0, "liquidity": 0.1, "momentum": 0.1, "spread": 0.1, "volatility": 0.1},
+def _setup_cfg(monkeypatch, tmp_path: Path, key="k", secret="s"):
+    cfg = tmp_path / "config_dev3.py"
+    cfg.write_text(
+        f"""
+BINANCE_API_KEY = '{key}'
+BINANCE_API_SECRET = '{secret}'
+OPENAI_API_KEY = ''
+TELEGRAM_TOKEN = ''
+CHAT_ID = ''
+DEV3_REGION_TIMER = 'ASIA'
+DEV3_RECV_WINDOW_MS = 5000
+DEV3_RECV_WINDOW_MAX_MS = 60000
+API_BASE = 'https://api.binance.com'
+MARKETDATA_BASE = 'https://data-api.binance.vision'
+SCORING_WEIGHTS = {{'edge': 1.0, 'liquidity': 0.1, 'momentum': 0.1, 'spread': 0.1, 'volatility': 0.1}}
+""",
+        encoding="utf-8",
     )
-    monkeypatch.setitem(sys.modules, "config_dev3", cfg)
+    monkeypatch.chdir(tmp_path)
+    sys.modules.pop("config_dev3", None)
 
 
-def test_credentials_from_config(monkeypatch):
-    _setup_cfg(monkeypatch, key="file-key", secret="file-secret")
+def test_credentials_from_config(monkeypatch, tmp_path):
+    _setup_cfg(monkeypatch, tmp_path, key="file-key", secret="file-secret")
     import convert_api
     importlib.reload(convert_api)
     assert convert_api.BINANCE_API_KEY == "file-key"
     assert convert_api.BINANCE_API_SECRET == "file-secret"
 
 
-def test_no_keys_in_logs(monkeypatch, caplog):
-    _setup_cfg(monkeypatch)
+def test_no_keys_in_logs(monkeypatch, caplog, tmp_path):
+    _setup_cfg(monkeypatch, tmp_path)
     import convert_api
     monkeypatch.setattr(convert_api, "_time_synced", True)
 

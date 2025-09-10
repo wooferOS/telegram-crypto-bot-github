@@ -58,10 +58,7 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
         time.sleep(5)
 
     step_size, min_notional, max_notional = load_symbol_filters(from_token, "USDT")  # uses convert assetInfo/exchangeInfo
-    if step_size is None and min_notional is None and max_notional is None:
-        if from_token == "USDT":
-            # skip fake USDTUSDT symbol check for spot filters
-            pass
+    if step_size is None and min_notional is None and max_notional is None and from_token != "USDT":
         logger.warning("[dev3] ⚠️ Немає LOT_SIZE/MIN_NOTIONAL для %sUSDT", from_token)
     if step_size and step_size > 0:
         amount = (

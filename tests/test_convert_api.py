@@ -313,7 +313,7 @@ def test_accept_quote_live(monkeypatch):
     monkeypatch.setattr(convert_api, 'BINANCE_API_KEY', 'key')
     monkeypatch.setattr(convert_api, 'get_current_timestamp', lambda: 1)
     convert_api._time_offset_ms = 0
-    res = convert_api.accept_quote('abc', walletType='MAIN')
+    res = convert_api.accept_quote('abc')
     assert res == {'orderId': '1', 'createTime': 2}
     assert sent['data']['quoteId'] == 'abc'
     assert sent['data']['timestamp'] == 1
