@@ -17,14 +17,13 @@ import logging
 import random
 import time
 from typing import Any, Dict, List, Optional, Set
+import importlib.util
 
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 from config_dev3 import (
-    BINANCE_API_KEY,
-    BINANCE_API_SECRET,
     DEV3_RECV_WINDOW_MS,
     DEV3_RECV_WINDOW_MAX_MS,
     API_BASE,
@@ -32,6 +31,16 @@ from config_dev3 import (
 
 from utils_dev3 import get_current_timestamp
 from quote_counter import increment_quote_usage, record_weight
+
+
+def load_binance_credentials() -> tuple[str, str]:
+    spec = importlib.util.spec_from_file_location("c", "config_dev3.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # type: ignore[attr-defined]
+    return module.BINANCE_API_KEY, module.BINANCE_API_SECRET
+
+
+BINANCE_API_KEY, BINANCE_API_SECRET = load_binance_credentials()
 
 
 # Convert endpoints always live under the main API domain; use configured base
@@ -156,9 +165,11 @@ def _request(method: str, path: str, params: Dict[str, Any], *, signed: bool = T
                 raise ValueError("Signature for this request is not valid")
             if code in (-1102, -1103):
                 raise ValueError("Missing or invalid parameter")
-            if code == -2015:
+            if code in (-2014, -2015):
                 raise PermissionError("Invalid API-key or permissions")
-            if code in (-1003, 345239):
+            if code == 345239:
+                raise RuntimeError("Convert quota exceeded")
+            if code == -1003:
                 time.sleep(_backoff(attempt))
                 continue
 
@@ -275,15 +286,13 @@ def get_quote(
     )
 
 
-def accept_quote(quote_id: str, walletType: Optional[str] = None) -> Dict[str, Any]:
+def accept_quote(quote_id: str) -> Dict[str, Any]:
     if quote_id in _accepted_quotes:
         logger.info("[dev3] Duplicate acceptQuote ignored for %s", quote_id)
         return {"duplicate": True, "quoteId": quote_id}
     _accepted_quotes.add(quote_id)
     record_weight("acceptQuote")
     params = {"quoteId": quote_id, "recvWindow": DEFAULT_RECV_WINDOW}  # timestamp+signature added in _request
-    if walletType:
-        params["walletType"] = walletType
     return _request("POST", "/sapi/v1/convert/acceptQuote", params)
 
 
