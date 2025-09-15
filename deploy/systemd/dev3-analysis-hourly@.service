@@ -1,5 +1,5 @@
 [Unit]
-Description=Sample daily analysis service (%i)
+Description=Dev3 spot analysis (region %i)
 
 [Service]
 WorkingDirectory=/root/telegram-crypto-bot-github

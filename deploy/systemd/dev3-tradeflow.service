@@ -1,0 +1,10 @@
+[Unit]
+Description=Dev3 tradeflow service (disabled)
+
+# This unit is a placeholder to document the tradeflow runner. The
+# actual implementation is currently disabled to avoid systemd errors.
+# To enable, replace the ExecStart line with the real script path.
+
+[Service]
+WorkingDirectory=/root/telegram-crypto-bot-github
+# ExecStart=/root/telegram-crypto-bot-github/.venv/bin/python -u /root/telegram-crypto-bot-github/tradeflow.py
