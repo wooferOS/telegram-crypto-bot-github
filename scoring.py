@@ -17,6 +17,19 @@ from __future__ import annotations
 from typing import Dict
 
 import config_dev3
+# === ensure default scoring weights ===
+try:
+    _w = getattr(config_dev3, 'SCORING_WEIGHTS', None)
+    if not isinstance(_w, dict):
+        config_dev3.SCORING_WEIGHTS = {'edge': 1.0}
+    else:
+        config_dev3.SCORING_WEIGHTS.setdefault('edge', 1.0)
+except Exception:
+    try:
+        config_dev3.SCORING_WEIGHTS = {'edge': 1.0}
+    except Exception:
+        pass
+
 import md_rest
 import mid_ref
 
@@ -68,11 +81,11 @@ def score_pair(from_asset: str, to_asset: str, quote_ratio: float) -> Dict[str, 
 
     w = config_dev3.SCORING_WEIGHTS
     score = (
-        w["edge"] * edge
-        + w["liquidity"] * liquidity
-        + w["momentum"] * momentum
-        - w["spread"] * spread
-        - w["volatility"] * volatility
+        w.get('edge', 1.0) * edge
+        + w.get('liquidity', 0.0) * liquidity
+        + w.get('momentum', 0.0) * momentum
+        - w.get('spread', 0.0) * spread
+        - w.get('volatility', 0.0) * volatility
     )
 
     return {

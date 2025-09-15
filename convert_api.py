@@ -1,3 +1,36 @@
+
+from __future__ import annotations
+
+
+# === unified secret loader (config_dev3.py only) BEGIN ===
+def get_binance_api_keys():
+    """
+    Джерело ключів тільки одне: config_dev3.py
+    Секретний файл не змінюємо і не логуємо значення ключів.
+    """
+    try:
+        import config_dev3 as _cfg
+    except Exception as e:
+        raise RuntimeError("Не знайдено модуль config_dev3.py у PYTHONPATH") from e
+
+    key = getattr(_cfg, "BINANCE_API_KEY", None)
+    sec = getattr(_cfg, "BINANCE_API_SECRET", None)
+    if not key or not sec:
+        raise RuntimeError("В config_dev3.py відсутні BINANCE_API_KEY/BINANCE_API_SECRET")
+
+    return key, sec
+
+# Для сумісності зі старим кодом, який читає os.environ:
+# підставляємо туди значення з config_dev3.py (джерело все одно одне).
+try:
+    _k, _s = get_binance_api_keys()
+    os.environ["BINANCE_API_KEY"] = _k
+    os.environ["BINANCE_API_SECRET"] = _s
+except Exception:
+    pass
+# === unified secret loader (config_dev3.py only) END ===
+
+import os
 """Low level helpers for Binance Spot/SAPI Convert endpoints.
 
 This module focuses on correctly signing and sending requests to Binance.
@@ -9,14 +42,13 @@ The functions exposed here are intentionally lightweight so they can be
 mocked easily in tests.  They **must not** log or expose API secrets.
 """
 
-from __future__ import annotations
-
 import hashlib
 import hmac
 import logging
 import random
 import time
 from typing import Any, Dict, List, Optional, Set
+from quote_counter import try_consume_getquote, init_run_budget
 import importlib.util
 
 import requests
@@ -389,3 +421,110 @@ def get_convert_pair_info(from_asset: str, to_asset: str):
         if fa == from_a and ta == to_a:
             return it
     return None
+
+
+# --- quota backoff (injected by ops) ---
+try:
+    import os, json, time
+    from datetime import datetime, timezone, timedelta
+
+    REGION = os.environ.get("REGION","GLOBAL").lower()
+    _QUOTA_FLAG = f"/run/convert.quota.block.{REGION}"
+
+    def _quota_blocked():
+        try:
+            with open(_QUOTA_FLAG) as f:
+                data = json.load(f)
+            return time.time() < float(data.get("until", 0))
+        except Exception:
+            return False
+
+    def _set_quota_block(seconds, code, msg):
+        try:
+            os.makedirs("/run", exist_ok=True)
+            with open(_QUOTA_FLAG, "w") as f:
+                json.dump({"until": time.time()+float(seconds), "code": int(code), "msg": str(msg)}, f)
+        except Exception:
+            pass
+
+    # Зберігаємо оригінальну реалізацію і підміняємо зверху
+    __request_impl = _request
+
+    def _request(method, path, params, *, signed: bool = True):
+
+        _ = signed  # keep param for callers
+        # Fast-fail: skip hitting Convert when quota is cached
+        try:
+            if _quota_blocked() and str(path).startswith('/sapi/v1/convert/'):
+                raise RuntimeError('Convert quota cached locally')
+        except Exception:
+            pass
+        # Не ліземо в Convert, якщо квота вже закешована
+        if path.startswith("/sapi/v1/convert/") and _quota_blocked():
+            raise RuntimeError("Convert quota exceeded (cached)")
+        try:
+            return __request_impl(method, path, params)
+        except Exception as e:
+            emsg = str(e)
+            if path.startswith("/sapi/v1/convert/"):
+                code = 0
+                if "345239" in emsg or "daily quotation limit" in emsg or "Convert quota exceeded" in emsg:
+                    code = 345239
+                elif "345103" in emsg or "hourly quotation limit" in emsg:
+                    code = 345103
+
+                if code == 345239:
+                    # До наступної доби UTC + 5 хв
+                    now = datetime.now(timezone.utc)
+                    tomorrow = (now + timedelta(days=1)).date()
+                    until = datetime.combine(tomorrow, datetime.min.time(), tzinfo=timezone.utc) + timedelta(minutes=5)
+                    _set_quota_block(until.timestamp() - now.timestamp(), code, "daily quota")
+                elif code == 345103:
+                    _set_quota_block(60*60, code, "hourly quota")
+            raise
+# --- end quota backoff ---
+except Exception:
+    pass
+
+
+# --- quota backoff v2 (global-aware) ---
+try:
+    import os, json, time
+    REGION = os.environ.get("REGION","GLOBAL").lower()
+    _VARIANTS = [REGION] if REGION not in ("", "global") else ["america","asia","global"]
+
+    def _quota_blocked():
+        now = time.time()
+        for r in _VARIANTS:
+            path = f"/run/convert.quota.block.{r}"
+            try:
+                with open(path) as f:
+                    data = json.load(f)
+                if now < float(data.get("until", 0)):
+                    return True
+            except Exception:
+                pass
+        return False
+
+    def _set_quota_block_multi(seconds, code, msg):
+        try:
+            os.makedirs("/run", exist_ok=True)
+            payload = {"until": time.time()+float(seconds), "code": int(code), "msg": str(msg)}
+            for r in _VARIANTS:
+                path = f"/run/convert.quota.block.{r}"
+                try:
+                    with open(path, "w") as f:
+                        json.dump(payload, f)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    # Перекриваємо попередній варіант, якщо був
+    try:
+        _set_quota_block = _set_quota_block_multi
+    except Exception:
+        pass
+except Exception:
+    pass
+# --- end quota backoff v2 ---

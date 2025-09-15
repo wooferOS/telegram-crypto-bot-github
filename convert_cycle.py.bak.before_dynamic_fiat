@@ -1,10 +1,6 @@
-import requests
-from urllib.parse import urlencode
-import os, time, hmac, hashlib
 import math
 from decimal import Decimal, ROUND_DOWN
-from convert_api import get_binance_api_keys
-from config_dev3 import API_BASE
+from marketdata import convert_pairs, asset_precision
 
 _precision_cache = None
 _pairs_cache = None
@@ -69,46 +65,6 @@ from quote_counter import (
 from risk_off import check_risk
 import scoring
 import time
-# === legal money helper BEGIN ===
-_LEGAL_MONEY_CACHE = {'ts': 0.0, 'data': set()}
-
-def _get_legal_money_set(ttl_seconds: int = 3600):
-    # Use /sapi/v1/capital/config/getall (USER_DATA) to detect fiat coins
-    now = time.time()
-    if _LEGAL_MONEY_CACHE['data'] and (now - _LEGAL_MONEY_CACHE['ts'] < ttl_seconds):
-        return _LEGAL_MONEY_CACHE['data']
-
-    api_key, api_secret = get_binance_api_keys()
-
-    if not api_key or not api_secret:
-        return _LEGAL_MONEY_CACHE['data']
-
-    base = API_BASE.rstrip('/')
-    endpoint = '/sapi/v1/capital/config/getall'
-    params = {'timestamp': int(time.time() * 1000)}
-    qs = urlencode(params)
-    signature = hmac.new(api_secret.encode('utf-8'), qs.encode('utf-8'), hashlib.sha256).hexdigest()
-    url = f"{base}{endpoint}?{qs}&signature={signature}"
-    headers = {'X-MBX-APIKEY': api_key}
-    try:
-        resp = requests.get(url, headers=headers, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            fiats = set()
-            for item in data:
-                coin = str(item.get('coin', '')).upper()
-                if coin and item.get('isLegalMoney') is True:
-                    fiats.add(coin)
-            if fiats:
-                _LEGAL_MONEY_CACHE['data'] = fiats
-                _LEGAL_MONEY_CACHE['ts'] = now
-    except Exception:
-        # fail-quietly: не блокуємо торг-цикл, якщо API недоступне
-        pass
-    return _LEGAL_MONEY_CACHE['data']
-# === legal money helper END ===
-
-
 
 
 # Allow executing quotes with low score for model training
@@ -166,17 +122,6 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             pass
         logger.info("[dev3] 🔎 to_tokens(filtered) для %s: %s", from_token, to_tokens)
     # --- end filter ---
-    # --- dynamic fiat filter (Capital isLegalMoney) ---
-    try:
-        fiat_set = _get_legal_money_set()
-        if fiat_set:
-            _before = len(to_tokens)
-            to_tokens = [t for t in to_tokens if t not in fiat_set]
-            if len(to_tokens) != _before:
-                logger.info("[dev3] 🔎 to_tokens(filtered by legalMoney): %s", to_tokens)
-    except Exception as _e:
-        logger.warning("[dev3] legalMoney filter error: %s", _e)
-    # --- end dynamic fiat filter ---
     for to_token in to_tokens:
         # Convert min/max фільтр для конкретної пари
         if not _min_max_ok(from_token, to_token, amount):

@@ -3,9 +3,8 @@ from collections import defaultdict
 from typing import Dict, List, Optional
 
 import requests
-from config_dev3 import BINANCE_API_KEY, BINANCE_API_SECRET, OPENAI_API_KEY, TELEGRAM_TOKEN, CHAT_ID
-
-
+from convert_api import BINANCE_API_KEY, BINANCE_API_SECRET
+from config_dev3 import OPENAI_API_KEY, TELEGRAM_TOKEN, CHAT_ID
 _current_from_token: Optional[str] = None
 _pending: Dict[str, List[str]] = defaultdict(list)
 

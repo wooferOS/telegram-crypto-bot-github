@@ -1,12 +1,7 @@
-# env/secrets
-.env
-
-# caches & venv
+config_dev3.py
+logs/
 __pycache__/
 *.pyc
 .venv/
-
-# logs & temp
-logs/
-*.log
-tmp_*
+quote_count.json
+*.lock

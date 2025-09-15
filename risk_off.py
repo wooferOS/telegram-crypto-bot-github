@@ -10,8 +10,8 @@ from config_dev3 import MARKETDATA_BASE
 
 BASE_URL = MARKETDATA_BASE
 HIGH_FILE = os.path.join("logs", "portfolio_high.json")
-DRAWDOWN_THRESHOLD = 0.10
-PAUSE_THRESHOLD = 0.25
+DRAWDOWN_THRESHOLD = float(os.getenv("RISK_OFF_REDUCE", "1.05"))
+PAUSE_THRESHOLD = float(os.getenv("RISK_OFF_PAUSE", "1.1"))
 
 
 def _load_high() -> float:

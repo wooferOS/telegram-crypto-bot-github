@@ -149,6 +149,9 @@ async def main() -> None:
     logger.info(
         f"[dev3] ✅ Аналіз завершено. Створено top_tokens для регіону {region} з {len(pairs)} записами."
     )
+
+
+\1    # Fast-exit for --mode convert when Convert quota is cached
     try:
         import sys
         from convert_api import _quota_blocked

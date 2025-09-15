@@ -2,13 +2,16 @@ import glob
 import subprocess
 
 import os
+from convert_api import _quota_blocked
 from convert_api import get_balances, get_available_to_tokens
 from convert_cycle import process_pair
 from convert_logger import logger
 from trade_history_sync import sync_recent_trades
 from config_dev3 import CONVERT_SCORE_THRESHOLD, DEV3_REGION_TIMER
 from quote_counter import can_request_quote
-from top_tokens_utils import read_for_region
+import os
+TOP_N_CANDIDATES = int(os.getenv('TOP_N_CANDIDATES', '5'))
+from top_tokens_utils import read_for_region, allowed_tos_for
 
 if not can_request_quote():
     logger.warning("[dev3] ⛔ Ліміт запитів до Convert API досягнуто. Пропускаємо цикл.")
@@ -18,6 +21,25 @@ CACHE_FILES = [
     "signals.txt",
     "last_message.txt",
 ]
+
+
+def filter_tos_by_region(token, region, tos):
+    try:
+        from top_tokens_utils import allowed_tos_for
+        allow = set(allowed_tos_for(token, region))
+    except Exception:
+        allow = set()
+    return [t for t in tos if t in allow] if allow else list(tos)
+
+def _norm_region_val(r):
+    if isinstance(r, str):
+        return r
+    if isinstance(r, dict):
+        for k in ("region", "name", "value", "id"):
+            v = r.get(k)
+            if isinstance(v, str):
+                return v
+    return str(r)
 
 
 def cleanup() -> None:
@@ -49,7 +71,18 @@ def main() -> None:
     cleanup()
     sync_recent_trades()
     logger.info("[dev3] 🔄 Запуск convert трейдингу")
-    region = DEV3_REGION_TIMER
+    region = _norm_region_val(DEV3_REGION_TIMER)
+
+# --- force-filter all available-to tokens by region ---
+try:
+    from convert_api import get_available_to_tokens as _orig_get_available_to_tokens
+except Exception:
+    _orig_get_available_to_tokens = None
+def get_available_to_tokens(tok):
+    tos = _orig_get_available_to_tokens(tok) if _orig_get_available_to_tokens else []
+    return filter_tos_by_region(tok, region, tos)
+# -------------------------------------------------------
+
     # ensure top tokens file exists for region
     try:
         read_for_region(region)
@@ -58,12 +91,16 @@ def main() -> None:
     balances = get_balances()
     for token, amount in balances.items():
         logger.info(f"[dev3] 🔄 Старт трейд-циклу для {token}")
-        tos = get_available_to_tokens(token)
+        tos = filter_tos_by_region(token, region, get_available_to_tokens(token))
+        allow = set(allowed_tos_for(token, region))
+        tos = [t for t in tos if t in allow] if allow else tos
+        if allow and not tos:
+            logger.info("[dev3] ⏭️ Немає дозволених пар для %s — пропускаємо", token)
+            continue
+        tos = list(tos)[:TOP_N_CANDIDATES]
         success = process_pair(token, tos, amount, CONVERT_SCORE_THRESHOLD)
         if not success:
-            logger.warning(
-                "[dev3] ⚠️ Fallback: жодна пара не пройшла фільтри. Обираємо top 2 за ratio."
-            )
+            logger.warning("[dev3] ⚠️ Fallback вимкнено для контролю котирувань")
     cleanup()
     logger.info("[dev3] ✅ Цикл завершено")
 

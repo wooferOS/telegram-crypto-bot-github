@@ -23,6 +23,20 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import re
+import re
+
+
+def _norm_region(region):
+    if isinstance(region, str):
+        return region
+    if isinstance(region, dict):
+        for k in ("region", "name", "value", "id"):
+            v = region.get(k)
+            if isinstance(v, str):
+                return v
+    return str(region)
+
 import time
 from typing import Any, Dict, List
 
@@ -148,7 +162,7 @@ def write_top_tokens_atomic(path: str, data: Dict[str, Any]) -> None:
 
 
 def path_for_region(region: str) -> str:
-    return os.path.join(LOGS_DIR, f"top_tokens.{region.lower()}.json")
+    return os.path.join(LOGS_DIR, f"top_tokens.{_norm_region(region).lower()}.json")
 
 
 def read_for_region(region: str) -> Dict[str, Any]:
@@ -159,3 +173,28 @@ def save_for_region(data: Dict[str, Any], region: str | None = None) -> None:
     region = region or data.get("region", "ASIA")
     write_top_tokens_atomic(path_for_region(region), data)
 
+
+
+def allowed_tos_for(from_token, region):
+    """Повертає множину дозволених to-токенів для конкретного from_token.
+    Джерело — ТІЛЬКИ v1-схема (data["pairs"]), фіати (isLegalMoney=True) відсікаються за даними Binance Capital."""
+    from_token = str(from_token).upper()
+    data = read_for_region(region)
+    pairs = data.get("pairs", []) if isinstance(data, dict) else []
+    tos = {
+        str(item.get("to", "")).upper()
+        for item in pairs
+        if isinstance(item, dict)
+        and str(item.get("from", "")).upper() == from_token
+        and item.get("to")
+    }
+    # Мінусуємо всі фіати за Binance Capital (USER_DATA)
+    try:
+        from convert_cycle import _get_legal_money_set  # використовує підпис, як в API
+        fiats = _get_legal_money_set(ttl_seconds=3600)
+        if fiats:
+            tos = {t for t in tos if t not in fiats}
+    except Exception:
+        # Якщо щось пішло не так з викликом — не розвалюємо пайплайн, захист ще є в convert_cycle
+        pass
+    return tos

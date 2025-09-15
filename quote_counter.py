@@ -199,3 +199,25 @@ def log_cycle_summary() -> None:
         usage["weight"],
         usage["breakdown"],
     )
+
+
+# === Runtime getQuote budget (per process run) ===
+import os, threading
+_RUN_LOCK = threading.Lock()
+_RUN_BUDGET = None
+
+def init_run_budget():
+    global _RUN_BUDGET
+    with _RUN_LOCK:
+        if _RUN_BUDGET is None:
+            _RUN_BUDGET = int(os.getenv("RUN_GETQUOTE_BUDGET", "20"))
+
+def try_consume_getquote() -> bool:
+    global _RUN_BUDGET
+    if _RUN_BUDGET is None:
+        init_run_budget()
+    with _RUN_LOCK:
+        if _RUN_BUDGET <= 0:
+            return False
+        _RUN_BUDGET -= 1
+        return True
