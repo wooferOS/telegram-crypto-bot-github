@@ -1,47 +1,58 @@
 import asyncio
-from convert_api import _quota_blocked
-import asyncio
 import os
+import sys
 from typing import Dict, List
 
-from convert_api import get_balances, get_available_to_tokens, get_quote
+from convert_api import get_available_to_tokens, get_quote
 from convert_logger import logger
 from convert_model import predict
 from utils_dev3 import save_json, get_current_timestamp
 from top_tokens_utils import save_for_region, TOP_TOKENS_VERSION
+
 try:
-    from config_dev3 import DEV3_REGION_TIMER
+    from config_dev3 import DEV3_REGION_TIMER, MIN_NOTIONAL
 except Exception as exc:  # pragma: no cover - config
     raise RuntimeError("Не знайдено config_dev3.py") from exc
 
+ALLOWED_BASES = {"USDT", "BTC"}
 
-async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]:
-    """Fetch quotes for all available to_tokens for given from_token."""
+
+def _parse_base(argv: List[str]) -> str:
+    """Return base token from CLI arguments or exit with error."""
+    if len(argv) < 2:
+        raise SystemExit("Очікується база: USDT або BTC")
+    base = argv[1].upper()
+    if base not in ALLOWED_BASES:
+        raise SystemExit("База має бути USDT або BTC")
+    return base
+
+
+async def gather_predictions(base: str, amount: float) -> List[Dict[str, float]]:
+    """Отримати прогнози для всіх доступних пар з фіксованим from_token."""
+
     predictions: List[Dict[str, float]] = []
     try:
-        to_tokens = await asyncio.to_thread(get_available_to_tokens, from_token)
-        logger.info(f"[dev3] 📥 Доступні to_tokens для {from_token}: {to_tokens}")
+        to_tokens = await asyncio.to_thread(get_available_to_tokens, base)
+        logger.info(f"[dev3] 📥 Доступні to_tokens для {base}: {to_tokens}")
     except Exception as exc:
         logger.warning(
-            f"[dev3] ❌ get_available_to_tokens помилка для {from_token}: {exc}"
+            f"[dev3] ❌ get_available_to_tokens помилка для {base}: {exc}"
         )
         return predictions
 
     for to_token in to_tokens:
         try:
-            quote = await asyncio.to_thread(get_quote, from_token, to_token, amount)
-            logger.info(
-                f"[dev3] 🔄 Quote для {from_token} → {to_token}: {quote}"
-            )
+            quote = await asyncio.to_thread(get_quote, base, to_token, amount)
+            logger.info(f"[dev3] 🔄 Quote для {base} → {to_token}: {quote}")
         except Exception as exc:
             logger.warning(
-                f"[dev3] ❌ get_quote помилка для {from_token} → {to_token}: {exc}"
+                f"[dev3] ❌ get_quote помилка для {base} → {to_token}: {exc}"
             )
             continue
 
         if not quote or "ratio" not in quote or "inverseRatio" not in quote:
             logger.warning(
-                f"[dev3] ⛔️ Неповний quote для {from_token} → {to_token}: {quote}"
+                f"[dev3] ⛔️ Неповний quote для {base} → {to_token}: {quote}"
             )
             continue
 
@@ -53,7 +64,7 @@ async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]
         base_score = base_expected_profit * base_prob_up
 
         expected_profit, prob_up, score = predict(
-            from_token,
+            base,
             to_token,
             {
                 "expected_profit": base_expected_profit,
@@ -66,12 +77,12 @@ async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]
         )
 
         logger.info(
-            f"[dev3] ✅ Прогноз: {from_token} → {to_token} | profit={expected_profit}, prob_up={prob_up}, score={score}"
+            f"[dev3] ✅ Прогноз: {base} → {to_token} | profit={expected_profit}, prob_up={prob_up}, score={score}"
         )
 
         predictions.append(
             {
-                "from_token": from_token,
+                "from_token": base,
                 "to_token": to_token,
                 "ratio": ratio,
                 "inverseRatio": inverse_ratio,
@@ -81,31 +92,12 @@ async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]
             }
         )
 
-    return predictions
-
-
-async def gather_predictions() -> List[Dict[str, float]]:
-    """Collect predictions for all tokens from account balances."""
-    try:
-        balances = await asyncio.to_thread(get_balances)
-    except Exception as exc:
-        logger.warning(f"[dev3] ❌ get_balances помилка: {exc}")
-        return []
-
-    logger.info(f"[dev3] 🔄 Отримано {len(balances)} токенів з балансу")
-
-    tasks = [fetch_quotes(token, amount) for token, amount in balances.items()]
-    results = await asyncio.gather(*tasks)
-
-    predictions: List[Dict[str, float]] = []
-    for items in results:
-        predictions.extend(items)
-
-    logger.info(f"[dev3] ✅ Загалом отримано {len(predictions)} прогнозів")
+    logger.info(f"[dev3] ✅ Загалом отримано {len(predictions)} прогнозів для {base}")
     return predictions
 
 async def main() -> None:
-    predictions = await gather_predictions()
+    base = _parse_base(sys.argv)
+    predictions = await gather_predictions(base, MIN_NOTIONAL)
 
     os.makedirs("logs", exist_ok=True)
     await asyncio.to_thread(save_json, os.path.join("logs", "predictions.json"), predictions)
@@ -121,7 +113,7 @@ async def main() -> None:
 
     pairs = [
         {
-            "from": t["from_token"],
+            "from": base,
             "to": t["to_token"],
             "score": t.get("score"),
             "edge": t.get("expected_profit"),
@@ -141,7 +133,6 @@ async def main() -> None:
         f"[dev3] ✅ Аналіз завершено. Створено top_tokens для регіону {region} з {len(pairs)} записами."
     )
     try:
-        import sys
         from convert_api import _quota_blocked
         if '--mode' in sys.argv:
             i = sys.argv.index('--mode')
