@@ -1,16 +1,18 @@
 # Telegram Crypto Bot
 
-This project interacts with Binance Convert endpoints. Binance API keys are **not** stored in `.env` files or systemd unit definitions.
+This project interacts with the Binance Convert API. The typical flow is:
 
-## Binance credentials
+1. **Аналіз** – `daily_analysis.py` збирає ринки та формує `logs/top_tokens.dev3.json` у схемі v1.
+2. **Відбір** – `top_tokens_utils.allowed_tos_for()` читає цей файл та відкидає фіати за даними Binance Capital.
+3. **Конверт** – `convert_cycle.py` запитує `getQuote` та, якщо котирування чинне, викликає `acceptQuote`.
 
-The only canonical location for Binance keys on the host is `/root/telegram-crypto-bot-github/config_dev3.py` (or a path pointed to by `DEV_CONFIG_PATH`). The file must define:
+## Binance API references
+- [Request Security](https://developers.binance.com/docs/binance-spot-api-docs/rest-api/request-security)
+- [Check Server Time](https://developers.binance.com/docs/binance-spot-api-docs/rest-api/general-endpoints)
+- [Send quote request](https://developers.binance.com/docs/convert/trade)
+- [Accept Quote](https://developers.binance.com/docs/convert/trade/Accept-Quote)
+- [Convert Error Codes](https://developers.binance.com/docs/convert/error-code)
+- [All Coins’ Information](https://developers.binance.com/docs/wallet/capital)
 
-```python
-BINANCE_API_KEY = "..."
-BINANCE_API_SECRET = "..."
-```
-
-At runtime the application **only** loads these credentials from `config_dev3.py`. Environment variables and `.env` files are **not** used or supported for secrets.
-
-Systemd units do not embed secrets; they rely exclusively on the above configuration file.
+## Secrets
+API ключі не зберігаються у `.env` або unit-файлах. Єдиний робочий файл – `config_dev3.py`, який **не** в репозиторії і ігнорується через `.gitignore`. Для локального запуску використовуйте зразок `config_dev3.example.py` та створіть власний `config_dev3.py` з реальними значеннями.

@@ -83,6 +83,15 @@ def test_request_adds_signature_and_header(monkeypatch):
     assert sent['headers']['X-MBX-APIKEY'] == 'key'
 
 
+def test_get_quote_requires_single_amount():
+    with pytest.raises(ValueError):
+        convert_api.get_quote_with_id('USDT', 'BTC')
+    with pytest.raises(ValueError):
+        convert_api.get_quote_with_id('USDT', 'BTC', from_amount=1, to_amount=1)
+    convert_api.get_quote_with_id('USDT', 'BTC', from_amount=1)
+    convert_api.get_quote_with_id('USDT', 'BTC', to_amount=1)
+
+
 def test_clock_skew_sync(monkeypatch):
     class Sess:
         def __init__(self):
@@ -396,7 +405,7 @@ def test_request_retry_on_5xx(monkeypatch):
             return R2()
 
     sess = Sess()
-    fake_time = types.SimpleNamespace(sleep=lambda s: sleeps.append(s))
+    fake_time = types.SimpleNamespace(sleep=lambda s: sleeps.append(s), time=lambda: 0)
     monkeypatch.setattr(convert_api, '_session', sess)
     monkeypatch.setattr(convert_api, 'time', fake_time)
     monkeypatch.setattr(convert_api, 'random', types.SimpleNamespace(uniform=lambda a, b: 0))

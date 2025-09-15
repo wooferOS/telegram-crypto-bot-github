@@ -1,0 +1,6 @@
+[Unit]
+Description=Sample convert trade service (%i)
+
+[Service]
+WorkingDirectory=/root/telegram-crypto-bot-github
+ExecStart=/root/telegram-crypto-bot-github/.venv/bin/python -u /root/telegram-crypto-bot-github/run_convert_trade.py %i
