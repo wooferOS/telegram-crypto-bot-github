@@ -15,7 +15,7 @@ This project interacts with the Binance Convert API. The typical flow is:
 - [All Coins’ Information](https://developers.binance.com/docs/wallet/capital)
 
 ## Secrets
-API ключі не зберігаються у `.env` або unit-файлах. Єдиний робочий файл – `config_dev3.py`, який **не** в репозиторії і ігнорується через `.gitignore`. Для локального запуску використовуйте зразок `config_dev3.example.py` та створіть власний `config_dev3.py` з реальними значеннями.
+API ключі не зберігаються у `.env` або unit-файлах. Створіть локальний `config_dev3.py` з реальними значеннями; файл ігнорується через `.gitignore` і ніколи не комітиться.
 
 ## Systemd units
 
