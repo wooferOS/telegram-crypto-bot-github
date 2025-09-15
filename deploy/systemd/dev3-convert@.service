@@ -1,5 +1,5 @@
 [Unit]
-Description=Sample convert trade service (%i)
+Description=Dev3 convert cycle (region %i)
 
 [Service]
 WorkingDirectory=/root/telegram-crypto-bot-github
