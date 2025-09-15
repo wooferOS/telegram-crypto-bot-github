@@ -49,7 +49,6 @@ import random
 import time
 from typing import Any, Dict, List, Optional, Set
 from quote_counter import try_consume_getquote, init_run_budget
-import importlib.util
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -65,14 +64,7 @@ from utils_dev3 import get_current_timestamp
 from quote_counter import increment_quote_usage, record_weight
 
 
-def load_binance_credentials() -> tuple[str, str]:
-    spec = importlib.util.spec_from_file_location("c", "config_dev3.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)  # type: ignore[attr-defined]
-    return module.BINANCE_API_KEY, module.BINANCE_API_SECRET
-
-
-BINANCE_API_KEY, BINANCE_API_SECRET = load_binance_credentials()
+BINANCE_API_KEY, BINANCE_API_SECRET = get_binance_api_keys()
 
 
 # Convert endpoints always live under the main API domain; use configured base
@@ -452,7 +444,6 @@ try:
 
     def _request(method, path, params, *, signed: bool = True):
 
-        _ = signed  # keep param for callers
         # Fast-fail: skip hitting Convert when quota is cached
         try:
             if _quota_blocked() and str(path).startswith('/sapi/v1/convert/'):
@@ -463,7 +454,7 @@ try:
         if path.startswith("/sapi/v1/convert/") and _quota_blocked():
             raise RuntimeError("Convert quota exceeded (cached)")
         try:
-            return __request_impl(method, path, params)
+            return __request_impl(method, path, params, signed=signed)
         except Exception as e:
             emsg = str(e)
             if path.startswith("/sapi/v1/convert/"):

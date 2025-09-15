@@ -178,6 +178,12 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
         logger.warning("[dev3] legalMoney filter error: %s", _e)
     # --- end dynamic fiat filter ---
     for to_token in to_tokens:
+        try:
+            if to_token in _get_legal_money_set():
+                logger.info("[dev3] skip(legalMoney): %s", to_token)
+                continue
+        except Exception:
+            pass
         # Convert min/max фільтр для конкретної пари
         if not _min_max_ok(from_token, to_token, amount):
             logger.info("[dev3] skip(convertMinMax): %s→%s amount=%s", from_token, to_token, amount)
@@ -235,6 +241,10 @@ def process_pair(from_token: str, to_tokens: List[str], amount: float, score_thr
             return False
 
         quote = get_quote(from_token, to_token, amt, validTime=valid_time)
+        if isinstance(quote, dict) and str(quote.get("msg", "")).lower().startswith("hourly"):
+            logger.warning("[dev3] ⚠️ Hourly quotation limit reached, backoff")
+            time.sleep(5)
+            break
 
         if should_throttle(from_token, to_token, quote):
             break

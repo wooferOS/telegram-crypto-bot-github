@@ -1,5 +1,6 @@
 import asyncio
 from convert_api import _quota_blocked
+import asyncio
 import os
 from typing import Dict, List
 
@@ -8,7 +9,10 @@ from convert_logger import logger
 from convert_model import predict
 from utils_dev3 import save_json, get_current_timestamp
 from top_tokens_utils import save_for_region, TOP_TOKENS_VERSION
-from config_dev3 import DEV3_REGION_TIMER
+try:
+    from config_dev3 import DEV3_REGION_TIMER
+except Exception as exc:  # pragma: no cover - config
+    raise RuntimeError("Не знайдено config_dev3.py") from exc
 
 
 async def fetch_quotes(from_token: str, amount: float) -> List[Dict[str, float]]:
@@ -100,19 +104,6 @@ async def gather_predictions() -> List[Dict[str, float]]:
     logger.info(f"[dev3] ✅ Загалом отримано {len(predictions)} прогнозів")
     return predictions
 
-
-
-def _resolve_region(DEV3_REGION_TIMER):
-    env = os.environ.get("REGION")
-    if env:
-        return env.strip().upper()
-    if isinstance(DEV3_REGION_TIMER, str):
-        return DEV3_REGION_TIMER.strip().upper()
-    if isinstance(DEV3_REGION_TIMER, dict):
-        # fallback: дозволяємо задавати DEV3_REGION через env
-        return os.environ.get("DEV3_REGION","AMERICA").upper()
-    return "AMERICA"
-
 async def main() -> None:
     predictions = await gather_predictions()
 
@@ -121,7 +112,7 @@ async def main() -> None:
 
     sorted_tokens = sorted(predictions, key=lambda x: x["score"], reverse=True)
     top_tokens = sorted_tokens[:5]
-    region = _resolve_region(DEV3_REGION_TIMER)
+    region = "dev3"
     if not top_tokens:
         logger.warning(
             "[dev3] ❌ top_tokens порожній — відсутні релевантні прогнози"
@@ -159,4 +150,7 @@ async def main() -> None:
                 raise SystemExit(0)
     except Exception:
         pass
+
+
+if __name__ == "__main__":
     asyncio.run(main())

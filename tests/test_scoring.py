@@ -1,5 +1,18 @@
-import os, sys
+import os, sys, types
 sys.path.insert(0, os.getcwd())
+
+sys.modules.setdefault(
+    "config_dev3",
+    types.SimpleNamespace(
+        SCORING_WEIGHTS={
+            "edge": 1.0,
+            "liquidity": 0.1,
+            "momentum": 0.1,
+            "spread": 0.1,
+            "volatility": 0.1,
+        }
+    ),
+)
 
 import scoring
 import md_rest
