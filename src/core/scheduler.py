@@ -1,4 +1,5 @@
-"""Window helpers and jittered scheduling utilities."""
+"""Market window helpers and locking primitives."""
+
 from __future__ import annotations
 
 import fcntl
@@ -6,178 +7,87 @@ import logging
 import os
 import random
 from contextlib import contextmanager
-from dataclasses import dataclass
 from datetime import datetime, time, timedelta, timezone
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Dict, Iterable, Tuple
 
 from config_dev3 import ASIA_WINDOW, US_WINDOW
 
+
 LOGGER = logging.getLogger(__name__)
 
-_REGION_WINDOWS: Dict[str, object] = {
+_WINDOWS: Dict[str, Dict[str, Tuple[str, str]]] = {
     "asia": ASIA_WINDOW,
     "us": US_WINDOW,
 }
 
-_LOCK_PATHS = {
-    "asia": Path("/tmp/asia.lock"),
-    "us": Path("/tmp/us.lock"),
-}
-
-_JITTER_RANGE = (120, 180)
-_JITTER_CACHE: Dict[Tuple[str, str, datetime], datetime] = {}
+_LOCK_DIR = Path("/tmp")
 
 
-@dataclass
-class WindowDefinition:
-    analyze: Tuple[time, time]
-    trade: Tuple[time, time]
-
-
-@dataclass
-class WindowInterval:
-    phase: str
-    start: datetime
-    end: datetime
-
-
-def _coerce_time_pair(value: object) -> Tuple[time, time]:
-    if isinstance(value, (list, tuple)) and len(value) == 2:
-        return _parse_time(value[0]), _parse_time(value[1])
-    raise ValueError(f"Invalid window specification: {value!r}")
-
-
-def _parse_time(value: object) -> time:
+def _parse_time(value: str | time) -> time:
     if isinstance(value, time):
         return value
-    if isinstance(value, str):
-        hour, minute = value.split(":", 1)
-        return time(int(hour), int(minute))
-    raise ValueError(f"Invalid time value: {value!r}")
+    hour, minute = str(value).split(":", 1)
+    return time(int(hour), int(minute))
 
 
-def _load_definition(region: str) -> WindowDefinition:
-    raw = _REGION_WINDOWS.get(region)
-    if raw is None:
-        raise ValueError(f"Unknown region: {region}")
-
-    analyze = getattr(raw, "analyze", None)
-    trade = getattr(raw, "trade", None)
-    if analyze is None and isinstance(raw, dict):
-        analyze = raw.get("analyze")
-    if trade is None and isinstance(raw, dict):
-        trade = raw.get("trade")
-
-    if analyze is None or trade is None:
-        raise ValueError(f"Window configuration for {region} missing analyze/trade")
-
-    return WindowDefinition(
-        analyze=_coerce_time_pair(analyze),
-        trade=_coerce_time_pair(trade),
-    )
-
-
-def _window_bounds(
-    start_time: time,
-    end_time: time,
-    reference: datetime,
-) -> Tuple[datetime, datetime]:
-    start = datetime.combine(reference.date(), start_time, tzinfo=timezone.utc)
-    end = datetime.combine(reference.date(), end_time, tzinfo=timezone.utc)
+def _window_bounds(window: Iterable[str | time], now_utc: datetime) -> Tuple[datetime, datetime]:
+    start_raw, end_raw = list(window)
+    start_time = _parse_time(start_raw)
+    end_time = _parse_time(end_raw)
+    start = datetime.combine(now_utc.date(), start_time, tzinfo=timezone.utc)
+    end = datetime.combine(now_utc.date(), end_time, tzinfo=timezone.utc)
     if end <= start:
         end += timedelta(days=1)
-    if reference < start - timedelta(days=1):
+    if now_utc < start and (start - now_utc) > timedelta(hours=12):
         start -= timedelta(days=1)
         end -= timedelta(days=1)
-    elif reference >= end + timedelta(days=1):
+    elif now_utc > end and (now_utc - end) > timedelta(hours=12):
         start += timedelta(days=1)
         end += timedelta(days=1)
     return start, end
 
 
-def _jittered_start(region: str, phase: str, start: datetime, end: datetime) -> datetime:
-    cache_key = (region, phase, start)
-    jittered = _JITTER_CACHE.get(cache_key)
-    if jittered is not None:
-        return jittered
+def in_window(region: str, phase: str, now_utc: datetime | None = None) -> bool:
+    """Return True when ``now_utc`` falls inside the configured window."""
 
-    jitter_min, jitter_max = _JITTER_RANGE
-    offset = random.uniform(jitter_min, jitter_max)
-    if random.choice((True, False)):
-        offset *= -1
-    jittered = start + timedelta(seconds=offset)
-    if jittered >= end:
-        jittered = end - timedelta(seconds=30)
-    if jittered <= start - timedelta(seconds=60):
-        jittered = start
-    LOGGER.debug("Jittered start for %s/%s @ %s -> %s", region, phase, start, jittered)
-    _JITTER_CACHE[cache_key] = jittered
-    return jittered
+    now_utc = now_utc or datetime.now(timezone.utc)
+    region = region.lower()
+    phase = phase.lower()
+    config = _WINDOWS.get(region)
+    if config is None:
+        raise ValueError(f"Unknown region {region}")
+    window = config.get(phase)
+    if window is None:
+        raise ValueError(f"Window for {region}/{phase} is not configured")
+    start, end = _window_bounds(window, now_utc)
+    return start <= now_utc <= end
 
 
-def _build_interval(region: str, phase: str, now_utc: datetime) -> WindowInterval:
-    definition = _load_definition(region)
-    window = getattr(definition, phase)
-    start, end = _window_bounds(window[0], window[1], now_utc)
-    jittered_start = _jittered_start(region, phase, start, end)
-    return WindowInterval(phase=phase, start=jittered_start, end=end)
+def sleep_with_jitter_before_phase(region: str, phase: str) -> None:
+    """Sleep a random amount (120-180 seconds) before executing ``phase``."""
 
+    delay = random.uniform(120, 180)
+    LOGGER.info("Jitter before %s/%s: sleeping %.2fs", region, phase, delay)
+    if delay > 0:
+        from time import sleep
 
-def _find_active_interval(region: str, phase: str, now_utc: datetime) -> Optional[WindowInterval]:
-    for delta in (-1, 0, 1):
-        shifted_now = now_utc + timedelta(days=delta)
-        interval = _build_interval(region, phase, shifted_now)
-        if interval.start <= now_utc <= interval.end:
-            return interval
-    return None
-
-
-def is_in_analyze_window(region: str, now_utc: datetime) -> bool:
-    """Return ``True`` when ``now_utc`` is inside the jittered analyze window."""
-
-    return _find_active_interval(region, "analyze", now_utc) is not None
-
-
-def is_in_trade_window(region: str, now_utc: datetime) -> bool:
-    """Return ``True`` when ``now_utc`` is inside the jittered trade window."""
-
-    return _find_active_interval(region, "trade", now_utc) is not None
-
-
-def next_window(region: str, now_utc: Optional[datetime] = None) -> WindowInterval:
-    """Return the next analyze or trade window for ``region`` after ``now_utc``."""
-
-    if now_utc is None:
-        now_utc = datetime.now(timezone.utc)
-
-    candidates = []
-    for phase in ("analyze", "trade"):
-        interval = _build_interval(region, phase, now_utc)
-        if now_utc <= interval.start:
-            candidates.append(interval)
-        else:
-            next_day_interval = _build_interval(region, phase, now_utc + timedelta(days=1))
-            candidates.append(next_day_interval)
-
-    candidates.sort(key=lambda item: item.start)
-    return candidates[0]
+        sleep(delay)
 
 
 @contextmanager
-def acquire_lock(region: str):
-    """Exclusive lock per region to prevent overlapping runs."""
+def single_instance_lock(name: str):
+    """Exclusive lock implemented via ``fcntl`` on ``/tmp`` files."""
 
-    path = _LOCK_PATHS.get(region)
-    if path is None:
-        raise ValueError(f"Unknown region: {region}")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o644)
+    lock_path = _LOCK_DIR / f"{name}.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o644)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError as exc:
+    except BlockingIOError as exc:  # pragma: no cover - depends on runtime
         os.close(fd)
-        raise RuntimeError(f"Another process holds lock for {region}") from exc
+        raise RuntimeError(f"Another process holds lock {lock_path}") from exc
+
     try:
         yield
     finally:

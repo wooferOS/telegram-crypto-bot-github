@@ -1,24 +1,49 @@
-"""Command line interface for Binance Convert automation."""
+"""Command line interface for Convert automation helpers."""
+
 from __future__ import annotations
 
 import argparse
 import logging
 import sys
-from typing import Any, Dict
+from decimal import Decimal
+
+import config_dev3 as config
 
 from src import app
 from src.core import balance, convert_api, utils
-from src.core.convert_api import ConvertError
+
 
 LOGGER = logging.getLogger(__name__)
 
 
-def _setup_logging(verbose: bool = False) -> None:
+def _setup_logging(verbose: bool) -> None:
     level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(message)s")
+
+
+def _format_decimal(value: Decimal) -> str:
+    return utils.floor_str_8(Decimal(value))
+
+
+def _print_quote(quote: dict) -> None:
+    print(
+        f"Quote {quote.get('fromAsset')}→{quote.get('toAsset')} "
+        f"wallet={quote.get('wallet')} amount={quote.get('requestedAmount')}"
     )
+    ratio = quote.get("ratio") or quote.get("price")
+    if ratio is not None:
+        print(f"Ratio: {ratio}")
+    to_amount = quote.get("toAmount") or quote.get("toAmountExpected")
+    if to_amount is not None:
+        print(f"To amount: {to_amount}")
+    expire = quote.get("expireTime")
+    if expire:
+        print(f"Expires: {expire}")
+    if quote.get("insufficient"):
+        print(
+            "Warning: insufficient balance (available="
+            f"{quote.get('available')})"
+        )
 
 
 def cmd_info(args: argparse.Namespace) -> None:
@@ -37,84 +62,59 @@ def cmd_info(args: argparse.Namespace) -> None:
         print(f"Max amount: {max_amount}")
 
     for wallet in ("SPOT", "FUNDING"):
-        from_free = balance.read_free(args.from_asset, wallet)
-        to_free = balance.read_free(args.to_asset, wallet)
-        print(
-            f"{wallet}: {args.from_asset.upper()}={from_free} {args.to_asset.upper()}={to_free}"
-        )
-
-
-def _print_quote(result: Dict[str, Any]) -> None:
-    print(
-        f"Quote {result.get('fromAsset')}→{result.get('toAsset')} "
-        f"wallet={result.get('wallet')} amount={result.get('amount')}"
-    )
-    price = result.get("price") or result.get("ratio")
-    if price:
-        print(f"Price: {price}")
-    if result.get("expireTime"):
-        print(f"Expires: {result['expireTime']}")
-    if result.get("insufficient"):
-        print(
-            "Warning: insufficient balance; available="
-            f"{result.get('available')}"
-        )
+        from_free = _format_decimal(balance.read_free(args.from_asset, wallet))
+        to_free = _format_decimal(balance.read_free(args.to_asset, wallet))
+        print(f"{wallet}: {args.from_asset.upper()}={from_free} {args.to_asset.upper()}={to_free}")
 
 
 def cmd_quote(args: argparse.Namespace) -> None:
-    try:
-        result = app.quote_once(
-            args.from_asset,
-            args.to_asset,
-            args.amount,
-            args.wallet,
-        )
-    except ConvertError as exc:
-        print(f"Quote error: {exc}", file=sys.stderr)
-        sys.exit(1)
-    _print_quote(result)
+    quote = convert_api.get_quote(args.from_asset, args.to_asset, args.amount, args.wallet)
+    _print_quote(quote)
+
+
+def _determine_dry_run(value: int | None) -> bool:
+    if value is None:
+        return bool(getattr(config, "DRY_RUN", 0))
+    return bool(value)
 
 
 def cmd_now(args: argparse.Namespace) -> None:
-    dry_run = args.dry_run
-    try:
-        result = app.convert_once(
-            args.from_asset,
-            args.to_asset,
-            args.amount,
-            args.wallet,
-            dry_run=dry_run,
-        )
-    except ConvertError as exc:
-        print(f"Conversion error: {exc}", file=sys.stderr)
+    dry_run = _determine_dry_run(args.dry_run)
+    quote = convert_api.get_quote(args.from_asset, args.to_asset, args.amount, args.wallet)
+    _print_quote(quote)
+
+    if quote.get("insufficient"):
+        print("Conversion skipped: insufficient balance")
+        return
+
+    quote_id = quote.get("quoteId")
+    if not quote_id:
+        print("Quote did not return quoteId; aborting", file=sys.stderr)
         sys.exit(1)
 
-    if result.get("status") == "SKIPPED":
-        print("Insufficient balance; conversion skipped")
-        return
-
-    _print_quote(result)
     if dry_run:
-        print("Dry run — quote only, no acceptQuote issued")
+        print("Dry run mode — acceptQuote not executed")
         return
 
-    accept = result.get("accept")
-    if isinstance(accept, dict):
-        order_id = accept.get("orderId")
-        print(f"Order ID: {order_id}")
-    status = result.get("orderStatus")
-    if isinstance(status, dict):
-        print(f"Status: {status.get('status')}")
+    accept = convert_api.accept_quote(str(quote_id), quote.get("wallet", args.wallet))
+    order_id = accept.get("orderId") if isinstance(accept, dict) else None
+    print(f"Order ID: {order_id}")
+    if not order_id:
+        return
+    status = convert_api.get_order_status(order_id)
+    print(f"Status: {status.get('status')}")
+    if status.get("toAmount"):
+        print(f"To amount: {status['toAmount']}")
 
 
 def cmd_status(args: argparse.Namespace) -> None:
     status = convert_api.get_order_status(args.order_id)
     if isinstance(status, dict):
-        print(f"Order {args.order_id} -> {status.get('status')}")
+        print(f"Order {args.order_id}: {status.get('status')}")
         if status.get("price"):
             print(f"Price: {status['price']}")
         if status.get("toAmount"):
-            print(f"Received: {status['toAmount']}")
+            print(f"To amount: {status['toAmount']}")
     else:
         print(status)
 
@@ -132,71 +132,56 @@ def cmd_trades(args: argparse.Namespace) -> None:
         for entry in items:
             order_id = entry.get("orderId")
             status = entry.get("status")
+            from_amount = entry.get("fromAmount")
             price = entry.get("price")
-            amount = entry.get("fromAmount")
-            print(
-                f"#{order_id} {status} amount={amount} price={price}"
-            )
+            print(f"#{order_id} {status} amount={from_amount} price={price}")
 
 
 def cmd_run(args: argparse.Namespace) -> None:
-    app.run(args.region, args.phase, dry_run=args.dry)
+    dry_run = _determine_dry_run(args.dry_run)
+    app.run(args.region, args.phase, dry_run)
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--verbose", action="store_true", help="Enable debug logs")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    sub = parser.add_subparsers(dest="command", required=True)
 
-    p_info = subparsers.add_parser("info", help="Show pair limits and balances")
+    p_info = sub.add_parser("info", help="Show limits and balances")
     p_info.add_argument("from_asset")
     p_info.add_argument("to_asset")
     p_info.set_defaults(func=cmd_info)
 
-    p_quote = subparsers.add_parser("quote", help="Dry quote a conversion")
+    p_quote = sub.add_parser("quote", help="Fetch a convert quote")
     p_quote.add_argument("from_asset")
     p_quote.add_argument("to_asset")
     p_quote.add_argument("amount")
     p_quote.add_argument("--wallet", default="SPOT", choices=["SPOT", "FUNDING"])
     p_quote.set_defaults(func=cmd_quote)
 
-    p_now = subparsers.add_parser("now", help="Execute a conversion immediately")
+    p_now = sub.add_parser("now", help="Execute a conversion immediately")
     p_now.add_argument("from_asset")
     p_now.add_argument("to_asset")
     p_now.add_argument("amount")
     p_now.add_argument("--wallet", default="SPOT", choices=["SPOT", "FUNDING"])
-    p_now.add_argument("--dry-run", dest="dry_run", action="store_true")
+    p_now.add_argument("--dry-run", dest="dry_run", type=int, choices=[0, 1], default=None)
     p_now.set_defaults(func=cmd_now)
 
-    p_status = subparsers.add_parser("status", help="Fetch order status")
+    p_status = sub.add_parser("status", help="Check order status")
     p_status.add_argument("order_id")
     p_status.set_defaults(func=cmd_status)
 
-    p_trades = subparsers.add_parser("trades", help="Show trade flow")
+    p_trades = sub.add_parser("trades", help="Show trade history")
     p_trades.add_argument("--hours", type=int, default=24)
     p_trades.add_argument("--limit", type=int, default=100)
     p_trades.add_argument("--detailed", action="store_true")
     p_trades.set_defaults(func=cmd_trades)
 
-    p_run = subparsers.add_parser("run", help="Run scheduled analyze/trade phase")
+    p_run = sub.add_parser("run", help="Invoke auto-cycle phase")
     p_run.add_argument("--region", required=True, choices=["asia", "us"])
     p_run.add_argument("--phase", required=True, choices=["analyze", "trade"])
-    dry_group = p_run.add_mutually_exclusive_group()
-    dry_group.add_argument(
-        "--dry",
-        dest="dry",
-        action="store_const",
-        const=True,
-        help="Force dry-run mode",
-    )
-    dry_group.add_argument(
-        "--real",
-        dest="dry",
-        action="store_const",
-        const=False,
-        help="Execute trades regardless of config",
-    )
-    p_run.set_defaults(func=cmd_run, dry=None)
+    p_run.add_argument("--dry-run", dest="dry_run", type=int, choices=[0, 1], default=None)
+    p_run.set_defaults(func=cmd_run)
 
     return parser
 
@@ -205,17 +190,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     _setup_logging(args.verbose)
-
     try:
         args.func(args)
-        return 0
-    except ConvertError as exc:
-        LOGGER.error("Convert error: %s", exc)
-        return 1
-    except Exception as exc:  # pragma: no cover - CLI diagnostics
+    except Exception as exc:  # pragma: no cover - top level guard
         LOGGER.exception("Command failed: %s", exc)
         return 1
+    return 0
 
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover - CLI entry point
     sys.exit(main())
