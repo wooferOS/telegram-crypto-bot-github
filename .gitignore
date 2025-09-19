@@ -9,3 +9,9 @@ quote_count.json
 *.bak
 *.old
 *.tmp
+
+# local
+*.pyc
+__pycache__/
+.env
+
