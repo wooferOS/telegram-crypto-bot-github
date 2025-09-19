@@ -1,6 +1,0 @@
-[Unit]
-Description=Dev3 spot analysis (region %i)
-
-[Service]
-WorkingDirectory=/root/telegram-crypto-bot-github
-ExecStart=/root/telegram-crypto-bot-github/.venv/bin/python -u /root/telegram-crypto-bot-github/daily_analysis.py %i
