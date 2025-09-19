@@ -13,19 +13,14 @@ import requests
 from requests import Response
 from urllib.parse import urlencode
 
-from config_dev3 import (
-    BINANCE_API_KEY,
-    BINANCE_SECRET_KEY,
-    BURST,
-    EXINFO_TTL_SEC,
-    QPS,
-)
+from config_dev3 import BINANCE_API_KEY, BINANCE_SECRET_KEY, BURST, QPS
 from src.core.utils import now_ms
 
 LOGGER = logging.getLogger(__name__)
 BASE_URL = os.environ.get("BINANCE_API_BASE", "https://api.binance.com")
 RECV_WINDOW_MS = 5000
-MAX_BACKOFF_ATTEMPTS = 5
+MAX_ATTEMPTS = 5
+EXCHANGE_INFO_TTL = 120
 
 _session = requests.Session()
 
@@ -40,27 +35,26 @@ _time_lock = threading.Lock()
 
 def _acquire_token() -> None:
     """Simple token bucket enforcement for QPS/BURST."""
+
     global _tokens, _last_refill
-    with _bucket_lock:
-        while True:
+    while True:
+        with _bucket_lock:
             now = time.monotonic()
             elapsed = now - _last_refill
             if elapsed > 0:
-                _tokens = min(float(BURST), _tokens + elapsed * QPS)
+                _tokens = min(float(BURST), _tokens + elapsed * float(QPS))
                 _last_refill = now
             if _tokens >= 1:
                 _tokens -= 1
                 return
-            wait_time = max((1 - _tokens) / QPS, 0.01)
-            _bucket_lock.release()
-            try:
-                time.sleep(wait_time)
-            finally:
-                _bucket_lock.acquire()
+            deficit = 1 - _tokens
+            wait_time = deficit / float(QPS) if QPS else 0.1
+        time.sleep(max(wait_time, 0.01))
 
 
 def _sync_time() -> None:
     """Update local time offset using ``/api/v3/time``."""
+
     global _time_offset_ms
     with _time_lock:
         try:
@@ -68,8 +62,8 @@ def _sync_time() -> None:
             resp.raise_for_status()
             server_time = int(resp.json().get("serverTime", 0))
             _time_offset_ms = server_time - now_ms()
-            LOGGER.debug("Time synced with Binance; offset=%s ms", _time_offset_ms)
-        except Exception as exc:  # pragma: no cover - network errors
+            LOGGER.info("Time synced with Binance; offset=%s ms", _time_offset_ms)
+        except Exception as exc:  # pragma: no cover - network dependent
             LOGGER.warning("Unable to sync time with Binance: %s", exc)
             _time_offset_ms = 0
 
@@ -78,20 +72,19 @@ def _timestamp() -> int:
     return now_ms() + _time_offset_ms
 
 
-def _sign(params: Dict[str, Any]) -> Tuple[Dict[str, Any], str]:
+def _sign(params: Dict[str, Any]) -> Dict[str, Any]:
     payload = params.copy()
     payload.setdefault("recvWindow", RECV_WINDOW_MS)
     payload["timestamp"] = _timestamp()
     ordered = [(k, payload[k]) for k in sorted(payload)]
     query = urlencode(ordered, doseq=True)
-    signature = hmac_sha256(query)
-    payload["signature"] = signature
-    return payload, query
+    payload["signature"] = _hmac_sha256(query)
+    return payload
 
 
-def hmac_sha256(message: str) -> str:
-    import hmac
+def _hmac_sha256(message: str) -> str:
     import hashlib
+    import hmac
 
     return hmac.new(
         BINANCE_SECRET_KEY.encode("utf-8"), message.encode("utf-8"), hashlib.sha256
@@ -134,7 +127,7 @@ def _store_cache(path: str, params: Dict[str, Any], data: Dict[str, Any]) -> Non
     key = _cache_key(path, params)
     if not key:
         return
-    _exchange_cache[key] = (time.time() + EXINFO_TTL_SEC, data)
+    _exchange_cache[key] = (time.time() + EXCHANGE_INFO_TTL, data)
 
 
 def _build_response(path: str, data: Dict[str, Any]) -> Response:
@@ -149,7 +142,8 @@ def _build_response(path: str, data: Dict[str, Any]) -> Response:
 
 def _backoff_delay(attempt: int) -> float:
     base = min(2 ** (attempt - 1), 16)
-    return base + random.uniform(0, 0.25)
+    jitter = random.uniform(0.8, 1.2)
+    return base * jitter
 
 
 def _request(
@@ -163,17 +157,18 @@ def _request(
 
     cached = _try_cache_response(path, params)
     if cached is not None:
+        LOGGER.debug("Serving %s %s from cache", method, path)
         return cached
 
     url = f"{BASE_URL}{path}"
     attempt = 0
-    clock_retry = False
+    timestamp_retry = False
 
-    while True:
+    while attempt < MAX_ATTEMPTS:
         attempt += 1
-        payload, _ = _sign(params)
+        payload = _sign(params)
         headers = _headers()
-        LOGGER.debug("HTTP %s %s params=%s", method, path, {k: v for k, v in params.items() if k != "signature"})
+        LOGGER.debug("HTTP %s %s attempt=%s", method, path, attempt)
         _acquire_token()
         try:
             if method == "GET":
@@ -182,10 +177,12 @@ def _request(
                 if as_body:
                     response = _session.post(url, data=payload, headers=headers, timeout=10)
                 else:
-                    response = _session.post(url, params=payload, headers=headers, timeout=10)
+                    response = _session.post(
+                        url, params=payload, headers=headers, timeout=10
+                    )
         except requests.RequestException as exc:
             LOGGER.warning("Request error %s %s attempt=%s: %s", method, path, attempt, exc)
-            if attempt >= MAX_BACKOFF_ATTEMPTS:
+            if attempt >= MAX_ATTEMPTS:
                 raise
             time.sleep(_backoff_delay(attempt))
             continue
@@ -196,37 +193,49 @@ def _request(
         except ValueError:
             data = None
 
-        if response.status_code == 200 and isinstance(data, dict) and data.get("code") == -1021:
-            if not clock_retry:
-                clock_retry = True
-                LOGGER.warning("Timestamp drift detected; resyncing time")
+        if response.status_code == 200 and isinstance(data, dict) and data.get("code") not in (None, 0, "0"):
+            # API sometimes returns HTTP 200 with error payload
+            code = data.get("code")
+            try:
+                code_int = int(code)  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                code_int = code
+            if code_int == -1021 and not timestamp_retry:
+                LOGGER.warning("Timestamp drift detected; syncing clock and retrying")
+                timestamp_retry = True
                 _sync_time()
                 continue
+            LOGGER.error("API error %s on %s %s: %s", code, method, path, data)
+            raise requests.HTTPError(str(data))
 
         if response.status_code == 200:
             if isinstance(data, dict):
                 _store_cache(path, params, data)
-            LOGGER.debug("HTTP %s %s OK", method, path)
+            LOGGER.info("HTTP %s %s succeeded", method, path)
             return response
+
+        if isinstance(data, dict) and data.get("code") == -1021 and not timestamp_retry:
+            LOGGER.warning("Timestamp error received; resyncing time")
+            timestamp_retry = True
+            _sync_time()
+            continue
 
         rate_limited = response.status_code == 429 or (
             isinstance(data, dict) and data.get("code") in {-1003, 429}
         )
-        if rate_limited and attempt < MAX_BACKOFF_ATTEMPTS:
+        if rate_limited:
             delay = _backoff_delay(attempt)
             LOGGER.warning(
-                "Rate limit hit on %s %s (attempt %s), backing off %.2fs", method, path, attempt, delay
+                "Rate limit hit on %s %s (attempt %s); sleeping %.2fs",
+                method,
+                path,
+                attempt,
+                delay,
             )
             time.sleep(delay)
             continue
 
-        if isinstance(data, dict) and data.get("code") == -1021 and not clock_retry:
-            clock_retry = True
-            LOGGER.warning("Timestamp error received; attempting to resync")
-            _sync_time()
-            continue
-
-        if attempt >= MAX_BACKOFF_ATTEMPTS:
+        if attempt >= MAX_ATTEMPTS:
             LOGGER.error(
                 "Request failed after %s attempts: %s %s status=%s body=%s",
                 attempt,
@@ -244,12 +253,16 @@ def _request(
         )
         time.sleep(delay)
 
+    raise RuntimeError(f"Failed to call {method} {path} after {MAX_ATTEMPTS} attempts")
+
 
 def get(path: str, params: Optional[Dict[str, Any]] = None) -> Response:
     """Perform a signed GET request."""
-    return _request("GET", path, params=params, as_body=False)
+
+    return _request("GET", path, params=params or {}, as_body=False)
 
 
 def post(path: str, params: Optional[Dict[str, Any]] = None, *, as_body: bool = True) -> Response:
     """Perform a signed POST request."""
-    return _request("POST", path, params=params, as_body=as_body)
+
+    return _request("POST", path, params=params or {}, as_body=as_body)

@@ -1,0 +1,9 @@
+/var/log/convert.log {
+    daily
+    rotate 7
+    missingok
+    compress
+    delaycompress
+    notifempty
+    create 0640 root root
+}

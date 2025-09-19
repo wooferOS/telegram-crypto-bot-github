@@ -1,7 +1,7 @@
-# Asia window (UTC)
-40 5 * * *  /usr/local/bin/auto-asia analyze >> /var/log/convert.log 2>&1
-47 5 * * *  /usr/local/bin/auto-asia trade   >> /var/log/convert.log 2>&1
+# Азія
+40 5 * * *  flock -n /tmp/asia_a.lock auto-asia analyze >> /var/log/convert.log 2>&1
+47 5 * * *  flock -n /tmp/asia_t.lock auto-asia trade   >> /var/log/convert.log 2>&1
 
-# US window (UTC)
-10 17 * * * /usr/local/bin/auto-us analyze  >> /var/log/convert.log 2>&1
-17 17 * * * /usr/local/bin/auto-us trade    >> /var/log/convert.log 2>&1
+# Америка
+10 17 * * * flock -n /tmp/us_a.lock   auto-us analyze   >> /var/log/convert.log 2>&1
+17 17 * * * flock -n /tmp/us_t.lock   auto-us trade     >> /var/log/convert.log 2>&1
