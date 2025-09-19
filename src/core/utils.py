@@ -7,45 +7,43 @@ import random
 import time
 
 
+def now_ms() -> int:
+    """Return the current UTC timestamp in milliseconds."""
+
+    return int(time.time() * 1000)
+
+
+def utc_fmt(ms: int) -> str:
+    """Format a millisecond UTC timestamp into a readable string."""
+
+    seconds, _ = divmod(int(ms), 1000)
+    dt = datetime.fromtimestamp(seconds, tz=timezone.utc)
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def sleep_jitter(min_ms: int, max_ms: int) -> float:
+    """Sleep for a random delay between ``min_ms`` and ``max_ms`` milliseconds."""
+
+    if max_ms <= 0:
+        return 0.0
+
+    if min_ms < 0:
+        min_ms = 0
+
+    if max_ms < min_ms:
+        min_ms, max_ms = max_ms, min_ms
+
+    delay = random.uniform(float(min_ms), float(max_ms)) / 1000.0
+    if delay > 0:
+        time.sleep(delay)
+    return delay
+
+
 def floor_str_8(value: Decimal) -> str:
-    """Return a string representation rounded down to 8 decimal places."""
+    """Return a string representation rounded down to eight decimal places."""
+
     quantized = value.quantize(Decimal("0.00000001"), rounding=ROUND_DOWN)
     as_str = format(quantized, "f")
     if "." in as_str:
         as_str = as_str.rstrip("0").rstrip(".")
-    return as_str
-
-
-def now_ms() -> int:
-    """Return current UTC timestamp in milliseconds."""
-    return int(time.time() * 1000)
-
-
-def utc_now_hhmm() -> str:
-    """Return current UTC time formatted as HH:MM."""
-    return datetime.now(timezone.utc).strftime("%H:%M")
-
-
-def within_utc_window(hhmm_from: str, hhmm_to: str) -> bool:
-    """Return True if current UTC time is within the provided window."""
-    current = utc_now_hhmm()
-    cur_minutes = int(current[:2]) * 60 + int(current[3:])
-    start_minutes = int(hhmm_from[:2]) * 60 + int(hhmm_from[3:])
-    end_minutes = int(hhmm_to[:2]) * 60 + int(hhmm_to[3:])
-
-    if start_minutes <= end_minutes:
-        return start_minutes <= cur_minutes <= end_minutes
-    return cur_minutes >= start_minutes or cur_minutes <= end_minutes
-
-
-def sleep_jitter(seconds: int) -> float:
-    """Sleep for a random delay between 0 and ``seconds`` seconds.
-
-    The delay is returned so callers can include it in logs.  A non-positive
-    ``seconds`` argument results in no delay and a return value of ``0.0``.
-    """
-    if seconds <= 0:
-        return 0.0
-    delay = random.uniform(0, float(seconds))
-    time.sleep(delay)
-    return delay
+    return as_str or "0"

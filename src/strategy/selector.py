@@ -2,12 +2,43 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from decimal import Decimal
-from typing import Dict, List
+from typing import Dict, Iterable, List
 
+from config_dev3 import ROUTE_WHITELIST
 from src.core import balance
 
 LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class Route:
+    source: str
+    target: str
+    wallet: str
+    amount: str
+    regions: Iterable[str]
+    priority: int
+
+
+def _parse_routes(region: str) -> List[Route]:
+    routes: List[Route] = []
+    for entry in ROUTE_WHITELIST:
+        allowed_regions = entry.get("regions") or ["asia", "us"]
+        if region not in [r.lower() for r in allowed_regions]:
+            continue
+        routes.append(
+            Route(
+                source=str(entry["from"]).upper(),
+                target=str(entry["to"]).upper(),
+                wallet=str(entry.get("wallet", "SPOT")).upper(),
+                amount=str(entry.get("amount", "ALL")),
+                regions=allowed_regions,
+                priority=int(entry.get("priority", 100)),
+            )
+        )
+    return routes
 
 
 def _has_balance(asset: str, wallet: str) -> bool:
@@ -22,43 +53,25 @@ def _has_balance(asset: str, wallet: str) -> bool:
 
 def build_plan(region: str) -> List[Dict[str, str]]:
     """Return ordered list of conversion candidates for the region."""
-    # Basic whitelist rules. They are independent of the region for now but the
-    # structure allows region-specific logic later.
+
+    region = region.lower()
     candidates: List[Dict[str, str]] = []
 
-    if _has_balance("ZKC", "SPOT"):
+    for route in sorted(_parse_routes(region), key=lambda item: item.priority):
+        if not _has_balance(route.source, route.wallet):
+            LOGGER.info(
+                "Skipping %s -> %s (%s); zero balance", route.source, route.target, route.wallet
+            )
+            continue
         candidates.append(
             {
-                "from": "ZKC",
-                "to": "USDT",
-                "wallet": "SPOT",
-                "amount": "ALL",
-                "priority": 1,
+                "from": route.source,
+                "to": route.target,
+                "wallet": route.wallet,
+                "amount": route.amount,
+                "priority": route.priority,
             }
         )
 
-    if _has_balance("USDT", "SPOT"):
-        candidates.append(
-            {
-                "from": "USDT",
-                "to": "BTC",
-                "wallet": "SPOT",
-                "amount": "ALL",
-                "priority": 2,
-            }
-        )
-
-    if _has_balance("USDT", "FUNDING"):
-        candidates.append(
-            {
-                "from": "USDT",
-                "to": "BTC",
-                "wallet": "FUNDING",
-                "amount": "ALL",
-                "priority": 3,
-            }
-        )
-
-    candidates.sort(key=lambda item: item.get("priority", 100))
     LOGGER.info("Selected %s candidate(s) for %s", len(candidates), region)
     return candidates
