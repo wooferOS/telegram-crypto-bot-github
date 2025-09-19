@@ -22,7 +22,7 @@ install_wrapper cspot 'python3 -m src.cli now "$@" --wallet=SPOT'
 install_wrapper cfund 'python3 -m src.cli now "$@" --wallet=FUNDING'
 install_wrapper cqspot 'python3 -m src.cli quote "$@" --wallet=SPOT'
 install_wrapper cqfund 'python3 -m src.cli quote "$@" --wallet=FUNDING'
-install_wrapper auto-asia 'phase="${1:?phase required}"; shift; python3 -m src.cli run --region=asia --phase="$phase" "$@"'
-install_wrapper auto-us 'phase="${1:?phase required}"; shift; python3 -m src.cli run --region=us --phase="$phase" "$@"'
+install_wrapper auto-asia 'phase="${1:?phase required}"; shift || true; python3 -m src.app --region asia --phase="$phase" "$@"'
+install_wrapper auto-us 'phase="${1:?phase required}"; shift || true; python3 -m src.app --region us --phase="$phase" "$@"'
 
 echo "Done"
