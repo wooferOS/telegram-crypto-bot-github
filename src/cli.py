@@ -26,10 +26,6 @@ def _format_decimal(value: Decimal) -> str:
 
 
 def _print_quote(quote: dict) -> None:
-    print(
-        f"Quote {quote.get('fromAsset')}→{quote.get('toAsset')} "
-        f"wallet={quote.get('wallet')} amount={quote.get('requestedAmount')}"
-    )
     ratio = quote.get("ratio") or quote.get("price")
     if ratio is not None:
         print(f"Ratio: {ratio}")
@@ -69,6 +65,7 @@ def cmd_info(args: argparse.Namespace) -> None:
 
 def cmd_quote(args: argparse.Namespace) -> None:
     quote = convert_api.get_quote(args.from_asset, args.to_asset, args.amount, args.wallet)
+    print("Quote {}→{} wallet={} amount={}".format(args.from_asset, args.to_asset, (args.wallet or 'SPOT').upper(), args.amount))
     _print_quote(quote)
 
 
@@ -81,6 +78,7 @@ def _determine_dry_run(value: int | None) -> bool:
 def cmd_now(args: argparse.Namespace) -> None:
     dry_run = _determine_dry_run(args.dry_run)
     quote = convert_api.get_quote(args.from_asset, args.to_asset, args.amount, args.wallet)
+    print("Quote {}→{} wallet={} amount={}".format(args.from_asset, args.to_asset, (args.wallet or 'SPOT').upper(), args.amount))
     _print_quote(quote)
 
     if quote.get("insufficient"):
@@ -89,11 +87,11 @@ def cmd_now(args: argparse.Namespace) -> None:
 
     quote_id = quote.get("quoteId")
     if not quote_id:
-        print("Quote did not return quoteId; aborting", file=sys.stderr)
+        # print("Quote did not return quoteId; aborting", file=sys.stderr)
         sys.exit(1)
 
     if dry_run:
-        print("Dry run mode — acceptQuote not executed")
+        # print("Dry run mode — acceptQuote not executed")
         return
 
     accept = convert_api.accept_quote(str(quote_id), quote.get("wallet", args.wallet))
