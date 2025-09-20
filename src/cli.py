@@ -25,6 +25,10 @@ def _format_decimal(value: Decimal) -> str:
     return utils.floor_str_8(Decimal(value))
 
 
+
+def _print_header(args: argparse.Namespace) -> None:
+    w = (args.wallet or "SPOT").upper()
+    _print_header(args)
 def _print_quote(quote: dict) -> None:
     ratio = quote.get("ratio") or quote.get("price")
     if ratio is not None:
