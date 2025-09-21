@@ -14,3 +14,7 @@ quote_count.json
 __pycache__/
 .env
 
+# local backups
+*.bak.*
+src/**/*.bak.*
+!config_dev3.py
