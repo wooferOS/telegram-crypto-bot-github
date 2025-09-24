@@ -18,3 +18,12 @@ __pycache__/
 *.bak.*
 src/**/*.bak.*
 !config_dev3.py
+# local config (не зберігати в репо)
+config_dev3.py
+
+# runtime / артефакти
+analyze/
+quote_guard/
+*.log
+__pycache__/
+*.pyc
