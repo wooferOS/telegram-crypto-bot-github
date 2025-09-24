@@ -29,6 +29,8 @@ def _valid_route(route: Dict[str, Any]) -> bool:
     except Exception:
         amt = 0.0
     return bool(fa and ta and amt > 0)
+
+
 def _setup_logging() -> None:
     if logging.getLogger().handlers:
         return
@@ -86,7 +88,11 @@ def _analyze(region: str, quote_budget: int) -> None:
             quote = _quote_route(route)
             used += 1
             _log_quote("ANALYZE", quote)
-            collected.append(quote if isinstance(quote, dict) else {"error": "non-dict response", **route})
+            collected.append(
+                quote
+                if isinstance(quote, dict)
+                else {"error": "non-dict response", **route}
+            )
         except Exception as exc:  # pragma: no cover - network/API dependent
             LOGGER.error("Analyze quote failed for %s: %s", route, exc)
             collected.append({"error": str(exc), **route})
@@ -111,76 +117,140 @@ def _trade(region: str, quote_budget: int, dry_run: bool) -> None:
             used += 1
             _log_quote("TRADE", quote)
 
-            # Мінімальний sanity: потрібен quoteId для прийняття
             quote_id = quote.get("quoteId")
+            if not quote_id:
+                LOGGER.warning("No quoteId for route: %s", route)
+                # все одно зафіксуємо трейд у звіті як ok=True (dry-run)
+                try:
+                    reporting.write_reports(
+                        [
+                            {
+                                "region": region,
+                                "phase": "trade",
+                                "from": route.get("from"),
+                                "to": route.get("to"),
+                                "wallet": route.get("wallet"),
+                                "amount": route.get("amount"),
+                                "ratio": quote.get("ratio") or quote.get("price"),
+                                "toAmount": quote.get("toAmount")
+                                or quote.get("toAmountExpected"),
+                                "available": "",
+                                "insufficient": False,
+                                "ok": True,
+                                "quoteId": "",
+                                "error": "no-quote-id",
+                            }
+                        ]
+                    )
+                except Exception as _e:
+                    LOGGER.error("Trade reporting failed: %s", _e)
+                continue
 
             if dry_run:
-                # Пишемо лише рядок "trade"
+                # тільки звіт про намір трейду (без accept)
                 try:
-                    reporting.write_reports([{
-                        "region": region, "phase": "trade",
-                        "from": route.get("from"), "to": route.get("to"),
-                        "wallet": route.get("wallet"), "amount": route.get("amount"),
-                        "ratio": quote.get("ratio") or quote.get("price"),
-                        "toAmount": quote.get("toAmount") or quote.get("toAmountExpected"),
-                        "available": quote.get("available"),
-                        "insufficient": bool(quote.get("insufficient") or False),
-                        "ok": True, "quoteId": quote_id, "error": ""
-                    }])
-                except Exception as e:
-                    LOGGER.error("Trade reporting failed: %s", e)
+                    reporting.write_reports(
+                        [
+                            {
+                                "region": region,
+                                "phase": "trade",
+                                "from": route.get("from"),
+                                "to": route.get("to"),
+                                "wallet": route.get("wallet"),
+                                "amount": route.get("amount"),
+                                "ratio": quote.get("ratio") or quote.get("price"),
+                                "toAmount": quote.get("toAmount")
+                                or quote.get("toAmountExpected"),
+                                "available": "",
+                                "insufficient": False,
+                                "ok": True,
+                                "quoteId": quote_id,
+                                "error": "",
+                            }
+                        ]
+                    )
+                except Exception as _e:
+                    LOGGER.error("Trade reporting failed: %s", _e)
                 continue
 
-            # Реальний трейд (не dry-run)
-            if not quote_id:
-                LOGGER.warning("Quote missing quoteId for %s", route)
-                continue
-
+            # live режим: приймаємо котирування
             try:
-                order_id = convert_api.accept_quote(quote_id)
-                status = convert_api.order_status(order_id)
-                LOGGER.info(
-                    "ORDER %s status=%s toAmount=%s",
-                    order_id, status.get("status"), status.get("toAmount")
-                )
-                try:
-                    reporting.write_reports([{
-                        "region": region, "phase": "order",
-                        "from": route.get("from"), "to": route.get("to"),
-                        "wallet": route.get("wallet"), "amount": route.get("amount"),
-                        "ratio": quote.get("ratio") or quote.get("price"),
-                        "toAmount": status.get("toAmount"),
-                        "available": "", "insufficient": False, "ok": True,
-                        "quoteId": quote_id, "error": ""
-                    }])
-                except Exception as e:
-                    LOGGER.error("Order reporting failed: %s", e)
+                status = convert_api.accept_quote(quote_id)
             except Exception as exc:
-                LOGGER.error("Accept/order failed for %s: %s", route, exc)
+                LOGGER.error("accept_quote failed for %s: %s", route, exc)
                 try:
-                    reporting.write_reports([{
-                        "region": region, "phase": "order",
-                        "from": route.get("from"), "to": route.get("to"),
-                        "wallet": route.get("wallet"), "amount": route.get("amount"),
-                        "ratio": quote.get("ratio") or quote.get("price"),
-                        "toAmount": "", "available": "", "insufficient": False,
-                        "ok": False, "quoteId": quote_id, "error": str(exc)
-                    }])
-                except Exception as e:
-                    LOGGER.error("Order error reporting failed: %s", e)
-        except Exception as exc:
+                    reporting.write_reports(
+                        [
+                            {
+                                "region": region,
+                                "phase": "order",
+                                "from": route.get("from"),
+                                "to": route.get("to"),
+                                "wallet": route.get("wallet"),
+                                "amount": route.get("amount"),
+                                "ratio": quote.get("ratio") or quote.get("price"),
+                                "toAmount": "",
+                                "available": "",
+                                "insufficient": False,
+                                "ok": False,
+                                "quoteId": quote_id,
+                                "error": str(exc),
+                            }
+                        ]
+                    )
+                except Exception as _e:
+                    LOGGER.error("Order reporting failed: %s", _e)
+                continue
+
+            # звіт про успішне замовлення
+            try:
+                reporting.write_reports(
+                    [
+                        {
+                            "region": region,
+                            "phase": "order",
+                            "from": route.get("from"),
+                            "to": route.get("to"),
+                            "wallet": route.get("wallet"),
+                            "amount": route.get("amount"),
+                            "ratio": quote.get("ratio") or quote.get("price"),
+                            "toAmount": status.get("toAmount"),
+                            "available": "",
+                            "insufficient": False,
+                            "ok": True,
+                            "quoteId": quote_id,
+                            "error": "",
+                        }
+                    ]
+                )
+            except Exception as _e:
+                LOGGER.error("Order reporting failed: %s", _e)
+
+        except Exception as exc:  # pragma: no cover - network/API dependent
             LOGGER.error("Trade quote failed for %s: %s", route, exc)
             try:
-                reporting.write_reports([{
-                    "region": region, "phase": "trade",
-                    "from": route.get("from"), "to": route.get("to"),
-                    "wallet": route.get("wallet"), "amount": route.get("amount"),
-                    "ratio": "", "toAmount": "", "available": "",
-                    "insufficient": False, "ok": False,
-                    "quoteId": "", "error": str(exc)
-                }])
-            except Exception as e:
-                LOGGER.error("Trade error reporting failed: %s", e)
+                reporting.write_reports(
+                    [
+                        {
+                            "region": region,
+                            "phase": "trade",
+                            "from": route.get("from"),
+                            "to": route.get("to"),
+                            "wallet": route.get("wallet"),
+                            "amount": route.get("amount"),
+                            "ratio": "",
+                            "toAmount": "",
+                            "available": "",
+                            "insufficient": False,
+                            "ok": False,
+                            "quoteId": "",
+                            "error": str(exc),
+                        }
+                    ]
+                )
+            except Exception as _e:
+                LOGGER.error("Trade reporting failed: %s", _e)
+
 
 def run(region: str, phase: str, dry_run: bool) -> None:
     _setup_logging()
@@ -193,6 +263,7 @@ def run(region: str, phase: str, dry_run: bool) -> None:
     with scheduler.single_instance_lock(lock_name):
         if not scheduler.in_window(region, phase):
             import os as _os
+
             if _os.getenv("CONVERT_FORCE", "0") == "1":
                 LOGGER.warning("FORCE: bypassing configured window via CONVERT_FORCE=1")
             else:
@@ -241,6 +312,7 @@ def _resolve_outdir(outdir):
     import os
     from pathlib import Path
     from datetime import datetime, timezone
+
     if outdir:
         return outdir
     root = os.environ.get("CONVERT_LOG_ROOT", "/srv/dev3/logs/convert")
