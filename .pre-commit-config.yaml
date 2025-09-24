@@ -1,0 +1,16 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-case-conflict
+      - id: detect-private-key
+  - repo: local
+    hooks:
+      - id: block-local-config
+        name: Block committing local config/artefacts
+        entry: bash -c 'git diff --cached --name-only | grep -E "^(config_dev3\.py|analyze/|quote_guard/)" && { echo "❌ local files must not be committed"; exit 1; } || exit 0'
+        language: system
+        pass_filenames: false
