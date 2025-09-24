@@ -18,7 +18,7 @@ def get_quote(from_asset: str, to_asset: str, amount: float, wallet: str) -> Dic
     # Повертає dict (або кине HTTP/RequestException нагору)
     return binance_client.post("/sapi/v1/convert/getQuote", params, signed=True)
 
-def accept_quote(quote_id: str) -> Dict[str, Any]:
+def accept_quote(quote_id: str, *_, **__) -> Dict[str, Any]:
     return binance_client.post("/sapi/v1/convert/acceptQuote", {"quoteId": quote_id}, signed=True)
 
 def order_status(order_id: str) -> Dict[str, Any]:

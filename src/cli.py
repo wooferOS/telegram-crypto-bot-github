@@ -27,8 +27,12 @@ def _format_decimal(value: Decimal) -> str:
 
 
 def _print_header(args: argparse.Namespace) -> None:
-    w = (args.wallet or "SPOT").upper()
-    _print_header(args)
+    w = (getattr(args, 'wallet', 'SPOT') or 'SPOT').upper()
+    fa = getattr(args, 'from_asset', '?')
+    ta = getattr(args, 'to_asset',   '?')
+    amt = getattr(args, 'amount',    '?')
+    print(f"Quote {str(fa).upper()}→{str(ta).upper()} wallet={w} amount={amt}")
+
 def _print_quote(quote: dict) -> None:
     ratio = quote.get("ratio") or quote.get("price")
     if ratio is not None:
@@ -98,19 +102,19 @@ def cmd_now(args: argparse.Namespace) -> None:
         # print("Dry run mode — acceptQuote not executed")
         return
 
-    accept = convert_api.accept_quote(str(quote_id), quote.get("wallet", args.wallet))
+    accept = convert_api.accept_quote(str(quote_id))
     order_id = accept.get("orderId") if isinstance(accept, dict) else None
     print(f"Order ID: {order_id}")
     if not order_id:
         return
-    status = convert_api.get_order_status(order_id)
+    status = convert_api.order_status(order_id)
     print(f"Status: {status.get('status')}")
     if status.get("toAmount"):
         print(f"To amount: {status['toAmount']}")
 
 
 def cmd_status(args: argparse.Namespace) -> None:
-    status = convert_api.get_order_status(args.order_id)
+    status = convert_api.order_status(args.order_id)
     if isinstance(status, dict):
         print(f"Order {args.order_id}: {status.get('status')}")
         if status.get("price"):

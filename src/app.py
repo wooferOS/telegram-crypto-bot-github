@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import logging
+from typing import Dict, Any
+
 import sys
 from pathlib import Path
 
@@ -11,12 +13,22 @@ import config_dev3 as config
 
 from src.core import convert_api, scheduler
 from src.core.utils import now_ms
+from src import reporting
 from src.strategy.selector import select_routes_for_phase
 
 
 LOGGER = logging.getLogger(__name__)
 
 
+def _valid_route(route: Dict[str, Any]) -> bool:
+    fa = (route.get("from") or "").upper().strip()
+    ta = (route.get("to") or "").upper().strip()
+    amt = route.get("amount")
+    try:
+        amt = float(amt)
+    except Exception:
+        amt = 0.0
+    return bool(fa and ta and amt > 0)
 def _setup_logging() -> None:
     if logging.getLogger().handlers:
         return
@@ -65,17 +77,27 @@ def _quote_route(route: dict) -> dict:
 
 def _analyze(region: str, quote_budget: int) -> None:
     used = 0
+    collected = []  # ← акумуляція для звітів
     for route in select_routes_for_phase(region, "analyze"):
         if quote_budget and used >= quote_budget:
             LOGGER.warning("Quote budget %s reached", quote_budget)
             break
         try:
             quote = _quote_route(route)
+            used += 1
+            _log_quote("ANALYZE", quote)
+            collected.append(quote if isinstance(quote, dict) else {"error": "non-dict response", **route})
         except Exception as exc:  # pragma: no cover - network/API dependent
             LOGGER.error("Analyze quote failed for %s: %s", route, exc)
+            collected.append({"error": str(exc), **route})
             continue
-        used += 1
-        _log_quote("ANALYZE", quote)
+
+    # після збору пишемо звіти
+    try:
+        outdir = reporting.write_reports(collected)
+        LOGGER.info("ANALYZE reports written to %s, rows=%s", outdir, len(collected))
+    except Exception as exc:
+        LOGGER.error("Analyze reporting failed: %s", exc)
 
 
 def _trade(region: str, quote_budget: int, dry_run: bool) -> None:
@@ -86,46 +108,79 @@ def _trade(region: str, quote_budget: int, dry_run: bool) -> None:
             break
         try:
             quote = _quote_route(route)
-        except Exception as exc:  # pragma: no cover - network/API dependent
-            LOGGER.error("Trade quote failed for %s: %s", route, exc)
-            continue
-        used += 1
-        _log_quote("QUOTE", quote)
-        if quote.get("insufficient"):
-            LOGGER.warning(
-                "Insufficient balance for %s→%s wallet=%s available=%s requested=%s",
-                quote.get("fromAsset"),
-                quote.get("toAsset"),
-                quote.get("wallet"),
-                quote.get("available"),
-                quote.get("requestedAmount"),
-            )
-            continue
-        quote_id = quote.get("quoteId")
-        if not quote_id:
-            LOGGER.warning("Quote missing quoteId for %s", route)
-            continue
-        if dry_run:
-            LOGGER.info("Dry run active — skipping acceptQuote for %s", quote_id)
-            continue
-        try:
-            accept = convert_api.accept_quote(str(quote_id), quote.get("wallet", "SPOT"))
-        except Exception as exc:  # pragma: no cover - network/API dependent
-            LOGGER.error("acceptQuote failed for %s: %s", quote_id, exc)
-            continue
-        order_id = accept.get("orderId") if isinstance(accept, dict) else None
-        LOGGER.info("ACCEPT quote=%s order=%s", quote_id, order_id)
-        if not order_id:
-            continue
-        try:
-            status = convert_api.get_order_status(order_id)
-        except Exception as exc:  # pragma: no cover - network/API dependent
-            LOGGER.error("orderStatus failed for %s: %s", order_id, exc)
-            continue
-        LOGGER.info(
-            "ORDER %s status=%s toAmount=%s", order_id, status.get("status"), status.get("toAmount")
-        )
+            used += 1
+            _log_quote("TRADE", quote)
 
+            # Мінімальний sanity: потрібен quoteId для прийняття
+            quote_id = quote.get("quoteId")
+
+            if dry_run:
+                # Пишемо лише рядок "trade"
+                try:
+                    reporting.write_reports([{
+                        "region": region, "phase": "trade",
+                        "from": route.get("from"), "to": route.get("to"),
+                        "wallet": route.get("wallet"), "amount": route.get("amount"),
+                        "ratio": quote.get("ratio") or quote.get("price"),
+                        "toAmount": quote.get("toAmount") or quote.get("toAmountExpected"),
+                        "available": quote.get("available"),
+                        "insufficient": bool(quote.get("insufficient") or False),
+                        "ok": True, "quoteId": quote_id, "error": ""
+                    }])
+                except Exception as e:
+                    LOGGER.error("Trade reporting failed: %s", e)
+                continue
+
+            # Реальний трейд (не dry-run)
+            if not quote_id:
+                LOGGER.warning("Quote missing quoteId for %s", route)
+                continue
+
+            try:
+                order_id = convert_api.accept_quote(quote_id)
+                status = convert_api.order_status(order_id)
+                LOGGER.info(
+                    "ORDER %s status=%s toAmount=%s",
+                    order_id, status.get("status"), status.get("toAmount")
+                )
+                try:
+                    reporting.write_reports([{
+                        "region": region, "phase": "order",
+                        "from": route.get("from"), "to": route.get("to"),
+                        "wallet": route.get("wallet"), "amount": route.get("amount"),
+                        "ratio": quote.get("ratio") or quote.get("price"),
+                        "toAmount": status.get("toAmount"),
+                        "available": "", "insufficient": False, "ok": True,
+                        "quoteId": quote_id, "error": ""
+                    }])
+                except Exception as e:
+                    LOGGER.error("Order reporting failed: %s", e)
+            except Exception as exc:
+                LOGGER.error("Accept/order failed for %s: %s", route, exc)
+                try:
+                    reporting.write_reports([{
+                        "region": region, "phase": "order",
+                        "from": route.get("from"), "to": route.get("to"),
+                        "wallet": route.get("wallet"), "amount": route.get("amount"),
+                        "ratio": quote.get("ratio") or quote.get("price"),
+                        "toAmount": "", "available": "", "insufficient": False,
+                        "ok": False, "quoteId": quote_id, "error": str(exc)
+                    }])
+                except Exception as e:
+                    LOGGER.error("Order error reporting failed: %s", e)
+        except Exception as exc:
+            LOGGER.error("Trade quote failed for %s: %s", route, exc)
+            try:
+                reporting.write_reports([{
+                    "region": region, "phase": "trade",
+                    "from": route.get("from"), "to": route.get("to"),
+                    "wallet": route.get("wallet"), "amount": route.get("amount"),
+                    "ratio": "", "toAmount": "", "available": "",
+                    "insufficient": False, "ok": False,
+                    "quoteId": "", "error": str(exc)
+                }])
+            except Exception as e:
+                LOGGER.error("Trade error reporting failed: %s", e)
 
 def run(region: str, phase: str, dry_run: bool) -> None:
     _setup_logging()
@@ -137,8 +192,12 @@ def run(region: str, phase: str, dry_run: bool) -> None:
 
     with scheduler.single_instance_lock(lock_name):
         if not scheduler.in_window(region, phase):
-            LOGGER.info("Outside configured window for %s/%s", region, phase)
-            return
+            import os as _os
+            if _os.getenv("CONVERT_FORCE", "0") == "1":
+                LOGGER.warning("FORCE: bypassing configured window via CONVERT_FORCE=1")
+            else:
+                LOGGER.info("Outside configured window for %s/%s", region, phase)
+                return
 
         scheduler.sleep_with_jitter_before_phase(region, phase)
 
@@ -176,3 +235,13 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
     sys.exit(main())
+
+
+def _resolve_outdir(outdir):
+    import os
+    from pathlib import Path
+    from datetime import datetime, timezone
+    if outdir:
+        return outdir
+    root = os.environ.get("CONVERT_LOG_ROOT", "/srv/dev3/logs/convert")
+    return str(Path(root) / datetime.now(timezone.utc).strftime("%Y-%m-%d"))
