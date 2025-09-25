@@ -22,9 +22,19 @@ from config_dev3 import (
     EXCHANGEINFO_TTL_SEC,
 )
 
+PUBLIC_BASE = getattr(
+    __import__("config_dev3"),
+    "PUBLIC_BASE",
+    "https://data-api.binance.vision",
+)
+ASSETINFO_TTL_SEC = getattr(
+    __import__("config_dev3"), "ASSETINFO_TTL_SEC", EXCHANGEINFO_TTL_SEC
+)
+
 # Глобальна HTTP-сесія
 session = requests.Session()
 session.headers.update({"X-MBX-APIKEY": BINANCE_API_KEY})
+_public_session = requests.Session()
 
 # ---------------- token bucket (проти спаму) ----------------
 _tokens = BURST
@@ -136,10 +146,14 @@ def _request(
 
 # ---------------- публічні обгортки ----------------
 
-# Кеш exchangeInfo (щоб не лупити кожен раз)
+# Кеш exchangeInfo / assetInfo (щоб не лупити кожен раз)
 _exinfo_cache: Dict[str, Any] = {}
 _exinfo_expire_at = 0.0
 _exinfo_lock = threading.Lock()
+
+_assetinfo_cache: Dict[str, Any] = {}
+_assetinfo_expire_at = 0.0
+_assetinfo_lock = threading.Lock()
 
 
 def get(path: str, params: Optional[Dict[str, Any]] = None, signed: bool = True):
@@ -171,3 +185,45 @@ def get_convert_exchange_info(from_asset: str, to_asset: str) -> Dict[str, Any]:
         _exinfo_cache[key] = data
         _exinfo_expire_at = time.monotonic() + EXCHANGEINFO_TTL_SEC
     return data
+
+
+def list_convert_pairs() -> Dict[str, Any]:
+    """Return cached list of all convert pairs."""
+
+    now = time.monotonic()
+    with _exinfo_lock:
+        global _exinfo_expire_at
+        if now < _exinfo_expire_at and "__all__" in _exinfo_cache:
+            return _exinfo_cache["__all__"]
+
+    data = get("/sapi/v1/convert/exchangeInfo", {}, signed=True)
+    with _exinfo_lock:
+        _exinfo_cache["__all__"] = data
+        _exinfo_expire_at = time.monotonic() + EXCHANGEINFO_TTL_SEC
+    return data
+
+
+def get_convert_asset_info(asset: str) -> Dict[str, Any]:
+    """Return cached Convert asset info."""
+
+    now = time.monotonic()
+    key = asset.upper()
+    with _assetinfo_lock:
+        global _assetinfo_expire_at
+        if now < _assetinfo_expire_at and key in _assetinfo_cache:
+            return _assetinfo_cache[key]
+
+    data = get("/sapi/v1/convert/assetInfo", {"asset": key}, signed=True)
+    with _assetinfo_lock:
+        _assetinfo_cache[key] = data
+        _assetinfo_expire_at = time.monotonic() + ASSETINFO_TTL_SEC
+    return data
+
+
+def public_get(path: str, params: Optional[Dict[str, Any]] = None):
+    """Perform a GET request to the market-data host without signing."""
+
+    url = PUBLIC_BASE.rstrip("/") + path
+    resp = _public_session.get(url, params=params, timeout=REQUEST_TIMEOUT)
+    resp.raise_for_status()
+    return resp.json()
