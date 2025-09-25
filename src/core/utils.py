@@ -37,8 +37,12 @@ def _extract_limits(exchange_info: dict) -> Tuple[Decimal, Decimal]:
     payload: Any = exchange_info
     if isinstance(exchange_info, dict) and "data" in exchange_info:
         payload = exchange_info.get("data", {})
-    min_raw = None if not isinstance(payload, dict) else payload.get("fromAssetMinAmount")
-    max_raw = None if not isinstance(payload, dict) else payload.get("fromAssetMaxAmount")
+    min_raw = (
+        None if not isinstance(payload, dict) else payload.get("fromAssetMinAmount")
+    )
+    max_raw = (
+        None if not isinstance(payload, dict) else payload.get("fromAssetMaxAmount")
+    )
     return _to_decimal(min_raw), _to_decimal(max_raw)
 
 

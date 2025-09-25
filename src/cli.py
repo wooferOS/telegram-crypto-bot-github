@@ -25,13 +25,13 @@ def _format_decimal(value: Decimal) -> str:
     return utils.floor_str_8(Decimal(value))
 
 
-
 def _print_header(args: argparse.Namespace) -> None:
-    w = (getattr(args, 'wallet', 'SPOT') or 'SPOT').upper()
-    fa = getattr(args, 'from_asset', '?')
-    ta = getattr(args, 'to_asset',   '?')
-    amt = getattr(args, 'amount',    '?')
+    w = (getattr(args, "wallet", "SPOT") or "SPOT").upper()
+    fa = getattr(args, "from_asset", "?")
+    ta = getattr(args, "to_asset", "?")
+    amt = getattr(args, "amount", "?")
     print(f"Quote {str(fa).upper()}→{str(ta).upper()} wallet={w} amount={amt}")
+
 
 def _print_quote(quote: dict) -> None:
     ratio = quote.get("ratio") or quote.get("price")
@@ -44,10 +44,7 @@ def _print_quote(quote: dict) -> None:
     if expire:
         print(f"Expires: {expire}")
     if quote.get("insufficient"):
-        print(
-            "Warning: insufficient balance (available="
-            f"{quote.get('available')})"
-        )
+        print("Warning: insufficient balance (available=" f"{quote.get('available')})")
 
 
 def cmd_info(args: argparse.Namespace) -> None:
@@ -68,12 +65,20 @@ def cmd_info(args: argparse.Namespace) -> None:
     for wallet in ("SPOT", "FUNDING"):
         from_free = _format_decimal(balance.read_free(args.from_asset, wallet))
         to_free = _format_decimal(balance.read_free(args.to_asset, wallet))
-        print(f"{wallet}: {args.from_asset.upper()}={from_free} {args.to_asset.upper()}={to_free}")
+        print(
+            f"{wallet}: {args.from_asset.upper()}={from_free} {args.to_asset.upper()}={to_free}"
+        )
 
 
 def cmd_quote(args: argparse.Namespace) -> None:
-    quote = convert_api.get_quote(args.from_asset, args.to_asset, args.amount, args.wallet)
-    print("Quote {}→{} wallet={} amount={}".format(args.from_asset, args.to_asset, (args.wallet or 'SPOT').upper(), args.amount))
+    quote = convert_api.get_quote(
+        args.from_asset, args.to_asset, args.amount, args.wallet
+    )
+    print(
+        "Quote {}→{} wallet={} amount={}".format(
+            args.from_asset, args.to_asset, (args.wallet or "SPOT").upper(), args.amount
+        )
+    )
     _print_quote(quote)
 
 
@@ -85,8 +90,14 @@ def _determine_dry_run(value: int | None) -> bool:
 
 def cmd_now(args: argparse.Namespace) -> None:
     dry_run = _determine_dry_run(args.dry_run)
-    quote = convert_api.get_quote(args.from_asset, args.to_asset, args.amount, args.wallet)
-    print("Quote {}→{} wallet={} amount={}".format(args.from_asset, args.to_asset, (args.wallet or 'SPOT').upper(), args.amount))
+    quote = convert_api.get_quote(
+        args.from_asset, args.to_asset, args.amount, args.wallet
+    )
+    print(
+        "Quote {}→{} wallet={} amount={}".format(
+            args.from_asset, args.to_asset, (args.wallet or "SPOT").upper(), args.amount
+        )
+    )
     _print_quote(quote)
 
     if quote.get("insufficient"):
@@ -170,7 +181,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_now.add_argument("to_asset")
     p_now.add_argument("amount")
     p_now.add_argument("--wallet", default="SPOT", choices=["SPOT", "FUNDING"])
-    p_now.add_argument("--dry-run", dest="dry_run", type=int, choices=[0, 1], default=None)
+    p_now.add_argument(
+        "--dry-run", dest="dry_run", type=int, choices=[0, 1], default=None
+    )
     p_now.set_defaults(func=cmd_now)
 
     p_status = sub.add_parser("status", help="Check order status")
@@ -186,7 +199,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_run = sub.add_parser("run", help="Invoke auto-cycle phase")
     p_run.add_argument("--region", required=True, choices=["asia", "us"])
     p_run.add_argument("--phase", required=True, choices=["analyze", "trade"])
-    p_run.add_argument("--dry-run", dest="dry_run", type=int, choices=[0, 1], default=None)
+    p_run.add_argument(
+        "--dry-run", dest="dry_run", type=int, choices=[0, 1], default=None
+    )
     p_run.set_defaults(func=cmd_run)
 
     return parser

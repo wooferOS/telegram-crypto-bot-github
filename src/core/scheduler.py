@@ -31,7 +31,9 @@ def _parse_time(value: str | time) -> time:
     return time(int(hour), int(minute))
 
 
-def _window_bounds(window: Iterable[str | time], now_utc: datetime) -> Tuple[datetime, datetime]:
+def _window_bounds(
+    window: Iterable[str | time], now_utc: datetime
+) -> Tuple[datetime, datetime]:
     start_raw, end_raw = list(window)
     start_time = _parse_time(start_raw)
     end_time = _parse_time(end_raw)

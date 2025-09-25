@@ -31,6 +31,7 @@ _tokens = BURST
 _last_refill = time.monotonic()
 _bucket_lock = threading.Lock()
 
+
 def _take_token():
     global _tokens, _last_refill
     with _bucket_lock:
@@ -55,9 +56,11 @@ def _take_token():
                 _last_refill = now
         _tokens -= 1
 
+
 # ---------------- допоміжні ----------------
 def _now_ms() -> int:
     return int(time.time() * 1000)
+
 
 def _sign_qs(params: Dict[str, Any]) -> str:
     # тільки не-None і без дублювань
@@ -66,7 +69,10 @@ def _sign_qs(params: Dict[str, Any]) -> str:
     sig = hmac.new(BINANCE_SECRET_KEY.encode(), qs.encode(), hashlib.sha256).hexdigest()
     return f"{qs}&signature={sig}"
 
-def _request(method: str, path: str, params: Optional[Dict[str, Any]] = None, signed: bool = True):
+
+def _request(
+    method: str, path: str, params: Optional[Dict[str, Any]] = None, signed: bool = True
+):
     """
     Єдина точка доступу.
     Для SAPI підписаних ендпоінтів (Convert) — ВСЕ в query string:
@@ -103,11 +109,16 @@ def _request(method: str, path: str, params: Optional[Dict[str, Any]] = None, si
                 js = None
 
             # нормальні кейси
-            if resp.ok and (js is None or "code" not in js or (isinstance(code, int) and code == 0)):
+            if resp.ok and (
+                js is None or "code" not in js or (isinstance(code, int) and code == 0)
+            ):
                 return js if js is not None else resp.json()
 
             # помилки, які має сенс ретраїти
-            retryable = resp.status_code in (429, 418, 500, 502, 503, 504) or code in (-1003, -1021)
+            retryable = resp.status_code in (429, 418, 500, 502, 503, 504) or code in (
+                -1003,
+                -1021,
+            )
             if retryable and attempt < BACKOFF_MAX_RETRIES:
                 time.sleep(min(backoff, BACKOFF_MAX_S))
                 backoff *= 2
@@ -122,6 +133,7 @@ def _request(method: str, path: str, params: Optional[Dict[str, Any]] = None, si
                 continue
             raise e
 
+
 # ---------------- публічні обгортки ----------------
 
 # Кеш exchangeInfo (щоб не лупити кожен раз)
@@ -129,11 +141,14 @@ _exinfo_cache: Dict[str, Any] = {}
 _exinfo_expire_at = 0.0
 _exinfo_lock = threading.Lock()
 
+
 def get(path: str, params: Optional[Dict[str, Any]] = None, signed: bool = True):
     return _request("GET", path, params, signed=signed)
 
+
 def post(path: str, params: Optional[Dict[str, Any]] = None, signed: bool = True):
     return _request("POST", path, params, signed=signed)
+
 
 def get_convert_exchange_info(from_asset: str, to_asset: str) -> Dict[str, Any]:
     """
@@ -147,7 +162,11 @@ def get_convert_exchange_info(from_asset: str, to_asset: str) -> Dict[str, Any]:
         if now < _exinfo_expire_at and key in _exinfo_cache:
             return _exinfo_cache[key]
 
-    data = get("/sapi/v1/convert/exchangeInfo", {"fromAsset": from_asset, "toAsset": to_asset}, signed=True)
+    data = get(
+        "/sapi/v1/convert/exchangeInfo",
+        {"fromAsset": from_asset, "toAsset": to_asset},
+        signed=True,
+    )
     with _exinfo_lock:
         _exinfo_cache[key] = data
         _exinfo_expire_at = time.monotonic() + EXCHANGEINFO_TTL_SEC
