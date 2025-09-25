@@ -1,319 +1,108 @@
-"""Auto-cycle orchestrator for Binance Convert flows."""
+"""Phase orchestrator for Convert automation."""
 
 from __future__ import annotations
 
-import argparse
+import json
 import logging
-from typing import Dict, Any
+from decimal import Decimal
+from typing import Dict, List
 
-import sys
-from pathlib import Path
-
-import config_dev3 as config
-
-from src.core import convert_api, scheduler
-from src.core.utils import now_ms
-from src import reporting
-from src.strategy.selector import select_routes_for_phase
-
+from src.core import balance
+from src.core import guard as guard_module
+from src.core import portfolio, position
+from src.core.ensure_invested import execute_plan
+from src.strategy.selector import select_candidates
 
 LOGGER = logging.getLogger(__name__)
 
 
-def _valid_route(route: Dict[str, Any]) -> bool:
-    fa = (route.get("from") or "").upper().strip()
-    ta = (route.get("to") or "").upper().strip()
-    amt = route.get("amount")
-    try:
-        amt = float(amt)
-    except Exception:
-        amt = 0.0
-    return bool(fa and ta and amt > 0)
+def _total_equity(snapshot: portfolio.BalanceSnapshot) -> float:
+    total = 0.0
+    for row in snapshot.rows:
+        asset = (row.normalised or row.asset).upper()
+        amount = float(row.amount)
+        if asset == "USDT":
+            price = 1.0
+        else:
+            price = snapshot.price_map.get(asset, 0.0)
+        total += amount * price
+    return total
 
 
-def _setup_logging() -> None:
-    if logging.getLogger().handlers:
+def _load_candidates(snapshot: portfolio.BalanceSnapshot, region: str) -> List[Dict[str, object]]:
+    path = snapshot.log_dir / f"candidates.{region}.json"
+    if path.exists():
+        try:
+            return json.loads(path.read_text())
+        except Exception:
+            pass
+    selected = select_candidates(region, snapshot)
+    data = [cand.as_dict() for cand in selected]
+    path.write_text(json.dumps(data, indent=2))
+    return data
+
+
+def _holdings_from_snapshot(snapshot: portfolio.BalanceSnapshot) -> Dict[str, Decimal]:
+    holdings: Dict[str, Decimal] = {}
+    for row in snapshot.rows:
+        key = (row.normalised or row.asset).upper()
+        holdings[key] = row.amount
+    return holdings
+
+
+def run_analyze(region: str, snapshot: portfolio.BalanceSnapshot) -> None:
+    LOGGER.info("Running analyze for region %s", region)
+    select_candidates(region, snapshot)
+
+
+def run_trade(region: str, snapshot: portfolio.BalanceSnapshot, dry_run: bool) -> None:
+    LOGGER.info("Running trade for region %s dry_run=%s", region, dry_run)
+    candidates = _load_candidates(snapshot, region)
+    total_equity = _total_equity(snapshot)
+    targets = portfolio.build_target_allocation(candidates, total_equity, snapshot.from_assets)
+    holdings = _holdings_from_snapshot(snapshot)
+    actions = portfolio.plan_rebalance(holdings, snapshot.price_map, targets)
+    execute_plan(region, actions, snapshot.log_dir, dry_run=dry_run)
+    summary_path = snapshot.log_dir / "summary.txt"
+    with summary_path.open("a", encoding="utf-8") as fh:
+        fh.write(f"TRADE region={region} actions={len(actions)} dry_run={int(dry_run)}\n")
+    if dry_run or not actions:
         return
-    log_path = Path(getattr(config, "LOG_PATH", "convert.log"))
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    handler = logging.FileHandler(log_path)
-    formatter = logging.Formatter(
-        fmt="%(asctime)s %(levelname)s %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
-    handler.setFormatter(formatter)
-    root = logging.getLogger()
-    root.setLevel(logging.INFO)
-    root.addHandler(handler)
+    new_balances = balance.read_all("SPOT")
+    state = position.load()
+    updated = position.sync_from_balances(new_balances, snapshot.price_map, state)
+    position.save(updated)
 
 
-def _effective_dry_run(cli_value: int | None) -> bool:
-    if cli_value is None:
-        return bool(getattr(config, "DRY_RUN", 0))
-    return bool(cli_value)
-
-
-def _log_quote(prefix: str, quote: dict) -> None:
-    ratio = quote.get("ratio") or quote.get("price")
-    to_amount = quote.get("toAmount") or quote.get("toAmountExpected")
-    LOGGER.info(
-        "%s %s→%s wallet=%s amount=%s ratio=%s toAmount=%s",
-        prefix,
-        quote.get("fromAsset"),
-        quote.get("toAsset"),
-        quote.get("wallet"),
-        quote.get("requestedAmount"),
-        ratio,
-        to_amount,
-    )
-
-
-def _quote_route(route: dict) -> dict:
-    return convert_api.get_quote(
-        route["from"],
-        route["to"],
-        route.get("amount", "ALL"),
-        route.get("wallet", "SPOT"),
-    )
-
-
-def _analyze(region: str, quote_budget: int) -> None:
-    used = 0
-    collected = []  # ← акумуляція для звітів
-    for route in select_routes_for_phase(region, "analyze"):
-        if quote_budget and used >= quote_budget:
-            LOGGER.warning("Quote budget %s reached", quote_budget)
-            break
-        try:
-            quote = _quote_route(route)
-            used += 1
-            _log_quote("ANALYZE", quote)
-            collected.append(
-                quote
-                if isinstance(quote, dict)
-                else {"error": "non-dict response", **route}
+def run_guard(region: str, snapshot: portfolio.BalanceSnapshot, dry_run: bool) -> None:
+    LOGGER.info("Running guard for region %s", region)
+    state = position.load()
+    result = guard_module.run_guard(region, snapshot, state, dry_run=dry_run)
+    summary_path = snapshot.log_dir / "summary.txt"
+    with summary_path.open("a", encoding="utf-8") as fh:
+        fh.write(
+            "GUARD region={region} triggered={triggered} portfolio={portfolio} assets={assets}\n".format(
+                region=region,
+                triggered=int(result.triggered),
+                portfolio=int(result.portfolio_trigger),
+                assets=",".join(result.asset_triggers),
             )
-        except Exception as exc:  # pragma: no cover - network/API dependent
-            LOGGER.error("Analyze quote failed for %s: %s", route, exc)
-            collected.append({"error": str(exc), **route})
-            continue
-
-    # після збору пишемо звіти
-    try:
-        outdir = reporting.write_reports(collected)
-        LOGGER.info("ANALYZE reports written to %s, rows=%s", outdir, len(collected))
-    except Exception as exc:
-        LOGGER.error("Analyze reporting failed: %s", exc)
-
-
-def _trade(region: str, quote_budget: int, dry_run: bool) -> None:
-    used = 0
-    for route in select_routes_for_phase(region, "trade"):
-        if quote_budget and used >= quote_budget:
-            LOGGER.warning("Quote budget %s reached", quote_budget)
-            break
-        try:
-            quote = _quote_route(route)
-            used += 1
-            _log_quote("TRADE", quote)
-
-            quote_id = quote.get("quoteId")
-            if not quote_id:
-                LOGGER.warning("No quoteId for route: %s", route)
-                # все одно зафіксуємо трейд у звіті як ok=True (dry-run)
-                try:
-                    reporting.write_reports(
-                        [
-                            {
-                                "region": region,
-                                "phase": "trade",
-                                "from": route.get("from"),
-                                "to": route.get("to"),
-                                "wallet": route.get("wallet"),
-                                "amount": route.get("amount"),
-                                "ratio": quote.get("ratio") or quote.get("price"),
-                                "toAmount": quote.get("toAmount")
-                                or quote.get("toAmountExpected"),
-                                "available": "",
-                                "insufficient": False,
-                                "ok": True,
-                                "quoteId": "",
-                                "error": "no-quote-id",
-                            }
-                        ]
-                    )
-                except Exception as _e:
-                    LOGGER.error("Trade reporting failed: %s", _e)
-                continue
-
-            if dry_run:
-                # тільки звіт про намір трейду (без accept)
-                try:
-                    reporting.write_reports(
-                        [
-                            {
-                                "region": region,
-                                "phase": "trade",
-                                "from": route.get("from"),
-                                "to": route.get("to"),
-                                "wallet": route.get("wallet"),
-                                "amount": route.get("amount"),
-                                "ratio": quote.get("ratio") or quote.get("price"),
-                                "toAmount": quote.get("toAmount")
-                                or quote.get("toAmountExpected"),
-                                "available": "",
-                                "insufficient": False,
-                                "ok": True,
-                                "quoteId": quote_id,
-                                "error": "",
-                            }
-                        ]
-                    )
-                except Exception as _e:
-                    LOGGER.error("Trade reporting failed: %s", _e)
-                continue
-
-            # live режим: приймаємо котирування
-            try:
-                status = convert_api.accept_quote(quote_id)
-            except Exception as exc:
-                LOGGER.error("accept_quote failed for %s: %s", route, exc)
-                try:
-                    reporting.write_reports(
-                        [
-                            {
-                                "region": region,
-                                "phase": "order",
-                                "from": route.get("from"),
-                                "to": route.get("to"),
-                                "wallet": route.get("wallet"),
-                                "amount": route.get("amount"),
-                                "ratio": quote.get("ratio") or quote.get("price"),
-                                "toAmount": "",
-                                "available": "",
-                                "insufficient": False,
-                                "ok": False,
-                                "quoteId": quote_id,
-                                "error": str(exc),
-                            }
-                        ]
-                    )
-                except Exception as _e:
-                    LOGGER.error("Order reporting failed: %s", _e)
-                continue
-
-            # звіт про успішне замовлення
-            try:
-                reporting.write_reports(
-                    [
-                        {
-                            "region": region,
-                            "phase": "order",
-                            "from": route.get("from"),
-                            "to": route.get("to"),
-                            "wallet": route.get("wallet"),
-                            "amount": route.get("amount"),
-                            "ratio": quote.get("ratio") or quote.get("price"),
-                            "toAmount": status.get("toAmount"),
-                            "available": "",
-                            "insufficient": False,
-                            "ok": True,
-                            "quoteId": quote_id,
-                            "error": "",
-                        }
-                    ]
-                )
-            except Exception as _e:
-                LOGGER.error("Order reporting failed: %s", _e)
-
-        except Exception as exc:  # pragma: no cover - network/API dependent
-            LOGGER.error("Trade quote failed for %s: %s", route, exc)
-            try:
-                reporting.write_reports(
-                    [
-                        {
-                            "region": region,
-                            "phase": "trade",
-                            "from": route.get("from"),
-                            "to": route.get("to"),
-                            "wallet": route.get("wallet"),
-                            "amount": route.get("amount"),
-                            "ratio": "",
-                            "toAmount": "",
-                            "available": "",
-                            "insufficient": False,
-                            "ok": False,
-                            "quoteId": "",
-                            "error": str(exc),
-                        }
-                    ]
-                )
-            except Exception as _e:
-                LOGGER.error("Trade reporting failed: %s", _e)
+        )
 
 
 def run(region: str, phase: str, dry_run: bool) -> None:
-    _setup_logging()
-    region = region.lower()
+    snapshot = portfolio.pre_analyze_balance_snapshot()
     phase = phase.lower()
-
-    budget = int(getattr(config, "QUOTE_BUDGET_PER_RUN", 0))
-    lock_name = f"{region}_{phase}"
-
-    with scheduler.single_instance_lock(lock_name):
-        if not scheduler.in_window(region, phase):
-            import os as _os
-
-            if _os.getenv("CONVERT_FORCE", "0") == "1":
-                LOGGER.warning("FORCE: bypassing configured window via CONVERT_FORCE=1")
-            else:
-                LOGGER.info("Outside configured window for %s/%s", region, phase)
-                return
-
-        scheduler.sleep_with_jitter_before_phase(region, phase)
-
-        LOGGER.info(
-            "Starting %s/%s dry_run=%s timestamp=%s",
-            region,
-            phase,
-            dry_run,
-            now_ms(),
-        )
-        if phase == "analyze":
-            _analyze(region, budget)
-        elif phase == "trade":
-            _trade(region, budget, dry_run)
-        else:  # pragma: no cover - guarded by argparse
-            raise ValueError(f"Unknown phase {phase}")
-
-
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--region", required=True, choices=["asia", "us"])
-    parser.add_argument("--phase", required=True, choices=["analyze", "trade"])
-    parser.add_argument("--dry-run", type=int, choices=[0, 1], default=None)
-    args = parser.parse_args(argv)
-
-    dry_run = _effective_dry_run(args.dry_run)
-    try:
-        run(args.region, args.phase, dry_run)
-    except Exception as exc:  # pragma: no cover - top-level guard
-        _setup_logging()
-        LOGGER.exception("Run failed: %s", exc)
-        return 1
-    return 0
-
-
-if __name__ == "__main__":  # pragma: no cover - CLI entrypoint
-    sys.exit(main())
-
-
-def _resolve_outdir(outdir):
-    import os
-    from pathlib import Path
-    from datetime import datetime, timezone
-
-    if outdir:
-        return outdir
-    root = os.environ.get("CONVERT_LOG_ROOT", "/srv/dev3/logs/convert")
-    return str(Path(root) / datetime.now(timezone.utc).strftime("%Y-%m-%d"))
+    if phase == "pre-analyze":
+        LOGGER.info("Pre-analyze complete for region %s", region)
+        return
+    if phase == "analyze":
+        run_analyze(region, snapshot)
+        return
+    if phase == "trade":
+        run_trade(region, snapshot, dry_run)
+        return
+    if phase == "guard":
+        run_guard(region, snapshot, dry_run)
+        return
+    raise ValueError(f"Unsupported phase {phase}")

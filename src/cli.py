@@ -198,7 +198,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_run = sub.add_parser("run", help="Invoke auto-cycle phase")
     p_run.add_argument("--region", required=True, choices=["asia", "us"])
-    p_run.add_argument("--phase", required=True, choices=["analyze", "trade"])
+    p_run.add_argument(
+        "--phase",
+        required=True,
+        choices=["pre-analyze", "analyze", "trade", "guard"],
+    )
     p_run.add_argument(
         "--dry-run", dest="dry_run", type=int, choices=[0, 1], default=None
     )
