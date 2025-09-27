@@ -1,6 +1,63 @@
 """Candidate selection for Convert trades."""
 
 from __future__ import annotations
+import time
+
+
+# Динамічний перелік USDT-спот пар (без харкодів)
+def _usdt_symbols(limit: int = 300) -> list[str]:
+    try:
+        ex = convert_api.binance_client.public_get("/api/v3/exchangeInfo", timeout=8)
+        out = []
+        for sym in (ex or {}).get("symbols", []):
+            if sym.get("status") == "TRADING" and sym.get("quoteAsset") == "USDT":
+                s = sym.get("symbol")
+                if s: out.append(s)
+        # Сортуємо стабільно: спершу «топові» за назвою бази (BTC,ETH,USDC,BNB,...) щоб швидко з’являлися вгорі,
+        # решта — алфавітом (просто для детермінізму).
+        priority = {"BTC","ETH","USDC","BNB","XRP","SOL","ADA","DOGE","TON","TRX"}
+        out = sorted(out, key=lambda x: (x.split("USDT")[0] not in priority, x))
+        return out[:limit]
+    except Exception as _exc:  # pragma: no cover - network
+        try:
+            LOGGER.warning("exchangeInfo fetch failed: %s", _exc)
+        except Exception:
+            pass
+        return []
+
+
+# локальний, без винесення в загальний клієнт: трохи тримає rate-limit і дає м'який fallback
+def _fetch24_multi(symbols: list[str]) -> dict[str, dict]:
+    """Fetch many 24hr tickers in one call. Returns {SYMBOL: payload}."""
+    import json
+    from src.core import convert_api
+    out: dict[str, dict] = {}
+    symbols = [s for s in symbols if s]
+    if not symbols:
+        return out
+    params = {"symbols": json.dumps(symbols, separators=(",", ":"))}
+    try:
+        data = convert_api.binance_client.public_get("/api/v3/ticker/24hr", params=params, timeout=6)
+    except Exception:
+        data = convert_api.binance_client.public_get(
+            "https://data-api.binance.vision/api/v3/ticker/24hr",
+            params=params, timeout=6
+        )
+    for d in (data or []):
+        sym = (d.get("symbol") or "").upper()
+        out[sym] = d
+    return out
+
+def _fetch24_cached(s: str):
+    try:
+        d = convert_api.binance_client.public_get("/api/v3/ticker/24hr", params={"symbol": s}, timeout=6)
+        return d
+    except Exception as _exc:  # pragma: no cover - network
+        try:
+            LOGGER.debug("24hr ticker for %s failed: %s", s, _exc)
+        except Exception:
+            pass
+        return None
 
 import csv
 import json
@@ -26,6 +83,7 @@ REGION_BIAS = {"us": 1.05, "asia": 1.03}
 DEFAULT_MIN_VOLUME = getattr(config, "MIN_VOLUME_USDT", 5_000_000)
 DEFAULT_MAX_SPREAD_BPS = getattr(config, "MAX_SPREAD_BPS", 5.0)
 TOP_K = getattr(config, "TOP_K", 5)
+SHORTLIST_MULT = getattr(config, "SHORTLIST_MULT", 2)
 
 
 @dataclass
@@ -101,7 +159,6 @@ def _route_limits(route: ConvertRoute) -> tuple[float, float]:
     limits = convert_api.limits_for_pair(first.from_asset, first.to_asset)
     return float(limits.minimum), float(limits.maximum)
 
-
 def select_candidates(
     region: str,
     snapshot: BalanceSnapshot,
@@ -110,55 +167,80 @@ def select_candidates(
     top_k: int = TOP_K,
 ) -> List[Candidate]:
     try:
-        tickers = convert_api.binance_client.public_get("/api/v3/ticker/24hr")
+        syms = _usdt_symbols()
+        tickers: list[dict] = []
+        for s_ in syms:
+            d = _fetch24_cached(s_)
+            if isinstance(d, dict):
+                tickers.append(d)
     except requests.RequestException as exc:  # pragma: no cover - network
         LOGGER.error("ticker/24hr fetch failed: %s", exc)
         return []
     from_assets = snapshot.from_assets
     rejections: Dict[str, int] = {}
     candidates: List[Candidate] = []
-
-    if not isinstance(tickers, list):
-        return []
-
+    pr_calls = 0
+        # 1) Збираємо items без роутингу
+    items: list[dict] = []
     for row in tickers:
         symbol = (row.get("symbol") or "").upper()
         base, quote = _normalise_base(symbol)
         if quote != "USDT":
             continue
         last_price = float(row.get("lastPrice") or 0.0)
-        qvol = float(row.get("quoteVolume") or 0.0)
+        qvol       = float(row.get("quoteVolume") or 0.0)
         if qvol < min_volume:
             rejections["low_volume"] = rejections.get("low_volume", 0) + 1
             continue
-        bid = float(row.get("bidPrice") or 0.0)
-        ask = float(row.get("askPrice") or 0.0)
+        bid        = float(row.get("bidPrice") or 0.0)
+        ask        = float(row.get("askPrice") or 0.0)
         spread_bps = _compute_spread_bps(bid, ask)
         if spread_bps > max_spread_bps:
             rejections["wide_spread"] = rejections.get("wide_spread", 0) + 1
             continue
+        chg_pct    = float(row.get("priceChangePercent") or 0.0)
+        score      = _score_item(qvol, chg_pct, spread_bps, region)
+        items.append({
+            "base": base,
+            "symbol": symbol,
+            "last_price": last_price,
+            "qvol": qvol,
+            "chg_pct": chg_pct,
+            "spread_bps": spread_bps,
+            "score": score,
+        })
+    # 2) Сортуємо за score і беремо shortlist (~ top_k * SHORTLIST_MULT)
+    items.sort(key=lambda x: x["score"], reverse=True)
+    _tk = (top_k or len(items))
+    n = min(len(items), _tk * SHORTLIST_MULT)
+    shortlist = items[: n]
+
+    # 3) Роутимо ТІЛЬКИ shortlist і добираємо до top_k
+    for it in shortlist:
+        base = it["base"]
         route = convert_api.preferred_route(from_assets, base)
+        pr_calls += 1
         if not route:
             rejections["no_route"] = rejections.get("no_route", 0) + 1
             continue
-        chg_pct = float(row.get("priceChangePercent") or 0.0)
-        score = _score_item(qvol, chg_pct, spread_bps, region)
         min_quote, max_quote = _route_limits(route)
         candidate = Candidate(
             rank=0,
-            symbol=symbol,
+            symbol=it["symbol"],
             base=base,
-            score=score,
-            qvol=qvol,
-            chg=chg_pct,
-            spread_bps=spread_bps,
-            last_price=last_price,
+            score=it["score"],
+            qvol=it["qvol"],
+            chg=it["chg_pct"],
+            spread_bps=it["spread_bps"],
+            last_price=it["last_price"],
             route=route,
             route_desc=_route_description(route),
             min_quote=min_quote,
             max_quote=max_quote,
         )
         candidates.append(candidate)
+        if top_k and len(candidates) >= top_k:
+            break
 
     candidates.sort(key=lambda c: c.score, reverse=True)
     selected = candidates[: top_k or len(candidates)]
@@ -167,7 +249,7 @@ def select_candidates(
 
     summary_path = snapshot.log_dir / "summary.txt"
     with summary_path.open("a", encoding="utf-8") as fh:
-        fh.write(f"Region={region} Total={len(selected)}\n")
+        fh.write(f"Region={region} Total={len(selected)} pr_calls={pr_calls}\n")
         if rejections:
             fh.write("Rejections:" + "\n")
             for key, val in sorted(rejections.items()):

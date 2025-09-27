@@ -1,7 +1,6 @@
-"""Command line interface for Convert automation helpers."""
-
 from __future__ import annotations
-
+from src.core import convert_middleware  # ensure amount normalization
+"""Command line interface for Convert automation helpers."""
 import argparse
 import logging
 import sys

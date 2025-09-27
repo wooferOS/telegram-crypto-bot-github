@@ -1,5 +1,3 @@
-"""Phase orchestrator for Convert automation."""
-
 from __future__ import annotations
 
 import json
@@ -7,6 +5,8 @@ import logging
 from decimal import Decimal
 from typing import Dict, List
 
+# side-effect: підключає обгортки нормалізації/ретраїв
+from src.core import convert_middleware  # noqa: F401
 from src.core import balance
 from src.core import guard as guard_module
 from src.core import portfolio, position
@@ -17,15 +17,12 @@ LOGGER = logging.getLogger(__name__)
 
 
 def _total_equity(snapshot: portfolio.BalanceSnapshot) -> float:
-    total = 0.0
+    total: float = 0.0
     for row in snapshot.rows:
         asset = (row.normalised or row.asset).upper()
-        amount = float(row.amount)
-        if asset == "USDT":
-            price = 1.0
-        else:
-            price = snapshot.price_map.get(asset, 0.0)
-        total += amount * price
+        amount_dec = Decimal(str(row.amount))
+        price = 1.0 if asset == "USDT" else float(snapshot.price_map.get(asset, 0.0) or 0.0)
+        total += float(amount_dec) * price
     return total
 
 

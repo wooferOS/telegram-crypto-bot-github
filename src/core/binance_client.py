@@ -6,6 +6,7 @@ from urllib.parse import urlencode
 from typing import Any, Dict, Optional
 
 import requests
+from typing import Optional, Dict, Any
 
 # Єдиний імпорт налаштувань з локального файлу (НЕ комітиться)
 from config_dev3 import (
@@ -82,7 +83,7 @@ def _sign_qs(params: Dict[str, Any]) -> str:
 
 def _request(
     method: str, path: str, params: Optional[Dict[str, Any]] = None, signed: bool = True
-):
+, timeout: Optional[int] = None):
     """
     Єдина точка доступу.
     Для SAPI підписаних ендпоінтів (Convert) — ВСЕ в query string:
@@ -110,7 +111,7 @@ def _request(
     backoff = BACKOFF_BASE_S
     for attempt in range(1, BACKOFF_MAX_RETRIES + 1):
         try:
-            resp = session.request(method, url, timeout=REQUEST_TIMEOUT)
+            resp = session.request(method, url, timeout=(timeout or REQUEST_TIMEOUT))
             code = None
             try:
                 js = resp.json()
@@ -220,10 +221,10 @@ def get_convert_asset_info(asset: str) -> Dict[str, Any]:
     return data
 
 
-def public_get(path: str, params: Optional[Dict[str, Any]] = None):
+def public_get(path: str, params: Optional[Dict[str, Any]] = None, timeout: Optional[int] = None):
     """Perform a GET request to the market-data host without signing."""
 
     url = PUBLIC_BASE.rstrip("/") + path
-    resp = _public_session.get(url, params=params, timeout=REQUEST_TIMEOUT)
+    resp = _public_session.get(url, params=params, timeout=(timeout or REQUEST_TIMEOUT))
     resp.raise_for_status()
     return resp.json()
