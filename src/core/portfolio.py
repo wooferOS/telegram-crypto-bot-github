@@ -190,7 +190,7 @@ def build_target_allocation(
         weights = _base_weights(len(pool))
         temp: List[TargetAllocation] = []
         removed = False
-        for weight, item in zip(weights, pool):
+        for weight, item in zip(weights, pool, strict=False):
             candidate, route = item
             min_quote = float(candidate.get("min_quote") or 0.0)
             max_quote = float(candidate.get("max_quote") or 0.0)
@@ -226,9 +226,7 @@ def plan_rebalance(
     threshold: float = 0.08,
 ) -> List[RebalanceAction]:
     actions: List[RebalanceAction] = []
-    holdings_map: MutableMapping[str, Decimal] = {
-        (k or "").upper(): decimal_from_any(v) for k, v in holdings.items()
-    }
+    holdings_map: MutableMapping[str, Decimal] = {(k or "").upper(): decimal_from_any(v) for k, v in holdings.items()}
     total_equity = sum(
         float(amount) * (price_map.get(asset, 1.0) if asset != "USDT" else 1.0)
         for asset, amount in holdings_map.items()

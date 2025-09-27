@@ -7,20 +7,20 @@ import time
 # Динамічний перелік USDT-спот пар (без харкодів)
 def _usdt_symbols(limit: int = 300) -> list[str]:
     try:
-        ex = convert_api.binance_client.public_get("/api/v3/exchangeInfo", timeout=8)
         out = []
         for sym in (ex or {}).get("symbols", []):
             if sym.get("status") == "TRADING" and sym.get("quoteAsset") == "USDT":
                 s = sym.get("symbol")
-                if s: out.append(s)
+                if s:
+                    out.append(s)
         # Сортуємо стабільно: спершу «топові» за назвою бази (BTC,ETH,USDC,BNB,...) щоб швидко з’являлися вгорі,
         # решта — алфавітом (просто для детермінізму).
-        priority = {"BTC","ETH","USDC","BNB","XRP","SOL","ADA","DOGE","TON","TRX"}
+        priority = {"BTC", "ETH", "USDC", "BNB", "XRP", "SOL", "ADA", "DOGE", "TON", "TRX"}
         out = sorted(out, key=lambda x: (x.split("USDT")[0] not in priority, x))
         return out[:limit]
     except Exception as _exc:  # pragma: no cover - network
         try:
-            LOGGER.warning("exchangeInfo fetch failed: %s", _exc)
+            LOGGER.warning("exchangeInfo fetch skipped: %s", _exc)
         except Exception:
             pass
         return []
@@ -31,6 +31,7 @@ def _fetch24_multi(symbols: list[str]) -> dict[str, dict]:
     """Fetch many 24hr tickers in one call. Returns {SYMBOL: payload}."""
     import json
     from src.core import convert_api
+
     out: dict[str, dict] = {}
     symbols = [s for s in symbols if s]
     if not symbols:
@@ -40,17 +41,16 @@ def _fetch24_multi(symbols: list[str]) -> dict[str, dict]:
         data = convert_api.binance_client.public_get("/api/v3/ticker/24hr", params=params, timeout=6)
     except Exception:
         data = convert_api.binance_client.public_get(
-            "https://data-api.binance.vision/api/v3/ticker/24hr",
-            params=params, timeout=6
+            "https://data-api.binance.vision/api/v3/ticker/24hr", params=params, timeout=6
         )
-    for d in (data or []):
+    for d in data or []:
         sym = (d.get("symbol") or "").upper()
         out[sym] = d
     return out
 
+
 def _fetch24_cached(s: str):
     try:
-        d = convert_api.binance_client.public_get("/api/v3/ticker/24hr", params={"symbol": s}, timeout=6)
         return d
     except Exception as _exc:  # pragma: no cover - network
         try:
@@ -58,6 +58,7 @@ def _fetch24_cached(s: str):
         except Exception:
             pass
         return None
+
 
 import csv
 import json
@@ -114,9 +115,7 @@ class Candidate:
             "route": self.route_desc,
             "min_quote": self.min_quote,
             "max_quote": self.max_quote,
-            "route_steps": [
-                {"from": step.from_asset, "to": step.to_asset} for step in self.route.steps
-            ],
+            "route_steps": [{"from": step.from_asset, "to": step.to_asset} for step in self.route.steps],
         }
 
 
@@ -159,6 +158,7 @@ def _route_limits(route: ConvertRoute) -> tuple[float, float]:
     limits = convert_api.limits_for_pair(first.from_asset, first.to_asset)
     return float(limits.minimum), float(limits.maximum)
 
+
 def select_candidates(
     region: str,
     snapshot: BalanceSnapshot,
@@ -180,7 +180,7 @@ def select_candidates(
     rejections: Dict[str, int] = {}
     candidates: List[Candidate] = []
     pr_calls = 0
-        # 1) Збираємо items без роутингу
+    # 1) Збираємо items без роутингу
     items: list[dict] = []
     for row in tickers:
         symbol = (row.get("symbol") or "").upper()
@@ -188,32 +188,34 @@ def select_candidates(
         if quote != "USDT":
             continue
         last_price = float(row.get("lastPrice") or 0.0)
-        qvol       = float(row.get("quoteVolume") or 0.0)
+        qvol = float(row.get("quoteVolume") or 0.0)
         if qvol < min_volume:
             rejections["low_volume"] = rejections.get("low_volume", 0) + 1
             continue
-        bid        = float(row.get("bidPrice") or 0.0)
-        ask        = float(row.get("askPrice") or 0.0)
+        bid = float(row.get("bidPrice") or 0.0)
+        ask = float(row.get("askPrice") or 0.0)
         spread_bps = _compute_spread_bps(bid, ask)
         if spread_bps > max_spread_bps:
             rejections["wide_spread"] = rejections.get("wide_spread", 0) + 1
             continue
-        chg_pct    = float(row.get("priceChangePercent") or 0.0)
-        score      = _score_item(qvol, chg_pct, spread_bps, region)
-        items.append({
-            "base": base,
-            "symbol": symbol,
-            "last_price": last_price,
-            "qvol": qvol,
-            "chg_pct": chg_pct,
-            "spread_bps": spread_bps,
-            "score": score,
-        })
+        chg_pct = float(row.get("priceChangePercent") or 0.0)
+        score = _score_item(qvol, chg_pct, spread_bps, region)
+        items.append(
+            {
+                "base": base,
+                "symbol": symbol,
+                "last_price": last_price,
+                "qvol": qvol,
+                "chg_pct": chg_pct,
+                "spread_bps": spread_bps,
+                "score": score,
+            }
+        )
     # 2) Сортуємо за score і беремо shortlist (~ top_k * SHORTLIST_MULT)
     items.sort(key=lambda x: x["score"], reverse=True)
-    _tk = (top_k or len(items))
+    _tk = top_k or len(items)
     n = min(len(items), _tk * SHORTLIST_MULT)
-    shortlist = items[: n]
+    shortlist = items[:n]
 
     # 3) Роутимо ТІЛЬКИ shortlist і добираємо до top_k
     for it in shortlist:

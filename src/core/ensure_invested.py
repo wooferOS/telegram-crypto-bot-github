@@ -7,7 +7,7 @@ import logging
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Iterable, List, Sequence
+from typing import List, Sequence
 
 from . import convert_api
 from .portfolio import RebalanceAction

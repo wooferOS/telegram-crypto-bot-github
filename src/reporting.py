@@ -87,11 +87,7 @@ def _read_existing_rows(csv_path: Path) -> List[dict]:
 
 
 def _dedup_rows(existing: List[dict], new_rows: List[dict]) -> List[dict]:
-    seen_qid = {
-        (r.get("quoteId") or "").strip()
-        for r in existing
-        if (r.get("quoteId") or "").strip()
-    }
+    seen_qid = {(r.get("quoteId") or "").strip() for r in existing if (r.get("quoteId") or "").strip()}
 
     def key(r):
         return (r.get("from"), r.get("to"), r.get("wallet"), str(r.get("amount")))
@@ -112,9 +108,7 @@ def _dedup_rows(existing: List[dict], new_rows: List[dict]) -> List[dict]:
     return out
 
 
-def write_reports(
-    items: Iterable[Mapping[str, Any]], outdir: str | Path | None = None
-) -> str:
+def write_reports(items: Iterable[Mapping[str, Any]], outdir: str | Path | None = None) -> str:
     outdir_path = Path(outdir) if outdir else _default_outdir()
     outdir_path.mkdir(parents=True, exist_ok=True)
 
@@ -130,20 +124,14 @@ def write_reports(
         rows = _dedup_rows(existing, rows)
 
         if rows:
-            with tempfile.NamedTemporaryFile(
-                "w", delete=False, dir=outdir_path, encoding="utf-8", newline=""
-            ) as tf:
+            with tempfile.NamedTemporaryFile("w", delete=False, dir=outdir_path, encoding="utf-8", newline="") as tf:
                 tmp = Path(tf.name)
                 if csv_path.exists() and csv_path.stat().st_size > 0:
                     with csv_path.open("r", encoding="utf-8", newline="") as rf:
                         tf.write(rf.read())
-                    writer = csv.DictWriter(
-                        tf, fieldnames=CSV_FIELDS, lineterminator="\n"
-                    )
+                    writer = csv.DictWriter(tf, fieldnames=CSV_FIELDS, lineterminator="\n")
                 else:
-                    writer = csv.DictWriter(
-                        tf, fieldnames=CSV_FIELDS, lineterminator="\n"
-                    )
+                    writer = csv.DictWriter(tf, fieldnames=CSV_FIELDS, lineterminator="\n")
                     writer.writeheader()
                 for r in rows:
                     writer.writerow(r)
@@ -167,15 +155,9 @@ def write_reports(
             }
 
         agg_all = _agg(all_rows)
-        agg_an = _agg(
-            [r for r in all_rows if (r.get("phase") or "").strip().lower() == "analyze"]
-        )
-        agg_tr = _agg(
-            [r for r in all_rows if (r.get("phase") or "").strip().lower() == "trade"]
-        )
-        agg_or = _agg(
-            [r for r in all_rows if (r.get("phase") or "").strip().lower() == "order"]
-        )
+        agg_an = _agg([r for r in all_rows if (r.get("phase") or "").strip().lower() == "analyze"])
+        agg_tr = _agg([r for r in all_rows if (r.get("phase") or "").strip().lower() == "trade"])
+        agg_or = _agg([r for r in all_rows if (r.get("phase") or "").strip().lower() == "order"])
         rgn, phs = _parse_cli_region_phase()
 
         lines = [

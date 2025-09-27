@@ -15,9 +15,7 @@ def _read_spot_balances() -> Dict[str, Decimal]:
     Від Binance може прийти або список [{asset, free, locked, ...}], або dict із полем balances.
     Повертаємо мапу {ASSET -> free: Decimal}.
     """
-    payload = binance_client.post(
-        "/sapi/v3/asset/getUserAsset", {"needBtcValuation": False}, signed=True
-    )
+    payload = binance_client.post("/sapi/v3/asset/getUserAsset", {"needBtcValuation": False}, signed=True)
     balances: Dict[str, Decimal] = {}
     if isinstance(payload, list):
         for it in payload:
@@ -76,6 +74,7 @@ def read_free(asset: str, wallet: str | None) -> Decimal:
 
 # --- Compatibility shim expected by strategy/selector.py ---
 from typing import Dict
+
 
 def read_all(wallet: str | None = None) -> Dict[str, Decimal]:
     """Return dict(asset -> Decimal free_amount) for the requested wallet.

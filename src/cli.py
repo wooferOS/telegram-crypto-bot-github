@@ -1,5 +1,5 @@
 from __future__ import annotations
-from src.core import convert_middleware  # ensure amount normalization
+
 """Command line interface for Convert automation helpers."""
 import argparse
 import logging
@@ -64,15 +64,11 @@ def cmd_info(args: argparse.Namespace) -> None:
     for wallet in ("SPOT", "FUNDING"):
         from_free = _format_decimal(balance.read_free(args.from_asset, wallet))
         to_free = _format_decimal(balance.read_free(args.to_asset, wallet))
-        print(
-            f"{wallet}: {args.from_asset.upper()}={from_free} {args.to_asset.upper()}={to_free}"
-        )
+        print(f"{wallet}: {args.from_asset.upper()}={from_free} {args.to_asset.upper()}={to_free}")
 
 
 def cmd_quote(args: argparse.Namespace) -> None:
-    quote = convert_api.get_quote(
-        args.from_asset, args.to_asset, args.amount, args.wallet
-    )
+    quote = convert_api.get_quote(args.from_asset, args.to_asset, args.amount, args.wallet)
     print(
         "Quote {}→{} wallet={} amount={}".format(
             args.from_asset, args.to_asset, (args.wallet or "SPOT").upper(), args.amount
@@ -89,9 +85,7 @@ def _determine_dry_run(value: int | None) -> bool:
 
 def cmd_now(args: argparse.Namespace) -> None:
     dry_run = _determine_dry_run(args.dry_run)
-    quote = convert_api.get_quote(
-        args.from_asset, args.to_asset, args.amount, args.wallet
-    )
+    quote = convert_api.get_quote(args.from_asset, args.to_asset, args.amount, args.wallet)
     print(
         "Quote {}→{} wallet={} amount={}".format(
             args.from_asset, args.to_asset, (args.wallet or "SPOT").upper(), args.amount
@@ -180,9 +174,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_now.add_argument("to_asset")
     p_now.add_argument("amount")
     p_now.add_argument("--wallet", default="SPOT", choices=["SPOT", "FUNDING"])
-    p_now.add_argument(
-        "--dry-run", dest="dry_run", type=int, choices=[0, 1], default=None
-    )
+    p_now.add_argument("--dry-run", dest="dry_run", type=int, choices=[0, 1], default=None)
     p_now.set_defaults(func=cmd_now)
 
     p_status = sub.add_parser("status", help="Check order status")
@@ -202,9 +194,7 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         choices=["pre-analyze", "analyze", "trade", "guard"],
     )
-    p_run.add_argument(
-        "--dry-run", dest="dry_run", type=int, choices=[0, 1], default=None
-    )
+    p_run.add_argument("--dry-run", dest="dry_run", type=int, choices=[0, 1], default=None)
     p_run.set_defaults(func=cmd_run)
 
     return parser

@@ -25,13 +25,20 @@ from .utils import (
 
 LOGGER = logging.getLogger(__name__)
 
+
 def _log_getquote_response(resp):
     try:
         if "/sapi/v1/convert/getQuote" in getattr(resp, "url", "") and int(getattr(resp, "status_code", 0)) >= 400:
-            LOGGER.error("getQuote failed: url=%s status=%s body=%s",
-                         getattr(resp,"url",""), getattr(resp,"status_code",None), getattr(resp,"text",""))
+            LOGGER.error(
+                "getQuote failed: url=%s status=%s body=%s",
+                getattr(resp, "url", ""),
+                getattr(resp, "status_code", None),
+                getattr(resp, "text", ""),
+            )
     except Exception:
         pass
+
+
 HUB_ASSETS: Tuple[str, ...] = ("BTC", "ETH", "BNB", "USDT")
 
 _JITTER_RANGE_SEC: Tuple[float, float] = tuple(
@@ -43,12 +50,14 @@ _QUOTE_RETRY_MAX = getattr(config, "QUOTE_RETRY_MAX", 2)
 # Deduplication cache within process execution
 _executed_keys: set[str] = set()
 
+
 @dataclass(frozen=True)
 class ConvertStep:
     """Single hop in convert route."""
 
     from_asset: str
     to_asset: str
+
 
 @dataclass
 class ConvertRoute:
@@ -68,12 +77,14 @@ class ConvertRoute:
         hubs = ",".join(step.to_asset for step in self.steps[:-1])
         return f"hub:{hubs}"
 
+
 @dataclass
 class ConvertLimits:
     """Convert limits (min/max) in *from* asset units."""
 
     minimum: Decimal
     maximum: Decimal
+
 
 @dataclass
 class ConvertQuote:
@@ -93,13 +104,16 @@ class ConvertQuote:
             return False
         return now_ms() >= max(0, self.expire_time_ms - int(abs(safety_ms)))
 
+
 def _sleep_with_jitter() -> None:
     jitter = rand_jitter(_JITTER_RANGE_SEC)
     if jitter > 0:
         time.sleep(jitter)
 
+
 def _normalise_asset(value: str) -> str:
     return (value or "").upper().strip()
+
 
 def _safe_exchange_info(from_asset: str, to_asset: str) -> Optional[Dict[str, Any]]:
     try:
@@ -110,6 +124,7 @@ def _safe_exchange_info(from_asset: str, to_asset: str) -> Optional[Dict[str, An
         raise
     except requests.RequestException:
         raise
+
 
 def _extract_limits(info: Optional[Dict[str, Any]]) -> ConvertLimits:
     if not info:
@@ -122,6 +137,8 @@ def _extract_limits(info: Optional[Dict[str, Any]]) -> ConvertLimits:
     minimum = decimal_from_any(payload.get("fromAssetMinAmount"))
     maximum = decimal_from_any(payload.get("fromAssetMaxAmount"))
     return ConvertLimits(minimum, maximum)
+
+
 @lru_cache(maxsize=8192)
 def _route_steps(from_asset: str, to_asset: str) -> Optional[ConvertRoute]:
     if from_asset == to_asset:
@@ -141,6 +158,7 @@ def _route_steps(from_asset: str, to_asset: str) -> Optional[ConvertRoute]:
         return ConvertRoute((ConvertStep(from_asset, hub), ConvertStep(hub, to_asset)))
     return None
 
+
 def route_exists(from_asset: str, to_asset: str) -> Optional[ConvertRoute]:
     """Return :class:`ConvertRoute` if conversion possible."""
 
@@ -150,11 +168,14 @@ def route_exists(from_asset: str, to_asset: str) -> Optional[ConvertRoute]:
         return None
     return _route_steps(from_asset, to_asset)
 
+
 def limits_for_pair(from_asset: str, to_asset: str) -> ConvertLimits:
     return _extract_limits(_safe_exchange_info(from_asset, to_asset))
 
+
 def get_asset_precision(asset: str) -> Dict[str, Any]:
     return binance_client.get_convert_asset_info(asset)
+
 
 def _quote_once(
     from_asset: str,
@@ -192,6 +213,7 @@ def _quote_once(
     )
     return quote
 
+
 def get_quote(
     from_asset: str,
     to_asset: str,
@@ -210,14 +232,15 @@ def get_quote(
             _sleep_with_jitter()
     return None
 
+
 def accept_quote(quote: ConvertQuote | str) -> Dict[str, Any]:
     quote_id = quote if isinstance(quote, str) else quote.quote_id
     return binance_client.post("/sapi/v1/convert/acceptQuote", {"quoteId": quote_id}, signed=True)
 
+
 def order_status(order_id: str) -> Dict[str, Any]:
-    return binance_client.get(
-        "/sapi/v1/convert/orderStatus", {"orderId": order_id}, signed=True
-    )
+    return binance_client.get("/sapi/v1/convert/orderStatus", {"orderId": order_id}, signed=True)
+
 
 def execute_conversion(
     from_asset: str,
@@ -235,15 +258,14 @@ def execute_conversion(
     if not quote:
         raise RuntimeError(f"quote failed for {from_asset}->{to_asset}")
     if quote.expired():
-        LOGGER.warning(
-            "Quote %s expired immediately, requesting a new one", quote.quote_id
-        )
+        LOGGER.warning("Quote %s expired immediately, requesting a new one", quote.quote_id)
         quote = get_quote(from_asset, to_asset, amount, wallet, retry=retry)
         if not quote:
             raise RuntimeError("quote failed after retry")
     result = accept_quote(quote)
     result.setdefault("quote", quote.raw)
     return result
+
 
 def execute_route(
     route: ConvertRoute,
@@ -263,7 +285,10 @@ def execute_route(
         wallet = (wallet or "SPOT").upper()
     return executed
 
-def execute_unique(route: ConvertRoute, amount: Decimal, wallet: str, tolerance: float = 0.01) -> Optional[List[Dict[str, Any]]]:
+
+def execute_unique(
+    route: ConvertRoute, amount: Decimal, wallet: str, tolerance: float = 0.01
+) -> Optional[List[Dict[str, Any]]]:
     key = json.dumps(
         {
             "route": [f"{step.from_asset}->{step.to_asset}" for step in route.steps],
@@ -291,18 +316,21 @@ def execute_unique(route: ConvertRoute, amount: Decimal, wallet: str, tolerance:
     _executed_keys.add(key)
     return execute_route(route, amount, wallet)
 
+
 def reset_dedup_cache() -> None:
     _executed_keys.clear()
 
+
 def preferred_route(from_assets: Iterable[str], target: str) -> Optional[ConvertRoute]:
     target = _normalise_asset(target)
-    for asset in { _normalise_asset(a) for a in from_assets }:
+    for asset in {_normalise_asset(a) for a in from_assets}:
         if not asset:
             continue
         route = route_exists(asset, target)
         if route:
             return route
     return None
+
 
 def get_trade_flow(start_time: int, end_time: int, limit: int = 100) -> Dict[str, Any]:
     params = {"startTime": int(start_time), "endTime": int(end_time), "limit": int(limit)}

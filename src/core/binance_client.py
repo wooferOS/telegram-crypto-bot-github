@@ -6,7 +6,6 @@ from urllib.parse import urlencode
 from typing import Any, Dict, Optional
 
 import requests
-from typing import Optional, Dict, Any
 
 # Єдиний імпорт налаштувань з локального файлу (НЕ комітиться)
 from config_dev3 import (
@@ -28,15 +27,29 @@ PUBLIC_BASE = getattr(
     "PUBLIC_BASE",
     "https://data-api.binance.vision",
 )
-ASSETINFO_TTL_SEC = getattr(
-    __import__("config_dev3"), "ASSETINFO_TTL_SEC", EXCHANGEINFO_TTL_SEC
-)
+ASSETINFO_TTL_SEC = getattr(__import__("config_dev3"), "ASSETINFO_TTL_SEC", EXCHANGEINFO_TTL_SEC)
 
 # Глобальна HTTP-сесія
 session = requests.Session()
 session.headers.update({"X-MBX-APIKEY": BINANCE_API_KEY})
 _public_session = requests.Session()
 
+
+from urllib3.util.retry import Retry
+from requests.adapters import HTTPAdapter
+
+_retry = Retry(
+    total=3,
+    connect=3,
+    read=3,
+    backoff_factor=0.5,
+    status_forcelist=(429, 500, 502, 503, 504),
+    allowed_methods=frozenset(["GET"]),
+)
+_adapter = HTTPAdapter(max_retries=_retry, pool_connections=50, pool_maxsize=200)
+_public_session.mount("https://", _adapter)
+_public_session.mount("http://", _adapter)
+_public_session.headers.update({"Connection": "keep-alive"})
 # ---------------- token bucket (проти спаму) ----------------
 _tokens = BURST
 _last_refill = time.monotonic()
@@ -82,8 +95,8 @@ def _sign_qs(params: Dict[str, Any]) -> str:
 
 
 def _request(
-    method: str, path: str, params: Optional[Dict[str, Any]] = None, signed: bool = True
-, timeout: Optional[int] = None):
+    method: str, path: str, params: Optional[Dict[str, Any]] = None, signed: bool = True, timeout: Optional[int] = None
+):
     """
     Єдина точка доступу.
     Для SAPI підписаних ендпоінтів (Convert) — ВСЕ в query string:
@@ -111,7 +124,13 @@ def _request(
     backoff = BACKOFF_BASE_S
     for attempt in range(1, BACKOFF_MAX_RETRIES + 1):
         try:
-            resp = session.request(method, url, timeout=(timeout or REQUEST_TIMEOUT))
+            resp = session.request(
+                method,
+                url,
+                timeout=(
+                    timeout if isinstance(timeout, tuple) else (timeout or REQUEST_TIMEOUT, timeout or REQUEST_TIMEOUT)
+                ),
+            )
             code = None
             try:
                 js = resp.json()
@@ -120,9 +139,7 @@ def _request(
                 js = None
 
             # нормальні кейси
-            if resp.ok and (
-                js is None or "code" not in js or (isinstance(code, int) and code == 0)
-            ):
+            if resp.ok and (js is None or "code" not in js or (isinstance(code, int) and code == 0)):
                 return js if js is not None else resp.json()
 
             # помилки, які має сенс ретраїти
@@ -225,6 +242,10 @@ def public_get(path: str, params: Optional[Dict[str, Any]] = None, timeout: Opti
     """Perform a GET request to the market-data host without signing."""
 
     url = PUBLIC_BASE.rstrip("/") + path
-    resp = _public_session.get(url, params=params, timeout=(timeout or REQUEST_TIMEOUT))
+    resp = _public_session.get(
+        url,
+        params=params,
+        timeout=(timeout if isinstance(timeout, tuple) else (timeout or REQUEST_TIMEOUT, timeout or REQUEST_TIMEOUT)),
+    )
     resp.raise_for_status()
     return resp.json()

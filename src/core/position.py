@@ -13,9 +13,7 @@ import config_dev3 as config
 from .utils import DECIMAL_ZERO, decimal_from_any, ensure_parent, now_ms
 
 
-DEFAULT_STATE_PATH = Path(
-    getattr(config, "POSITION_STATE_PATH", "/srv/dev3/state/position.json")
-)
+DEFAULT_STATE_PATH = Path(getattr(config, "POSITION_STATE_PATH", "/srv/dev3/state/position.json"))
 
 
 def _normalise_asset(asset: str) -> str:
@@ -67,11 +65,7 @@ def load(path: Path | None = None) -> PositionState:
         value = decimal_from_any(amount)
         if value > 0:
             assets[_normalise_asset(asset)] = value
-    peaks = {
-        _normalise_asset(k): float(v)
-        for k, v in (payload.get("peaks") or {}).items()
-        if v is not None
-    }
+    peaks = {_normalise_asset(k): float(v) for k, v in (payload.get("peaks") or {}).items() if v is not None}
     return PositionState(
         assets=assets,
         peaks=peaks,

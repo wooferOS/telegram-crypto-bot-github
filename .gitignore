@@ -30,3 +30,4 @@ __pycache__/
 
 # local backups
 *.bak.*
+state/*.json
