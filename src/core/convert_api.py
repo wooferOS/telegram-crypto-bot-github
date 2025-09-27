@@ -234,8 +234,26 @@ def get_quote(
 
 
 def accept_quote(quote: ConvertQuote | str) -> Dict[str, Any]:
-    quote_id = quote if isinstance(quote, str) else quote.quote_id
-    return binance_client.post("/sapi/v1/convert/acceptQuote", {"quoteId": quote_id}, signed=True)
+    """
+    Accept a quote by quoteId; supports str or object with quote_id.
+    """
+    quote_id = quote if isinstance(quote, str) else getattr(quote, "quote_id", None)
+    assert quote_id, "acceptQuote(): missing quoteId"
+    try:
+        return binance_client.post("/sapi/v1/convert/acceptQuote", {"quoteId": quote_id}, signed=True)
+    except Exception as e:
+        resp = getattr(e, "response", None)
+        try:
+            sc = int(getattr(resp, "status_code", 0))
+        except Exception:
+            sc = 0
+        if sc >= 400:
+            import logging
+
+            logging.getLogger(__name__).error(
+                "acceptQuote failed: status=%s body=%s", getattr(resp, "status_code", None), getattr(resp, "text", "")
+            )
+        raise
 
 
 def order_status(order_id: str) -> Dict[str, Any]:

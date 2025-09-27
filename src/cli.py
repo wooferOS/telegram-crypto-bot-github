@@ -43,7 +43,7 @@ def _print_quote(quote: dict) -> None:
     if expire:
         print(f"Expires: {expire}")
     if quote.get("insufficient"):
-        print("Warning: insufficient balance (available=" f"{quote.get('available')})")
+        print(f"Warning: insufficient balance (available={quote.get('available')})")
 
 
 def cmd_info(args: argparse.Namespace) -> None:

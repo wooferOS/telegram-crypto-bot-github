@@ -26,6 +26,13 @@ if hasattr(_real, "accept_quote"):
 
 
 def _wrapped_accept_quote(quote, *args, **kwargs):
+    # DEV3: strict check for quoteId
+    qid = (
+        quote
+        if isinstance(quote, str)
+        else (((quote or {}).get("quoteId")) if isinstance(quote, dict) else getattr(quote, "quoteId", None))
+    )
+    assert qid, "acceptQuote(): missing quoteId"
     try:
         return _orig_accept_quote(quote, *args, **kwargs)
     except Exception as e:
@@ -41,6 +48,25 @@ def _wrapped_accept_quote(quote, *args, **kwargs):
         if policy == "business_skip":
             logger.warning("Convert business_skip for quote=%s", quote)
             return None
+        # DEV3: one-shot re-quote for expired/invalid quote
+        try:
+            resp = getattr(e, "response", None)
+            body = (getattr(resp, "text", "") or "").lower()
+        except Exception:
+            body = ""
+        if ("quote" in body) or ("expire" in body) or ("invalid" in body):
+            try:
+                from .convert_api import get_quote
+
+                route = kwargs.get("route") or getattr(quote, "route", None)
+                amount = kwargs.get("amount") or getattr(quote, "amount", None)
+                wallet = kwargs.get("wallet", "SPOT")
+                if (route is not None) and (amount is not None):
+                    new_q = get_quote(route, amount, wallet=wallet, timeout=8)
+                    assert new_q.get("quoteId")
+                    return _orig_accept_quote(new_q, *args, **kwargs)
+            except Exception:
+                pass
         raise
 
 
