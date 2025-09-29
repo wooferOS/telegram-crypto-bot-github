@@ -31,6 +31,7 @@ def _wrapped_accept_quote(quote, *args, **kwargs):
     """
     import logging
     import time
+
     log = logging.getLogger(__name__)
 
     # Визначаємо аргумент, який підемо приймати
@@ -53,6 +54,7 @@ def _wrapped_accept_quote(quote, *args, **kwargs):
         return _orig_accept_quote(pass_arg, *args, **kwargs)
     except Exception as e:
         from src.core.convert_errors import classify
+
         policy = classify(e)
 
         if policy == "sync_time_and_retry":
@@ -60,6 +62,7 @@ def _wrapped_accept_quote(quote, *args, **kwargs):
             return _orig_accept_quote(pass_arg, *args, **kwargs)
         if policy == "rate_limit_backoff":
             from random import random
+
             time.sleep(1.0 + random())
             return _orig_accept_quote(pass_arg, *args, **kwargs)
         if policy == "business_skip":
@@ -76,6 +79,7 @@ def _wrapped_accept_quote(quote, *args, **kwargs):
         if ("quote" in body) or ("expire" in body) or ("invalid" in body):
             try:
                 from .convert_api import get_quote
+
                 route = kwargs.get("route") or getattr(quote, "route", None)
                 amount = kwargs.get("amount") or getattr(quote, "amount", None)
                 wallet = kwargs.get("wallet", "SPOT")
@@ -87,4 +91,6 @@ def _wrapped_accept_quote(quote, *args, **kwargs):
             except Exception:
                 pass
         raise
+
+
 _real.accept_quote = _wrapped_accept_quote

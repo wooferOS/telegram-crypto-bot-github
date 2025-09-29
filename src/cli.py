@@ -1,16 +1,17 @@
+"""Command line interface for Convert automation helpers."""
+
 from __future__ import annotations
 
-"""Command line interface for Convert automation helpers."""
+import src.boot_guard  # patches requests acceptQuote guard  # noqa: F401
+
 import argparse
 import logging
 import sys
 from decimal import Decimal
 
 import config_dev3 as config
-
 from src import app
 from src.core import balance, convert_api, utils
-
 
 LOGGER = logging.getLogger(__name__)
 

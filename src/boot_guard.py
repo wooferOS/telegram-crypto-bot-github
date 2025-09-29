@@ -1,4 +1,6 @@
-import logging, urllib.parse
+import logging
+import urllib.parse
+
 try:
     import requests
 except Exception:
@@ -51,4 +53,4 @@ if requests and not getattr(requests.Session, "_dev3_acceptquote_patched", False
         return _orig(self, method, url, *args, **kw)
 
     requests.Session.request = _patched
-    setattr(requests.Session, "_dev3_acceptquote_patched", True)
+    requests.Session._dev3_acceptquote_patched = True
