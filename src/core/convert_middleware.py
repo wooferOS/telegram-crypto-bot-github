@@ -1,8 +1,6 @@
 import logging
 
 logger = logging.getLogger(__name__)
-from time import sleep
-from random import random
 from decimal import Decimal, ROUND_DOWN
 from . import convert_api as _real
 
@@ -26,29 +24,50 @@ if hasattr(_real, "accept_quote"):
 
 
 def _wrapped_accept_quote(quote, *args, **kwargs):
-    # DEV3: strict check for quoteId
-    qid = (
-        quote
-        if isinstance(quote, str)
-        else (((quote or {}).get("quoteId")) if isinstance(quote, dict) else getattr(quote, "quoteId", None))
-    )
-    assert qid, "acceptQuote(): missing quoteId"
+    """Обгортка accept_quote:
+    - якщо quote це рядок — передаємо як є (сумісність із тестами);
+    - якщо dict/об'єкт — строго беремо quoteId і ПЕРЕДАЄМО його;
+    - ретрі при -1021/-429, бізнес-правила — лише лог і None.
+    """
+    import logging
+    import time
+    log = logging.getLogger(__name__)
+
+    # Визначаємо аргумент, який підемо приймати
+    pass_arg = None
+    if isinstance(quote, str):
+        pass_arg = quote
+    else:
+        qid = None
+        try:
+            qid = getattr(quote, "quote_id", None) or getattr(quote, "quoteId", None)
+        except Exception:
+            qid = None
+        if isinstance(quote, dict):
+            qid = qid or quote.get("quoteId") or quote.get("quote_id")
+        if not qid:
+            raise ValueError("acceptQuote: відсутній quoteId у quote")
+        pass_arg = qid
+
     try:
-        return _orig_accept_quote(quote, *args, **kwargs)
+        return _orig_accept_quote(pass_arg, *args, **kwargs)
     except Exception as e:
         from src.core.convert_errors import classify
-
         policy = classify(e)
+
         if policy == "sync_time_and_retry":
-            sleep(0.5)
-            return _orig_accept_quote(quote, *args, **kwargs)
+            time.sleep(0.5)
+            return _orig_accept_quote(pass_arg, *args, **kwargs)
         if policy == "rate_limit_backoff":
-            sleep(1.0 + random())
-            return _orig_accept_quote(quote, *args, **kwargs)
+            from random import random
+            time.sleep(1.0 + random())
+            return _orig_accept_quote(pass_arg, *args, **kwargs)
         if policy == "business_skip":
-            logger.warning("Convert business_skip for quote=%s", quote)
+            # Тести шукають буквальний підрядок "business_skip" у повідомленні:
+            log.warning("business_skip: Convert accept skipped for quote=%r", quote)
             return None
-        # DEV3: one-shot re-quote for expired/invalid quote
+
+        # one-shot re-quote для прострочених/некоректних
         try:
             resp = getattr(e, "response", None)
             body = (getattr(resp, "text", "") or "").lower()
@@ -57,17 +76,15 @@ def _wrapped_accept_quote(quote, *args, **kwargs):
         if ("quote" in body) or ("expire" in body) or ("invalid" in body):
             try:
                 from .convert_api import get_quote
-
                 route = kwargs.get("route") or getattr(quote, "route", None)
                 amount = kwargs.get("amount") or getattr(quote, "amount", None)
                 wallet = kwargs.get("wallet", "SPOT")
                 if (route is not None) and (amount is not None):
                     new_q = get_quote(route, amount, wallet=wallet, timeout=8)
-                    assert new_q.get("quoteId")
-                    return _orig_accept_quote(new_q, *args, **kwargs)
+                    new_qid = (new_q or {}).get("quoteId")
+                    if new_qid:
+                        return _orig_accept_quote(new_qid, *args, **kwargs)
             except Exception:
                 pass
         raise
-
-
 _real.accept_quote = _wrapped_accept_quote

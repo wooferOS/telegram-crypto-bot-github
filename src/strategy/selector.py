@@ -1,63 +1,219 @@
 """Candidate selection for Convert trades."""
 
 from __future__ import annotations
-import time
+import logging
+
+LOGGER = logging.getLogger(__name__)
+
+BASE_DATA_API = "https://data-api.binance.vision"
+
+import config_dev3 as config
+
+TARGET_QUOTE = getattr(config, "TARGET_QUOTE", "USDT").upper()
 
 
-# Динамічний перелік USDT-спот пар (без харкодів)
-def _usdt_symbols(limit: int = 300) -> list[str]:
+def _load_exchange_info() -> dict:
+    """
+    Повертає dict з ключем "symbols".
+    1) /sapi/v1/convert/exchangeInfo (SIGNED) може бути list або dict.
+    2) Фолбек: /api/v3/exchangeInfo (PUBLIC).
+    Завжди нормалізуємо до {"symbols": [...]}.
+    """
+    data = None
     try:
-        out = []
-        for sym in (ex or {}).get("symbols", []):
-            if sym.get("status") == "TRADING" and sym.get("quoteAsset") == "USDT":
-                s = sym.get("symbol")
-                if s:
-                    out.append(s)
-        # Сортуємо стабільно: спершу «топові» за назвою бази (BTC,ETH,USDC,BNB,...) щоб швидко з’являлися вгорі,
-        # решта — алфавітом (просто для детермінізму).
-        priority = {"BTC", "ETH", "USDC", "BNB", "XRP", "SOL", "ADA", "DOGE", "TON", "TRX"}
-        out = sorted(out, key=lambda x: (x.split("USDT")[0] not in priority, x))
-        return out[:limit]
+        from src.core import binance_client
+
+        data = binance_client.get("/sapi/v1/convert/exchangeInfo", {}, signed=True)
     except Exception as _exc:  # pragma: no cover - network
         try:
             LOGGER.warning("exchangeInfo fetch skipped: %s", _exc)
         except Exception:
             pass
-        return []
+
+    # Нормалізація convert-відповіді
+    if isinstance(data, dict) and "symbols" in data:
+        return data
+    if isinstance(data, list):
+        return {"symbols": data}
+
+    # Публічний фолбек
+    try:
+        from src.core import convert_api
+
+        publ = convert_api.binance_client.public_get("/api/v3/exchangeInfo", timeout=6)
+        if isinstance(publ, list):
+            return {"symbols": publ}
+        if isinstance(publ, dict) and "symbols" in publ:
+            return publ
+    except Exception:
+        pass
+
+    return {"symbols": []}
 
 
-# локальний, без винесення в загальний клієнт: трохи тримає rate-limit і дає м'який fallback
+def _collect_pairs(ex: dict) -> list[str]:
+    """
+    Витягує коди пар для TARGET_QUOTE з різних схем:
+    - {symbol, status, quoteAsset}
+    - {fromAsset, toAsset, status}
+    - стислі ключі {s, b, q, st}
+    - або просто рядки "BTCUSDT"
+    """
+    out: list[str] = []
+    for rec in (ex or {}).get("symbols", []) or []:
+        if isinstance(rec, str):
+            sym = rec.upper()
+            if sym.endswith(TARGET_QUOTE):
+                out.append(sym)
+            continue
+        if not isinstance(rec, dict):
+            continue
+
+        base = str(rec.get("baseAsset") or rec.get("fromAsset") or rec.get("b") or "").upper()
+        quote = str(rec.get("quoteAsset") or rec.get("toAsset") or rec.get("q") or "").upper()
+        sym = str(rec.get("symbol") or rec.get("s") or "").upper()
+        if not sym and base and quote:
+            sym = base + quote
+
+        st = rec.get("status") or rec.get("st")
+        is_trading = st in ("TRADING", "ENABLED", None)
+
+        if sym and (quote == TARGET_QUOTE or sym.endswith(TARGET_QUOTE)) and is_trading:
+            out.append(sym)
+
+    # Дедуп з порядком
+    seen, res = set(), []
+    for s in out:
+        if s not in seen:
+            seen.add(s)
+            res.append(s)
+    return res
+
+
+# --- ПІДНІМАЄМО сюди, щоб _usdt_symbols бачив цю функцію ---
+
+
 def _fetch24_multi(symbols: list[str]) -> dict[str, dict]:
-    """Fetch many 24hr tickers in one call. Returns {SYMBOL: payload}."""
+    """
+    Повертає {SYMBOL: payload}.
+    1) client PATH: /api/v3/ticker/24hr?symbols=[...]
+    2) fallback: absolute https://data-api.binance.vision/...
+    """
     import json
-    from src.core import convert_api
 
-    out: dict[str, dict] = {}
     symbols = [s for s in symbols if s]
     if not symbols:
-        return out
+        return {}
+
     params = {"symbols": json.dumps(symbols, separators=(",", ":"))}
+
+    # primary: client PATH
     try:
+        from src.core import convert_api
+
         data = convert_api.binance_client.public_get("/api/v3/ticker/24hr", params=params, timeout=6)
+        out: dict[str, dict] = {}
+        for d in data or []:
+            if isinstance(d, dict):
+                sym = (d.get("symbol") or "").upper()
+                if sym:
+                    out[sym] = d
+        if out:
+            return out
     except Exception:
-        data = convert_api.binance_client.public_get(
-            "https://data-api.binance.vision/api/v3/ticker/24hr", params=params, timeout=6
-        )
-    for d in data or []:
-        sym = (d.get("symbol") or "").upper()
-        out[sym] = d
-    return out
+        pass
+
+    # fallback: absolute https
+    try:
+        import requests
+
+        r = requests.get(f"{BASE_DATA_API}/api/v3/ticker/24hr", params=params, timeout=6)
+        r.raise_for_status()
+        data = r.json()
+        # Може бути list, dict{SYM: obj} або один dict
+        if isinstance(data, dict):
+            if "code" in data and "msg" in data:
+                return {}
+            if "symbol" in data and isinstance(data["symbol"], str):
+                return {data["symbol"].upper(): data}
+            # map {SYM: obj}
+            if all(isinstance(v, dict) for v in data.values()):
+                return {k.upper(): v for k, v in data.items()}
+            return {}
+        if isinstance(data, list):
+            out: dict[str, dict] = {}
+            for d in data:
+                if isinstance(d, dict) and "symbol" in d:
+                    out[(d["symbol"] or "").upper()] = d
+            return out
+        return {}
+    except Exception:
+        return {}
 
 
 def _fetch24_cached(s: str):
+    """
+    1) client PATH: /api/v3/ticker/24hr?symbol=...
+    2) fallback: absolute https://data-api.binance.vision/...
+    Повертає dict або None.
+    """
     try:
-        return d
+        from src.core import convert_api
+
+        d = convert_api.binance_client.public_get("/api/v3/ticker/24hr", params={"symbol": s}, timeout=6)
+        if isinstance(d, list) and d:
+            d = d[0]
+        return d if isinstance(d, dict) else None
+    except Exception:
+        pass
+    try:
+        import requests
+
+        r = requests.get(
+            f"{BASE_DATA_API}/api/v3/ticker/24hr",
+            params={"symbol": s},
+            timeout=6,
+        )
+        if r.ok:
+            d = r.json()
+            if isinstance(d, list) and d:
+                d = d[0]
+            return d if isinstance(d, dict) else None
+    except Exception:
+        return None
+    return None
+
+
+def _usdt_symbols(limit: int = 300) -> list[str]:
+    """
+    Універсальний відбір пар для TARGET_QUOTE без хардкодів.
+    Якщо 24h дані доступні — сортуємо за quoteVolume; інакше — алфавітом.
+    """
+    try:
+        ex = _load_exchange_info()
+        symbols = _collect_pairs(ex)
+        if not symbols:
+            return []
+        tick = _fetch24_multi(symbols[:300])
+
+        def qvol(s: str) -> float:
+            d = tick.get(s) or {}
+            try:
+                return float(d.get("quoteVolume") or 0.0)
+            except Exception:
+                return 0.0
+
+        if tick:
+            symbols.sort(key=lambda s: (-qvol(s), s))
+        else:
+            symbols.sort()
+        return symbols[:limit]
     except Exception as _exc:  # pragma: no cover - network
         try:
-            LOGGER.debug("24hr ticker for %s failed: %s", s, _exc)
+            LOGGER.warning("symbols build failed: %s", _exc)
         except Exception:
             pass
-        return None
+        return []
 
 
 import csv
@@ -78,6 +234,8 @@ from src.core.portfolio import BalanceSnapshot
 from src.core.utils import clamp
 
 LOGGER = logging.getLogger(__name__)
+
+BASE_DATA_API = "https://data-api.binance.vision"
 
 
 REGION_BIAS = {"us": 1.05, "asia": 1.03}
