@@ -1,0 +1,8 @@
+/var/log/convert.log {
+    daily
+    rotate 14
+    compress
+    missingok
+    notifempty
+    copytruncate
+}

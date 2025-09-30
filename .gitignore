@@ -1,18 +1,33 @@
+logs/
+__pycache__/
+*.pyc
+.venv/
+quote_count.json
+*.lock
+*.ipynb
+*.bak
+*.old
+*.tmp
 
-# 🔒 Ігнорування секретних файлів
-.env
-crypto-bot.env
-systemd/crypto-bot.env
+# local
 *.pyc
 __pycache__/
+.env
+
+# local backups
+*.bak.*
+src/**/*.bak.*
+!config_dev3.py
+# local config (не зберігати в репо)
+config_dev3.py
+
+# runtime / артефакти
+analyze/
+quote_guard/
 *.log
-*.tmp
-*.bak*
-*.backup.*
-.last_*
-last_total_balance.json
-balance_snapshot.json
-quote_limits.json
-env
-*.env
-/etc/crypto-bot.env
+__pycache__/
+*.pyc
+
+# local backups
+*.bak.*
+state/*.json
