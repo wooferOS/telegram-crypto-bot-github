@@ -1,45 +1,55 @@
+from __future__ import annotations
+
 import logging
-
-logger = logging.getLogger(__name__)
+import time
 from decimal import Decimal, ROUND_DOWN
+from typing import Any, Optional
+
 from . import convert_api as _real
+from .utils import rand_jitter
+from .convert_errors import classify
+
+log = logging.getLogger(__name__)
+
+# Оригінальні функції
+_orig_get_quote = _real.get_quote
+_orig_accept_quote = _real.accept_quote
 
 
-def _norm8(x):
+# Нормалізація до 8 знаків (вниз)
+def _norm8(x: Decimal) -> Decimal:
     if not isinstance(x, Decimal):
         x = Decimal(str(x))
     return x.quantize(Decimal("0.00000001"), rounding=ROUND_DOWN)
 
 
-if hasattr(_real, "get_quote"):
-    _orig_get_quote = _real.get_quote
-
-    def _wrapped_get_quote(from_asset, to_asset, amount, *args, **kwargs):
-        return _orig_get_quote(from_asset, to_asset, _norm8(amount), *args, **kwargs)
-
-    _real.get_quote = _wrapped_get_quote
-
-if hasattr(_real, "accept_quote"):
-    _orig_accept_quote = _real.accept_quote
-
-
-def _wrapped_accept_quote(quote, *args, **kwargs):
-    """Обгортка accept_quote:
-    - якщо quote це рядок — передаємо як є (сумісність із тестами);
-    - якщо dict/об'єкт — строго беремо quoteId і ПЕРЕДАЄМО його;
-    - ретрі при -1021/-429, бізнес-правила — лише лог і None.
+def _wrapped_get_quote(
+    from_asset: str,
+    to_asset: str,
+    amount: Decimal,
+    *args: Any,
+    **kwargs: Any,
+):
     """
-    import logging
-    import time
+    Обгортка get_quote:
+    - нормалізує amount до 8 знаків (ROUND_DOWN) перед викликом.
+    """
+    return _orig_get_quote(from_asset, to_asset, _norm8(amount), *args, **kwargs)
 
-    log = logging.getLogger(__name__)
 
-    # Визначаємо аргумент, який підемо приймати
-    pass_arg = None
+def _wrapped_accept_quote(quote: Any, *args: Any, **kwargs: Any):
+    """
+    Обгортка accept_quote:
+    - приймає або рядковий quoteId, або об’єкт/словник з полем quoteId/quote_id;
+    - при кодах -1021/-429 робить один ретрай із невеликим джитером;
+    - при бізнес-кодах (-2010 тощо) — WARN+пропуск (повертає None);
+    - інакше — проброс помилки.
+    """
+    # Узгоджуємо ідентифікатор котирування
     if isinstance(quote, str):
         pass_arg = quote
     else:
-        qid = None
+        qid: Optional[str] = None
         try:
             qid = getattr(quote, "quote_id", None) or getattr(quote, "quoteId", None)
         except Exception:
@@ -50,47 +60,28 @@ def _wrapped_accept_quote(quote, *args, **kwargs):
             raise ValueError("acceptQuote: відсутній quoteId у quote")
         pass_arg = qid
 
+    # Перший виклик
     try:
         return _orig_accept_quote(pass_arg, *args, **kwargs)
     except Exception as e:
-        from src.core.convert_errors import classify
-
-        policy = classify(e)
-
-        if policy == "sync_time_and_retry":
-            time.sleep(0.5)
+        kind = classify(e)
+        if kind == "retry":
+            # Невелика пауза з джитером і одна спроба повтору
+            delay = rand_jitter(0.3, spread=0.2)  # ~0.24..0.36s
+            time.sleep(delay)
             return _orig_accept_quote(pass_arg, *args, **kwargs)
-        if policy == "rate_limit_backoff":
-            from random import random
-
-            time.sleep(1.0 + random())
-            return _orig_accept_quote(pass_arg, *args, **kwargs)
-        if policy == "business_skip":
-            # Тести шукають буквальний підрядок "business_skip" у повідомленні:
-            log.warning("business_skip: Convert accept skipped for quote=%r", quote)
-            return None
-
-        # one-shot re-quote для прострочених/некоректних
-        try:
-            resp = getattr(e, "response", None)
-            body = (getattr(resp, "text", "") or "").lower()
-        except Exception:
-            body = ""
-        if ("quote" in body) or ("expire" in body) or ("invalid" in body):
+        if kind == "business":
+            # Бізнес-правило біржі: лог і пропуск
             try:
-                from .convert_api import get_quote
-
-                route = kwargs.get("route") or getattr(quote, "route", None)
-                amount = kwargs.get("amount") or getattr(quote, "amount", None)
-                wallet = kwargs.get("wallet", "SPOT")
-                if (route is not None) and (amount is not None):
-                    new_q = get_quote(route, amount, wallet=wallet, timeout=8)
-                    new_qid = (new_q or {}).get("quoteId")
-                    if new_qid:
-                        return _orig_accept_quote(new_qid, *args, **kwargs)
+                code = getattr(getattr(e, "response", None), "json", lambda: {})().get("code")
             except Exception:
-                pass
+                code = None
+            log.warning("business_skip: accept_quote skipped by business rule (code=%s, quoteId=%s)", code, pass_arg)
+            return None
+        # Інше — пробросимо далі
         raise
 
 
-_real.accept_quote = _wrapped_accept_quote
+# Експортуємо назовні обгортки замість оригіналів
+get_quote = _wrapped_get_quote
+accept_quote = _wrapped_accept_quote

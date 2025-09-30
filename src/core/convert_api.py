@@ -190,7 +190,6 @@ def _quote_once(
         "fromAmount": str(amount),
         "walletType": (wallet or "SPOT").upper(),
     }
-    _sleep_with_jitter()
     payload = binance_client.post("/sapi/v1/convert/getQuote", params, signed=True)
     _log_getquote_response(payload)
     if not isinstance(payload, dict):
@@ -267,11 +266,12 @@ def execute_conversion(
     wallet: str = "SPOT",
     retry: int | None = None,
 ) -> Dict[str, Any]:
-    """Execute direct conversion (single hop)."""
+    """Execute direct conversion (single hop) with 1-shot auto-requote on expired (345231)."""
 
     info = _safe_exchange_info(from_asset, to_asset)
     if info:
         ensure_amount_and_limits(info, amount)
+
     quote = get_quote(from_asset, to_asset, amount, wallet, retry=retry)
     if not quote:
         raise RuntimeError(f"quote failed for {from_asset}->{to_asset}")
@@ -280,7 +280,31 @@ def execute_conversion(
         quote = get_quote(from_asset, to_asset, amount, wallet, retry=retry)
         if not quote:
             raise RuntimeError("quote failed after retry")
-    result = accept_quote(quote)
+        if quote.expired():
+            raise RuntimeError("fresh quote already expired")
+
+    # Try accept; if server says "expired" (code 345231), get a fresh quote once and accept again.
+    try:
+        result = accept_quote(quote.quote_id)
+    except Exception as e:
+        resp = getattr(e, "response", None)
+        code = None
+        try:
+            code = (resp.json() or {}).get("code") if resp is not None else None
+        except Exception:
+            code = None
+
+        if code == 345231:
+            LOGGER.warning("acceptQuote says expired (345231), re-quoting once for %s->%s", from_asset, to_asset)
+            quote = get_quote(from_asset, to_asset, amount, wallet, retry=1)
+            if not quote:
+                raise RuntimeError("re-quote failed after 345231") from e
+            if quote.expired():
+                raise RuntimeError("re-quoted quote already expired") from e
+            result = accept_quote(quote.quote_id)
+        else:
+            raise
+
     result.setdefault("quote", quote.raw)
     return result
 
@@ -353,3 +377,13 @@ def preferred_route(from_assets: Iterable[str], target: str) -> Optional[Convert
 def get_trade_flow(start_time: int, end_time: int, limit: int = 100) -> Dict[str, Any]:
     params = {"startTime": int(start_time), "endTime": int(end_time), "limit": int(limit)}
     return binance_client.get("/sapi/v1/convert/tradeFlow", params, signed=True)
+
+
+def convert_now(from_asset: str, to_asset: str, amount: Decimal, wallet: str = "SPOT") -> Dict[str, Any] | None:
+    """
+    Безпечна одноопераційна конвертація:
+    - get_quote(validTime=30s вже налаштовано у _quote_once)
+    - accept + до двох auto-requote при 345231
+    Повертає payload з orderId або None (business_skip).
+    """
+    return execute_conversion(from_asset, to_asset, amount, wallet=wallet, retry=1)
