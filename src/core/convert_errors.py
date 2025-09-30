@@ -1,21 +1,32 @@
 from __future__ import annotations
 
-ERROR_POLICY = {
-    -23000: "fix_amount_and_retry_once",  # «макс. 8 знаків» — ми вже нормалізуємо
-    -1021: "sync_time_and_retry",  # Timestamp for this request is outside recvWindow
-    -1003: "rate_limit_backoff",  # Too many requests
-    -2010: "business_skip",  # new order rejected / business rule
-    -2011: "business_skip",  # cancel rejected / business rule
-}
+from typing import Optional
+
+# Коди, які треба ретраїти (часовий дрейф, rate limit)
+_RETRY_CODES = {-1021, -429}
+# Бізнес-правила біржі: не падати, а логувати й пропускати
+_BUSINESS_CODES = {-2010, -2011, -1102, -1111}
 
 
-def classify(exc) -> str:
-    code = None
+def _extract_code(exc: Exception) -> Optional[int]:
     resp = getattr(exc, "response", None)
-    if resp is not None:
-        try:
-            j = resp.json()
-            code = j.get("code")
-        except Exception:
-            pass
-    return ERROR_POLICY.get(code, "unknown")
+    if resp is None:
+        return None
+    try:
+        data = resp.json()
+        code = data.get("code")
+        return int(code) if code is not None else None
+    except Exception:
+        return None
+
+
+def classify(exc: Exception) -> str:
+    """
+    Повертає одну з категорій: "retry" | "business" | "other".
+    """
+    code = _extract_code(exc)
+    if code in _RETRY_CODES:
+        return "retry"
+    if code in _BUSINESS_CODES:
+        return "business"
+    return "other"
