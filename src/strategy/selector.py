@@ -268,8 +268,19 @@ import config_dev3 as config
 
 from src.core import convert_api
 from src.core.convert_api import ConvertRoute
-from src.core.portfolio import BalanceSnapshot
-from src.core.utils import clamp
+
+try:
+    from src.core.portfolio import BalanceSnapshot
+except Exception:  # lazy import guard for ops checks
+    BalanceSnapshot = None
+
+try:
+    from src.core.utils import clamp
+except Exception:
+
+    def clamp(x, a, b):
+        return max(a, min(b, x))
+
 
 LOGGER = logging.getLogger(__name__)
 

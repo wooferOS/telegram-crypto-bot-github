@@ -13,6 +13,14 @@ import config_dev3 as config
 from src import app
 from src.core import balance, convert_api, utils
 
+try:
+    import config_dev3 as _cfg
+
+    logging.info("config in use: %s", getattr(_cfg, "__file__", "<unknown>"))
+except Exception:
+    pass
+
+
 LOGGER = logging.getLogger(__name__)
 
 
