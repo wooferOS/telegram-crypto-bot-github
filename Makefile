@@ -42,3 +42,7 @@ status:                                    ## concise status of services
 
 help:                                      ## this help
 	@awk 'BEGIN{FS=":.*##"; printf "\nTargets:\n"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST); echo
+
+## ===== Observability: audit =====
+audit-today: ## run quiet audit for today
+	./scripts/audit_quiet_today.sh
