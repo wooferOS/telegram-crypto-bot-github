@@ -1,0 +1,9 @@
+"""Core package: explicit submodule imports to avoid any recursive lazy-loading."""
+from importlib import import_module as _im
+
+# ЯВНІ імпорти підмодулів (без __getattr__/from . import ...)
+balance        = _im(__name__ + ".balance")
+binance_client = _im(__name__ + ".binance_client")
+convert_api    = _im(__name__ + ".convert_api")
+
+__all__ = ["balance", "binance_client", "convert_api"]

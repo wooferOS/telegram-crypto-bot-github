@@ -31,3 +31,5 @@ __pycache__/
 # local backups
 *.bak.*
 state/*.json
+src/strategy/selector.py.bak.*
+*.bak*

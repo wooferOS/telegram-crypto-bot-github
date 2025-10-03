@@ -1,5 +1,4 @@
 """Command line interface for Convert automation helpers."""
-
 from __future__ import annotations
 
 import src.boot_guard  # patches requests acceptQuote guard  # noqa: F401
@@ -11,54 +10,7 @@ from decimal import Decimal
 
 import config_dev3 as config
 from src import app
-
-def _get(q, key, default=None):
-    # універсальний доступ до полів quote:
-    # - dict: q.get(key)
-    # - об'єкт: getattr(q, key)
-    try:
-        return q.get(key, default)
-    except Exception:
-        return getattr(q, key, default)
-
-
-def _print_quote(quote):
-    if quote is None:
-        print("No quote")
-        return
-    try:
-        d = dict(quote)
-    except Exception:
-        d = {
-            "price": getattr(quote, "price", None),
-            "ratio": getattr(quote, "price", None),
-            "toAmount": getattr(quote, "to_amount", None),
-            "toAmountExpected": getattr(quote, "to_amount", None),
-            "expireTime": getattr(quote, "expire_time_ms", None),
-            "insufficient": getattr(quote, "insufficient", False),
-            "available": getattr(quote, "available", None),
-        }
-    ratio = d.get("ratio") or d.get("price")
-    if ratio is not None:
-        print(f"Ratio: {ratio}")
-    to_amount = d.get("toAmount") or d.get("toAmountExpected")
-    if to_amount is not None:
-        print(f"To amount: {to_amount}")
-    expire = d.get("expireTime")
-    if expire:
-        print(f"Expires: {expire}")
-    if d.get("insufficient"):
-        print(f"Warning: insufficient balance (available={d.get('available')})")
-
 from src.core import balance, convert_api, utils
-
-try:
-    import config_dev3 as _cfg
-
-    logging.info("config in use: %s", getattr(_cfg, "__file__", "<unknown>"))
-except Exception:
-    pass
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -80,6 +32,18 @@ def _print_header(args: argparse.Namespace) -> None:
     print(f"Quote {str(fa).upper()}→{str(ta).upper()} wallet={w} amount={amt}")
 
 
+def _print_quote(quote: dict) -> None:
+    ratio = quote.get("ratio") or quote.get("price")
+    if ratio is not None:
+        print(f"Ratio: {ratio}")
+    to_amount = quote.get("toAmount") or quote.get("toAmountExpected")
+    if to_amount is not None:
+        print(f"To amount: {to_amount}")
+    expire = quote.get("expireTime")
+    if expire:
+        print(f"Expires: {expire}")
+    if quote.get("insufficient"):
+        print(f"Warning: insufficient balance (available={quote.get('available')})")
 
 
 def cmd_info(args: argparse.Namespace) -> None:
@@ -129,11 +93,11 @@ def cmd_now(args: argparse.Namespace) -> None:
     )
     _print_quote(quote)
 
-    if _get(quote,"insufficient"):
+    if quote.get("insufficient"):
         print("Conversion skipped: insufficient balance")
         return
 
-    quote_id = _get(quote,"quoteId")
+    quote_id = quote.get("quoteId")
     if not quote_id:
         # print("Quote did not return quoteId; aborting", file=sys.stderr)
         sys.exit(1)

@@ -1,30 +1,15 @@
-from __future__ import annotations
-from decimal import Decimal
-import math
-import logging
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from src.core.convert_api import ConvertRoute
-else:
-    class ConvertRoute:  # type: ignore
-        pass
-
-log = logging.getLogger(__name__)
-
-import json
-
-from dataclasses import dataclass
-import requests
-import csv
-from src.core import convert_api
-import config_dev3 as config
-
 """Candidate selection for Convert trades."""
 
 
+from __future__ import annotations
+import logging
+
 LOGGER = logging.getLogger(__name__)
+
+import config_dev3 as config
 TARGET_QUOTE = getattr(config, "TARGET_QUOTE", "USDT").upper()
+
+
 def _load_exchange_info() -> dict:
     """
     Повертає dict з ключем "symbols".
@@ -41,13 +26,16 @@ def _load_exchange_info() -> dict:
             LOGGER.warning("exchangeInfo fetch skipped: %s", _exc)
         except Exception:
             pass
+
     # Нормалізація convert-відповіді
     if isinstance(data, dict) and "symbols" in data:
         return data
     if isinstance(data, list):
         return {"symbols": data}
+
     # Публічний фолбек
     try:
+        from src.core import convert_api
         publ = convert_api.binance_client.public_get("/api/v3/exchangeInfo", timeout=6)
         if isinstance(publ, list):
             return {"symbols": publ}
@@ -55,7 +43,10 @@ def _load_exchange_info() -> dict:
             return publ
     except Exception:
         pass
+
     return {"symbols": []}
+
+
 def _collect_pairs(ex: dict) -> list[str]:
     """
     Витягує коди пар для TARGET_QUOTE з різних схем:
@@ -73,22 +64,27 @@ def _collect_pairs(ex: dict) -> list[str]:
             continue
         if not isinstance(rec, dict):
             continue
-        base = str(rec.get("baseAsset") or rec.get("fromAsset") or rec.get("b") or "").upper()
-        quote = str(rec.get("quoteAsset") or rec.get("toAsset") or rec.get("q") or "").upper()
-        sym = str(rec.get("symbol") or rec.get("s") or "").upper()
+
+        base  = str(rec.get("baseAsset") or rec.get("fromAsset") or rec.get("b") or "").upper()
+        quote = str(rec.get("quoteAsset") or rec.get("toAsset")   or rec.get("q") or "").upper()
+        sym   = str(rec.get("symbol")    or rec.get("s")          or "").upper()
         if not sym and base and quote:
             sym = base + quote
+
         st = rec.get("status") or rec.get("st")
-        is_trading = st in ("TRADING", "ENABLED", None)
+        is_trading = (st in ("TRADING", "ENABLED", None))
+
         if sym and (quote == TARGET_QUOTE or sym.endswith(TARGET_QUOTE)) and is_trading:
             out.append(sym)
+
     # Дедуп з порядком
     seen, res = set(), []
     for s in out:
         if s not in seen:
-            seen.add(s)
-            res.append(s)
+            seen.add(s); res.append(s)
     return res
+
+
 # --- ПІДНІМАЄМО сюди, щоб _usdt_symbols бачив цю функцію ---
 def _fetch24_multi(symbols: list[str]) -> dict[str, dict]:
     """Fetch many 24hr tickers in one call. Returns {SYMBOL: payload}.
@@ -96,13 +92,17 @@ def _fetch24_multi(symbols: list[str]) -> dict[str, dict]:
     - 2га спроба: абсолютний https://data-api.binance.vision/... через requests
     - Якщо все впало — {}
     """
+    import json
     out: dict[str, dict] = {}
     symbols = [s for s in symbols if s]
     if not symbols:
         return out
+
     params = {"symbols": json.dumps(symbols, separators=(",", ":"))}
+
     # primary: наш клієнт (PATH)
     try:
+        from src.core import convert_api
         data = convert_api.binance_client.public_get("/api/v3/ticker/24hr", params=params, timeout=6)
         for d in data or []:
             sym = (d.get("symbol") or "").upper()
@@ -112,8 +112,10 @@ def _fetch24_multi(symbols: list[str]) -> dict[str, dict]:
             return out
     except Exception:
         pass
+
     # fallback: абсолютний URL через requests
     try:
+        import requests
         url = "https://data-api.binance.vision/api/v3/ticker/24hr"
         # Санітайзер на випадок випадкових // у майбутніх змiнах
         if url.startswith("//"):
@@ -131,7 +133,9 @@ def _fetch24_multi(symbols: list[str]) -> dict[str, dict]:
                 return out
     except Exception:
         pass
+
     return {}
+
 def _fetch24_cached(s: str):
     """
     Отримує один 24hr тикер по символу.
@@ -140,6 +144,7 @@ def _fetch24_cached(s: str):
     Повертає dict або None.
     """
     try:
+        from src.core import convert_api
         params = {"symbol": s}
         d = convert_api.binance_client.public_get("/api/v3/ticker/24hr", params=params, timeout=6)
         if isinstance(d, list) and d:
@@ -148,6 +153,7 @@ def _fetch24_cached(s: str):
     except Exception:
         pass
     try:
+        import requests
         url = "https://data-api.binance.vision/api/v3/ticker/24hr"
         r = requests.get(url, params={"symbol": s}, timeout=6)
         if r.ok:
@@ -158,8 +164,11 @@ def _fetch24_cached(s: str):
     except Exception:
         return None
     return None
+
+
     params = {"symbols": json.dumps(symbols, separators=(",", ":"))}
     try:
+        from src.core import convert_api
         data = convert_api.binance_client.public_get("/api/v3/ticker/24hr", params=params, timeout=6)
         for d in data or []:
             sym = (d.get("symbol") or "").upper()
@@ -169,8 +178,10 @@ def _fetch24_cached(s: str):
             return out
     except Exception:
         pass
+
     # Абсолютний фолбек — requests напряму, щоб не ламати URL
     try:
+        import requests
         url = "https://data-api.binance.vision/api/v3/ticker/24hr"
         r = requests.get(url, params=params, timeout=6)
         if r.ok:
@@ -182,6 +193,7 @@ def _fetch24_cached(s: str):
     except Exception:
         # тихо повертаємо {}, сортування піде алфавітом
         return {}
+
     return out
     params = {"symbols": json.dumps(symbols, separators=(",", ":"))}
     try:
@@ -196,25 +208,66 @@ def _fetch24_cached(s: str):
             out[sym] = d
     return out
 # ------------------------------------------------------------
+
+
 def _usdt_symbols(limit: int = 300) -> list[str]:
     """
-    Фолбек: беремо всі 24hr тікери, лишаємо *USDT, сортуємо за quoteVolume та обрізаємо до limit.
+    Універсальний відбір пар для TARGET_QUOTE без хардкодів.
+    Якщо 24h дані доступні — сортуємо за quoteVolume; інакше — алфавітом.
     """
-    from src.core import binance_client
-    data = binance_client.public_ticker_24hr(None)  # без symbol -> список
-    symbols = []
-    for row in (data or []):
-        sym = (row.get("symbol") or "").upper()
-        if sym.endswith("USDT"):
-            symbols.append((sym, float(row.get("quoteVolume") or 0.0)))
-    symbols.sort(key=lambda t: t[1], reverse=True)
-    return [t[0] for t in symbols[:limit]]
+    try:
+        ex = _load_exchange_info()
+        symbols = _collect_pairs(ex)
+        if not symbols:
+            return []
+        tick = _fetch24_multi(symbols[:300])
+
+        def qvol(s: str) -> float:
+            d = tick.get(s) or {}
+            try:
+                return float(d.get("quoteVolume") or 0.0)
+            except Exception:
+                return 0.0
+
+        if tick:
+            symbols.sort(key=lambda s: (-qvol(s), s))
+        else:
+            symbols.sort()
+        return symbols[:limit]
+    except Exception as _exc:  # pragma: no cover - network
+        try:
+            LOGGER.warning("symbols build failed: %s", _exc)
+        except Exception:
+            pass
+        return []
+
+import csv
+import json
+import logging
+import math
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Sequence
+
+import requests
+
+import config_dev3 as config
+
+from src.core import convert_api
+from src.core.convert_api import ConvertRoute
+from src.core.portfolio import BalanceSnapshot
+from src.core.utils import clamp
+
 LOGGER = logging.getLogger(__name__)
+
+
 REGION_BIAS = {"us": 1.05, "asia": 1.03}
-DEFAULT_MIN_VOLUME = getattr(config, "MIN_VOLUME_USDT", 2_000_000)
-DEFAULT_MAX_SPREAD_BPS = getattr(config, "MAX_SPREAD_BPS", 10.0)
+DEFAULT_MIN_VOLUME = getattr(config, "MIN_VOLUME_USDT", 5_000_000)
+DEFAULT_MAX_SPREAD_BPS = getattr(config, "MAX_SPREAD_BPS", 5.0)
 TOP_K = getattr(config, "TOP_K", 5)
 SHORTLIST_MULT = getattr(config, "SHORTLIST_MULT", 2)
+
+
 @dataclass
 class Candidate:
     rank: int
@@ -229,6 +282,7 @@ class Candidate:
     route_desc: str
     min_quote: float
     max_quote: float
+
     def as_dict(self) -> Dict[str, Any]:
         return {
             "rank": self.rank,
@@ -244,16 +298,22 @@ class Candidate:
             "max_quote": self.max_quote,
             "route_steps": [{"from": step.from_asset, "to": step.to_asset} for step in self.route.steps],
         }
+
+
 def _normalise_base(symbol: str) -> tuple[str, str]:
     symbol = symbol.upper()
     if symbol.endswith("USDT"):
         return symbol[:-4], "USDT"
     return symbol, ""
+
+
 def _route_description(route: ConvertRoute) -> str:
     if route.is_direct:
         return "direct"
     hubs = [step.to_asset for step in route.steps[:-1]]
     return "hub:" + "|".join(hubs)
+
+
 def _compute_spread_bps(bid: float, ask: float) -> float:
     if bid <= 0 or ask <= 0:
         return 999.0
@@ -261,6 +321,8 @@ def _compute_spread_bps(bid: float, ask: float) -> float:
     if mid <= 0:
         return 999.0
     return abs(ask - bid) / mid * 10_000
+
+
 def _score_item(qvol: float, chg_pct: float, spread_bps: float, region: str) -> float:
     liquidity = math.log10(max(qvol, 0.0) + 1.0)
     momentum = 1.0 + clamp(chg_pct, -50.0, 50.0) / 100.0
@@ -268,12 +330,16 @@ def _score_item(qvol: float, chg_pct: float, spread_bps: float, region: str) -> 
     base_score = max(0.0, liquidity * momentum / spread_penalty)
     bias = REGION_BIAS.get(region, 1.0)
     return base_score * bias
+
+
 def _route_limits(route: ConvertRoute) -> tuple[float, float]:
     if not route.steps:
         return 0.0, 0.0
     first = route.steps[0]
     limits = convert_api.limits_for_pair(first.from_asset, first.to_asset)
     return float(limits.minimum), float(limits.maximum)
+
+
 def select_candidates(
     region: str,
     snapshot: BalanceSnapshot,
@@ -282,11 +348,13 @@ def select_candidates(
     top_k: int = TOP_K,
 ) -> List[Candidate]:
     try:
-        from src.core import binance_client
-        # Один запит: /api/v3/ticker/24hr -> список усіх тікерів
-        all_24 = binance_client.public_ticker_24hr(None)
-        tickers = [row for row in (all_24 or []) if isinstance(row, dict)]
-    except Exception as exc:  # мережеві/HTTP/JSON — усе сюди
+        syms = _usdt_symbols()
+        tickers: list[dict] = []
+        for s_ in syms:
+            d = _fetch24_cached(s_)
+            if isinstance(d, dict):
+                tickers.append(d)
+    except requests.RequestException as exc:  # pragma: no cover - network
         LOGGER.error("ticker/24hr fetch failed: %s", exc)
         return []
     from_assets = snapshot.from_assets
@@ -298,11 +366,6 @@ def select_candidates(
     for row in tickers:
         symbol = (row.get("symbol") or "").upper()
         base, quote = _normalise_base(symbol)
-        # skip exotic bases like 2Z, A1, etc. — allow only letters and len >= 3
-
-        if (not base.isalpha()) or len(base) < 3:
-
-            continue
         if quote != "USDT":
             continue
         last_price = float(row.get("lastPrice") or 0.0)
@@ -334,6 +397,7 @@ def select_candidates(
     _tk = top_k or len(items)
     n = min(len(items), _tk * SHORTLIST_MULT)
     shortlist = items[:n]
+
     # 3) Роутимо ТІЛЬКИ shortlist і добираємо до top_k
     for it in shortlist:
         base = it["base"]
@@ -360,11 +424,12 @@ def select_candidates(
         candidates.append(candidate)
         if top_k and len(candidates) >= top_k:
             break
+
     candidates.sort(key=lambda c: c.score, reverse=True)
     selected = candidates[: top_k or len(candidates)]
     for idx, cand in enumerate(selected, start=1):
-
         cand.rank = idx
+
     summary_path = snapshot.log_dir / "summary.txt"
     with summary_path.open("a", encoding="utf-8") as fh:
         fh.write(f"Region={region} Total={len(selected)} pr_calls={pr_calls}\n")
@@ -372,6 +437,7 @@ def select_candidates(
             fh.write("Rejections:" + "\n")
             for key, val in sorted(rejections.items()):
                 fh.write(f"  {key}: {val}\n")
+
     csv_path = snapshot.log_dir / f"candidates.{region}.csv"
     with csv_path.open("w", newline="") as fh:
         writer = csv.writer(fh)
@@ -406,10 +472,9 @@ def select_candidates(
                     cand.max_quote,
                 ]
             )
+
     json_path = snapshot.log_dir / f"candidates.{region}.json"
     with json_path.open("w", encoding="utf-8") as fh:
         json.dump([cand.as_dict() for cand in selected], fh, indent=2)
+
     return selected
-def clamp(x: float, a: float, b: float) -> float:
-    """Обмежує значення x у діапазоні [a, b]."""
-    return max(a, min(b, x))

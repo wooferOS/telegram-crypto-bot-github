@@ -1,90 +1,71 @@
 from __future__ import annotations
-import hashlib
-import hmac
-import time
-from typing import Any, Dict, Optional
+import time, hmac, hashlib, requests
 from urllib.parse import urlencode
-import requests
-import config_dev3 as config  # очікуємо BINANCE_API_KEY, BINANCE_API_SECRET, опц. BINANCE_BASE_URL, RECV_WINDOW_MS
+import config_dev3 as config
 
-BASE_URL = getattr(config, "BINANCE_BASE_URL", "https://api.binance.com").rstrip("/")
-API_KEY = getattr(config, "BINANCE_API_KEY", "")
-API_SECRET_TEXT = getattr(config, "BINANCE_API_SECRET", "")
-API_SECRET = API_SECRET_TEXT.encode("utf-8") if isinstance(API_SECRET_TEXT, str) else (API_SECRET_TEXT or b"")
+API_KEY    = getattr(config, "BINANCE_API_KEY", "")
+API_SECRET = getattr(config, "BINANCE_API_SECRET", "")
+BASE_URL   = getattr(config, "BINANCE_API_BASE", "https://api.binance.com").rstrip("/")
+RECV_WIN   = int(getattr(config, "RECV_WINDOW_MS", 5000))
 
-RECV_WINDOW_MS_DEFAULT = int(getattr(config, "RECV_WINDOW_MS", 5000))
+def _headers() -> dict:
+    return {"X-MBX-APIKEY": API_KEY} if API_KEY else {}
 
-session = requests.Session()
-if API_KEY:
-    session.headers.update({"X-MBX-APIKEY": API_KEY})
+def _sign(params: dict) -> dict:
+    if not API_SECRET:
+        raise RuntimeError("BINANCE_API_SECRET missing in config_dev3.py")
+    params = dict(params or {})
+    params.setdefault("timestamp", int(time.time() * 1000))
+    params.setdefault("recvWindow", RECV_WIN)
+    q = urlencode(params, doseq=True)
+    sig = hmac.new(API_SECRET.encode(), q.encode(), hashlib.sha256).hexdigest()
+    params["signature"] = sig
+    return params
 
+def public_get(path: str, params=None, timeout=10):
+    url = BASE_URL + path
+    r = requests.get(url, params=params or {}, timeout=timeout)
+    r.raise_for_status()
+    return r.json()
 
-def _is_convert(path: str) -> bool:
-    return "/sapi/v1/convert/" in (path or "")
-
-
-def _sign(params: Dict[str, Any]) -> str:
-    qs = urlencode(params, doseq=True)
-    return hmac.new(API_SECRET, qs.encode("utf-8"), hashlib.sha256).hexdigest()
-
-
-def _request(method: str, path: str, params: Optional[Dict[str, Any]] = None, signed: bool = True) -> requests.Response:
-    if params is None:
-        params = {}
-
-    # Додаємо таймштамп і recvWindow для підписаних запитів
+def get(path: str, params=None, signed=False, timeout=10):
+    url = BASE_URL + path
+    params = dict(params or {})
     if signed:
-        params = dict(params)
-        params.setdefault("timestamp", int(time.time() * 1000))
-        # Для convert — збільшуємо recvWindow до 60000 за замовчуванням
-        if _is_convert(path):
-            params.setdefault("recvWindow", 60000)
-        else:
-            params.setdefault("recvWindow", RECV_WINDOW_MS_DEFAULT)
-        params["signature"] = _sign(params)
-
-    url = f"{BASE_URL}{path}"
-    resp = session.request(method.upper(), url, params=params, timeout=15)
-    # Нехай піднімає HTTPError при 4xx/5xx — верхній рівень уже логгує
-    resp.raise_for_status()
-    return resp
+        params = _sign(params)
+    r = requests.get(url, params=params, headers=_headers(), timeout=timeout)
+    r.raise_for_status()
+    return r.json()
 
 
-# -------- Публічні ендпоінти --------
-def public_ticker_24hr(symbol: Optional[str] = None):
-    p: Dict[str, Any] = {}
-    if symbol:
-        p["symbol"] = symbol
-    return _request("GET", "/api/v3/ticker/24hr", p, signed=False).json()
+def post(path: str, params=None, signed=False, timeout=10):
+    url = BASE_URL + path
+    data = dict(params or {})
+    if signed:
+        data = _sign(data)
+    r = requests.post(url, data=data, headers=_headers(), timeout=timeout)
+    r.raise_for_status()
+    return r.json()
 
 
-# -------- Convert API (signed) --------
-def get_convert_exchange_info(from_asset: str, to_asset: str) -> Dict[str, Any]:
-    p = {"fromAsset": (from_asset or "").upper(), "toAsset": (to_asset or "").upper()}
-    return _request("GET", "/sapi/v1/convert/exchangeInfo", p, signed=True).json()
+def get_convert_exchange_info(from_asset: str, to_asset: str, timeout=10):
+    """SIGNED /sapi/v1/convert/exchangeInfo (нормалізовано під наш convert_api)."""
+    params = {"fromAsset": (from_asset or '').upper(), "toAsset": (to_asset or '').upper()}
+    return get("/sapi/v1/convert/exchangeInfo", params, signed=True, timeout=timeout)
 
+def public_ticker_24hr(symbol: str | None = None, timeout=10):
+    """GET /api/v3/ticker/24hr
+    - якщо symbol заданий -> dict по конкретному символу
+    - якщо None -> list по всіх символах
+    """
+    symbol = (symbol or "").upper()
+    params = {"symbol": symbol} if symbol else {}
+    return public_get("/api/v3/ticker/24hr", params, timeout=timeout)
 
-def post_convert_get_quote(
-    from_asset: str, to_asset: str, from_amount: str, wallet_type: str = "SPOT"
-) -> requests.Response:
-    p = {
-        "fromAsset": (from_asset or "").upper(),
-        "toAsset": (to_asset or "").upper(),
-        "fromAmount": str(from_amount),
-        "walletType": (wallet_type or "SPOT").upper(),
-    }
-    return _request("POST", "/sapi/v1/convert/getQuote", p, signed=True)
+def public_book_ticker(symbol: str, timeout=10):
+    """GET /api/v3/ticker/bookTicker?symbol=BTCUSDT"""
+    symbol = (symbol or "").upper()
+    return public_get("/api/v3/ticker/bookTicker", {"symbol": symbol}, timeout=timeout)
 
-
-def post_convert_accept_quote(quote_id: str) -> requests.Response:
-    p = {"quoteId": quote_id}
-    return _request("POST", "/sapi/v1/convert/acceptQuote", p, signed=True)
-
-
-def get_convert_order_status(order_id: Optional[str] = None, quote_id: Optional[str] = None) -> Dict[str, Any]:
-    p: Dict[str, Any] = {}
-    if order_id:
-        p["orderId"] = order_id
-    if quote_id:
-        p["quoteId"] = quote_id
-    return _request("GET", "/sapi/v1/convert/orderStatus", p, signed=True).json()
+def public_ticker_24hr_all(timeout=10):
+    return public_ticker_24hr(None, timeout=timeout)

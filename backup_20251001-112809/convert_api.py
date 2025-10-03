@@ -387,39 +387,3 @@ def convert_now(from_asset: str, to_asset: str, amount: Decimal, wallet: str = "
     Повертає payload з orderId або None (business_skip).
     """
     return execute_conversion(from_asset, to_asset, amount, wallet=wallet, retry=1)
-
-
-from decimal import Decimal
-from collections import namedtuple
-Limits = namedtuple("Limits", ["minimum","maximum"])
-
-def get_exchange_info(from_asset: str, to_asset: str) -> dict:
-    # fast-guard: skip no-op requests like X→X
-    if str(from_asset) == str(to_asset):
-        try: logger
-        except NameError:
-            import logging as _lg; logger = _lg.getLogger(__name__)
-        logger.debug("exchangeInfo skipped: identical assets (%s)", from_asset)
-        return {}
-    """SIGNED: /sapi/v1/convert/exchangeInfo для пари."""
-    try:
-        return binance_client.get(
-            "/sapi/v1/convert/exchangeInfo",
-            {"fromAsset": from_asset.upper(), "toAsset": to_asset.upper()},
-            signed=True,
-        )
-    except Exception as e:
-        LOGGER.warning("get_exchange_info failed: %s", e)
-        return {}
-
-def limits_for_pair(from_asset: str, to_asset: str) -> Limits:
-    info = get_exchange_info(from_asset, to_asset)
-    data = info.get("data") if isinstance(info, dict) else None
-    if not isinstance(data, dict):
-        return Limits(Decimal("0"), Decimal("0"))
-    try:
-        mi = Decimal(str(data.get("fromAssetMinAmount") or "0"))
-        mx = Decimal(str(data.get("fromAssetMaxAmount") or "0"))
-        return Limits(mi, mx)
-    except Exception:
-        return Limits(Decimal("0"), Decimal("0"))

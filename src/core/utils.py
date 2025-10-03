@@ -15,26 +15,25 @@ def now_ms() -> int:
 
 
 def rand_jitter(
-    base: float | int = 1.0,
+    base: float | int | tuple = 1.0,
     *,
     spread: float = 0.05,
     seed: int | None = None,
 ) -> float:
     """
-    Повертає base * (1 + u), де u ~ U(-spread, +spread).
-    Якщо seed задано — генерація детермінована.
+    Якщо base — число: повертає base * (1 + u), де u ~ U(-spread, +spread).
+    Якщо base — tuple(min, max): повертає випадкове число U(min, max).
     """
     rng = random.Random(seed) if seed is not None else random
+    if isinstance(base, tuple) and len(base) == 2:
+        lo, hi = base
+        return rng.uniform(float(lo), float(hi))
     u = rng.uniform(-abs(spread), abs(spread))
     return float(base) * (1.0 + u)
 
 
 def decimal_from_any(x: Any) -> Decimal:
-    """
-    Надійно перетворює int|float|str|Decimal|None -> Decimal.
-    - float через str(x), щоб уникати FP-артефактів;
-    - None -> Decimal('0').
-    """
+    """Надійно перетворює int|float|str|Decimal|None -> Decimal."""
     if isinstance(x, Decimal):
         return x
     if x is None:
@@ -61,6 +60,16 @@ def ensure_amount_and_limits(amount: Any, *args: Any, **kwargs: Any) -> Decimal:
     """
     Тимчасовий шім до повної реалізації:
     приводить amount до Decimal і повертає його як нормалізоване значення.
-    Параметри *args/**kwargs залишені для сумісності існуючих викликів.
     """
     return decimal_from_any(amount)
+
+
+from decimal import Decimal, ROUND_DOWN
+
+def floor_str_8(value) -> str:
+    d = Decimal(str(value))
+    q = d.quantize(Decimal("0.00000001"), rounding=ROUND_DOWN)
+    s = format(q, "f")
+    if "." in s:
+        s = s.rstrip("0").rstrip(".")
+    return s
