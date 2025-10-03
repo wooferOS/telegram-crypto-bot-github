@@ -55,7 +55,7 @@ def run(region: str, phase: Phase, dry_run: Optional[bool] = None) -> int:
             except Exception:
                 _cfg = None
             dry_run = bool(getattr(_cfg, 'DRY_RUN', 1))
-    logging.info('app.run(region=%s, phase=%s, dry_run=%s)', region, phase, dry_run)
+    logging.debug('app.run(region=%s, phase=%s, dry_run=%s)', region, phase, dry_run)
     # ## DRY-RESOLVE END
     log = logging.getLogger(__name__)
     log.info("app.run(region=%s, phase=%s, dry_run=%s)", region, phase, dry_run)
